@@ -1,0 +1,87 @@
+import { XMLBool, XMLDictionary, XMLFloat, XMLInt, XMLObject, XMLString } from '../xml'
+import type { GenerationContext } from '../core/context'
+
+interface DoodadTypeDef {
+  /** path template; %s slots are substituted with the theme letter */
+  path: string
+  xOffset: number
+  yOffset: number
+  /** how many times the theme letter is substituted into the path */
+  themeSubs: 0 | 1 | 2
+}
+
+/** Wall pieces, torches, vendors, exits… (ported from Doodad.java's DoodadType enum). */
+export const DoodadType = {
+  VendorMisc: { path: 'doodads/special/vendor_misc.xml', xOffset: 0, yOffset: 0, themeSubs: 0 },
+  VendorCombo: { path: 'doodads/special/vendor_combo.xml', xOffset: 0, yOffset: 0, themeSubs: 0 },
+  VendorOffense: { path: 'doodads/special/vendor_offense.xml', xOffset: 0, yOffset: 0, themeSubs: 0 },
+  VendorDefense: { path: 'doodads/special/vendor_defense.xml', xOffset: 0, yOffset: 0, themeSubs: 0 },
+  Spawn: { path: 'doodads/generic/marker_spawn.xml', xOffset: 1, yOffset: 1, themeSubs: 0 },
+  ExitMarker: { path: 'doodads/generic/marker_exit.xml', xOffset: 0, yOffset: 0, themeSubs: 0 },
+  CornerLD: { path: 'doodads/theme_%s/%s_crn_l_dn.xml', xOffset: 0, yOffset: 2, themeSubs: 2 },
+  CornerLU: { path: 'doodads/theme_%s/%s_crn_l_up.xml', xOffset: 0, yOffset: 1, themeSubs: 2 },
+  CornerRD: { path: 'doodads/theme_%s/%s_crn_r_dn.xml', xOffset: 0, yOffset: 2, themeSubs: 2 },
+  CornerRU: { path: 'doodads/theme_%s/%s_crn_r_up.xml', xOffset: 0, yOffset: 1, themeSubs: 2 },
+  ExitDn: { path: 'doodads/theme_%s/%s_exit_h_dn.xml', xOffset: 0, yOffset: 0, themeSubs: 2 },
+  ExitUp: { path: 'doodads/theme_%s/%s_exit_h_up.xml', xOffset: 0, yOffset: 0, themeSubs: 2 },
+  Horizontal: { path: 'doodads/theme_%s/%s_h_8.xml', xOffset: 0, yOffset: 2, themeSubs: 2 },
+  Vertical: { path: 'doodads/theme_%s/%s_v_8.xml', xOffset: 0, yOffset: 1, themeSubs: 2 },
+  Cover: { path: 'doodads/special/color_theme_%s_16.xml', xOffset: 0.5, yOffset: 0.5, themeSubs: 1 },
+  Torch: { path: 'doodads/generic/lamp_torch.xml', xOffset: 0.5, yOffset: 1, themeSubs: 0 },
+  TorchOff: { path: 'doodads/generic/lamp_torch_off.xml', xOffset: 0.5, yOffset: 1, themeSubs: 0 },
+  CrossWall: { path: 'doodads/theme_%s/%s_x_x.xml', xOffset: 0, yOffset: 1, themeSubs: 2 },
+  VCapDown: { path: 'doodads/theme_%s/%s_v_cap_dn.xml', xOffset: 0, yOffset: 2, themeSubs: 2 },
+  VCapUp: { path: 'doodads/theme_%s/%s_v_cap_up.xml', xOffset: 0, yOffset: 1, themeSubs: 2 },
+  HCapLeft: { path: 'doodads/theme_%s/%s_h_cap_l.xml', xOffset: 0, yOffset: 2, themeSubs: 2 },
+  HCapRight: { path: 'doodads/theme_%s/%s_h_cap_r.xml', xOffset: 0, yOffset: 2, themeSubs: 2 },
+  TDown: { path: 'doodads/theme_%s/%s_x_t_dn.xml', xOffset: 0, yOffset: 2, themeSubs: 2 },
+  TUp: { path: 'doodads/theme_%s/%s_x_t_up.xml', xOffset: 0, yOffset: 1, themeSubs: 2 },
+  TLeft: { path: 'doodads/theme_%s/%s_x_t_l.xml', xOffset: 0, yOffset: 1, themeSubs: 2 },
+  TRight: { path: 'doodads/theme_%s/%s_x_t_r.xml', xOffset: 0, yOffset: 1, themeSubs: 2 }
+} as const satisfies Record<string, DoodadTypeDef>
+
+export type DoodadTypeName = keyof typeof DoodadType
+
+export function doodadPath(type: DoodadTypeName, theme: string): string {
+  const def = DoodadType[type]
+  switch (def.themeSubs) {
+    case 1:
+      return def.path.replace('%s', theme)
+    case 2:
+      return def.path.replace('%s', theme).replace('%s', theme)
+    default:
+      return def.path
+  }
+}
+
+export class Doodad extends XMLObject {
+  id: number
+
+  constructor(
+    ctx: GenerationContext,
+    public x: number,
+    public y: number,
+    public type: DoodadTypeName,
+    public theme: string
+  ) {
+    super()
+    this.id = ctx.idCounter++
+  }
+
+  static create(ctx: GenerationContext, x: number, y: number, type: DoodadTypeName, theme: string): Doodad {
+    const d = new Doodad(ctx, x, y, type, theme)
+    ctx.doodads.push(d)
+    return d
+  }
+
+  getXML(): string {
+    const def = DoodadType[this.type]
+    const dict = new XMLDictionary('')
+    dict.addData(new XMLInt('id', this.id))
+    dict.addData(new XMLString('type', doodadPath(this.type, this.theme)))
+    dict.addData(new XMLFloat('x', this.x + def.xOffset))
+    dict.addData(new XMLFloat('y', this.y + def.yOffset))
+    dict.addData(new XMLBool('need-sync', false))
+    return dict.getXML()
+  }
+}
