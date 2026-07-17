@@ -1,0 +1,199 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { defaultParameters, validateParameters } from '../generator'
+import type { DungeonParameters } from '../generator'
+import type { AppSettings, GenerateResponse } from '../shared/ipc'
+import { ParameterForm } from './components/ParameterForm'
+import { LevelPreview } from './components/LevelPreview'
+import { OutputPanel } from './components/OutputPanel'
+
+interface Toast {
+  kind: 'ok' | 'error' | 'info'
+  text: string
+}
+
+export function App() {
+  const [params, setParams] = useState<DungeonParameters>(defaultParameters)
+  const [settings, setSettings] = useState<AppSettings>({ hammerwatchPath: '', cleanupFiles: true })
+  const [seedInput, setSeedInput] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<GenerateResponse | null>(null)
+  const [toast, setToast] = useState<Toast | null>(null)
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  const validation = useMemo(() => validateParameters(params), [params])
+
+  const showToast = (kind: Toast['kind'], text: string) => {
+    setToast({ kind, text })
+    clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(() => setToast(null), 6000)
+  }
+
+  useEffect(() => {
+    window.api.getInitialState().then((initial) => {
+      setParams(initial.params)
+      setSettings(initial.settings)
+      if (initial.paramsSource === 'parameters.txt override') {
+        const unknown =
+          initial.unknownKeys.length > 0 ? ` (ignored unknown keys: ${initial.unknownKeys.join(', ')})` : ''
+        showToast('info', `Loaded defaults from parameters.txt override${unknown}`)
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const persistSettings = (next: AppSettings) => {
+    setSettings(next)
+    void window.api.saveSettings(next)
+  }
+
+  const generate = async () => {
+    if (!validation.valid) return
+    let seed: number | undefined
+    if (seedInput.trim() !== '') {
+      seed = Number(seedInput.trim())
+      if (!Number.isSafeInteger(seed)) {
+        showToast('error', 'Seed must be a whole number.')
+        return
+      }
+    }
+    setBusy(true)
+    try {
+      const response = await window.api.generate(params, seed)
+      if (response.ok) {
+        setResult(response)
+        setSeedInput(String(response.seed))
+        showToast('ok', `Generated ${response.levels.length} levels (seed ${response.seed}).`)
+      } else {
+        setResult(null)
+        showToast('error', response.errors.join(' '))
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const rerollSeed = () => {
+    setSeedInput(String(Math.floor(Math.random() * 2 ** 31)))
+  }
+
+  const resetDefaults = () => {
+    setParams(defaultParameters())
+    showToast('info', 'Parameters reset to defaults.')
+  }
+
+  const importParams = async () => {
+    const imported = await window.api.importParametersTxt()
+    if (imported === null) return
+    if (!imported.ok || !imported.params) {
+      showToast('error', imported.message)
+      return
+    }
+    setParams(imported.params)
+    if (imported.hammerwatchPath !== undefined || imported.cleanupFiles !== undefined) {
+      persistSettings({
+        hammerwatchPath: imported.hammerwatchPath ?? settings.hammerwatchPath,
+        cleanupFiles: imported.cleanupFiles ?? settings.cleanupFiles
+      })
+    }
+    const unknown =
+      imported.unknownKeys && imported.unknownKeys.length > 0
+        ? ` Ignored unknown keys: ${imported.unknownKeys.join(', ')}.`
+        : ''
+    showToast('ok', `${imported.message}.${unknown}`)
+  }
+
+  const exportParams = async () => {
+    const exported = await window.api.exportParametersTxt(params)
+    showToast(exported.ok ? 'ok' : 'info', exported.message)
+  }
+
+  const runAction = async (action: () => Promise<{ ok: boolean; message: string }>) => {
+    setBusy(true)
+    try {
+      const actionResult = await action()
+      showToast(actionResult.ok ? 'ok' : 'error', actionResult.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="app">
+      <header className="app-header">
+        <div>
+          <h1>Hammerwatch Dungeon Generator</h1>
+          <p className="subtitle">Rogue-like campaign generator — remake of the classic forum tool</p>
+        </div>
+        <div className="header-actions">
+          <button onClick={importParams} disabled={busy}>Import parameters.txt</button>
+          <button onClick={exportParams} disabled={busy}>Export parameters.txt</button>
+          <button onClick={resetDefaults} disabled={busy}>Reset defaults</button>
+        </div>
+      </header>
+
+      <div className="app-body">
+        <aside className="left-panel">
+          <ParameterForm params={params} issues={validation.errors} onChange={setParams} />
+        </aside>
+
+        <main className="right-panel">
+          <div className="generate-bar">
+            <label className="seed-field">
+              <span className="field-label">Seed (blank = random)</span>
+              <div className="path-row">
+                <input
+                  type="text"
+                  placeholder="random"
+                  value={seedInput}
+                  onChange={(e) => setSeedInput(e.target.value)}
+                />
+                <button onClick={rerollSeed} title="Roll a new random seed">🎲</button>
+              </div>
+            </label>
+            <button className="primary generate-button" disabled={busy || !validation.valid} onClick={generate}>
+              {busy ? 'Working…' : 'Generate dungeon'}
+            </button>
+          </div>
+
+          {validation.errors.length > 0 && (
+            <div className="banner banner-error">
+              <strong>Fix before generating:</strong>
+              <ul>
+                {validation.errors.map((e, i) => (
+                  <li key={i}>{e.message}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {validation.errors.length === 0 && validation.warnings.length > 0 && (
+            <div className="banner banner-warning">
+              <ul>
+                {validation.warnings.map((warning, i) => (
+                  <li key={i}>{warning.message}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <LevelPreview levels={result?.levels ?? []} seed={result?.seed ?? null} />
+
+          <OutputPanel
+            settings={settings}
+            hasResult={result !== null}
+            busy={busy}
+            onSettingsChange={persistSettings}
+            onPickPath={async () => {
+              const picked = await window.api.pickHammerwatchPath()
+              if (picked !== null) persistSettings({ ...settings, hammerwatchPath: picked })
+            }}
+            onInstall={() => runAction(() => window.api.installToHammerwatch())}
+            onExportFolder={() => runAction(() => window.api.exportFolder())}
+            onExportZip={() => runAction(() => window.api.exportZip())}
+          />
+        </main>
+      </div>
+
+      {toast && <div className={`toast toast-${toast.kind}`}>{toast.text}</div>}
+    </div>
+  )
+}
