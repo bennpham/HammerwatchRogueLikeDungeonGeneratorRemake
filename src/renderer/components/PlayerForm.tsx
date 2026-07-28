@@ -102,7 +102,14 @@ export function PlayerForm({ tweaks, issues, onChange }: PlayerFormProps) {
         }
 
         const params = fields.filter((f) => f.group === 'param')
-        const costs = fields.filter((f) => f.group === 'cost')
+        // grouped in first-appearance order, which follows the game's shop tiers
+        const costGroups = new Map<string, TweakFieldDef[]>()
+        for (const field of fields) {
+          if (field.group !== 'cost' || field.costGroup === undefined) continue
+          const bucket = costGroups.get(field.costGroup)
+          if (bucket === undefined) costGroups.set(field.costGroup, [field])
+          else bucket.push(field)
+        }
 
         return (
           <Section key={file.id} title={file.label} badge={badge(file.id)}>
@@ -111,11 +118,11 @@ export function PlayerForm({ tweaks, issues, onChange }: PlayerFormProps) {
                 {grid(params)}
               </Subsection>
             )}
-            {costs.length > 0 && (
-              <Subsection title="Upgrade costs (gold)" badge={groupBadge(costs)}>
-                {grid(costs)}
+            {[...costGroups].map(([title, group]) => (
+              <Subsection key={title} title={title} badge={groupBadge(group)}>
+                {grid(group)}
               </Subsection>
-            )}
+            ))}
           </Section>
         )
       })}

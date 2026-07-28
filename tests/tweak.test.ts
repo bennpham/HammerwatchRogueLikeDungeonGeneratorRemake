@@ -66,6 +66,37 @@ describe('tweak baseline', () => {
     expect(TWEAK_FIELD_MAP.has('player.knight.param.whirl')).toBe(false)
     expect(TWEAK_FIELD_MAP.has('player.knight.param.sword-arc')).toBe(true)
   })
+
+  it('files every upgrade cost under a real shop group', () => {
+    const costs = TWEAK_FIELDS.filter((f) => f.group === 'cost')
+    // a new upgrade falling through the rules would land in the catch-all
+    const ungrouped = costs.filter(
+      (f) => f.costGroup === undefined || f.costGroup === 'Other costs'
+    )
+    expect(ungrouped.map((f) => f.key)).toEqual([])
+  })
+
+  it('groups shared costs by what the upgrade buys', () => {
+    const groupOf = (id: string) => TWEAK_FIELD_MAP.get(`player.shared.cost.${id}`)?.costGroup
+    expect(groupOf('life')).toBe('Health costs')
+    expect(groupOf('rejuv')).toBe('Health costs')
+    // pot-rejuv is a potion despite the name overlapping the health upgrade
+    expect(groupOf('pot-rejuv')).toBe('Potion costs')
+    expect(groupOf('pot-invul')).toBe('Potion costs')
+    expect(groupOf('speed-2')).toBe('Movement speed costs')
+    expect(groupOf('combo')).toBe('Combo costs')
+    expect(groupOf('combo-heal-1')).toBe('Combo costs')
+  })
+
+  it('groups class costs by the shop column the game uses', () => {
+    const groupOf = (unit: string, id: string) =>
+      TWEAK_FIELD_MAP.get(`player.${unit}.cost.${id}`)?.costGroup
+    expect(groupOf('knight', 'health-1')).toBe('Health & mana costs')
+    expect(groupOf('knight', 'mana-5')).toBe('Health & mana costs')
+    expect(groupOf('knight', 'dmg1')).toBe('Offense costs')
+    expect(groupOf('knight', 'armor-3')).toBe('Defense costs')
+    expect(groupOf('wizard', 'meteor')).toBe('Offense costs')
+  })
 })
 
 describe('tweak overrides', () => {

@@ -28,11 +28,35 @@ export interface TweakFieldDef {
   group: TweakFieldGroup
   /** sub-heading within the file — difficulty name, or the upgrade's cat */
   section?: string
+  /** for costs only: heading of the shop grouping this upgrade belongs to */
+  costGroup?: string
   /** display label: the raw stock name, which is what modders see in the XML */
   label: string
   type: TweakValueType
   /** stock value, used as the form default and to detect tampering */
   stock: number
+}
+
+/**
+ * Splits a file's upgrade costs into headings small enough to scan.
+ *
+ * Classes reuse the game's own shop columns, which the `cat` attribute already
+ * encodes as off/def/misc tiers. shared.xml can't: it files life, rejuv and all
+ * three potions under one `power` cat, so it groups by what the upgrade buys.
+ */
+function costGroupOf(fileId: string, upgradeId: string, cat: string): string {
+  if (fileId === 'shared') {
+    // prefix rules come first so pot-rejuv reads as a potion, not as health
+    if (upgradeId.startsWith('pot-')) return 'Potion costs'
+    if (upgradeId.startsWith('speed-')) return 'Movement speed costs'
+    if (upgradeId.startsWith('combo')) return 'Combo costs'
+    if (upgradeId === 'life' || upgradeId === 'rejuv') return 'Health costs'
+    return 'Other costs'
+  }
+  if (cat.startsWith('misc')) return 'Health & mana costs'
+  if (cat.startsWith('off')) return 'Offense costs'
+  if (cat.startsWith('def')) return 'Defense costs'
+  return 'Other costs'
 }
 
 function buildFields(): TweakFieldDef[] {
@@ -78,6 +102,7 @@ function buildFields(): TweakFieldDef[] {
         file: file.file,
         group: 'cost',
         section: upgrade.cat,
+        costGroup: costGroupOf(file.id, upgrade.id, upgrade.cat),
         label: upgrade.id,
         type: 'int',
         stock: upgrade.cost
