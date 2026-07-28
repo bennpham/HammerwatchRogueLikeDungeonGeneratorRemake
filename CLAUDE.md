@@ -17,7 +17,7 @@ matches the work instead of re-deriving it from source:
 | --- | --- |
 | `hammerwatch-project` | Any change to this repo — layout, commands, invariants, review bar |
 | `hammerwatch-java-port` | Touching `src/generator/**`, RNG, or anything that must stay faithful to the Java original |
-| `hammerwatch-modding` | Level XML, campaign packaging, actors/doodads/tilemaps, adding custom content |
+| `hammerwatch-modding` | Level XML, `tweak/*.xml` player balance, campaign packaging, actors/doodads/tilemaps, adding custom content |
 | `hammerwatch-crash-triage` | A crash log, stack trace, hang, or "generation failed" report arrives |
 
 Subagents are defined in `.claude/agents/` — see "Agent roster" below.
@@ -41,6 +41,10 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    `tests/validation.test.ts`. New parameters need new rules and new tests.
 5. **`parameters.txt` compatibility.** The original file format keeps working
    as an import/override. Unknown keys are reported, never fatal.
+6. **Player tweaks stay out of the RNG.** `src/generator/tweak/**` emits the
+   game's `tweak/*.xml` balance files and draws no random values; it runs
+   after every level is built. A run with no player edits emits no `tweak/`
+   folder and must stay byte-identical to a pre-tweak run of the same seed.
 
 ## Commands
 

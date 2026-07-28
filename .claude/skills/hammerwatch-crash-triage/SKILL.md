@@ -20,6 +20,7 @@ orchestrator.
 | `RangeError: Invalid array length` / OOM | `mapWidth`/`mapHeight` absurdly large — `Tile[]` is `w*h` | §A |
 | `LevelPacker failed` / `.hwm was not produced` | Environment, not code | §C |
 | Campaign packs but doesn't appear in game | Wrong destination folder or a bad asset path | §C |
+| Campaign loads but a class/difficulty is broken in game | Player tweak values, not level generation | §E |
 | Renderer blank / React error | UI bug | §D |
 | `Generate a dungeon first.` on export | User flow, not a bug | — |
 
@@ -49,9 +50,14 @@ Constraints enforced today (`src/generator/config/validation.ts`):
 | `levelMonsters.length ≥ levels`, none empty, all ids known | short/empty pool → index out of bounds |
 | chances in `[0,1]`; multipliers ≥ 0 | |
 | every `monsterMax` an integer ≥ 0 | |
+| every `playerTweaks` value finite | see §E |
+| upgrade costs: whole number ≥ 0 | |
+| `int`-typed tweak params: whole number | |
+| `max-health` / `max-mana` ≥ 1 | |
+| difficulty multipliers ≥ 0 | |
 
 Warnings (non-blocking): room-area-vs-map capacity heuristic; map dimensions
-not multiples of 20.
+not multiples of 20; `max-health` above 10000.
 
 **Known gaps — likely causes of a §A report.** Confirm before "fixing":
 
@@ -114,6 +120,31 @@ from the `walls` bitmap string and room/passage geometry — an exception there
 usually means a preview field is missing for a newly added room type. Nothing
 in the renderer should crash generation; if it does, the boundary leaked.
 
+The left panel has Dungeon/Player tabs and the right panel Preview/Loadout
+tabs (`App.tsx`). Note that **"Reset defaults" is tab-sensitive**: on the
+Player tab it clears tweaks only, on the Dungeon tab it resets parameters and
+*keeps* tweaks. "I hit reset and my changes are still there" is that, not a bug.
+
+## §E — Player tweaks (`tweak/*.xml`)
+
+`src/generator/tweak/`. Balance overrides for classes, upgrade costs and
+difficulty multipliers. **This layer cannot break level generation**: it draws
+no random values, runs after every level is built, and only appends files. If
+a dungeon changed, tweaks are not the cause — say so and look elsewhere.
+
+| Symptom | Cause |
+| --- | --- |
+| "I changed a value but no `tweak/` folder appeared" | The value equals stock. `pruneTweaks` drops those by design, and an empty override map emits nothing. Confirm with the badge count on the Player tab. |
+| "My class edit didn't take effect in game" | The campaign's tweak file replaces the base file wholesale, so a partial file loses everything else — check the emitted file is complete. Also `[UNVERIFIED]` whether the game reads campaign tweak files at all in every context; ask for the actual file. |
+| "The maxed column looks wrong" | `buildLoadouts` applies every upgrade in `req`-depth order, last write wins, because an upgrade *sets* rather than adds. A value written by two upgrades shows the later one. |
+| Inline error next to a tweak field | Validation is working. The `field` on the issue *is* the tweak key. |
+| `player.*` key reported in `unknownKeys` on import | The key isn't in `TWEAK_FIELD_MAP` — a typo, or a `parameters.txt` from a build with a different baseline. Not fatal by design. |
+
+Quick-fix scope here is the same as §A: a validation rule plus a case in
+`tests/tweak.test.ts` or `tests/validation.test.ts`. **Editing `baseline.ts` is
+an escalation** — it is a transcription of the real game files, and changing a
+number there silently ships wrong balance to every user.
+
 ## Where the logs and state live
 
 The app does not write its own log file. Ask the reporter for:
@@ -123,7 +154,9 @@ The app does not write its own log file. Ask the reporter for:
    builds: Electron's default log locations, or relaunch from a terminal.
 2. **The parameters and the seed.** Ideally an exported `parameters.txt`
    (header → *Export parameters.txt*) plus the seed shown on the result.
-   Without both, most reports are unreproducible.
+   Without both, most reports are unreproducible. The export carries player
+   tweaks too, as trailing `player.*=…` lines — their absence means the user
+   changed nothing, which rules out §E in one glance.
 3. **Platform + whether wine is involved**, for anything packer-related.
 
 Settings and the `parameters.txt` override live in Electron's userData dir
@@ -153,6 +186,9 @@ the app's initial state, which reports whether defaults or an override loaded.
 - Anything in `map/`, `objects/`, or `wallPattern.ts` beyond a guard.
 - Anything needing a redesign, a new parameter, or a schema change.
 - Anything you can't reproduce.
+- Any change to `src/generator/tweak/baseline.ts` — it is a transcription of
+  the shipped game files, and a wrong number there is invisible until someone
+  plays the campaign.
 
 **Escalation writeup** — hand back exactly this, nothing else:
 

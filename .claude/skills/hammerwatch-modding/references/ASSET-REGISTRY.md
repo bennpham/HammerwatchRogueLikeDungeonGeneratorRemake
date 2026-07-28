@@ -193,3 +193,37 @@ as a unit.
 | `RestoreOrb` | 1 × 1 | — | unused; kept for parity with the original |
 
 The 6-wide `ExitUp`/`ExitDn` footprint is why `maxRoomSize` must be ≥ 7.
+
+## Tweak files (player balance)
+
+Not asset *paths* — these are files the campaign can ship itself, written to
+`tweak/<file>` inside the campaign folder. Source of truth:
+`src/generator/tweak/baseline.ts`, transcribed from a real install's
+`<HW>/editor/assetsExtract/tweak/` `[VERIFIED — read from that install]`.
+Human-readable tables of the same numbers: `reference/hammerwatch-tweak-stats.md`.
+
+Emission is opt-in: only files with at least one changed value are written, so
+a stock run produces no `tweak/` folder `[EMITTED]`.
+
+| Emitted path | Root element | Contents | Editable fields |
+| --- | --- | --- | --- |
+| `tweak/general.xml` | `<dictionary>` | 3 difficulties (`easy`, `medium`, `hard`) × 10 multiplier keys | 30 |
+| `tweak/shared.xml` | `<tweak>` | 9 params (7 numeric), 29 upgrades | 36 |
+| `tweak/knight.xml` | `<tweak>` | 22 params (19 numeric), 46 upgrades | 65 |
+| `tweak/priest.xml` | `<tweak>` | 31 params (24 numeric), 53 upgrades | 77 |
+| `tweak/ranger.xml` | `<tweak>` | 21 params (17 numeric), 47 upgrades | 64 |
+| `tweak/sorcerer.xml` | `<tweak>` | 27 params (21 numeric), 51 upgrades | 72 |
+| `tweak/thief.xml` | `<tweak>` | 29 params (23 numeric), 46 upgrades | 69 |
+| `tweak/warlock.xml` | `<tweak>` | 20 params (18 numeric), 51 upgrades | 69 |
+| `tweak/wizard.xml` | `<tweak>` | 25 params (20 numeric), 49 upgrades | 69 |
+
+551 editable fields total (numeric params + every upgrade cost). `string` and
+`bool` params exist in the files but are not exposed and pass through at their
+stock values. The general/class split matters: `general.xml` has no
+`<upgrades>` section and is serialized by a different function.
+
+The `general.xml` difficulty keys `[VERIFIED]`: `EnemyHealthAll`,
+`EnemyHealthBase`, `EnemyHealthIncr`, `EnemySpeedMultiplier`,
+`EnemyDamageBase`, `EnemyDamageIncr`, `SpawnFreqBase`, `SpawnFreqDecr`,
+`MoneyBase`, `MoneyIncr`. `medium` is the 1.0 baseline; `MoneyIncr` is 0 in
+all three, so gold scaling is flat within a difficulty.

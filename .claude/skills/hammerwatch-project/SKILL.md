@@ -1,6 +1,6 @@
 ---
 name: hammerwatch-project
-description: "Architecture, conventions, invariants and review bar for the Hammerwatch Rogue-like Dungeon Generator remake (Electron + React + Vite + TypeScript). Load this before making ANY change to this repo — before editing src/generator, src/main, src/preload, src/renderer, src/shared, tests, or the build config; before planning work or splitting it across subagents; and when answering questions about how the app is wired, what the parameters mean, how generation flows from GUI to .hwm, or which module owns a behaviour. Also covers the commands that gate a change (npm run typecheck, npm test) and the module boundary rules that must not be broken."
+description: "Architecture, conventions, invariants and review bar for the Hammerwatch Rogue-like Dungeon Generator remake (Electron + React + Vite + TypeScript). Load this before making ANY change to this repo — before editing src/generator, src/main, src/preload, src/renderer, src/shared, tests, or the build config; before planning work or splitting it across subagents; and when answering questions about how the app is wired, what the parameters mean, how generation flows from GUI to .hwm, how player tweaks (class stats, upgrade costs, difficulty multipliers) become tweak/*.xml, or which module owns a behaviour. Also covers the commands that gate a change (npm run typecheck, npm test) and the module boundary rules that must not be broken."
 ---
 
 # Project: Hammerwatch Rogue-like Dungeon Generator (remake)
@@ -16,8 +16,9 @@ up-front parameter validation.
 objects — each of which places rooms, connects them with passages, assigns
 special rooms, rasterizes a wall grid, pattern-matches wall doodads, and
 serializes itself into Hammerwatch's XML dialect — and returns an array of
-`{path, content}` files (`info.xml`, `levels.xml`, `levels/levelN.xml`) plus
-per-floor preview geometry. Electron's main process does everything else:
+`{path, content}` files (`info.xml`, `levels.xml`, `levels/levelN.xml`, plus
+`tweak/*.xml` when the user edited player balance) plus per-floor preview
+geometry. Electron's main process does everything else:
 writes those files into `<Hammerwatch>/editor/<name>/`, runs
 `LevelPacker.exe`, moves the resulting `.hwm` into `<Hammerwatch>/levels/`.
 The renderer is a thin React form + canvas preview talking over a typed
@@ -40,16 +41,27 @@ src/
 │   │                     wallPattern.ts, posDir.ts
 │   ├── objects/          monsterTypes.ts (roster data), monster.ts, item.ts,
 │   │                     doodad.ts, nodes.ts, scriptNode.ts, objectSet.ts
+│   ├── tweak/            player balance (tweak/*.xml) — NOT level generation
+│   │   ├── types.ts      TweakFile/TweakParam/TweakUpgrade, PlayerTweaks
+│   │   ├── baseline.ts   full stock transcription of the 9 game tweak files
+│   │   ├── overrides.ts  TWEAK_FIELDS, applyTweaks(), emitTweakFiles()
+│   │   ├── loadout.ts    buildLoadouts() — start/maxed character sheets
+│   │   └── xml.ts        the tweak XML dialect (separate from xml/)
 │   └── index.ts          generateDungeon() + all public types
 ├── main/                 index.ts (window), ipc.ts (handlers + last-result
 │                         cache), packer.ts (write/pack/install), settings.ts
 ├── preload/              contextBridge → window.api
-├── renderer/             App.tsx, components/{ParameterForm, LevelPreview,
-│                         MonsterPoolsEditor, MonsterMaxTable, OutputPanel,
-│                         fields}, styles/app.css
+├── renderer/             App.tsx (Dungeon|Player and Preview|Loadout tabs),
+│                         components/{ParameterForm, PlayerForm, LevelPreview,
+│                         LoadoutSheet, MonsterPoolsEditor, MonsterMaxTable,
+│                         OutputPanel, fields}, styles/app.css
 └── shared/ipc.ts         types shared across the bridge
-tests/                    vitest: rand, configFile, validation, generation, packer
+tests/                    vitest: rand, configFile, validation, generation,
+                          packer, tweak
 reference/original-java/  the Java original (read-only reference)
+reference/hammerwatch-tweak-stats.md
+                          human-readable tables of the same stock balance data
+                          that baseline.ts encodes
 ```
 
 ## Invariants — breaking one of these is a bug, not a tradeoff
@@ -79,6 +91,11 @@ reference/original-java/  the Java original (read-only reference)
    in `src/main/ipc.ts` and are *stripped* from the renderer response; the
    renderer only ever receives previews. Don't send megabytes of XML over the
    bridge.
+8. **Tweaks never touch the RNG.** `src/generator/tweak/**` draws no random
+   values and is called *after* every level is built. A stock run (no player
+   edits) must emit exactly the files it emitted before the feature existed —
+   no `tweak/` folder at all. Adding a tweak field must not change any seed's
+   dungeon.
 
 ## Parameters (the app's whole surface)
 
@@ -98,6 +115,7 @@ reference/original-java/  the Java original (read-only reference)
 | `monsterMultiplier` / `goldMultiplier` / `foodMultiplier` | 1.0 / 1.1 / 1.2 | ≥ 0 |
 | `levelMonsters[i]` | see defaults | non-empty; ids must exist in `MONSTER_TYPES`; repeat an id to weight it |
 | `monsterMax[id]` | per-type | integer ≥ 0; **0 disables the type entirely** |
+| `playerTweaks` | `{}` | sparse `Record<lowercase key, number>` of player-balance overrides; empty = no `tweak/` folder. See below |
 
 Plus two app settings that are *not* generator parameters:
 `hammerwatchPath` and `cleanupFiles` (persisted in Electron userData via
@@ -129,6 +147,50 @@ Plus two app settings that are *not* generator parameters:
 Failure of any floor after 60 attempts returns a friendly `DungeonError`
 suggesting fewer/smaller rooms, narrower passages, or a larger map.
 
+## Player tweaks (`src/generator/tweak/`)
+
+A second, independent axis of the app: the campaign can ship its own copies of
+Hammerwatch's `tweak/*.xml` balance files, which override class stats, upgrade
+costs and per-difficulty enemy multipliers. This has **nothing to do with
+level generation** — it runs after it, consumes no RNG, and is bolted onto the
+same `GeneratedFile[]` the levels produce.
+
+- **The baseline is the whole file.** A campaign's tweak file *replaces* the
+  base game's file wholesale; it is not a key-level merge (evidence: the
+  official `campaign2` ships 28 upgrades against the base file's 34, deleting
+  one). So `baseline.ts` holds a complete transcription of all nine stock files
+  — `general.xml`, `shared.xml`, and one per class (`TWEAK_CLASS_IDS`: knight,
+  priest, ranger, sorcerer, thief, warlock, wizard) — and one edited value
+  still means emitting that entire file.
+- **`TWEAK_FIELDS` is derived, not hand-written.** `overrides.ts` walks the
+  baseline and produces one `TweakFieldDef` per editable value, so the form,
+  the `parameters.txt` parser, the validator and the loadout sheet can never
+  disagree about what exists. Adding a field means editing `baseline.ts`.
+- **Key format** (lowercase throughout, because `configFile.ts` lowercases
+  every key it parses):
+
+  ```
+  player.general.<difficulty>.<key>   player.general.hard.enemydamagebase
+  player.<unit>.param.<name>          player.knight.param.max-health
+  player.<unit>.cost.<upgradeId>      player.knight.cost.health-1
+  ```
+
+- **Sparse and pruned.** `pruneTweaks()` drops anything equal to its stock
+  value, so "changed nothing" is literally `{}`. `emitTweakFiles()` returns
+  `[]` in that case and no `tweak/` folder is written.
+- **Only numbers are editable.** `string`/`bool` params pass through at their
+  stock values and never become fields.
+- **Round-trip.** `serializeParametersTxt` appends the pruned overrides in
+  sorted key order (floats as `toFixed(6)`); the parser routes any `player.*`
+  key through `TWEAK_FIELD_MAP` and reports unrecognized ones in `unknownKeys`.
+- **UI.** `PlayerForm.tsx` (left panel, "Player" tab) renders the fields
+  grouped by file with per-file change badges; `LoadoutSheet.tsx` (right panel,
+  "Loadout" tab) shows `buildLoadouts()` — each class's start value, its value
+  after buying every upgrade, and a flag where the user diverged from stock.
+  Upgrades **set** a param rather than adding to it, which is why `maxedParams`
+  buys in `req`-depth order and lets later purchases overwrite earlier ones.
+- Emitted XML is *not* the level dialect — see the `hammerwatch-modding` skill.
+
 ## Working rules
 
 - **Match the surrounding style.** No linter is configured. 2-space indent, no
@@ -136,8 +198,10 @@ suggesting fewer/smaller rooms, narrower passages, or a larger map.
   import is types-only. Comments explain *why* (especially parity decisions),
   not *what*.
 - **Every generator change needs a test.** `tests/` covers RNG parity vectors,
-  `parameters.txt` round-tripping, the validation matrix, and fixed-seed
-  generation (determinism, bounds, entrance/exit/orb presence, XML sections).
+  `parameters.txt` round-tripping, the validation matrix, fixed-seed generation
+  (determinism, bounds, entrance/exit/orb presence, XML sections), and the
+  tweak layer (baseline integrity, whole-file emission, no-change-no-file,
+  loadout ceilings).
 - **Changing the RNG draw order is a breaking change.** It invalidates every
   seed users have saved. If a fix requires it, say so explicitly in the PR
   body — do not slip it in.
@@ -151,3 +215,9 @@ Reject or fix a diff that: imports Node APIs into `src/generator`; adds
 unseeded randomness; changes RNG draw order without flagging it; adds a
 parameter without a validation rule; adds an unbounded loop; sends file
 contents through IPC; or lands generator behaviour without a test.
+
+Tweak-specific: reject a diff that hand-writes a `TweakFieldDef` instead of
+deriving it from `baseline.ts`; mutates `TWEAK_BASELINE` in place (`applyTweaks`
+clones — the baseline is shared, exported and read by the UI); emits a partial
+tweak file; emits a `tweak/` folder for a stock run; or stores an override
+equal to its stock value.

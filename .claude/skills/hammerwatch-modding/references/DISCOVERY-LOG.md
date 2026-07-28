@@ -56,8 +56,54 @@ until then, treat them as unknown in anything shown to the user.
 7. **Theme completeness.** Do all of `a b c d e f g i` ship the full 17-piece
    `doodads/theme_<t>/` wall set, and are the variant counts in `TILEMAPS`
    right for every one? A wrong count is a load-time error.
+8. **Do campaign tweak files replace or merge?** We emit complete files on the
+   assumption of wholesale replacement (see the 2026-07-28 entry). If the game
+   actually merges key-by-key, a campaign could ship a two-line file and
+   `baseline.ts` could shrink from 1800 lines to nothing. Test: ship a
+   `tweak/knight.xml` containing only `<params><dictionary><int
+   name="max-health">500</int></dictionary></params>` and see whether the
+   knight keeps its sword damage.
+9. **Are malformed tweak files fatal?** Does `LevelPacker.exe` validate the
+   `tweak/` folder at all, or does a bad file only surface in game (or get
+   silently ignored)? Decides whether we need stricter emit-time checks.
+10. **Do tweak `name`/`desc` keys accept literal strings?** Same question as
+    the `levels.xml` localization keys, and the answer probably generalizes.
 
 ## Entries
+
+### 2026-07-28 — campaign tweak files appear to replace the base file wholesale
+**Tag:** [UNVERIFIED] (strong inference from shipped game data)
+**Context:** Adding the player-balance feature (`src/generator/tweak/`), which
+lets a generated campaign override class stats, upgrade costs and difficulty
+multipliers.
+**Evidence:** The stock tables were transcribed from a real install at
+`<Steam>/steamapps/common/Hammerwatch/editor/assetsExtract/tweak/` — nine files:
+`general.xml`, `shared.xml`, and one per class (knight, priest, ranger,
+sorcerer, thief, warlock, wizard). No paladin/gladiator; those are Heroes of
+Hammerwatch. The official Temple of the Sun campaign ships its own
+`editor/campaign2/tweak/shared.xml` containing a **complete** file with 28
+upgrade entries where the base file has 34 — `pot-invul` is absent. A
+key-level merge cannot delete an entry, so the campaign file must replace the
+base file entirely.
+**Impact:** `baseline.ts` carries a full transcription of all nine files so a
+single edited value can still be emitted as a valid complete file. If open
+question 8 refutes this, that file and both serializers can shrink
+dramatically. Nothing here has been loaded in game — our emitted `tweak/*.xml`
+is `[EMITTED]` only. Documented in `SKILL.md` § "tweak/*.xml — player balance"
+and `ASSET-REGISTRY.md` § "Tweak files"; human-readable tables of the same data
+are in `reference/hammerwatch-tweak-stats.md`.
+
+### 2026-07-28 — the tweak XML dialect is not the level XML dialect
+**Tag:** [VERIFIED] (read from the same install's stock files)
+**Context:** Deciding whether `src/generator/xml/` could serialize tweak files.
+**Evidence:** Stock tweak files use arbitrary attributes on `<dictionary>`
+(`id`, `cost`, `req`, `cat`, `name`, `desc`, `life-cost-scale`), self-closing
+elements for upgrades with no child params, lowercase `true`/`false`, and
+floats in shortest form (`0.75`, `1`) rather than the level dialect's Java
+`%f` six decimals. `src/generator/xml/` can express none of that — it emits
+element-name-is-type with a single `name` attribute.
+**Impact:** `src/generator/tweak/xml.ts` exists as a separate serializer.
+Don't "unify" the two; they are different formats that happen to both be XML.
 
 ### 2026-07-28 — log created
 **Tag:** [VERIFIED]

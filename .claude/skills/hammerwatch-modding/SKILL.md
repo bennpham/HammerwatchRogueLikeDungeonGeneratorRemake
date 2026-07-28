@@ -1,6 +1,6 @@
 ---
 name: hammerwatch-modding
-description: "How Hammerwatch loads a custom campaign and what its level format actually contains — the editor/<name>/ folder, info.xml, levels.xml, level XML sections (tilemap, doodads, actors, scripting, items, lighting), LevelPacker.exe and the .hwm, and the asset paths for actors, doodads, items and tilemaps. Load this when emitting or changing level XML, when adding or wiring up custom monsters from the actor folder, custom doodads or terrain/tilesets, when a packed campaign fails to load or does not appear in the game's level list, when changing the install/export pipeline, or when recording a newly discovered asset path or editor constraint."
+description: "How Hammerwatch loads a custom campaign and what its level format actually contains — the editor/<name>/ folder, info.xml, levels.xml, level XML sections (tilemap, doodads, actors, scripting, items, lighting), the tweak/*.xml player-balance files, LevelPacker.exe and the .hwm, and the asset paths for actors, doodads, items and tilemaps. Load this when emitting or changing level XML, when changing class stats / upgrade costs / difficulty multipliers or anything under src/generator/tweak, when adding or wiring up custom monsters from the actor folder, custom doodads or terrain/tilesets, when a packed campaign fails to load or does not appear in the game's level list, when changing the install/export pipeline, or when recording a newly discovered asset path or editor constraint."
 ---
 
 # Hammerwatch campaign format & modding surface
@@ -27,7 +27,9 @@ not against the game. Upgrading tags is the whole point of the discovery log
 │   ├── dungeon<seed>/           the unpacked campaign (input to the packer)
 │   │   ├── info.xml
 │   │   ├── levels.xml
-│   │   └── levels/level0.xml … levelN.xml
+│   │   ├── levels/level0.xml … levelN.xml
+│   │   └── tweak/*.xml          optional: player balance overrides
+│   ├── assetsExtract/tweak/     the game's own stock tweak files (reference)
 │   └── dungeon<seed>.hwm        produced next to the folder by the packer
 └── levels/
     └── dungeon<seed>.hwm        move it here; the game lists it as a campaign
@@ -134,6 +136,104 @@ nodes and items by that id, so ids must stay unique within one file.
 `<dictionary name="shape">` / `element` / … with an `<int-arr name="static">`
 holding the target id.
 
+### tweak/*.xml — player balance
+
+Optional. The game's own balance tables live in
+`<HW>/editor/assetsExtract/tweak/` and a campaign may ship its own copies in
+`tweak/` inside the campaign folder. Nine files `[VERIFIED — read from a real
+install]`:
+
+| File | Root | Contents |
+| --- | --- | --- |
+| `general.xml` | `<dictionary>` | one `<dictionary name="easy\|medium\|hard">` per difficulty, enemy health/damage/speed/spawn/money multipliers. No upgrades. |
+| `shared.xml` | `<tweak>` | cross-class params + upgrades (health, rejuv, potions, movement speed, combos) |
+| `knight.xml`, `priest.xml`, `ranger.xml`, `sorcerer.xml`, `thief.xml`, `warlock.xml`, `wizard.xml` | `<tweak>` | that class's starting params + its shop tree |
+
+There is no paladin/gladiator — those are Heroes of Hammerwatch, a different
+game.
+
+**A campaign's tweak file replaces the base file wholesale** `[UNVERIFIED —
+strong inference]`. Evidence: the official Temple of the Sun campaign
+(`editor/campaign2/tweak/shared.xml`) ships a *complete* file with 28 upgrade
+entries against the base file's 34, deleting `pot-invul` — a key-level merge
+could not delete anything. This is why `src/generator/tweak/baseline.ts`
+carries a full transcription of all nine stock files: changing one number still
+means emitting the whole file. **If this turns out to be wrong (files merge),
+the emitters can shrink dramatically — worth confirming in game.**
+
+Unit-file shape:
+
+```xml
+<tweak>
+	<params>
+		<dictionary>
+			<int name="max-health">100</int>
+			<float name="sword-dmg">9</float>
+		</dictionary>
+	</params>
+
+	<upgrades>
+		<dictionary id="health-1" cost="1000" cat="misc1" name="upg.health1" desc="upg.health1.desc" />
+		<dictionary id="dmg1" cost="1500" req="health-1" cat="off1" name="…" desc="…">
+			<float name="sword-dmg">14</float>
+			<int name="lvl">1</int>
+		</dictionary>
+	</upgrades>
+</tweak>
+```
+
+**The tweak dialect is not the level dialect.** `src/generator/xml/` cannot
+express it, which is why `src/generator/tweak/xml.ts` exists as a separate
+serializer. Differences:
+
+| | level XML | tweak XML |
+| --- | --- | --- |
+| attributes | only `name` | arbitrary: `id`, `cost`, `req`, `cat`, `name`, `desc`, `life-cost-scale`, … |
+| bools | `True` / `False` | `true` / `false` (lowercase) |
+| floats | always 6 decimals (Java `%f`) | shortest round-trippable form — `0.75`, `1` |
+| empty elements | always paired tags | self-closing `<dictionary … />` when an upgrade has no kids |
+
+Semantics that matter when editing values `[VERIFIED — from the stock files;
+see `reference/hammerwatch-tweak-stats.md` for the full tables]`:
+
+- An upgrade **sets** a param to an absolute value, it does not add to it.
+  `sword-dmg` 9 → upgrade `dmg1` → 14, not 23.
+- `req="<id>"` chains an upgrade behind another; no `req` = available at once.
+- `cat` is the shop grid slot: `misc1`–`misc5`, `off1`–`off5`, `def1`–`def5`.
+- `name` / `desc` are **localization keys**, not display text. Editing them to
+  literal strings has the same unknowns as the `levels.xml` keys above.
+- `lvl` inside an upgrade is a display-only tier number.
+- `-1` in `<params>` (and `9999` for mana costs) is the "skill locked"
+  sentinel — the unlocking upgrade writes the real value. This is why
+  validation only floors the handful of params that genuinely must be
+  positive; negative is legitimate almost everywhere.
+- `mana-regen` is a **period in ms per mana point** — lower is faster.
+- Duration units are inconsistent by design: `area-duration` and `fnova-ttl`
+  are ms; `whirl-dur`, `storm-dur`, `combust-dur`, `orb-time` are seconds.
+
+What this generator emits `[EMITTED — never loaded in game by anyone here]`:
+only the files the user actually changed. A stock run writes no `tweak/`
+folder at all, so the pre-tweak behaviour is preserved exactly.
+`src/main/packer.ts` creates nested paths with `mkdir(dirname, {recursive})`,
+so `tweak/knight.xml` needs no pipeline change.
+
+### Changing what's editable
+
+Values are **not** enumerated by hand — `TWEAK_FIELDS` in
+`src/generator/tweak/overrides.ts` is derived by walking `TWEAK_BASELINE`. So:
+
+- **To expose a value that already exists in the stock files:** nothing to do
+  if it's an `int`/`float` — it's already a field. `string` and `bool` params
+  are deliberately excluded and pass through at stock values.
+- **To add a new param or upgrade:** add it to `baseline.ts`. The form, the
+  `parameters.txt` round-trip, the validator and the loadout sheet all follow
+  automatically. Keep the transcription faithful to the install — this file is
+  supposed to be the stock game, and any drift silently ships wrong balance.
+- **A new file** needs a `TweakUnitFile`/`TweakGeneralFile` entry plus, if it's
+  a playable class, an id in `TWEAK_CLASS_IDS` so the loadout sheet covers it.
+- New upgrades also need a `costGroupOf` rule, or their costs land under
+  "Other costs" in the form.
+
 ## Asset surface
 
 Paths are relative to the game's asset root and are referenced as plain
@@ -213,7 +313,11 @@ Work down this list before touching the generator:
    `[UNVERIFIED]`.
 4. Is `levels.xml` `start` an id that exists, and does every `res` resolve?
 5. Does `data-t` reference a variant index above the tileset's count?
-6. Export the folder and open it in the Hammerwatch editor — it reports
+6. Was a `tweak/` folder emitted? Re-generate with the Player tab reset (the
+   header button clears tweaks when that tab is active) — if it then loads,
+   the fault is in the tweak XML, not the levels. `[UNVERIFIED]` whether a
+   malformed tweak file fails the pack, fails the load, or is silently ignored.
+7. Export the folder and open it in the Hammerwatch editor — it reports
    malformed level XML far better than the game does.
 
 ## Keeping this skill current
