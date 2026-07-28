@@ -55,3 +55,16 @@ export function Section({ title, children, defaultOpen = false, badge }: Section
     </details>
   )
 }
+
+/** Collapsible group nested inside a {@link Section}. */
+export function Subsection({ title, children, defaultOpen = false, badge }: SectionProps) {
+  return (
+    <details className="subsection" open={defaultOpen}>
+      <summary className="subsection-title">
+        {title}
+        {badge && <span className="section-badge">{badge}</span>}
+      </summary>
+      <div className="subsection-body">{children}</div>
+    </details>
+  )
+}

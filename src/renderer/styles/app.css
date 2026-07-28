@@ -510,17 +510,34 @@ button.primary:hover:not(:disabled) {
   margin: 10px 12px 0;
 }
 
-.player-subgroup + .player-subgroup {
-  margin-top: 14px;
+.subsection + .subsection {
+  margin-top: 6px;
 }
 
-.player-subgroup-title {
+.subsection > summary.subsection-title {
+  cursor: pointer;
+  user-select: none;
+  padding: 6px 0;
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-dim);
-  margin-bottom: 8px;
+}
+
+.subsection > summary.subsection-title:hover {
+  color: var(--text);
+}
+
+/* the count stays readable against the shouty uppercase summary */
+.subsection > summary.subsection-title .section-badge {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--accent);
+}
+
+.subsection-body {
+  padding: 2px 0 8px;
 }
 
 /* --- Loadout sheet ------------------------------------------------------ */

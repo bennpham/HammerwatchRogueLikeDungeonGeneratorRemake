@@ -1,7 +1,7 @@
 import React from 'react'
 import { TWEAK_BASELINE, TWEAK_FIELDS, countTweaksByFile } from '../../generator'
 import type { PlayerTweaks, TweakFieldDef, ValidationIssue } from '../../generator'
-import { NumberField, Section } from './fields'
+import { NumberField, Section, Subsection } from './fields'
 
 interface PlayerFormProps {
   tweaks: PlayerTweaks
@@ -42,6 +42,12 @@ export function PlayerForm({ tweaks, issues, onChange }: PlayerFormProps) {
     return n === undefined ? undefined : `${n} changed`
   }
 
+  /** Subgroups can start collapsed, so surface any edits hiding inside one. */
+  const groupBadge = (fields: TweakFieldDef[]): string | undefined => {
+    const n = fields.filter((f) => tweaks[f.key] !== undefined).length
+    return n === 0 ? undefined : `${n} changed`
+  }
+
   const grid = (fields: TweakFieldDef[]) => (
     <div className="field-grid">
       {fields.map((field) => (
@@ -78,12 +84,19 @@ export function PlayerForm({ tweaks, issues, onChange }: PlayerFormProps) {
                 Per-difficulty enemy scaling. <code>medium</code> is the 1.0 baseline; lower{' '}
                 <code>SpawnFreq</code> means faster spawns.
               </p>
-              {file.difficulties.map((difficulty) => (
-                <div key={difficulty.name} className="player-subgroup">
-                  <div className="player-subgroup-title">{difficulty.name}</div>
-                  {grid(fields.filter((f) => f.section === difficulty.name))}
-                </div>
-              ))}
+              {file.difficulties.map((difficulty) => {
+                const group = fields.filter((f) => f.section === difficulty.name)
+                return (
+                  <Subsection
+                    key={difficulty.name}
+                    title={difficulty.name}
+                    badge={groupBadge(group)}
+                    defaultOpen
+                  >
+                    {grid(group)}
+                  </Subsection>
+                )
+              })}
             </Section>
           )
         }
@@ -94,16 +107,14 @@ export function PlayerForm({ tweaks, issues, onChange }: PlayerFormProps) {
         return (
           <Section key={file.id} title={file.label} badge={badge(file.id)}>
             {params.length > 0 && (
-              <div className="player-subgroup">
-                <div className="player-subgroup-title">Starting stats</div>
+              <Subsection title="Starting stats" badge={groupBadge(params)} defaultOpen>
                 {grid(params)}
-              </div>
+              </Subsection>
             )}
             {costs.length > 0 && (
-              <div className="player-subgroup">
-                <div className="player-subgroup-title">Upgrade costs (gold)</div>
+              <Subsection title="Upgrade costs (gold)" badge={groupBadge(costs)}>
                 {grid(costs)}
-              </div>
+              </Subsection>
             )}
           </Section>
         )
