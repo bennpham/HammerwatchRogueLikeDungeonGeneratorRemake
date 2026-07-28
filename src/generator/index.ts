@@ -2,6 +2,7 @@ import { GenerationContext } from './core/context'
 import { Level } from './map/level'
 import { DungeonParameters, defaultParameters } from './config/parameters'
 import { validateParameters, ValidationResult } from './config/validation'
+import { emitTweakFiles } from './tweak/overrides'
 
 export type { DungeonParameters } from './config/parameters'
 export { THEMES } from './config/parameters'
@@ -12,6 +13,17 @@ export { parseParametersTxt, serializeParametersTxt } from './config/configFile'
 export type { ParsedConfig } from './config/configFile'
 export { MONSTER_TYPES } from './objects/monsterTypes'
 export type { MonsterTypeDef } from './objects/monsterTypes'
+export {
+  TWEAK_BASELINE,
+  TWEAK_CLASS_IDS,
+  TWEAK_FIELDS,
+  TWEAK_FIELD_MAP,
+  buildLoadouts,
+  countTweaksByFile,
+  emitTweakFiles,
+  pruneTweaks
+} from './tweak'
+export type { ClassLoadout, LoadoutStat, PlayerTweaks, TweakFieldDef } from './tweak'
 
 export interface GeneratedFile {
   /** path relative to the campaign folder, e.g. "levels/level0.xml" */
@@ -136,6 +148,10 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
     content:
       '<levels start="0">\n' + '<act name="lvl.act1">\n' + levelString + '       </act>\n' + '</levels>'
   })
+
+  // Only the balance files the user actually edited. Untouched = no tweak/ folder,
+  // so a stock run produces exactly the same campaign it always did.
+  files.push(...emitTweakFiles(params.playerTweaks))
 
   return { ok: true, seed: usedSeed, campaignName, files, levels: previews }
 }

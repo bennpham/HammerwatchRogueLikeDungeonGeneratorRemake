@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { defaultParameters, validateParameters } from '../generator'
-import type { DungeonParameters } from '../generator'
+import { defaultParameters, pruneTweaks, validateParameters } from '../generator'
+import type { DungeonParameters, PlayerTweaks } from '../generator'
 import type { AppSettings, GenerateResponse } from '../shared/ipc'
 import { ParameterForm } from './components/ParameterForm'
+import { PlayerForm } from './components/PlayerForm'
 import { LevelPreview } from './components/LevelPreview'
+import { LoadoutSheet } from './components/LoadoutSheet'
 import { OutputPanel } from './components/OutputPanel'
 
 interface Toast {
@@ -18,9 +20,15 @@ export function App() {
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<GenerateResponse | null>(null)
   const [toast, setToast] = useState<Toast | null>(null)
+  const [leftTab, setLeftTab] = useState<'dungeon' | 'player'>('dungeon')
+  const [rightTab, setRightTab] = useState<'preview' | 'loadout'>('preview')
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const validation = useMemo(() => validateParameters(params), [params])
+  const tweakCount = useMemo(
+    () => Object.keys(pruneTweaks(params.playerTweaks ?? {})).length,
+    [params.playerTweaks]
+  )
 
   const showToast = (kind: Toast['kind'], text: string) => {
     setToast({ kind, text })
@@ -76,9 +84,19 @@ export function App() {
     setSeedInput(String(Math.floor(Math.random() * 2 ** 31)))
   }
 
+  const setTweaks = (playerTweaks: PlayerTweaks) => {
+    setParams({ ...params, playerTweaks })
+  }
+
+  /** Resets whichever tab you are looking at, leaving the other one alone. */
   const resetDefaults = () => {
-    setParams(defaultParameters())
-    showToast('info', 'Parameters reset to defaults.')
+    if (leftTab === 'player') {
+      setParams({ ...params, playerTweaks: {} })
+      showToast('info', 'Player tweaks cleared — no tweak files will be written.')
+      return
+    }
+    setParams({ ...defaultParameters(), playerTweaks: params.playerTweaks })
+    showToast('info', 'Dungeon parameters reset to defaults.')
   }
 
   const importParams = async () => {
@@ -127,13 +145,39 @@ export function App() {
         <div className="header-actions">
           <button onClick={importParams} disabled={busy}>Import parameters.txt</button>
           <button onClick={exportParams} disabled={busy}>Export parameters.txt</button>
-          <button onClick={resetDefaults} disabled={busy}>Reset defaults</button>
+          <button onClick={resetDefaults} disabled={busy}>
+            {leftTab === 'player' ? 'Reset player tweaks' : 'Reset defaults'}
+          </button>
         </div>
       </header>
 
       <div className="app-body">
         <aside className="left-panel">
-          <ParameterForm params={params} issues={validation.errors} onChange={setParams} />
+          <div className="panel-tabs">
+            <button
+              className={leftTab === 'dungeon' ? 'tab active' : 'tab'}
+              onClick={() => setLeftTab('dungeon')}
+            >
+              Dungeon
+            </button>
+            <button
+              className={leftTab === 'player' ? 'tab active' : 'tab'}
+              onClick={() => setLeftTab('player')}
+            >
+              Player
+              {tweakCount > 0 && <span className="tab-count">{tweakCount}</span>}
+            </button>
+          </div>
+
+          {leftTab === 'dungeon' ? (
+            <ParameterForm params={params} issues={validation.errors} onChange={setParams} />
+          ) : (
+            <PlayerForm
+              tweaks={params.playerTweaks ?? {}}
+              issues={validation.errors}
+              onChange={setTweaks}
+            />
+          )}
         </aside>
 
         <main className="right-panel">
@@ -175,7 +219,27 @@ export function App() {
             </div>
           )}
 
-          <LevelPreview levels={result?.levels ?? []} seed={result?.seed ?? null} />
+          <div className="panel-tabs">
+            <button
+              className={rightTab === 'preview' ? 'tab active' : 'tab'}
+              onClick={() => setRightTab('preview')}
+            >
+              Dungeon preview
+            </button>
+            <button
+              className={rightTab === 'loadout' ? 'tab active' : 'tab'}
+              onClick={() => setRightTab('loadout')}
+            >
+              Loadout
+              {tweakCount > 0 && <span className="tab-count">{tweakCount}</span>}
+            </button>
+          </div>
+
+          {rightTab === 'preview' ? (
+            <LevelPreview levels={result?.levels ?? []} seed={result?.seed ?? null} />
+          ) : (
+            <LoadoutSheet tweaks={params.playerTweaks ?? {}} />
+          )}
 
           <OutputPanel
             settings={settings}

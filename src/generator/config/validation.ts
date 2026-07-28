@@ -1,5 +1,6 @@
 import { DungeonParameters, THEMES } from './parameters'
 import { isKnownMonsterId } from '../objects/monsterTypes'
+import { TWEAK_FIELD_MAP } from '../tweak/overrides'
 
 export interface ValidationIssue {
   /** parameter field the issue belongs to, for inline display in the GUI */
@@ -172,5 +173,56 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
     }
   }
 
+  validatePlayerTweaks(p, errors, warnings)
+
   return { errors, warnings, valid: errors.length === 0 }
+}
+
+/**
+ * Player tweaks are sparse and keyed by the tweak field keys, so issues use the
+ * same key as `field` and the existing inline-error plumbing shows them next to
+ * the right input.
+ */
+function validatePlayerTweaks(
+  p: DungeonParameters,
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[]
+): void {
+  for (const [key, value] of Object.entries(p.playerTweaks ?? {})) {
+    const field = TWEAK_FIELD_MAP.get(key.toLowerCase())
+    if (field === undefined) continue
+
+    if (!Number.isFinite(value)) {
+      errors.push({ field: key, message: 'Must be a number.' })
+      continue
+    }
+
+    if (field.group === 'cost') {
+      if (!Number.isInteger(value) || value < 0) {
+        errors.push({ field: key, message: 'Cost must be a whole number ≥ 0.' })
+      }
+      continue
+    }
+
+    if (field.type === 'int' && !Number.isInteger(value)) {
+      errors.push({ field: key, message: 'Must be a whole number.' })
+      continue
+    }
+
+    // -1 is the game's "skill locked" sentinel, so negatives are legitimate for
+    // most fields; only the handful that must be positive get a floor.
+    if ((field.label === 'max-health' || field.label === 'max-mana') && value < 1) {
+      errors.push({ field: key, message: 'Must be at least 1.' })
+      continue
+    }
+
+    if (field.group === 'difficulty' && value < 0) {
+      errors.push({ field: key, message: 'Difficulty multipliers cannot be negative.' })
+      continue
+    }
+
+    if (field.label === 'max-health' && value > 10000) {
+      warnings.push({ field: key, message: 'Very high starting health — the campaign may be trivial.' })
+    }
+  }
 }

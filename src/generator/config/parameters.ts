@@ -1,4 +1,5 @@
 import { MONSTER_TYPES } from '../objects/monsterTypes'
+import type { PlayerTweaks } from '../tweak/types'
 
 /** Themes the tilemaps support (there is no theme "h" in the game assets). */
 export const THEMES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'i'] as const
@@ -33,6 +34,12 @@ export interface DungeonParameters {
   levelMonsters: string[][]
   /** max horde size per monster id */
   monsterMax: Record<string, number>
+  /**
+   * Sparse overrides of the game's tweak/*.xml balance data, keyed by the
+   * canonical lowercase field keys in tweak/overrides.ts. Empty means the user
+   * changed nothing, in which case no tweak/ folder is emitted at all.
+   */
+  playerTweaks: PlayerTweaks
 }
 
 export function defaultParameters(): DungeonParameters {
@@ -66,6 +73,7 @@ export function defaultParameters(): DungeonParameters {
       ['skeleton2', 'archer2', 'lich'],
       ['skeleton2', 'lich']
     ],
-    monsterMax: Object.fromEntries(MONSTER_TYPES.map((t) => [t.id, t.defaultMax]))
+    monsterMax: Object.fromEntries(MONSTER_TYPES.map((t) => [t.id, t.defaultMax])),
+    playerTweaks: {}
   }
 }

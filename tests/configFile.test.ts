@@ -55,4 +55,41 @@ describe('parameters.txt parsing', () => {
     expect(parsed.params.shopChance).toBeCloseTo(0.5)
     expect(parsed.unknownKeys).toEqual([])
   })
+
+  it('writes no player.* lines when nothing was tweaked', () => {
+    const text = serializeParametersTxt(defaultParameters())
+    expect(text).not.toContain('player.')
+  })
+
+  it('round-trips player tweaks', () => {
+    const original = defaultParameters()
+    original.playerTweaks = {
+      'player.knight.param.max-health': 120,
+      'player.knight.cost.health-1': 250,
+      'player.general.hard.enemydamagebase': 2.25
+    }
+
+    const text = serializeParametersTxt(original)
+    expect(text).toContain('player.knight.param.max-health=120')
+    expect(text).toContain('player.knight.cost.health-1=250')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.params.playerTweaks['player.knight.param.max-health']).toBe(120)
+    expect(parsed.params.playerTweaks['player.knight.cost.health-1']).toBe(250)
+    expect(parsed.params.playerTweaks['player.general.hard.enemydamagebase']).toBeCloseTo(2.25)
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('drops player values that equal the stock game', () => {
+    const parsed = parseParametersTxt('player.knight.param.max-health=75')
+    expect(parsed.params.playerTweaks).toEqual({})
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('reports unrecognised player keys without throwing', () => {
+    const parsed = parseParametersTxt('player.bogus.param.nope=5\nlevels=4')
+    expect(parsed.params.levels).toBe(4)
+    expect(parsed.unknownKeys).toEqual(['player.bogus.param.nope'])
+    expect(parsed.params.playerTweaks).toEqual({})
+  })
 })
