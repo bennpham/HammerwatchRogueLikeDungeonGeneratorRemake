@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Quick setup — all characters** on the Player tab: bulk-edit the whole roster
+  instead of walking ~1,400 individual fields
+  - A master `×` knob plus one per stat group (health, mana, damage, defense,
+    utility, costs) that scales each starting stat **and every upgrade tier that
+    writes it**, across all seven classes at once. Higher always means stronger:
+    mana regen and skill costs are divided rather than multiplied
+  - Upgrade shop modes: stock prices, **all free** (which also pre-unlocks each
+    class's 2nd and ultimate skill), or **locked out** at an editable price
+    (default 999,999) for a base-stats-only campaign
+  - **Fully upgraded roster** preset — everyone starts with every upgrade bought
+    and every skill unlocked, at whatever balance is currently set
+  - **Remove extra lives from the shop**, since `life` is a repeatable purchase
+    players can farm by leaving a level and returning
+- Per-class "Skills unlocked at start" checkboxes, which fill in the skill stats
+  the game leaves on sentinels until the unlock upgrade is bought
+- `player.<file>.remove.<upgradeId>` overrides, which drop an upgrade from the
+  emitted tweak file entirely; removal cascades to anything that requires it, so
+  a file never ships a dangling `req`
+
+### Changed
+
+- `bool` tweak params are now editable, stored as `0`/`1`, so skill unlocks
+  round-trip through `parameters.txt` like every other override
+- The "buying it would downgrade the character" warnings no longer fire when a
+  starting stat sits exactly on a rung of its own ladder — the signature of a
+  deliberately fully-upgraded character. Overshooting a ladder still warns
+
 ## [0.1.0] - 2026-07-28
 
 ### Added

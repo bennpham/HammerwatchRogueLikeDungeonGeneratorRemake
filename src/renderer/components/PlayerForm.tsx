@@ -3,6 +3,7 @@ import {
   TWEAK_BASELINE,
   TWEAK_FIELDS,
   applyCostCurve,
+  applySkillUnlock,
   applyValueCurve,
   buildChains,
   countTweaksByFile,
@@ -18,7 +19,8 @@ import type {
   TweakUnitFile,
   ValidationIssue
 } from '../../generator'
-import { ChainRow, CurveField, NumberField, Section, Subsection, TierBlock } from './fields'
+import { BoolField, ChainRow, CurveField, NumberField, Section, Subsection, TierBlock } from './fields'
+import { QuickSetup } from './QuickSetup'
 
 interface PlayerFormProps {
   tweaks: PlayerTweaks
@@ -26,9 +28,17 @@ interface PlayerFormProps {
   onChange: (tweaks: PlayerTweaks) => void
 }
 
-/** Fields grouped by the file they belong to, in baseline display order. */
+/**
+ * Fields grouped by the file they belong to, in baseline display order.
+ *
+ * `remove` fields are left out: they are flags the quick-setup section drives,
+ * not values, and a stray "removed: 1" input in a stat grid would be a trap.
+ */
 const FIELDS_BY_FILE = new Map<string, TweakFieldDef[]>(
-  TWEAK_BASELINE.map((file) => [file.id, TWEAK_FIELDS.filter((f) => f.fileId === file.id)])
+  TWEAK_BASELINE.map((file) => [
+    file.id,
+    TWEAK_FIELDS.filter((f) => f.fileId === file.id && f.group !== 'remove')
+  ])
 )
 
 /** Upgrade ladders per file, so the form can offer a curve instead of 25 inputs. */
@@ -79,6 +89,12 @@ export function PlayerForm({ tweaks, issues, onChange }: PlayerFormProps) {
     const n = fields.filter((f) => tweaks[f.key] !== undefined).length
     return n === 0 ? undefined : `${n} changed`
   }
+
+  // the quick-setup section reaches every character field, so its badge counts
+  // everything except enemy difficulty
+  const quickCount = Object.keys(counts).filter((id) => id !== 'general').length
+  const quickBadge =
+    quickCount === 0 ? undefined : `${quickCount} of 8 files changed`
 
   const inputs = (fields: TweakFieldDef[]) =>
     fields.map((field) => (
@@ -214,7 +230,9 @@ export function PlayerForm({ tweaks, issues, onChange }: PlayerFormProps) {
           )
         }
 
-        const params = fields.filter((f) => f.group === 'param')
+        // bools are the skill-unlock flags; they get checkboxes, not 0/1 inputs
+        const params = fields.filter((f) => f.group === 'param' && f.type !== 'bool')
+        const flags = fields.filter((f) => f.group === 'param' && f.type === 'bool')
         const chains = CHAINS_BY_FILE.get(file.id) ?? []
         const fieldsByChain = new Map<string, TweakFieldDef[]>()
         for (const field of fields) {
@@ -234,11 +252,36 @@ export function PlayerForm({ tweaks, issues, onChange }: PlayerFormProps) {
           else bucket.push(chain)
         }
 
-        return (
+        const section = (
           <Section key={file.id} title={file.label} badge={badge(file.id)}>
             {params.length > 0 && (
               <Subsection title="Starting stats" badge={groupBadge(params)} defaultOpen>
                 {grid(params)}
+              </Subsection>
+            )}
+            {flags.length > 0 && (
+              <Subsection
+                title="Skills unlocked at start"
+                badge={groupBadge(flags)}
+                defaultOpen={false}
+              >
+                <p className="hint">
+                  Normally bought at a shop. Ticking one here also fills in the skill&apos;s stats,
+                  which the game leaves unset until the upgrade is purchased.
+                </p>
+                <div className="quick-setup-checks">
+                  {flags.map((field) => (
+                    <BoolField
+                      key={field.key}
+                      label={field.label}
+                      checked={currentValue(tweaks, field) === 1}
+                      onChange={(on) =>
+                        onChange(applySkillUnlock(file.id, field.label, on, tweaks))
+                      }
+                      title={`${field.file} — stock ${field.stock === 1 ? 'on' : 'off'}`}
+                    />
+                  ))}
+                </div>
               </Subsection>
             )}
             {[...shopGroups].map(([title, group]) => {
@@ -250,6 +293,16 @@ export function PlayerForm({ tweaks, issues, onChange }: PlayerFormProps) {
               )
             })}
           </Section>
+        )
+
+        // the bulk editor sits between the shared stats and the first class, so
+        // the broad strokes come before the seven sets of fine detail
+        if (file.id !== 'shared') return section
+        return (
+          <React.Fragment key={file.id}>
+            {section}
+            <QuickSetup tweaks={tweaks} badge={quickBadge} onChange={onChange} />
+          </React.Fragment>
         )
       })}
     </div>

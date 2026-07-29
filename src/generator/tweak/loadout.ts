@@ -37,8 +37,11 @@ function chainDepth(file: TweakUnitFile, id: string, seen = new Set<string>()): 
  * Fully-upgraded stats: buy every upgrade in dependency order and let later
  * purchases overwrite earlier ones, which is exactly how the game applies them
  * (an upgrade *sets* a param rather than adding to it).
+ *
+ * Exported because the "fully upgraded roster" bulk preset needs the same walk —
+ * it writes these values back as starting stats.
  */
-function maxedParams(file: TweakUnitFile): Map<string, number> {
+export function maxedParams(file: TweakUnitFile): Map<string, number> {
   const values = new Map<string, number>()
   for (const param of file.params) {
     if (param.type === 'int' || param.type === 'float') {

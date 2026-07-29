@@ -71,6 +71,53 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-07-29 — four claims the bulk roster editor makes about the shop
+**Tag:** [UNVERIFIED] — no game install in the dev container, so none of these is
+observed in play. Each is a separate claim; the first that turns out wrong does
+not invalidate the others.
+
+**Context:** Adding "Quick setup — all characters" (`src/generator/tweak/bulk.ts`),
+which needs a way to make every upgrade free, to price the shop out of reach, to
+delete an upgrade, and to hand a character a skill it would normally buy.
+
+**Evidence and the claims:**
+
+1. **`cost="0"` is a purchasable upgrade, not a broken one.** No stock upgrade
+   ships at 0, so this is unattested. The `kfan-money-cost` / `chain-money-cost`
+   / `smoke-money-cost` params *do* ship at 0 and mean "free to use", which is
+   the nearest supporting evidence, but those are use-costs on a param, not a
+   shop `cost` attribute. If the shop treats 0 as "already owned" or hides the
+   entry, the "All free" mode still reaches the same end state by a different
+   route and the feature survives; if it crashes, this becomes `[REFUTED]` and
+   the mode should switch to `cost="1"`.
+2. **A price of `999999` locks the shop out for a whole campaign.** The game's
+   own "unaffordable" idiom is `9999` (`sorcerer.xml`, `nova-mana-cost` before
+   the nova upgrade is bought), so a large sentinel is at least idiomatic. We
+   chose 999999 over 9999 because 9999 gold is reachable late in a long
+   campaign. Unverified whether the shop UI renders a 6-digit price without
+   clipping.
+3. **An upgrade omitted from a campaign's tweak file does not exist in the
+   shop.** This one has real supporting evidence: the official Temple of the Sun
+   campaign ships `editor/campaign2/tweak/shared.xml` with 28 upgrade entries
+   against the base file's 34, dropping `pot-invul` among others. That is the
+   same mechanism `player.<file>.remove.<id>` uses. Still unverified because we
+   have not watched our own emitted file load.
+4. **Pre-unlocking a skill requires applying the whole unlock upgrade, not just
+   its bool.** Strong code-side evidence: `knight.xml` starts `whirl-dur` at
+   `-1` and `whirl-dmg-multiplier` at `-1`; `sorcerer.xml` starts
+   `nova-mana-cost` at `9999` and `nova-shards` at `-1`. The upgrade that sets
+   `<bool name="whirl">true</bool>` is also what fills those in. Setting the
+   flag alone would therefore hand the player a skill with a -1 duration. What
+   the game *does* with a -1 duration is the unverified part — it may clamp,
+   no-op, or divide by it.
+
+**Impact:** `src/generator/tweak/bulk.ts` and the `remove` field group in
+`overrides.ts` depend on 1–3; `applySkillUnlocks` depends on 4. Anyone with an
+install can close all four in one session: build a campaign with "All free",
+one with "Locked out", one with extra lives removed, and one with skills
+pre-unlocked, then load each and look at a shop. Nothing here belongs in
+`ASSET-REGISTRY.md` until that happens.
+
 ### 2026-07-28 — baseline.ts matches the stock tweak XML field for field
 **Tag:** [VERIFIED] (Windows 10, Steam install, files read directly)
 **Context:** Making each upgrade's *effect* editable, not just its price. Before

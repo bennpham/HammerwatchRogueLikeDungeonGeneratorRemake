@@ -1,6 +1,7 @@
 import { DungeonParameters, THEMES } from './parameters'
 import { isKnownMonsterId } from '../objects/monsterTypes'
-import { paramKey } from '../tweak/chains'
+import { TWEAK_BASELINE } from '../tweak/baseline'
+import { SENTINELS, paramKey } from '../tweak/chains'
 import { TWEAK_FIELDS, TWEAK_FIELD_MAP } from '../tweak/overrides'
 import type { TweakFieldDef } from '../tweak/overrides'
 import type { PlayerTweaks } from '../tweak/types'
@@ -209,6 +210,28 @@ function validatePlayerTweaks(
       continue
     }
 
+    // bools and removal flags ride the numeric rail as 0/1; anything else would
+    // serialize as a value the game cannot read
+    if (field.type === 'bool') {
+      if (value !== 0 && value !== 1) {
+        errors.push({ field: key, message: 'Must be 0 (off) or 1 (on).' })
+        continue
+      }
+
+      if (field.group === 'remove' && value === 1) {
+        const cascade = removalCascade(field)
+        if (cascade > 0) {
+          warnings.push({
+            field: key,
+            message: `Removing ${field.upgradeId} also removes ${cascade} upgrade${
+              cascade === 1 ? '' : 's'
+            } that require it, so the shop never references a missing entry.`
+          })
+        }
+      }
+      continue
+    }
+
     if (field.type === 'int' && !Number.isInteger(value)) {
       errors.push({ field: key, message: 'Must be a whole number.' })
       continue
@@ -248,8 +271,33 @@ function validatePlayerTweaks(
   }
 }
 
-/** -1 is "skill locked" and 9999 "unaffordable"; neither is a real starting value. */
-const SENTINELS = new Set([-1, 9999])
+/**
+ * How many extra upgrades a removal takes down with it.
+ *
+ * An upgrade names its prerequisite by id, so `applyTweaks` removes the whole
+ * dependent subtree rather than leaving a `req` pointing at an entry the file no
+ * longer contains. That is the right behaviour, but it can remove more than the
+ * user picked, so it is worth saying out loud.
+ */
+function removalCascade(field: TweakFieldDef): number {
+  const file = TWEAK_BASELINE.find((candidate) => candidate.id === field.fileId)
+  if (file === undefined || file.kind !== 'unit' || field.upgradeId === undefined) return 0
+
+  const doomed = new Set([field.upgradeId])
+  let growing = true
+  while (growing) {
+    growing = false
+    for (const upgrade of file.upgrades) {
+      if (doomed.has(upgrade.id)) continue
+      if (upgrade.req !== undefined && doomed.has(upgrade.req)) {
+        doomed.add(upgrade.id)
+        growing = true
+      }
+    }
+  }
+
+  return doomed.size - 1
+}
 
 /**
  * Upgrades *set* a stat to an absolute value, so an upgrade that lands on the
@@ -279,6 +327,7 @@ function downgradeMessage(
   if (SENTINELS.has(current)) return undefined
 
   if (!isDowngrade(value, current, improves)) return undefined
+  if (ladderAbsorbed(start, current, tweaks)) return undefined
 
   return `${field.upgradeId} sets ${field.stat} to ${value}, ${
     improves > 0 ? 'below' : 'above'
@@ -287,6 +336,26 @@ function downgradeMessage(
 
 function isDowngrade(value: number, start: number, improves: number): boolean {
   return improves > 0 ? value < start : value > start
+}
+
+/**
+ * True when the starting stat sits exactly on a rung of its own ladder.
+ *
+ * That is the signature of a character created fully upgraded: every tier below
+ * the top really is a downgrade, but saying so once per tier per class buries the
+ * screen in warnings about the thing the user just asked for. A start that merely
+ * *overshoots* the ladder is not absorbed and still warns, because that is the
+ * typed-a-big-number mistake these messages are written for.
+ */
+function ladderAbsorbed(
+  startField: TweakFieldDef,
+  start: number,
+  tweaks: PlayerTweaks
+): boolean {
+  for (const effect of EFFECTS_BY_STAT.get(startField.key) ?? []) {
+    if ((tweaks[effect.key] ?? effect.stock) === start) return true
+  }
+  return false
 }
 
 /** Effect fields grouped by the starting stat they compete with. */
@@ -308,6 +377,8 @@ const EFFECTS_BY_STAT = ((): Map<string, TweakFieldDef[]> => {
  * The per-field check above only sees tiers the user actually edited, and the
  * mistake this is here to catch is the opposite: raising a starting stat and
  * leaving the stock ladder alone, which stores no upgrade override at all.
+ *
+ * A start that has absorbed its own ladder is exempt — see {@link ladderAbsorbed}.
  */
 function staleUpgrades(
   field: TweakFieldDef,
@@ -315,6 +386,7 @@ function staleUpgrades(
   tweaks: PlayerTweaks
 ): { count: number; side: string } | undefined {
   if (field.stat === undefined || SENTINELS.has(start)) return undefined
+  if (ladderAbsorbed(field, start, tweaks)) return undefined
 
   let count = 0
   // the stat's own stock ladder says which direction counts as an improvement
@@ -328,6 +400,7 @@ function staleUpgrades(
       improving = improves
     }
   }
+
   if (count === 0) return undefined
   return { count, side: improving > 0 ? 'below' : 'above' }
 }

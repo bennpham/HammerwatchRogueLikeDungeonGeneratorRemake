@@ -18,8 +18,16 @@ import type { PlayerTweaks, TweakParam, TweakUnitFile, TweakUpgrade } from './ty
 /** floats accumulate noise through the fits check and back out through apply */
 const EPSILON = 1e-6
 
-/** `-1` means "skill locked" and `9999` "unaffordable"; neither anchors a curve. */
-const SENTINELS = new Set([-1, 9999])
+/**
+ * `-1` means "skill locked" and `9999` "unaffordable". Neither anchors a curve,
+ * and neither may be scaled: `-1 × 2` is not "twice as locked", it is a corrupt
+ * sentinel the game would read as a real value.
+ */
+export const SENTINELS = new Set([-1, 9999])
+
+export function isSentinel(value: number): boolean {
+  return SENTINELS.has(value)
+}
 
 export type CurveMode = 'add' | 'mul'
 
@@ -77,6 +85,16 @@ export function costKey(fileId: string, upgradeId: string): string {
 
 export function effectKey(fileId: string, upgradeId: string, stat: string): string {
   return `player.${fileId}.effect.${upgradeId}.${stat}`.toLowerCase()
+}
+
+/**
+ * "Delete this upgrade from the emitted file" rather than "change its numbers".
+ * A campaign's tweak file replaces the base file wholesale, so an upgrade left
+ * out of it simply does not exist in the shop — the official Temple of the Sun
+ * campaign drops `pot-invul` from shared.xml exactly this way.
+ */
+export function removeKey(fileId: string, upgradeId: string): string {
+  return `player.${fileId}.remove.${upgradeId}`.toLowerCase()
 }
 
 /**
@@ -171,13 +189,13 @@ function isInt(chain: TweakChain, stat: string): boolean {
   return true
 }
 
-function round(value: number, int: boolean): number {
+export function round(value: number, int: boolean): number {
   if (int) return Math.round(value)
   // floats are typed by hand in the stock files; 2.25 must not come back 2.2500000000000004
   return Math.round(value * 1e6) / 1e6
 }
 
-function same(a: number, b: number): boolean {
+export function same(a: number, b: number): boolean {
   return Math.abs(a - b) < EPSILON
 }
 
@@ -330,13 +348,17 @@ export function deriveValueCurve(
   return anchored ?? fitted
 }
 
-function withOverride(
+/**
+ * Records one override in place. Exported because every bulk writer needs the
+ * same rule: an override equal to stock is not an override — `pruneTweaks` would
+ * drop it anyway, and keeping it would make "nothing changed" stop meaning `{}`.
+ */
+export function withOverride(
   tweaks: PlayerTweaks,
   key: string,
   value: number,
   stock: number
 ): void {
-  // an override equal to stock is not an override — pruneTweaks would drop it anyway
   if (same(value, stock)) delete tweaks[key]
   else tweaks[key] = value
 }

@@ -540,6 +540,67 @@ button.primary:hover:not(:disabled) {
   padding: 2px 0 8px;
 }
 
+/* quick setup: the whole-roster knobs above the seven class sections */
+
+/* the master knob sits on its own row so it reads as governing the rest */
+.quick-setup-master {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.toggle-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 8px;
+}
+
+.toggle-group-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.toggle {
+  padding: 4px 12px;
+}
+
+.toggle.active {
+  background: var(--accent);
+  color: #1a1405;
+  font-weight: 700;
+  border-color: var(--accent-dark);
+}
+
+.quick-setup-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0 8px;
+}
+
+.bool-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.bool-field input {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+}
+
+.quick-setup-presets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
 /* one upgrade ladder: curve knobs up front, raw tiers behind a disclosure */
 
 .chain-row {

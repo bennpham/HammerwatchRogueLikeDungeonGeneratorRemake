@@ -61,10 +61,21 @@ describe('tweak baseline', () => {
     expect(TWEAK_FIELD_MAP.get('player.general.hard.enemydamagebase')?.stock).toBe(1.75)
   })
 
-  it('does not expose string or bool params as editable fields', () => {
+  it('does not expose string params as editable fields', () => {
     expect(TWEAK_FIELD_MAP.has('player.knight.param.sword-arc-gfx')).toBe(false)
-    expect(TWEAK_FIELD_MAP.has('player.knight.param.whirl')).toBe(false)
     expect(TWEAK_FIELD_MAP.has('player.knight.param.sword-arc')).toBe(true)
+  })
+
+  it('exposes bool params as 0/1 so skills can be pre-unlocked', () => {
+    const whirl = TWEAK_FIELD_MAP.get('player.knight.param.whirl')
+    expect(whirl?.type).toBe('bool')
+    expect(whirl?.stock).toBe(0)
+  })
+
+  it('offers a removal flag for every upgrade', () => {
+    const life = TWEAK_FIELD_MAP.get('player.shared.remove.life')
+    expect(life?.group).toBe('remove')
+    expect(life?.stock).toBe(0)
   })
 
   it('files every upgrade field under a real shop group', () => {

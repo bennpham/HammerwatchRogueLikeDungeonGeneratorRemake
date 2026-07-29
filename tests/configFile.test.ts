@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { parseParametersTxt, serializeParametersTxt } from '../src/generator/config/configFile'
 import { defaultParameters } from '../src/generator/config/parameters'
+import {
+  DEFAULT_LOCK_PRICE,
+  applyCostPolicy,
+  applyMasterFactor,
+  applySkillUnlocks,
+  pruneTweaks
+} from '../src/generator/tweak'
 
 describe('parameters.txt parsing', () => {
   it('overrides only the keys present in the file', () => {
@@ -86,6 +93,36 @@ describe('parameters.txt parsing', () => {
     ).toBeCloseTo(3.5)
     expect(parsed.params.playerTweaks['player.general.hard.enemydamagebase']).toBeCloseTo(2.25)
     expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('round-trips skill flags and shop removals', () => {
+    const original = defaultParameters()
+    original.playerTweaks = {
+      'player.knight.param.whirl': 1,
+      'player.shared.remove.life': 1
+    }
+
+    const text = serializeParametersTxt(original)
+    expect(text).toContain('player.knight.param.whirl=1')
+    expect(text).toContain('player.shared.remove.life=1')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.params.playerTweaks['player.knight.param.whirl']).toBe(1)
+    expect(parsed.params.playerTweaks['player.shared.remove.life']).toBe(1)
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('round-trips a whole quick-setup roster', () => {
+    const original = defaultParameters()
+    original.playerTweaks = applyCostPolicy(
+      'free',
+      DEFAULT_LOCK_PRICE,
+      applyMasterFactor(2.5, applySkillUnlocks(true, {}))
+    )
+
+    const parsed = parseParametersTxt(serializeParametersTxt(original))
+    expect(parsed.unknownKeys).toEqual([])
+    expect(pruneTweaks(parsed.params.playerTweaks)).toEqual(pruneTweaks(original.playerTweaks))
   })
 
   it('drops player values that equal the stock game', () => {

@@ -46,6 +46,8 @@ src/
 │   │   ├── baseline.ts   full stock transcription of the 9 game tweak files
 │   │   ├── overrides.ts  TWEAK_FIELDS, applyTweaks(), emitTweakFiles()
 │   │   ├── chains.ts     upgrade ladders + the curves the form edits them by
+│   │   ├── bulk.ts       whole-roster knobs: stat factors, shop policy,
+│   │   │                 skill unlocks, fully-upgraded preset, removals
 │   │   ├── loadout.ts    buildLoadouts() — start/maxed character sheets
 │   │   └── xml.ts        the tweak XML dialect (separate from xml/)
 │   └── index.ts          generateDungeon() + all public types
@@ -53,12 +55,12 @@ src/
 │                         cache), packer.ts (write/pack/install), settings.ts
 ├── preload/              contextBridge → window.api
 ├── renderer/             App.tsx (Dungeon|Player and Preview|Loadout tabs),
-│                         components/{ParameterForm, PlayerForm, LevelPreview,
-│                         LoadoutSheet, MonsterPoolsEditor, MonsterMaxTable,
-│                         OutputPanel, fields}, styles/app.css
+│                         components/{ParameterForm, PlayerForm, QuickSetup,
+│                         LevelPreview, LoadoutSheet, MonsterPoolsEditor,
+│                         MonsterMaxTable, OutputPanel, fields}, styles/app.css
 └── shared/ipc.ts         types shared across the bridge
 tests/                    vitest: rand, configFile, validation, generation,
-                          packer, tweak, tweakChains
+                          packer, tweak, tweakChains, tweakBulk
 reference/original-java/  the Java original (read-only reference)
 reference/hammerwatch-tweak-stats.md
                           human-readable tables of the same stock balance data
@@ -176,16 +178,25 @@ same `GeneratedFile[]` the levels produce.
   player.<unit>.param.<name>               player.knight.param.max-health
   player.<unit>.cost.<upgradeId>           player.knight.cost.health-1
   player.<unit>.effect.<upgradeId>.<stat>  player.knight.effect.health-1.max-health
+  player.<unit>.remove.<upgradeId>         player.shared.remove.life
   ```
 
   The `effect` scope is what an upgrade grants — the `children` of its
   `<dictionary>`. It carries an extra dot segment; nothing may parse these keys
   by splitting on `.`.
+
+  The `remove` scope is a flag, not a value: `1` drops the upgrade from the
+  emitted file, which is how an upgrade is taken out of the shop entirely.
+  Removal **cascades** — `applyTweaks` also drops anything whose `req` chain
+  reaches a removed id, so a file never ships a dangling `req`.
 - **Sparse and pruned.** `pruneTweaks()` drops anything equal to its stock
   value, so "changed nothing" is literally `{}`. `emitTweakFiles()` returns
   `[]` in that case and no `tweak/` folder is written.
-- **Only numbers are editable.** `string`/`bool` params pass through at their
-  stock values and never become fields, and neither does an upgrade's `lvl`.
+- **`PlayerTweaks` is `Record<string, number>` and stays that way.** `bool`
+  params (the skill-unlock flags) and `remove` flags ride the numeric rail as
+  `0`/`1`, so `parameters.txt` needs no new syntax and validation has one rule
+  for both. Only `string` params are excluded from `TWEAK_FIELDS` outright, along
+  with an upgrade's `lvl`.
 - **Round-trip.** `serializeParametersTxt` appends the pruned overrides in
   sorted key order (floats as `toFixed(6)`); the parser routes any `player.*`
   key through `TWEAK_FIELD_MAP` and reports unrecognized ones in `unknownKeys`.
@@ -197,14 +208,39 @@ same `GeneratedFile[]` the levels produce.
   the curve is a UI shorthand, never stored. `validation.ts` warns, without
   blocking, whenever an upgrade lands on the wrong side of its starting stat,
   in both directions (`mana-regen` is a period in ms, so lower is better).
-- **UI.** `PlayerForm.tsx` (left panel, "Player" tab) renders starting stats as
-  a plain grid and each upgrade ladder as a curve row with the raw tiers behind
-  an "Edit tiers" disclosure, grouped by the game's shop columns and badged with
-  per-file and per-group change counts; `LoadoutSheet.tsx` (right panel,
-  "Loadout" tab) shows `buildLoadouts()` — each class's start value, its value
-  after buying every upgrade, and a flag where the user diverged from stock.
+- **Bulk editing is derived, not stored** (`bulk.ts`). The "Quick setup — all
+  characters" section scales the whole roster at once: a master `×` knob plus one
+  per stat group (health, mana, damage, defense, utility, costs), a shop policy
+  (stock / all free / locked out at an editable price), skill pre-unlocking, and
+  a fully-upgraded preset. It writes only the ordinary `player.*` keys above, so
+  nothing else in the pipeline knows it exists. Three rules keep it honest:
+  - **Factors measure from stock, never from the current value.** That makes them
+    idempotent and lets `deriveStatFactor` recover the knob's value by anchoring
+    on the largest stock in the group and re-applying to check the fit —
+    `uniform: false` is the same idea as `CostCurve.fits`. ×1 writes nothing.
+  - **Direction is per stat, not per group.** `mana-regen` and the `*-cost` stats
+    are divided rather than multiplied, so "higher ×" always means stronger.
+    Sentinel stock values (`-1` locked, `9999` unaffordable) and `0` are skipped;
+    scaling a sentinel would corrupt it. A test asserts every numeric stat lands
+    in exactly one group, so a new baseline stat cannot escape the editor.
+  - **Pre-unlocking a skill applies the whole unlock upgrade.** The flag alone
+    leaves `whirl-dur` at `-1`. `applyFullyUpgraded` is a one-shot action, not a
+    toggle, and reads the *tweaked* files so it composes with the factors.
+- **UI.** `PlayerForm.tsx` (left panel, "Player" tab) renders `QuickSetup.tsx`
+  between the shared stats and the first class, then starting stats as a plain
+  grid, skill flags as checkboxes, and each upgrade ladder as a curve row with the
+  raw tiers behind an "Edit tiers" disclosure, grouped by the game's shop columns
+  and badged with per-file and per-group change counts; `LoadoutSheet.tsx` (right
+  panel, "Loadout" tab) shows `buildLoadouts()` — each class's start value, its
+  value after buying every upgrade, and a flag where the user diverged from stock.
   That is why `maxedParams` buys in `req`-depth order and lets later purchases
-  overwrite earlier ones.
+  overwrite earlier ones, and why `bulk.ts` reuses it rather than reimplementing.
+- **The downgrade warnings have an exemption.** A starting stat sitting exactly on
+  a rung of its own ladder is a character deliberately created fully upgraded, so
+  `ladderAbsorbed` suppresses both downgrade warnings for it — otherwise the
+  fully-upgraded preset buries the panel in hundreds of correct-but-unwanted
+  messages. A start that merely *overshoots* its ladder still warns, because that
+  is the typed-a-big-number mistake the messages exist for.
 - Emitted XML is *not* the level dialect — see the `hammerwatch-modding` skill.
 
 ## Working rules
@@ -217,7 +253,8 @@ same `GeneratedFile[]` the levels produce.
   `parameters.txt` round-tripping, the validation matrix, fixed-seed generation
   (determinism, bounds, entrance/exit/orb presence, XML sections), and the
   tweak layer (baseline integrity, whole-file emission, no-change-no-file,
-  loadout ceilings).
+  loadout ceilings, and the bulk knobs' stat-group coverage and derive
+  round-trip).
 - **Changing the RNG draw order is a breaking change.** It invalidates every
   seed users have saved. If a fix requires it, say so explicitly in the PR
   body — do not slip it in.

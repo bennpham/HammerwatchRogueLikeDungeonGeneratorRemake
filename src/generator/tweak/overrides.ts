@@ -1,7 +1,7 @@
 import type { GeneratedFile } from '../index'
 import { TWEAK_BASELINE } from './baseline'
-import { chainKeyOf, costKey, editableChildren, effectKey, paramKey } from './chains'
-import type { PlayerTweaks, TweakFile, TweakParam, TweakValueType } from './types'
+import { chainKeyOf, costKey, editableChildren, effectKey, paramKey, removeKey } from './chains'
+import type { PlayerTweaks, TweakFile, TweakParam, TweakUnitFile, TweakValueType } from './types'
 import { serializeGeneralFile, serializeUnitFile } from './xml'
 
 /**
@@ -16,14 +16,20 @@ import { serializeGeneralFile, serializeUnitFile } from './xml'
  *   player.<unit>.param.<name>               player.knight.param.max-health
  *   player.<unit>.cost.<upgradeId>           player.knight.cost.health-1
  *   player.<unit>.effect.<upgradeId>.<stat>  player.knight.effect.health-1.max-health
+ *   player.<unit>.remove.<upgradeId>         player.shared.remove.life
  *
  * The `effect` scope is what an upgrade *does*. An upgrade sets a param to an
  * absolute value rather than adding to it, so leaving these fixed while the
  * starting stats move is how you end up with a `health-1` that costs 600 gold
  * and lowers your health.
+ *
+ * The `remove` scope is a flag, not a value: 1 drops the upgrade from the
+ * emitted file entirely. Values stay numeric so `PlayerTweaks` remains a plain
+ * `Record<string, number>` and parameters.txt needs no new syntax; `bool` params
+ * ride the same rail as 0/1.
  */
 
-export type TweakFieldGroup = 'difficulty' | 'param' | 'cost' | 'effect'
+export type TweakFieldGroup = 'difficulty' | 'param' | 'cost' | 'effect' | 'remove'
 
 export interface TweakFieldDef {
   /** canonical lowercase override key */
@@ -95,8 +101,8 @@ function buildFields(): TweakFieldDef[] {
     }
 
     for (const param of file.params) {
-      // strings and bools stay at their stock values and pass straight through
-      if (param.type !== 'int' && param.type !== 'float') continue
+      // strings are structure, not balance, and pass straight through
+      if (param.type === 'string') continue
       fields.push({
         key: paramKey(file.id, param.name),
         fileId: file.id,
@@ -105,7 +111,8 @@ function buildFields(): TweakFieldDef[] {
         label: param.name,
         stat: param.name,
         type: param.type,
-        stock: Number(param.value)
+        // bools ride the numeric rail as 0/1 so PlayerTweaks stays Record<string, number>
+        stock: param.type === 'bool' ? (param.value === true ? 1 : 0) : Number(param.value)
       })
     }
 
@@ -126,6 +133,15 @@ function buildFields(): TweakFieldDef[] {
         label: 'cost',
         type: 'int',
         stock: upgrade.cost
+      })
+
+      fields.push({
+        ...shared,
+        key: removeKey(file.id, upgrade.id),
+        group: 'remove',
+        label: 'removed',
+        type: 'bool',
+        stock: 0
       })
 
       // what the upgrade actually grants — `lvl`, strings and bools are excluded
@@ -218,11 +234,44 @@ function cloneFile(file: TweakFile): TweakFile {
   }
 }
 
+/** A stored 0/1 turned back into whatever the XML expects for that param. */
+function decode(param: TweakParam, value: number): number | boolean {
+  return param.type === 'bool' ? value !== 0 : value
+}
+
+/**
+ * Drops `ids` and everything that depends on them.
+ *
+ * An upgrade names its prerequisite by id, so removing a rung without removing
+ * the rungs above it would leave a `req` pointing at an upgrade the file no
+ * longer contains. The loop repeats until nothing new is caught, which handles
+ * ladders of any depth.
+ */
+function removeUpgrades(file: TweakUnitFile, ids: Set<string>): void {
+  if (ids.size === 0) return
+
+  const doomed = new Set(ids)
+  let growing = true
+  while (growing) {
+    growing = false
+    for (const upgrade of file.upgrades) {
+      if (doomed.has(upgrade.id)) continue
+      if (upgrade.req !== undefined && doomed.has(upgrade.req)) {
+        doomed.add(upgrade.id)
+        growing = true
+      }
+    }
+  }
+
+  file.upgrades = file.upgrades.filter((upgrade) => !doomed.has(upgrade.id))
+}
+
 /** Baseline with the user's overrides applied, leaving the baseline untouched. */
 export function applyTweaks(tweaks: PlayerTweaks): TweakFile[] {
   const pruned = pruneTweaks(tweaks)
   const files = TWEAK_BASELINE.map(cloneFile)
   const byId = new Map(files.map((file) => [file.id, file]))
+  const removals = new Map<string, Set<string>>()
 
   for (const [key, value] of Object.entries(pruned)) {
     const field = TWEAK_FIELD_MAP.get(key)
@@ -239,7 +288,17 @@ export function applyTweaks(tweaks: PlayerTweaks): TweakFile[] {
 
     if (field.group === 'param') {
       const target = file.params.find((p) => p.name === field.stat)
-      if (target !== undefined) target.value = value
+      if (target !== undefined) target.value = decode(target, value)
+      continue
+    }
+
+    // collected first: removal has to run after every value is in place, or a
+    // later override would look up an upgrade that is already gone
+    if (field.group === 'remove') {
+      if (field.upgradeId === undefined) continue
+      const bucket = removals.get(file.id)
+      if (bucket === undefined) removals.set(file.id, new Set([field.upgradeId]))
+      else bucket.add(field.upgradeId)
       continue
     }
 
@@ -251,8 +310,13 @@ export function applyTweaks(tweaks: PlayerTweaks): TweakFile[] {
       upgrade.cost = value
     } else if (field.group === 'effect') {
       const target = upgrade.children.find((k) => k.name === field.stat)
-      if (target !== undefined) target.value = value
+      if (target !== undefined) target.value = decode(target, value)
     }
+  }
+
+  for (const [fileId, ids] of removals) {
+    const file = byId.get(fileId)
+    if (file !== undefined && file.kind === 'unit') removeUpgrades(file, ids)
   }
 
   return files

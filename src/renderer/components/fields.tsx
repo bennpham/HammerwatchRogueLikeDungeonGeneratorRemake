@@ -112,6 +112,56 @@ export function CurveField({ label, value, onChange, step, title, mode, onModeCh
   )
 }
 
+interface BoolFieldProps {
+  label: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+  title?: string
+}
+
+/** On/off switch for a `bool` tweak param, which is stored as 0/1. */
+export function BoolField({ label, checked, onChange, title }: BoolFieldProps) {
+  return (
+    <label className="bool-field" title={title}>
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span>{label}</span>
+    </label>
+  )
+}
+
+interface ToggleGroupProps<T extends string> {
+  label: string
+  value: T
+  options: Array<{ value: T; label: string; title?: string }>
+  onChange: (value: T) => void
+}
+
+/**
+ * Segmented picker for a small set of mutually exclusive choices. Renders as
+ * buttons rather than a `<select>` so a dungeon master can see all the options
+ * and switch between them in one click.
+ */
+export function ToggleGroup<T extends string>({ label, value, options, onChange }: ToggleGroupProps<T>) {
+  return (
+    <div className="toggle-group">
+      <span className="field-label">{label}</span>
+      <div className="toggle-group-buttons">
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            className={`toggle ${option.value === value ? 'active' : ''}`}
+            title={option.title}
+            onClick={() => onChange(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 interface ChainRowProps {
   title: string
   /** shown next to the title, e.g. the stats the chain writes */
