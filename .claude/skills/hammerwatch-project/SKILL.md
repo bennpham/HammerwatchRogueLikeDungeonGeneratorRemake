@@ -45,6 +45,7 @@ src/
 │   │   ├── types.ts      TweakFile/TweakParam/TweakUpgrade, PlayerTweaks
 │   │   ├── baseline.ts   full stock transcription of the 9 game tweak files
 │   │   ├── overrides.ts  TWEAK_FIELDS, applyTweaks(), emitTweakFiles()
+│   │   ├── chains.ts     upgrade ladders + the curves the form edits them by
 │   │   ├── loadout.ts    buildLoadouts() — start/maxed character sheets
 │   │   └── xml.ts        the tweak XML dialect (separate from xml/)
 │   └── index.ts          generateDungeon() + all public types
@@ -57,11 +58,12 @@ src/
 │                         OutputPanel, fields}, styles/app.css
 └── shared/ipc.ts         types shared across the bridge
 tests/                    vitest: rand, configFile, validation, generation,
-                          packer, tweak
+                          packer, tweak, tweakChains
 reference/original-java/  the Java original (read-only reference)
 reference/hammerwatch-tweak-stats.md
                           human-readable tables of the same stock balance data
-                          that baseline.ts encodes
+                          that baseline.ts encodes; both verified against a
+                          real install (see the modding skill's DISCOVERY-LOG)
 ```
 
 ## Invariants — breaking one of these is a bug, not a tradeoff
@@ -170,25 +172,39 @@ same `GeneratedFile[]` the levels produce.
   every key it parses):
 
   ```
-  player.general.<difficulty>.<key>   player.general.hard.enemydamagebase
-  player.<unit>.param.<name>          player.knight.param.max-health
-  player.<unit>.cost.<upgradeId>      player.knight.cost.health-1
+  player.general.<difficulty>.<key>        player.general.hard.enemydamagebase
+  player.<unit>.param.<name>               player.knight.param.max-health
+  player.<unit>.cost.<upgradeId>           player.knight.cost.health-1
+  player.<unit>.effect.<upgradeId>.<stat>  player.knight.effect.health-1.max-health
   ```
 
+  The `effect` scope is what an upgrade grants — the `children` of its
+  `<dictionary>`. It carries an extra dot segment; nothing may parse these keys
+  by splitting on `.`.
 - **Sparse and pruned.** `pruneTweaks()` drops anything equal to its stock
   value, so "changed nothing" is literally `{}`. `emitTweakFiles()` returns
   `[]` in that case and no `tweak/` folder is written.
 - **Only numbers are editable.** `string`/`bool` params pass through at their
-  stock values and never become fields.
+  stock values and never become fields, and neither does an upgrade's `lvl`.
 - **Round-trip.** `serializeParametersTxt` appends the pruned overrides in
   sorted key order (floats as `toFixed(6)`); the parser routes any `player.*`
   key through `TWEAK_FIELD_MAP` and reports unrecognized ones in `unknownKeys`.
-- **UI.** `PlayerForm.tsx` (left panel, "Player" tab) renders the fields
-  grouped by file with per-file change badges; `LoadoutSheet.tsx` (right panel,
+- **Upgrades set, they don't add.** An upgrade writes an absolute value, so a
+  ladder left at stock while its starting stat is raised turns into a paid
+  downgrade. `chains.ts` groups upgrades into ladders and derives a
+  first-cost/per-tier-step curve for each (measured from the starting stat where
+  it fits), which the form edits and expands back into per-tier overrides —
+  the curve is a UI shorthand, never stored. `validation.ts` warns, without
+  blocking, whenever an upgrade lands on the wrong side of its starting stat,
+  in both directions (`mana-regen` is a period in ms, so lower is better).
+- **UI.** `PlayerForm.tsx` (left panel, "Player" tab) renders starting stats as
+  a plain grid and each upgrade ladder as a curve row with the raw tiers behind
+  an "Edit tiers" disclosure, grouped by the game's shop columns and badged with
+  per-file and per-group change counts; `LoadoutSheet.tsx` (right panel,
   "Loadout" tab) shows `buildLoadouts()` — each class's start value, its value
   after buying every upgrade, and a flag where the user diverged from stock.
-  Upgrades **set** a param rather than adding to it, which is why `maxedParams`
-  buys in `req`-depth order and lets later purchases overwrite earlier ones.
+  That is why `maxedParams` buys in `req`-depth order and lets later purchases
+  overwrite earlier ones.
 - Emitted XML is *not* the level dialect — see the `hammerwatch-modding` skill.
 
 ## Working rules
@@ -219,5 +235,6 @@ contents through IPC; or lands generator behaviour without a test.
 Tweak-specific: reject a diff that hand-writes a `TweakFieldDef` instead of
 deriving it from `baseline.ts`; mutates `TWEAK_BASELINE` in place (`applyTweaks`
 clones — the baseline is shared, exported and read by the UI); emits a partial
-tweak file; emits a `tweak/` folder for a stock run; or stores an override
-equal to its stock value.
+tweak file; emits a `tweak/` folder for a stock run; stores an override equal to
+its stock value; stores a *curve* rather than the per-tier overrides it expands
+to; or derives an upgrade's tier from its id instead of its `lvl` child.

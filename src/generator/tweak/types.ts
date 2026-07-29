@@ -33,7 +33,7 @@ export interface TweakUpgrade {
   /** extra attributes such as life-cost-scale */
   extra?: Record<string, string>
   /** nested params the upgrade writes when purchased */
-  kids: TweakParam[]
+  children: TweakParam[]
 }
 
 /** knight.xml, priest.xml, …, and shared.xml — `<tweak><params/><upgrades/></tweak>`. */

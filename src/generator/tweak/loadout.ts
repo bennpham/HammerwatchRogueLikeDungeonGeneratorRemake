@@ -51,10 +51,10 @@ function maxedParams(file: TweakUnitFile): Map<string, number> {
     .sort((a, b) => (a.depth === b.depth ? a.index - b.index : a.depth - b.depth))
 
   for (const { upgrade } of ordered) {
-    for (const kid of upgrade.kids) {
-      if (kid.name === 'lvl') continue
-      if (kid.type === 'int' || kid.type === 'float') {
-        values.set(kid.name, Number(kid.value))
+    for (const child of upgrade.children) {
+      if (child.name === 'lvl') continue
+      if (child.type === 'int' || child.type === 'float') {
+        values.set(child.name, Number(child.value))
       }
     }
   }

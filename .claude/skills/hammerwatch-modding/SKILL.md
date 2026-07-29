@@ -191,7 +191,7 @@ serializer. Differences:
 | attributes | only `name` | arbitrary: `id`, `cost`, `req`, `cat`, `name`, `desc`, `life-cost-scale`, … |
 | bools | `True` / `False` | `true` / `false` (lowercase) |
 | floats | always 6 decimals (Java `%f`) | shortest round-trippable form — `0.75`, `1` |
-| empty elements | always paired tags | self-closing `<dictionary … />` when an upgrade has no kids |
+| empty elements | always paired tags | self-closing `<dictionary … />` when an upgrade has no children |
 
 Semantics that matter when editing values `[VERIFIED — from the stock files;
 see `reference/hammerwatch-tweak-stats.md` for the full tables]`:
@@ -223,16 +223,27 @@ Values are **not** enumerated by hand — `TWEAK_FIELDS` in
 `src/generator/tweak/overrides.ts` is derived by walking `TWEAK_BASELINE`. So:
 
 - **To expose a value that already exists in the stock files:** nothing to do
-  if it's an `int`/`float` — it's already a field. `string` and `bool` params
-  are deliberately excluded and pass through at stock values.
+  if it's an `int`/`float` — it's already a field, whether it sits in `<params>`
+  or inside an upgrade's `children`. `string` and `bool` are deliberately excluded
+  and pass through at stock values, as is every upgrade's `lvl` (it is the tier
+  index, not balance).
 - **To add a new param or upgrade:** add it to `baseline.ts`. The form, the
   `parameters.txt` round-trip, the validator and the loadout sheet all follow
   automatically. Keep the transcription faithful to the install — this file is
   supposed to be the stock game, and any drift silently ships wrong balance.
+  (It has been checked field-for-field against a real install; see the
+  DISCOVERY-LOG entry.)
 - **A new file** needs a `TweakUnitFile`/`TweakGeneralFile` entry plus, if it's
   a playable class, an id in `TWEAK_CLASS_IDS` so the loadout sheet covers it.
-- New upgrades also need a `costGroupOf` rule, or their costs land under
-  "Other costs" in the form.
+- New upgrades also need a `shopGroupOf` rule, or they land under
+  "Other upgrades" in the form.
+- **Upgrade ladders** are grouped by `buildChains()` in
+  `src/generator/tweak/chains.ts`, which strips trailing digits off the id to
+  find the family and reads the tier number from the `lvl` child — never from the
+  id, because knight's tier-2 whirl duration really is `id="whirldur"`. The form
+  edits a ladder through a first cost, a per-tier cost step and a per-tier step
+  per stat, then expands that back into ordinary per-tier overrides; the curve
+  itself is never stored.
 
 ## Asset surface
 

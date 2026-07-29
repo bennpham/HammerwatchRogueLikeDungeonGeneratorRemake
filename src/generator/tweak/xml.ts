@@ -75,14 +75,14 @@ export function serializeUnitFile(file: TweakUnitFile): string {
         )
       ])
 
-    if (upgrade.kids.length === 0) {
+    if (upgrade.children.length === 0) {
       lines.push(`${head} />`)
       continue
     }
 
     lines.push(`${head}>`)
-    for (const kid of upgrade.kids) {
-      lines.push(paramLine(kid, TAB.repeat(3)))
+    for (const child of upgrade.children) {
+      lines.push(paramLine(child, TAB.repeat(3)))
     }
     lines.push(`${TAB.repeat(2)}</dictionary>`)
   }

@@ -88,3 +88,85 @@ describe('parameter validation', () => {
     expect(fieldsOf(result.warnings)).toContain('maxRoomCount')
   })
 })
+
+describe('player tweak validation', () => {
+  const withTweaks = (playerTweaks: Record<string, number>) => {
+    const p = defaultParameters()
+    p.playerTweaks = playerTweaks
+    return validateParameters(p)
+  }
+
+  it('rejects fractional and negative costs', () => {
+    const result = withTweaks({
+      'player.knight.cost.health-1': 12.5,
+      'player.knight.cost.health-2': -1
+    })
+    expect(fieldsOf(result.errors)).toContain('player.knight.cost.health-1')
+    expect(fieldsOf(result.errors)).toContain('player.knight.cost.health-2')
+  })
+
+  it('rejects a zero-health upgrade the same way as a zero-health start', () => {
+    const result = withTweaks({
+      'player.knight.param.max-health': 0,
+      'player.knight.effect.health-3.max-health': 0
+    })
+    expect(fieldsOf(result.errors)).toContain('player.knight.param.max-health')
+    expect(fieldsOf(result.errors)).toContain('player.knight.effect.health-3.max-health')
+  })
+
+  it('warns (without blocking) when a raised starting stat overtakes the ladder', () => {
+    // the reported mistake: raise starting health and leave the stock ladder alone,
+    // which stores no upgrade override at all
+    const result = withTweaks({ 'player.knight.param.max-health': 400 })
+    expect(result.valid).toBe(true)
+    expect(fieldsOf(result.warnings)).toContain('player.knight.param.max-health')
+    // all five health tiers top out at 300
+    expect(result.warnings[0].message).toContain('5 upgrades still set max-health below 400')
+
+    // raising it only past the first tier flags only that tier
+    const one = withTweaks({ 'player.knight.param.max-health': 130 })
+    expect(one.warnings[0].message).toContain('1 upgrade still sets max-health below 130')
+  })
+
+  it('says "above" for a stat where lower is better', () => {
+    // starting mana-regen is 1100 and the ladder counts down to 600
+    const result = withTweaks({ 'player.knight.param.mana-regen': 400 })
+    expect(result.warnings[0].message).toContain('5 upgrades still set mana-regen above 400')
+  })
+
+  it('warns on an upgrade edited below the starting stat', () => {
+    const result = withTweaks({ 'player.knight.effect.health-1.max-health': 40 })
+    expect(result.valid).toBe(true)
+    expect(fieldsOf(result.warnings)).toContain('player.knight.effect.health-1.max-health')
+    expect(result.warnings[0].message).toContain('downgrade')
+  })
+
+  it('stays quiet once the ladder is lifted to match', () => {
+    const result = withTweaks({
+      'player.knight.param.max-health': 400,
+      'player.knight.effect.health-1.max-health': 445,
+      'player.knight.effect.health-2.max-health': 490,
+      'player.knight.effect.health-3.max-health': 535,
+      'player.knight.effect.health-4.max-health': 580,
+      'player.knight.effect.health-5.max-health': 625
+    })
+    expect(result.valid).toBe(true)
+    expect(result.warnings).toEqual([])
+  })
+
+  it('knows which stats improve by going down', () => {
+    // mana-regen is a period in ms, so a *higher* upgrade is the downgrade
+    const worse = withTweaks({ 'player.knight.effect.mana-1.mana-regen': 1500 })
+    expect(fieldsOf(worse.warnings)).toContain('player.knight.effect.mana-1.mana-regen')
+
+    const better = withTweaks({ 'player.knight.effect.mana-1.mana-regen': 500 })
+    expect(better.warnings).toEqual([])
+  })
+
+  it('stays quiet for upgrades whose starting stat is a locked sentinel', () => {
+    // whirl-dur starts at -1 until the skill is unlocked, so there is nothing to compare
+    const result = withTweaks({ 'player.knight.effect.whirldur1.whirl-dur': 3 })
+    expect(result.warnings).toEqual([])
+    expect(result.valid).toBe(true)
+  })
+})

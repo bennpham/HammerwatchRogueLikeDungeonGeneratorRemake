@@ -18,12 +18,31 @@ export {
   TWEAK_CLASS_IDS,
   TWEAK_FIELDS,
   TWEAK_FIELD_MAP,
+  applyCostCurve,
+  applyValueCurve,
+  buildChains,
   buildLoadouts,
   countTweaksByFile,
+  currentCost,
+  currentStart,
+  currentValue,
+  deriveCostCurve,
+  deriveValueCurve,
   emitTweakFiles,
   pruneTweaks
 } from './tweak'
-export type { ClassLoadout, LoadoutStat, PlayerTweaks, TweakFieldDef } from './tweak'
+export type {
+  ClassLoadout,
+  CostCurve,
+  CurveMode,
+  LoadoutStat,
+  PlayerTweaks,
+  TweakChain,
+  TweakChainTier,
+  TweakFieldDef,
+  TweakUnitFile,
+  ValueCurve
+} from './tweak'
 
 export interface GeneratedFile {
   /** path relative to the campaign folder, e.g. "levels/level0.xml" */

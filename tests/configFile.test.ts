@@ -66,16 +66,24 @@ describe('parameters.txt parsing', () => {
     original.playerTweaks = {
       'player.knight.param.max-health': 120,
       'player.knight.cost.health-1': 250,
+      'player.knight.effect.health-1.max-health': 400,
+      'player.knight.effect.chrgdmg1.charge-dmg-multiplier': 3.5,
       'player.general.hard.enemydamagebase': 2.25
     }
 
     const text = serializeParametersTxt(original)
     expect(text).toContain('player.knight.param.max-health=120')
     expect(text).toContain('player.knight.cost.health-1=250')
+    // the effect scope carries an extra dot segment; the parser must not split on it
+    expect(text).toContain('player.knight.effect.health-1.max-health=400')
 
     const parsed = parseParametersTxt(text)
     expect(parsed.params.playerTweaks['player.knight.param.max-health']).toBe(120)
     expect(parsed.params.playerTweaks['player.knight.cost.health-1']).toBe(250)
+    expect(parsed.params.playerTweaks['player.knight.effect.health-1.max-health']).toBe(400)
+    expect(
+      parsed.params.playerTweaks['player.knight.effect.chrgdmg1.charge-dmg-multiplier']
+    ).toBeCloseTo(3.5)
     expect(parsed.params.playerTweaks['player.general.hard.enemydamagebase']).toBeCloseTo(2.25)
     expect(parsed.unknownKeys).toEqual([])
   })

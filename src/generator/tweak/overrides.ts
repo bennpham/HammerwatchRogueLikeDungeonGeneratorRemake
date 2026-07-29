@@ -1,5 +1,6 @@
 import type { GeneratedFile } from '../index'
 import { TWEAK_BASELINE } from './baseline'
+import { chainKeyOf, costKey, editableChildren, effectKey, paramKey } from './chains'
 import type { PlayerTweaks, TweakFile, TweakParam, TweakValueType } from './types'
 import { serializeGeneralFile, serializeUnitFile } from './xml'
 
@@ -11,12 +12,18 @@ import { serializeGeneralFile, serializeUnitFile } from './xml'
  * parses. Nothing is lost: within a single scope the stock names are already
  * unique case-insensitively.
  *
- *   player.general.<difficulty>.<key>   e.g. player.general.hard.enemydamagebase
- *   player.<unit>.param.<name>          e.g. player.knight.param.max-health
- *   player.<unit>.cost.<upgradeId>      e.g. player.knight.cost.health-1
+ *   player.general.<difficulty>.<key>        player.general.hard.enemydamagebase
+ *   player.<unit>.param.<name>               player.knight.param.max-health
+ *   player.<unit>.cost.<upgradeId>           player.knight.cost.health-1
+ *   player.<unit>.effect.<upgradeId>.<stat>  player.knight.effect.health-1.max-health
+ *
+ * The `effect` scope is what an upgrade *does*. An upgrade sets a param to an
+ * absolute value rather than adding to it, so leaving these fixed while the
+ * starting stats move is how you end up with a `health-1` that costs 600 gold
+ * and lowers your health.
  */
 
-export type TweakFieldGroup = 'difficulty' | 'param' | 'cost'
+export type TweakFieldGroup = 'difficulty' | 'param' | 'cost' | 'effect'
 
 export interface TweakFieldDef {
   /** canonical lowercase override key */
@@ -28,8 +35,14 @@ export interface TweakFieldDef {
   group: TweakFieldGroup
   /** sub-heading within the file — difficulty name, or the upgrade's cat */
   section?: string
-  /** for costs only: heading of the shop grouping this upgrade belongs to */
-  costGroup?: string
+  /** for upgrades only: heading of the shop grouping this upgrade belongs to */
+  shopGroup?: string
+  /** for upgrades only: the upgrade this field belongs to */
+  upgradeId?: string
+  /** for upgrades only: the chain the upgrade belongs to, e.g. "health" */
+  chain?: string
+  /** for params and effects: the stat name this field writes */
+  stat?: string
   /** display label: the raw stock name, which is what modders see in the XML */
   label: string
   type: TweakValueType
@@ -38,25 +51,25 @@ export interface TweakFieldDef {
 }
 
 /**
- * Splits a file's upgrade costs into headings small enough to scan.
+ * Splits a file's upgrades into headings small enough to scan.
  *
  * Classes reuse the game's own shop columns, which the `cat` attribute already
  * encodes as off/def/misc tiers. shared.xml can't: it files life, rejuv and all
  * three potions under one `power` cat, so it groups by what the upgrade buys.
  */
-function costGroupOf(fileId: string, upgradeId: string, cat: string): string {
+function shopGroupOf(fileId: string, upgradeId: string, cat: string): string {
   if (fileId === 'shared') {
     // prefix rules come first so pot-rejuv reads as a potion, not as health
-    if (upgradeId.startsWith('pot-')) return 'Potion costs'
-    if (upgradeId.startsWith('speed-')) return 'Movement speed costs'
-    if (upgradeId.startsWith('combo')) return 'Combo costs'
-    if (upgradeId === 'life' || upgradeId === 'rejuv') return 'Health costs'
-    return 'Other costs'
+    if (upgradeId.startsWith('pot-')) return 'Potion upgrades'
+    if (upgradeId.startsWith('speed-')) return 'Movement speed upgrades'
+    if (upgradeId.startsWith('combo')) return 'Combo upgrades'
+    if (upgradeId === 'life' || upgradeId === 'rejuv') return 'Health upgrades'
+    return 'Other upgrades'
   }
-  if (cat.startsWith('misc')) return 'Health & mana costs'
-  if (cat.startsWith('off')) return 'Offense costs'
-  if (cat.startsWith('def')) return 'Defense costs'
-  return 'Other costs'
+  if (cat.startsWith('misc')) return 'Health & mana upgrades'
+  if (cat.startsWith('off')) return 'Offense upgrades'
+  if (cat.startsWith('def')) return 'Defense upgrades'
+  return 'Other upgrades'
 }
 
 function buildFields(): TweakFieldDef[] {
@@ -85,28 +98,49 @@ function buildFields(): TweakFieldDef[] {
       // strings and bools stay at their stock values and pass straight through
       if (param.type !== 'int' && param.type !== 'float') continue
       fields.push({
-        key: `player.${file.id}.param.${param.name}`.toLowerCase(),
+        key: paramKey(file.id, param.name),
         fileId: file.id,
         file: file.file,
         group: 'param',
         label: param.name,
+        stat: param.name,
         type: param.type,
         stock: Number(param.value)
       })
     }
 
     for (const upgrade of file.upgrades) {
-      fields.push({
-        key: `player.${file.id}.cost.${upgrade.id}`.toLowerCase(),
+      const shared = {
         fileId: file.id,
         file: file.file,
-        group: 'cost',
         section: upgrade.cat,
-        costGroup: costGroupOf(file.id, upgrade.id, upgrade.cat),
-        label: upgrade.id,
+        shopGroup: shopGroupOf(file.id, upgrade.id, upgrade.cat),
+        upgradeId: upgrade.id,
+        chain: chainKeyOf(upgrade.id)
+      }
+
+      fields.push({
+        ...shared,
+        key: costKey(file.id, upgrade.id),
+        group: 'cost',
+        label: 'cost',
         type: 'int',
         stock: upgrade.cost
       })
+
+      // what the upgrade actually grants — `lvl`, strings and bools are excluded
+      // for the same reason params are: they are structure, not balance
+      for (const child of editableChildren(upgrade)) {
+        fields.push({
+          ...shared,
+          key: effectKey(file.id, upgrade.id, child.name),
+          group: 'effect',
+          label: child.name,
+          stat: child.name,
+          type: child.type,
+          stock: Number(child.value)
+        })
+      }
     }
   }
 
@@ -179,7 +213,7 @@ function cloneFile(file: TweakFile): TweakFile {
     upgrades: file.upgrades.map((upgrade) => ({
       ...upgrade,
       extra: upgrade.extra === undefined ? undefined : { ...upgrade.extra },
-      kids: upgrade.kids.map(cloneParam)
+      children: upgrade.children.map(cloneParam)
     }))
   }
 }
@@ -204,11 +238,20 @@ export function applyTweaks(tweaks: PlayerTweaks): TweakFile[] {
     }
 
     if (field.group === 'param') {
-      const target = file.params.find((p) => p.name === field.label)
+      const target = file.params.find((p) => p.name === field.stat)
       if (target !== undefined) target.value = value
-    } else if (field.group === 'cost') {
-      const target = file.upgrades.find((u) => u.id === field.label)
-      if (target !== undefined) target.cost = value
+      continue
+    }
+
+    // labels repeat across groups now, so upgrades are addressed by their id
+    const upgrade = file.upgrades.find((u) => u.id === field.upgradeId)
+    if (upgrade === undefined) continue
+
+    if (field.group === 'cost') {
+      upgrade.cost = value
+    } else if (field.group === 'effect') {
+      const target = upgrade.children.find((k) => k.name === field.stat)
+      if (target !== undefined) target.value = value
     }
   }
 

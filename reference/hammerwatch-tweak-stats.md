@@ -11,9 +11,14 @@ Files: `general.xml`, `shared.xml`, and one per class —
 `knight`, `priest`, `ranger`, `sorcerer`, `thief`, `warlock`, `wizard`.
 (There is no paladin/gladiator here; those are Heroes of Hammerwatch.)
 
-This is **game-balance data, not level-generation data** — nothing here feeds the
-dungeon generator today. Kept for a planned feature that needs the real
-class/difficulty numbers.
+This is **game-balance data, not level-generation data**. It draws no random
+values and cannot change a seed's dungeon. The same numbers are transcribed
+machine-readably in `src/generator/tweak/baseline.ts`, which is what the app
+edits and emits; these tables are the human-readable copy. Both were checked
+against the extracted files above and agree with them field for field.
+
+Commented-out blocks in the originals — the warlock's cut `lifesteal` skill, the
+superseded `shared.xml` speed tiers — are omitted here and in `baseline.ts`.
 
 ## File format
 
@@ -205,7 +210,7 @@ Tank/melee. Only class with base `dmg-reduction` > 0 and the only one reaching 1
 | chrgrng1..3 (off2-4) | 500 / 1200 / 1800 | charge-dist & charge-speed 4 / 5 / 6 |
 | whirl (off3) | 2200 | whirl true, whirl-dur 4, multiplier 1.5 |
 | whirldmg1..2 (off4-5) | 2800 / 3800 | whirl-dmg-multiplier 2 / 2.5 |
-| whirldur1..2 (off4-5) | 3000 / 4000 | whirl-dur 6 / 8 |
+| whirldur1, whirldur (off4-5) | 3000 / 4000 | whirl-dur 6 / 8 |
 | bash1..3 (def1-3) | 700 / 1600 / 2600 | bash-chance 10 / 20 / 30 |
 | armor-1..5 (def1-5) | 600 / 1200 / 2000 / 2500 / 3200 | dmg-reduction 4 / 6 / 8 / 9 / 10 |
 | heal (def2) | 700 | heal true, heal-amount 5, heal-mana-cost 10 |

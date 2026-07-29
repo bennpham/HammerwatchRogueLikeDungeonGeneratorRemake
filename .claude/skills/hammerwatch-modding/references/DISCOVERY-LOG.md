@@ -71,6 +71,35 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-07-28 — baseline.ts matches the stock tweak XML field for field
+**Tag:** [VERIFIED] (Windows 10, Steam install, files read directly)
+**Context:** Making each upgrade's *effect* editable, not just its price. Before
+adding fields derived from `upgrade.children`, the transcription they come from
+had to be trusted.
+**Evidence:** All nine stock files were read from
+`D:\Program Files (x86)\Steam\steamapps\common\Hammerwatch\editor\assetsExtract\tweak\`
+(`general.xml`, `shared.xml`, knight/priest/ranger/sorcerer/thief/warlock/wizard)
+and compared tag-by-tag against `serializeUnitFile`/`serializeGeneralFile` output
+for `TWEAK_BASELINE`. Every element, attribute and value matches — knight alone
+is 494 tags. Two deliberate, harmless divergences:
+
+- The game writes `2.0` where `formatNumber` gives `2`. Same number, different
+  text; `xml.ts` has always emitted shortest form.
+- Commented-out blocks are dropped: warlock's cut `lifesteal` skill (params at
+  `warlock.xml:20-26`, upgrades `steal`/`stealdmg-*`/`stealdur-*` at
+  `warlock.xml:303+`) and the superseded `shared.xml` speed tiers. They are
+  inside `<!-- -->` in the stock files, so the game never loads them either.
+
+The same comparison was run against `reference/hammerwatch-tweak-stats.md`:
+every `<params>` table and every "Tier costs" column agrees with the extracted
+files. One cosmetic doc fix — the knight row read `whirldur1..2`, but the stock
+tier-2 id really is `whirldur`, with no `2`.
+**Impact:** `baseline.ts` and `reference/hammerwatch-tweak-stats.md` can both be
+treated as faithful. Chain grouping must not derive tier numbers from ids
+(`whirldur` proves it) — `src/generator/tweak/chains.ts` reads the
+`<int name="lvl">` child instead. Still `[EMITTED]` only for our *output*: no
+generated `tweak/` folder has been loaded in game, so open questions 8-10 stand.
+
 ### 2026-07-28 — campaign tweak files appear to replace the base file wholesale
 **Tag:** [UNVERIFIED] (strong inference from shipped game data)
 **Context:** Adding the player-balance feature (`src/generator/tweak/`), which

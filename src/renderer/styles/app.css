@@ -540,6 +540,76 @@ button.primary:hover:not(:disabled) {
   padding: 2px 0 8px;
 }
 
+/* one upgrade ladder: curve knobs up front, raw tiers behind a disclosure */
+
+.chain-row {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+
+.chain-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.chain-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.chain-subtitle {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.chain-curves {
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+}
+
+/* the +/x selector sits flush against the number it applies to */
+.curve-input {
+  display: flex;
+  gap: 4px;
+}
+
+.curve-mode {
+  width: auto;
+  flex: 0 0 auto;
+  padding: 6px 4px;
+}
+
+.chain-tiers > summary {
+  cursor: pointer;
+  user-select: none;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.chain-tiers > summary:hover {
+  color: var(--text);
+}
+
+.chain-tiers-body {
+  padding-top: 6px;
+}
+
+.tier-block {
+  margin-bottom: 8px;
+}
+
+.tier-id {
+  display: block;
+  font-size: 11px;
+  font-family: var(--mono, ui-monospace, monospace);
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
 /* --- Loadout sheet ------------------------------------------------------ */
 
 .loadout-summary {

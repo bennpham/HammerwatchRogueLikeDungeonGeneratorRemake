@@ -1,6 +1,9 @@
 import { DungeonParameters, THEMES } from './parameters'
 import { isKnownMonsterId } from '../objects/monsterTypes'
-import { TWEAK_FIELD_MAP } from '../tweak/overrides'
+import { paramKey } from '../tweak/chains'
+import { TWEAK_FIELDS, TWEAK_FIELD_MAP } from '../tweak/overrides'
+import type { TweakFieldDef } from '../tweak/overrides'
+import type { PlayerTweaks } from '../tweak/types'
 
 export interface ValidationIssue {
   /** parameter field the issue belongs to, for inline display in the GUI */
@@ -188,7 +191,9 @@ function validatePlayerTweaks(
   errors: ValidationIssue[],
   warnings: ValidationIssue[]
 ): void {
-  for (const [key, value] of Object.entries(p.playerTweaks ?? {})) {
+  const tweaks = p.playerTweaks ?? {}
+
+  for (const [key, value] of Object.entries(tweaks)) {
     const field = TWEAK_FIELD_MAP.get(key.toLowerCase())
     if (field === undefined) continue
 
@@ -211,7 +216,7 @@ function validatePlayerTweaks(
 
     // -1 is the game's "skill locked" sentinel, so negatives are legitimate for
     // most fields; only the handful that must be positive get a floor.
-    if ((field.label === 'max-health' || field.label === 'max-mana') && value < 1) {
+    if ((field.stat === 'max-health' || field.stat === 'max-mana') && value < 1) {
       errors.push({ field: key, message: 'Must be at least 1.' })
       continue
     }
@@ -221,8 +226,108 @@ function validatePlayerTweaks(
       continue
     }
 
-    if (field.label === 'max-health' && value > 10000) {
-      warnings.push({ field: key, message: 'Very high starting health — the campaign may be trivial.' })
+    if (field.stat === 'max-health' && value > 10000) {
+      warnings.push({ field: key, message: 'Very high health — the campaign may be trivial.' })
+    }
+
+    if (field.group === 'effect') {
+      const downgrade = downgradeMessage(field, value, tweaks)
+      if (downgrade !== undefined) warnings.push({ field: key, message: downgrade })
+      continue
+    }
+
+    if (field.group === 'param') {
+      const stale = staleUpgrades(field, value, tweaks)
+      if (stale !== undefined) {
+        warnings.push({
+          field: key,
+          message: `${stale.count} ${stale.count === 1 ? 'upgrade still sets' : 'upgrades still set'} ${field.stat} ${stale.side} ${value} — buying ${stale.count === 1 ? 'it' : 'them'} would downgrade the character. Adjust the ${field.stat} ladder to match.`
+        })
+      }
     }
   }
+}
+
+/** -1 is "skill locked" and 9999 "unaffordable"; neither is a real starting value. */
+const SENTINELS = new Set([-1, 9999])
+
+/**
+ * Upgrades *set* a stat to an absolute value, so an upgrade that lands on the
+ * wrong side of the character's starting value is bought with gold and makes
+ * the character worse. That is easy to walk into by raising a starting stat and
+ * leaving the ladder alone, so it warns rather than blocks — an intentionally
+ * cursed build is still a legal build.
+ *
+ * Which side is "wrong" comes from the stock data: most stats climb, but
+ * `mana-regen` is a millisecond period and the `*-mana-cost` stats are prices,
+ * where the stock upgrades fall.
+ */
+function downgradeMessage(
+  field: TweakFieldDef,
+  value: number,
+  tweaks: PlayerTweaks
+): string | undefined {
+  if (field.stat === undefined) return undefined
+
+  const start = TWEAK_FIELD_MAP.get(paramKey(field.fileId, field.stat))
+  if (start === undefined || SENTINELS.has(start.stock)) return undefined
+
+  const improves = field.stock - start.stock
+  if (improves === 0) return undefined
+
+  const current = tweaks[start.key] ?? start.stock
+  if (SENTINELS.has(current)) return undefined
+
+  if (!isDowngrade(value, current, improves)) return undefined
+
+  return `${field.upgradeId} sets ${field.stat} to ${value}, ${
+    improves > 0 ? 'below' : 'above'
+  } the starting ${field.stat} of ${current} — buying it would downgrade the character.`
+}
+
+function isDowngrade(value: number, start: number, improves: number): boolean {
+  return improves > 0 ? value < start : value > start
+}
+
+/** Effect fields grouped by the starting stat they compete with. */
+const EFFECTS_BY_STAT = ((): Map<string, TweakFieldDef[]> => {
+  const map = new Map<string, TweakFieldDef[]>()
+  for (const field of TWEAK_FIELDS) {
+    if (field.group !== 'effect' || field.stat === undefined) continue
+    const key = paramKey(field.fileId, field.stat)
+    const bucket = map.get(key)
+    if (bucket === undefined) map.set(key, [field])
+    else bucket.push(field)
+  }
+  return map
+})()
+
+/**
+ * How many upgrades a *starting stat* has just overtaken.
+ *
+ * The per-field check above only sees tiers the user actually edited, and the
+ * mistake this is here to catch is the opposite: raising a starting stat and
+ * leaving the stock ladder alone, which stores no upgrade override at all.
+ */
+function staleUpgrades(
+  field: TweakFieldDef,
+  start: number,
+  tweaks: PlayerTweaks
+): { count: number; side: string } | undefined {
+  if (field.stat === undefined || SENTINELS.has(start)) return undefined
+
+  let count = 0
+  // the stat's own stock ladder says which direction counts as an improvement
+  let improving = 0
+  for (const effect of EFFECTS_BY_STAT.get(field.key) ?? []) {
+    const improves = effect.stock - field.stock
+    if (improves === 0) continue
+    const value = tweaks[effect.key] ?? effect.stock
+    if (isDowngrade(value, start, improves)) {
+      count += 1
+      improving = improves
+    }
+  }
+  if (count === 0) return undefined
+  return { count, side: improving > 0 ? 'below' : 'above' }
 }

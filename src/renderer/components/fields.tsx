@@ -1,5 +1,5 @@
 import React from 'react'
-import type { ValidationIssue } from '../../generator'
+import type { CurveMode, ValidationIssue } from '../../generator'
 
 interface NumberFieldProps {
   label: string
@@ -66,5 +66,92 @@ export function Subsection({ title, children, defaultOpen = false, badge }: Sect
       </summary>
       <div className="subsection-body">{children}</div>
     </details>
+  )
+}
+
+interface CurveFieldProps {
+  label: string
+  value: number
+  onChange: (value: number) => void
+  step?: number
+  title?: string
+  /** omit to hide the +/× selector */
+  mode?: CurveMode
+  onModeChange?: (mode: CurveMode) => void
+}
+
+/**
+ * One knob of an upgrade curve. Deliberately not a {@link NumberField}: curves
+ * are a shorthand for a set of per-tier overrides, not an override themselves,
+ * so they carry no key and no inline validation of their own.
+ */
+export function CurveField({ label, value, onChange, step, title, mode, onModeChange }: CurveFieldProps) {
+  return (
+    <label className="field curve-field" title={title}>
+      <span className="field-label">{label}</span>
+      <span className="curve-input">
+        {mode !== undefined && onModeChange !== undefined && (
+          <select
+            className="curve-mode"
+            value={mode}
+            onChange={(e) => onModeChange(e.target.value as CurveMode)}
+            title="+ adds the step to each tier, × multiplies by it"
+          >
+            <option value="add">+</option>
+            <option value="mul">×</option>
+          </select>
+        )}
+        <input
+          type="number"
+          value={Number.isNaN(value) ? '' : value}
+          step={step ?? 1}
+          onChange={(e) => onChange(e.target.value === '' ? NaN : Number(e.target.value))}
+        />
+      </span>
+    </label>
+  )
+}
+
+interface ChainRowProps {
+  title: string
+  /** shown next to the title, e.g. the stats the chain writes */
+  subtitle?: string
+  badge?: string
+  /** the curve knobs */
+  children: React.ReactNode
+  /** the per-tier inputs, revealed on demand */
+  tiers: React.ReactNode
+}
+
+/** One upgrade ladder: its curve up front, the raw tiers behind a disclosure. */
+export function ChainRow({ title, subtitle, badge, children, tiers }: ChainRowProps) {
+  return (
+    <div className="chain-row">
+      <div className="chain-head">
+        <span className="chain-title">{title}</span>
+        {subtitle && <span className="chain-subtitle">{subtitle}</span>}
+        {badge && <span className="section-badge">{badge}</span>}
+      </div>
+      <div className="field-grid chain-curves">{children}</div>
+      <details className="chain-tiers">
+        <summary>Edit tiers</summary>
+        <div className="chain-tiers-body">{tiers}</div>
+      </details>
+    </div>
+  )
+}
+
+interface TierBlockProps {
+  id: string
+  children: React.ReactNode
+}
+
+/** One upgrade's own inputs, labelled with the id that appears in the XML. */
+export function TierBlock({ id, children }: TierBlockProps) {
+  return (
+    <div className="tier-block">
+      <span className="tier-id">{id}</span>
+      <div className="field-grid">{children}</div>
+    </div>
   )
 }
