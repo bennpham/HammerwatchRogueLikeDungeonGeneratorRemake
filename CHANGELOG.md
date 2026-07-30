@@ -9,27 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Quick setup — all characters** on the Player tab: bulk-edit the whole roster
-  instead of walking ~1,400 individual fields
+- **All characters** on the Player tab: bulk-edit the whole roster instead of
+  walking ~1,400 individual fields. *Enemy difficulty* stays a top-level sibling;
+  the roster-wide knobs and all eight player files live inside this one section, so
+  a quick setup never has to scroll past seven class accordions
   - A master `×` knob plus one per stat group (health, mana, damage, defense,
     utility, costs) that scales each starting stat **and every upgrade tier that
     writes it**, across all seven classes at once. Higher always means stronger:
     mana regen and skill costs are divided rather than multiplied
-  - Upgrade shop modes: stock prices, **all free** (which also pre-unlocks each
-    class's 2nd and ultimate skill), or **locked out** at an editable price
-    (default 999,999) for a base-stats-only campaign
+  - Upgrade shop modes: **stock prices**, **all free** (which also pre-unlocks each
+    class's 2nd and ultimate skill), **no upgrades** for a base-stats-only campaign,
+    or **one custom price** — negative pays the player
   - **Fully upgraded roster** preset — everyone starts with every upgrade bought
-    and every skill unlocked, at whatever balance is currently set
+    and every skill unlocked, at whatever balance is currently set, and the shop is
+    cleared of everything that can no longer improve them
+  - **Skills unlocked at start**, grouped by class in one place, filling in the
+    stats and asset paths the game leaves unset until the upgrade is bought
   - **Remove extra lives from the shop**, since `life` is a repeatable purchase
     players can farm by leaving a level and returning
-- Per-class "Skills unlocked at start" checkboxes, which fill in the skill stats
-  the game leaves on sentinels until the unlock upgrade is bought
+- **A "tiers sold" limit on every upgrade ladder.** Set it to 2 and the shop offers
+  only the first two tiers; the rest disappear, because each tier requires the one
+  below it and the emitted file drops the whole dependent subtree. Single-purchase
+  entries get a checkbox instead
 - `player.<file>.remove.<upgradeId>` overrides, which drop an upgrade from the
   emitted tweak file entirely; removal cascades to anything that requires it, so
   a file never ships a dangling `req`
 
 ### Fixed
 
+- **"Fully upgraded roster" no longer leaves the shop selling downgrades.** A maxed
+  Thief was still offered *Knives Damage 1* for 800 gold, which would have dropped
+  `knives-dmg` from 46 to 16. The preset now takes every upgrade that can no longer
+  improve anything out of the shop. Upgrades with no stats — extra lives,
+  rejuvenation and the three potions — stay buyable, because "already better"
+  cannot be computed for them and they still do something for a maxed character
+- The shop-price toggle no longer reads **Mixed** when no price has been touched.
+  Removing extra lives, or shortening a ladder, used to flip it off *Stock prices*
 - **Pre-unlocked skills no longer crash the game.** `combo-nova-projectile` and
   `aura-buff` are empty in the stock files and only an upgrade fills them in, so
   arming a combo nova's numbers without its projectile threw a

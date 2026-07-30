@@ -37,19 +37,23 @@ export {
   SKILL_UNLOCKS,
   STAT_GROUPS,
   applyCostPolicy,
+  applyDeadUpgradeRemoval,
   applyFullyUpgraded,
   applyMasterFactor,
   applyShopRemovals,
   applySkillUnlock,
   applySkillUnlocks,
   applyStatFactor,
+  applyTiersSold,
   deriveCostPolicy,
   deriveMasterFactor,
   deriveShopRemovals,
   deriveSkillUnlocks,
   deriveStatFactor,
+  deriveTiersSold,
   fieldsOfGroup,
   groupOfStat,
+  isDeadUpgrade,
   resetQuickSetup,
   shopPrice,
   totalShopCost
@@ -61,7 +65,8 @@ export type {
   StatDirection,
   StatFactor,
   StatGroup,
-  StatGroupId
+  StatGroupId,
+  TiersSold
 } from './bulk'
 export { buildLoadouts } from './loadout'
 export type { ClassLoadout, LoadoutStat } from './loadout'

@@ -7,6 +7,7 @@ import {
   applyFullyUpgraded,
   applyMasterFactor,
   applyShopRemovals,
+  applySkillUnlock,
   applySkillUnlocks,
   applyStatFactor,
   deriveCostPolicy,
@@ -15,16 +16,35 @@ import {
   deriveSkillUnlocks,
   deriveStatFactor,
   resetQuickSetup,
-  totalShopCost
+  totalShopCost,
+  SKILL_UNLOCKS,
+  TWEAK_BASELINE
 } from '../../generator'
 import type { CostPolicy, PlayerTweaks, StatGroupId } from '../../generator'
-import { BoolField, CurveField, Section, Subsection, ToggleGroup } from './fields'
+import { BoolField, CurveField, Subsection, ToggleGroup } from './fields'
 
 interface QuickSetupProps {
   tweaks: PlayerTweaks
-  badge?: string
   onChange: (tweaks: PlayerTweaks) => void
 }
+
+/** Skill flags grouped by the class that owns them, in baseline order. */
+const SKILLS_BY_CLASS = ((): Array<{ fileId: string; label: string; flags: string[] }> => {
+  const order: string[] = []
+  const flags = new Map<string, string[]>()
+  for (const unlock of SKILL_UNLOCKS) {
+    if (!flags.has(unlock.fileId)) {
+      flags.set(unlock.fileId, [])
+      order.push(unlock.fileId)
+    }
+    flags.get(unlock.fileId)?.push(unlock.flag)
+  }
+  return order.map((fileId) => ({
+    fileId,
+    label: TWEAK_BASELINE.find((file) => file.id === fileId)?.label ?? fileId,
+    flags: flags.get(fileId) ?? []
+  }))
+})()
 
 type ShopChoice = Exclude<CostPolicy, 'mixed'> | 'mixed'
 
@@ -33,7 +53,7 @@ const SHOP_OPTIONS: Array<{ value: ShopChoice; label: string; title: string }> =
   {
     value: 'free',
     label: 'All free',
-    title: 'Every upgrade costs 0, so a character can be fully kitted out — including the 2nd and ultimate skill — at any shop'
+    title: 'Every upgrade costs 0, so a character can be fully kitted out — every skill included — at any shop'
   },
   {
     value: 'removed',
@@ -57,7 +77,7 @@ const gold = (value: number): string => value.toLocaleString('en-US')
  * class sections below, exports to parameters.txt, and disappears entirely at
  * ×1 — which is what keeps a stock run from emitting a tweak/ folder.
  */
-export function QuickSetup({ tweaks, badge, onChange }: QuickSetupProps) {
+export function QuickSetup({ tweaks, onChange }: QuickSetupProps) {
   // UI-only: what gets stored is the price itself, on every upgrade
   const [price, setPrice] = React.useState(SHOP_PRICE_MAX)
 
@@ -69,8 +89,8 @@ export function QuickSetup({ tweaks, badge, onChange }: QuickSetupProps) {
   const setPolicy = (choice: ShopChoice) => {
     if (choice === 'mixed') return
     const next = applyCostPolicy(choice, price, tweaks)
-    // free upgrades exist so a character can reach its 2nd and ultimate skill,
-    // so switch those on at the same time rather than making it a second step
+    // free upgrades exist so a character can reach every skill, so switch them on
+    // at the same time rather than making it a second step
     onChange(choice === 'free' ? applySkillUnlocks(true, next) : next)
   }
 
@@ -82,7 +102,7 @@ export function QuickSetup({ tweaks, badge, onChange }: QuickSetupProps) {
   }
 
   return (
-    <Section title="Quick setup — all characters" badge={badge}>
+    <>
       <p className="hint">
         Scales starting stats <em>and</em> every upgrade tier that writes them, across all seven
         classes at once. <code>×1</code> is the stock game and stores nothing. Switch to the{' '}
@@ -163,12 +183,6 @@ export function QuickSetup({ tweaks, badge, onChange }: QuickSetupProps) {
 
         <div className="quick-setup-checks">
           <BoolField
-            label="Start with all skills unlocked"
-            checked={skills}
-            onChange={(on) => onChange(applySkillUnlocks(on, tweaks))}
-            title="Also fills in each skill's stats, which the game leaves unset until the upgrade is bought"
-          />
-          <BoolField
             label="Remove extra lives from the shop (life)"
             checked={noLives}
             onChange={(on) => onChange(applyShopRemovals(EXTRA_LIFE_UPGRADES, on, tweaks))}
@@ -177,6 +191,36 @@ export function QuickSetup({ tweaks, badge, onChange }: QuickSetupProps) {
         </div>
 
         <p className="hint">Gold to buy every upgrade in the game: {gold(totalShopCost(tweaks))}.</p>
+      </Subsection>
+
+      <Subsection title="Skills unlocked at start" defaultOpen>
+        <div className="quick-setup-checks">
+          <BoolField
+            label="Start with all skills unlocked"
+            checked={skills}
+            onChange={(on) => onChange(applySkillUnlocks(on, tweaks))}
+            title="Every class, every bool-gated skill. Also fills in each skill's stats and its projectile or buff path, which the game leaves unset until the upgrade is bought"
+          />
+        </div>
+        <div className="skill-grid">
+          {SKILLS_BY_CLASS.map((group) => (
+            <div className="skill-class" key={group.fileId}>
+              <span className="skill-class-name">{group.label}</span>
+              {group.flags.map((flag) => (
+                <BoolField
+                  key={flag}
+                  label={flag}
+                  checked={tweaks[`player.${group.fileId}.param.${flag}`] === 1}
+                  onChange={(on) => onChange(applySkillUnlock(group.fileId, flag, on, tweaks))}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+        <p className="hint">
+          Normally bought at a shop. Ticking one also fills in the skill&apos;s stats and its
+          projectile or buff path, which the game leaves unset until the upgrade is purchased.
+        </p>
       </Subsection>
 
       <Subsection title="Presets" defaultOpen>
@@ -195,6 +239,6 @@ export function QuickSetup({ tweaks, badge, onChange }: QuickSetupProps) {
           price and skill to the stock game, leaving enemy difficulty alone.
         </p>
       </Subsection>
-    </Section>
+    </>
   )
 }

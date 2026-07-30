@@ -229,6 +229,20 @@ same `GeneratedFile[]` the levels produce.
     params are overridden by index into `TweakFieldDef.choices`, so the map stays
     numeric and an unshipped path cannot be emitted. `applyFullyUpgraded` is a one-shot action, not a
     toggle, and reads the *tweaked* files so it composes with the factors.
+  - **The `req` cascade *is* the tier mechanism.** Every multi-tier chain links tier
+    N to tier N-1 by `req`, and `applyTweaks` drops anything whose `req` chain
+    reaches a removed upgrade — so `applyTiersSold` writes exactly **one** boundary
+    flag per ladder and the cascade does the rest. Do not add per-tier flags.
+  - **An upgrade with no editable children can never be judged dead.** `life`,
+    `rejuv` and the three potions carry no stats, so `isDeadUpgrade` returns false
+    and they survive the fully-upgraded preset. Same for an upgrade whose payload
+    has no starting param to compare against — the Priest's cripple aura writes
+    `slow`, which the Priest cannot start with, so it stays buyable.
+  - **Direction comes from the ladder before the starting value.** `directionOf`
+    consults the stock ladder's slope first, because a starting value can lie twice
+    over: it may be the `-1`/`9999` sentinel, or a plain `0` meaning *disabled*
+    rather than *worst*. Priest `hp-regen` starts at 0 but its ladder descends
+    (5 -> 1.25) because it is a period in seconds.
   - **"No upgrades" removes, it does not overprice.** An omitted upgrade is
     genuinely absent from the shop (verified), so the lockout empties
     `<upgrades>` rather than pricing at `SHOP_PRICE_MAX`. That constant survives
@@ -244,8 +258,8 @@ same `GeneratedFile[]` the levels produce.
   That is why `maxedParams` buys in `req`-depth order and lets later purchases
   overwrite earlier ones, and why `bulk.ts` reuses it rather than reimplementing.
 - **Warnings that a bulk policy would fire hundreds of times get collapsed.**
-  A bounty shop sets all 372 prices negative; that is one warning naming the
-  count, not 372 identical ones. Same principle as the exemption below — apply it
+  A bounty shop sets all 372 prices negative and the fully-upgraded preset removes
+  104 ladders; each is one warning naming the count, not hundreds of identical ones. Same principle as the exemption below — apply it
   to any new per-field warning a quick-setup control can trigger en masse.
 - **The downgrade warnings have an exemption.** A starting stat sitting exactly on
   a rung of its own ladder is a character deliberately created fully upgraded, so

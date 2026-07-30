@@ -107,6 +107,34 @@ export function chainKeyOf(id: string): string {
   return stripped.length === 0 ? id : stripped
 }
 
+/**
+ * Which way an upgrade improves the stat it writes, read off the stock data:
+ * positive when the stock upgrade raises the starting value, negative when it
+ * lowers it. `mana-regen` is a period in ms and the `*-mana-cost` stats are
+ * prices, so for those the stock ladder descends.
+ *
+ * Shared because two features need the same answer: validation warns when an
+ * upgrade has become a paid downgrade, and the bulk editor removes upgrades that
+ * have nothing left to give.
+ */
+export function improvesBy(effectStock: number, startStock: number): number {
+  return effectStock - startStock
+}
+
+/** True when buying an upgrade that sets `value` would make `start` worse. */
+export function isDowngrade(value: number, start: number, improves: number): boolean {
+  return improves > 0 ? value < start : value > start
+}
+
+/**
+ * True when an upgrade has nothing left to give: it lands on the wrong side of
+ * the current value, or exactly on it. Buying it costs gold and changes nothing
+ * or makes the character worse.
+ */
+export function isSpent(value: number, start: number, improves: number): boolean {
+  return value === start || isDowngrade(value, start, improves)
+}
+
 /** The children a user may edit: numeric, and not the tier index itself. */
 export function editableChildren(upgrade: TweakUpgrade): TweakParam[] {
   return upgrade.children.filter(

@@ -3,12 +3,13 @@ import {
   TWEAK_BASELINE,
   TWEAK_FIELDS,
   applyCostCurve,
-  applySkillUnlock,
+  applyTiersSold,
   applyValueCurve,
   buildChains,
   countTweaksByFile,
   currentStart,
   deriveCostCurve,
+  deriveTiersSold,
   deriveValueCurve
 } from '../../generator'
 import type {
@@ -90,11 +91,9 @@ export function PlayerForm({ tweaks, issues, onChange }: PlayerFormProps) {
     return n === 0 ? undefined : `${n} changed`
   }
 
-  // the quick-setup section reaches every character field, so its badge counts
-  // everything except enemy difficulty
-  const quickCount = Object.keys(counts).filter((id) => id !== 'general').length
-  const quickBadge =
-    quickCount === 0 ? undefined : `${quickCount} of 8 files changed`
+  // "All characters" holds every player file, so its badge counts them all
+  const changedFiles = Object.keys(counts).filter((id) => id !== 'general').length
+  const quickBadge = changedFiles === 0 ? undefined : `${changedFiles} of 8 files changed`
 
   const inputs = (fields: TweakFieldDef[]) =>
     fields.map((field) => (
@@ -131,11 +130,26 @@ export function PlayerForm({ tweaks, issues, onChange }: PlayerFormProps) {
   const chainEditor = (file: TweakUnitFile, chain: TweakChain, fields: TweakFieldDef[]) => {
     const blocks = tierBlocks(fields)
 
-    // skill unlocks and everything in shared.xml are single entries — no ladder
-    if (chain.flat) return <React.Fragment key={chain.key}>{blocks}</React.Fragment>
+    // skill unlocks and everything in shared.xml are single entries — no ladder,
+    // but they can still be taken out of the shop
+    if (chain.flat) {
+      const soldFlat = deriveTiersSold(chain, tweaks)
+      return (
+        <div className="tier-flat" key={chain.key}>
+          <BoolField
+            label={`sell ${chain.tiers[0].upgrade.id}`}
+            checked={soldFlat.count > 0}
+            onChange={(on) => onChange(applyTiersSold(chain, on ? chain.tiers.length : 0, tweaks))}
+            title="Unchecked takes this purchase out of the shop entirely"
+          />
+          {blocks}
+        </div>
+      )
+    }
 
     const cost = deriveCostCurve(chain, tweaks)
     const irregular = !cost.fits || chain.stats.some((stat) => !deriveValueCurve(file, chain, stat, tweaks).fits)
+    const sold = deriveTiersSold(chain, tweaks)
 
     return (
       <ChainRow
@@ -143,6 +157,15 @@ export function PlayerForm({ tweaks, issues, onChange }: PlayerFormProps) {
         title={chain.key}
         subtitle={`${chain.tiers.length} tiers${irregular ? ' · custom ladder' : ''}`}
         badge={groupBadge(fields)}
+        limit={
+          <CurveField
+            label={`tiers sold${sold.uniform ? '' : ' · custom'}`}
+            value={sold.count}
+            step={1}
+            onChange={(v) => onChange(applyTiersSold(chain, v, tweaks))}
+            title={`How many of the ${chain.tiers.length} tiers the shop offers. Lowering it drops the tiers above, because each one requires the one below.`}
+          />
+        }
         tiers={blocks}
       >
         <CurveField
@@ -202,40 +225,48 @@ export function PlayerForm({ tweaks, issues, onChange }: PlayerFormProps) {
         to your dungeon only. Leave everything alone and no tweak files are produced at all.
       </p>
 
+      {/* enemy scaling is the other axis and stays a top-level sibling */}
       {TWEAK_BASELINE.map((file) => {
         const fields = FIELDS_BY_FILE.get(file.id) ?? []
-        if (fields.length === 0) return null
+        if (fields.length === 0 || file.kind !== 'general') return null
 
-        if (file.kind === 'general') {
-          return (
-            <Section key={file.id} title={file.label} badge={badge(file.id)}>
-              <p className="hint">
-                Per-difficulty enemy scaling. <code>medium</code> is the 1.0 baseline; lower{' '}
-                <code>SpawnFreq</code> means faster spawns.
-              </p>
-              {file.difficulties.map((difficulty) => {
-                const group = fields.filter((f) => f.section === difficulty.name)
-                return (
-                  <Subsection
-                    key={difficulty.name}
-                    title={difficulty.name}
-                    badge={groupBadge(group)}
-                    defaultOpen
-                  >
-                    {grid(group)}
-                  </Subsection>
-                )
-              })}
-            </Section>
-          )
-        }
+        return (
+          <Section key={file.id} title={file.label} badge={badge(file.id)}>
+            <p className="hint">
+              Per-difficulty enemy scaling. <code>medium</code> is the 1.0 baseline; lower{' '}
+              <code>SpawnFreq</code> means faster spawns.
+            </p>
+            {file.difficulties.map((difficulty) => {
+              const group = fields.filter((f) => f.section === difficulty.name)
+              return (
+                <Subsection
+                  key={difficulty.name}
+                  title={difficulty.name}
+                  badge={groupBadge(group)}
+                  defaultOpen
+                >
+                  {grid(group)}
+                </Subsection>
+              )
+            })}
+          </Section>
+        )
+      })}
+
+      {/* the roster-wide knobs first, then the eight files they act on, so a
+          dungeon master who only wants a quick setup never meets the detail */}
+      <Section title="All characters" badge={quickBadge} defaultOpen>
+        <QuickSetup tweaks={tweaks} onChange={onChange} />
+
+        {TWEAK_BASELINE.map((file) => {
+          const fields = FIELDS_BY_FILE.get(file.id) ?? []
+          if (fields.length === 0 || file.kind === 'general') return null
 
         // bools are the skill-unlock flags (checkboxes, not 0/1 inputs) and strings
         // are stored as an index into their stock values — neither is a number to type
         const params = fields.filter(
           (f) => f.group === 'param' && f.type !== 'bool' && f.type !== 'string'
         )
-        const flags = fields.filter((f) => f.group === 'param' && f.type === 'bool')
         const chains = CHAINS_BY_FILE.get(file.id) ?? []
         const fieldsByChain = new Map<string, TweakFieldDef[]>()
         for (const field of fields) {
@@ -262,31 +293,6 @@ export function PlayerForm({ tweaks, issues, onChange }: PlayerFormProps) {
                 {grid(params)}
               </Subsection>
             )}
-            {flags.length > 0 && (
-              <Subsection
-                title="Skills unlocked at start"
-                badge={groupBadge(flags)}
-                defaultOpen={false}
-              >
-                <p className="hint">
-                  Normally bought at a shop. Ticking one here also fills in the skill&apos;s stats,
-                  which the game leaves unset until the upgrade is purchased.
-                </p>
-                <div className="quick-setup-checks">
-                  {flags.map((field) => (
-                    <BoolField
-                      key={field.key}
-                      label={field.label}
-                      checked={currentValue(tweaks, field) === 1}
-                      onChange={(on) =>
-                        onChange(applySkillUnlock(file.id, field.label, on, tweaks))
-                      }
-                      title={`${field.file} — stock ${field.stock === 1 ? 'on' : 'off'}`}
-                    />
-                  ))}
-                </div>
-              </Subsection>
-            )}
             {[...shopGroups].map(([title, group]) => {
               const groupFields = group.flatMap((chain) => fieldsByChain.get(chain.key) ?? [])
               return (
@@ -298,16 +304,9 @@ export function PlayerForm({ tweaks, issues, onChange }: PlayerFormProps) {
           </Section>
         )
 
-        // the bulk editor sits between the shared stats and the first class, so
-        // the broad strokes come before the seven sets of fine detail
-        if (file.id !== 'shared') return section
-        return (
-          <React.Fragment key={file.id}>
-            {section}
-            <QuickSetup tweaks={tweaks} badge={quickBadge} onChange={onChange} />
-          </React.Fragment>
-        )
-      })}
+          return section
+        })}
+      </Section>
     </div>
   )
 }

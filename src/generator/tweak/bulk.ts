@@ -1,13 +1,17 @@
 import { TWEAK_BASELINE } from './baseline'
 import {
+  buildChains,
   editableChildren,
+  improvesBy,
   isSentinel,
+  isSpent,
   paramKey,
   removeKey,
   round,
   same,
   withOverride
 } from './chains'
+import type { TweakChain } from './chains'
 import { maxedParams, maxedStrings } from './loadout'
 import { TWEAK_FIELDS, TWEAK_FIELD_MAP, applyTweaks } from './overrides'
 import type { TweakFieldDef } from './overrides'
@@ -326,10 +330,9 @@ export function applyCostPolicy(
 export function deriveCostPolicy(tweaks: PlayerTweaks, price: number): CostPolicy {
   if (REMOVE_FIELDS.every((field) => tweaks[field.key] === 1)) return 'removed'
 
-  const priced = COST_FIELDS.every((field) => tweaks[field.key] === undefined)
-  const anyRemoved = REMOVE_FIELDS.some((field) => tweaks[field.key] === 1)
-  if (priced) return anyRemoved ? 'mixed' : 'stock'
-  if (anyRemoved) return 'mixed'
+  // removals are orthogonal to prices: a shortened ladder or a removed extra life
+  // says nothing about what the remaining upgrades cost
+  if (COST_FIELDS.every((field) => tweaks[field.key] === undefined)) return 'stock'
 
   const at = (value: number): boolean =>
     COST_FIELDS.every((field) => (tweaks[field.key] ?? field.stock) === value)
@@ -522,7 +525,9 @@ export function applyFullyUpgraded(tweaks: PlayerTweaks): PlayerTweaks {
     }
   }
 
-  return next
+  // nothing in the shop can improve a maxed character, and the game will happily
+  // sell a "Knives Damage 1" that drops knives-dmg from 46 to 16, so clear them
+  return applyDeadUpgradeRemoval(next)
 }
 
 /* -------------------------------------------------------------- removals ---- */
@@ -552,6 +557,160 @@ export function applyShopRemovals(
     if (on) next[key] = 1
     else delete next[key]
   }
+  return next
+}
+
+/* ------------------------------------------------------- ladders & death ---- */
+
+export interface TiersSold {
+  /** how many tiers of the ladder the shop still offers */
+  count: number
+  /** false when the removals are not a clean "everything above tier N" cut */
+  uniform: boolean
+}
+
+/**
+ * Limit a ladder to its first `count` tiers.
+ *
+ * Only the boundary tier gets a flag: every chain links tier N to tier N-1 by
+ * `req`, and `applyTweaks` drops anything whose `req` chain reaches a removed
+ * upgrade, so flagging tier 3 removes 3, 4 and 5 on its own. One key instead of
+ * three, and the derive step reads back exactly what was written.
+ */
+export function applyTiersSold(
+  chain: TweakChain,
+  count: number,
+  tweaks: PlayerTweaks
+): PlayerTweaks {
+  const next: PlayerTweaks = { ...tweaks }
+  const limit = Math.max(0, Math.min(chain.tiers.length, Math.round(count)))
+
+  for (const tier of chain.tiers) delete next[removeKey(chain.fileId, tier.upgrade.id)]
+  if (limit < chain.tiers.length) {
+    next[removeKey(chain.fileId, chain.tiers[limit].upgrade.id)] = 1
+  }
+  return next
+}
+
+/**
+ * How many tiers the shop still offers.
+ *
+ * A hand-made removal the cascade cannot express — tier 3 and 5 flagged but not
+ * 4 — reads back as the *lowest* flagged tier with `uniform: false`. That is
+ * honest rather than lossy: the emitted file really does drop 4 as well, because
+ * 4 requires 3.
+ */
+export function deriveTiersSold(chain: TweakChain, tweaks: PlayerTweaks): TiersSold {
+  const flagged = chain.tiers
+    .map((tier, index) => (tweaks[removeKey(chain.fileId, tier.upgrade.id)] === 1 ? index : -1))
+    .filter((index) => index >= 0)
+
+  if (flagged.length === 0) return { count: chain.tiers.length, uniform: true }
+  // one flag, and nothing below it, is the shape applyTiersSold writes
+  return { count: flagged[0], uniform: flagged.length === 1 }
+}
+
+/**
+ * True when an upgrade has nothing left to give — every stat it writes is
+ * already at or past the character's current starting value.
+ *
+ * **An upgrade with no editable children is never dead.** `life`, `rejuv` and the
+ * three potion upgrades carry no stats at all, so there is nothing to compare;
+ * they stay in the shop because a maxed character can still use an extra life.
+ * That is why this is a computed rule rather than "remove everything".
+ */
+export function isDeadUpgrade(
+  file: TweakUnitFile,
+  upgrade: TweakUnitFile['upgrades'][number],
+  tweaks: PlayerTweaks
+): boolean {
+  // bools count: an upgrade whose only job is unlocking a skill you already have
+  // is just as spent as one that sets a stat you already beat
+  const children = upgrade.children.filter(
+    (child) => child.name !== 'lvl' && child.type !== 'string'
+  )
+  if (children.length === 0) return false
+
+  return children.every((child) => {
+    const start = TWEAK_FIELD_MAP.get(paramKey(file.id, child.name))
+    if (start === undefined) return false
+
+    const target = child.type === 'bool' ? (child.value === true ? 1 : 0) : Number(child.value)
+    const current = tweaks[start.key] ?? start.stock
+
+    if (child.type === 'bool') return current === target
+    if (isSentinel(current)) return false
+
+    const improves = directionOf(file.id, child.name, target, start.stock)
+    // no direction means the child carries no progression at all — warlock's
+    // `garg` rewrites `garg-mana-cost` with the value it already had — so it
+    // cannot be an improvement and must not veto the rest
+    if (improves === 0) return true
+
+    return isSpent(target, current, improves)
+  })
+}
+
+/** Stock values every upgrade in a file writes for a stat, in file order. */
+const EFFECT_STOCKS = ((): Map<string, number[]> => {
+  const map = new Map<string, number[]>()
+  for (const field of TWEAK_FIELDS) {
+    if (field.group !== 'effect' || field.stat === undefined) continue
+    const key = `${field.fileId}.${field.stat}`
+    const bucket = map.get(key)
+    if (bucket === undefined) map.set(key, [field.stock])
+    else bucket.push(field.stock)
+  }
+  return map
+})()
+
+/**
+ * Which way an upgrade improves a stat, positive for "higher is better".
+ *
+ * **The ladder is consulted first**, because it is the progression the game
+ * actually shipped, while a starting value can lie in two ways: it may be the
+ * `-1`/`9999` "locked" sentinel (`whirl-dur`), or a plain `0` meaning *disabled*
+ * rather than *worst*. Priest `hp-regen` is the case that matters — it starts at
+ * 0, so measuring from it says "higher is better", but the ladder runs
+ * 5 → 2.5 → 1.67 → 1.25 because it is a period in seconds and lower is faster.
+ *
+ * A stat written by only one upgrade has no ladder, so it falls back to the
+ * starting value; if that yields nothing either, the caller treats the child as a
+ * no-op rather than an improvement.
+ */
+function directionOf(
+  fileId: string,
+  stat: string,
+  effectStock: number,
+  startStock: number
+): number {
+  const ladder = (EFFECT_STOCKS.get(`${fileId}.${stat}`) ?? []).filter((v) => !isSentinel(v))
+  if (ladder.length >= 2) {
+    const slope = improvesBy(ladder[ladder.length - 1], ladder[0])
+    if (slope !== 0) return slope
+  }
+
+  return isSentinel(startStock) ? 0 : improvesBy(effectStock, startStock)
+}
+
+/**
+ * Take every upgrade that can no longer improve anything out of the shop.
+ *
+ * Written per chain rather than per upgrade so it shares the tiers-sold
+ * representation: the lowest dead tier becomes the ladder's limit, and the `req`
+ * cascade clears the rest.
+ */
+export function applyDeadUpgradeRemoval(tweaks: PlayerTweaks): PlayerTweaks {
+  let next: PlayerTweaks = { ...tweaks }
+
+  for (const file of applyTweaks(next)) {
+    if (file.kind !== 'unit') continue
+    for (const chain of buildChains(file)) {
+      const dead = chain.tiers.findIndex((tier) => isDeadUpgrade(file, tier.upgrade, next))
+      if (dead >= 0) next = applyTiersSold(chain, dead, next)
+    }
+  }
+
   return next
 }
 

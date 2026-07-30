@@ -20,15 +20,28 @@ import {
   emitTweakFiles,
   groupOfStat,
   pruneTweaks,
+  applyTiersSold,
+  buildChains,
+  deriveTiersSold,
+  isDeadUpgrade,
   resetQuickSetup,
   shopPrice
 } from '../src/generator/tweak'
+import { applyTweaks } from '../src/generator/tweak'
+import type { TweakChain, TweakUnitFile } from '../src/generator/tweak'
 import { SKILL_UNLOCKS, fieldsOfGroup } from '../src/generator/tweak/bulk'
 import { validateParameters } from '../src/generator/config/validation'
 import { defaultParameters } from '../src/generator/config/parameters'
 import type { PlayerTweaks } from '../src/generator/tweak'
 
 const params = (playerTweaks: PlayerTweaks) => ({ ...defaultParameters(), playerTweaks })
+
+// the tweaked file, which is what applyDeadUpgradeRemoval walks — a baseline
+// upgrade would still carry its stock values and read as dead against a scaled stat
+const knightFile = (tweaks: PlayerTweaks = {}): TweakUnitFile =>
+  applyTweaks(tweaks).find((f) => f.id === 'knight') as TweakUnitFile
+const knightUpgrade = (id: string, tweaks: PlayerTweaks = {}) =>
+  knightFile(tweaks).upgrades.find((u) => u.id === id) as TweakUnitFile['upgrades'][number]
 
 describe('stat groups', () => {
   it('claims every numeric character stat', () => {
@@ -223,8 +236,10 @@ describe('cost policy', () => {
 
   it('reports a partly-edited shop as mixed', () => {
     expect(deriveCostPolicy({ 'player.knight.cost.health-1': 5 }, SHOP_PRICE_MAX)).toBe('mixed')
-    // one upgrade removed is the targeted extra-lives case, not a shop policy
-    expect(deriveCostPolicy({ 'player.shared.remove.life': 1 }, SHOP_PRICE_MAX)).toBe('mixed')
+    // a removal says nothing about prices: removing extra lives or shortening a
+    // ladder must not flip the price toggle off "Stock prices"
+    expect(deriveCostPolicy({ 'player.shared.remove.life': 1 }, SHOP_PRICE_MAX)).toBe('stock')
+    expect(deriveCostPolicy({ 'player.knight.remove.health-3': 1 }, SHOP_PRICE_MAX)).toBe('stock')
   })
 
   it('validates clean when everything is free, removed, or a bounty', () => {
@@ -405,11 +420,18 @@ describe('fully upgraded roster', () => {
 
   it('leaves nothing left to buy', () => {
     const loadouts = buildLoadouts(applyFullyUpgraded({}))
-    for (const loadout of loadouts) {
-      for (const stat of loadout.stats) {
-        expect(stat.start).toBe(stat.maxed)
-      }
-    }
+    const headroom = loadouts.flatMap((loadout) =>
+      loadout.stats
+        .filter((stat) => stat.start !== stat.maxed)
+        .map((stat) => `${loadout.id}.${stat.name}`)
+    )
+
+    // The Priest's cripple aura is the one thing a maxed character can still buy,
+    // and correctly so: the chain's payload is `slow` (30 → 50 → 70), for which
+    // the Priest has no starting param, so it cannot be baked in and the upgrade
+    // really does still grant something. Buying it also re-applies
+    // `aura-mana-drain` 1 — a trade-off, not a pure downgrade.
+    expect(headroom).toEqual(['priest.aura-mana-drain'])
   })
 
   it('composes with the factors rather than fighting them', () => {
@@ -435,6 +457,137 @@ describe('fully upgraded roster', () => {
     // the typed-a-big-number case the warning exists for
     const result = validateParameters(params({ 'player.knight.param.max-health': 400 }))
     expect(result.warnings.some((w) => w.message.includes('would downgrade'))).toBe(true)
+  })
+})
+
+describe('dead upgrades', () => {
+  const ids = (tweaks: PlayerTweaks, file: string): string[] => {
+    const content = emitTweakFiles(tweaks).find((f) => f.path === `tweak/${file}`)?.content ?? ''
+    return [...content.matchAll(/id="([^"]+)"/g)].map((m) => m[1])
+  }
+
+  it('clears a shop that has nothing left to sell', () => {
+    // the reported bug: a maxed Thief was still offered "Knives Damage 1" for 800
+    // gold, which would have dropped knives-dmg from 46 to 16
+    for (const tweaks of [applyFullyUpgraded({}), applyFullyUpgraded(applyMasterFactor(2, {}))]) {
+      for (const file of ['knight', 'ranger', 'sorcerer', 'thief', 'warlock', 'wizard']) {
+        expect(ids(tweaks, `${file}.xml`)).toEqual([])
+      }
+    }
+  })
+
+  it('keeps an upgrade whose payload cannot be baked into a starting stat', () => {
+    // the Priest's cripple aura writes `slow`, and the Priest has no `slow`
+    // starting param — so there is nothing to compare it against and it really
+    // does still grant something to a maxed character
+    expect(ids(applyFullyUpgraded({}), 'priest.xml')).toEqual([
+      'aura',
+      'auraslow-1',
+      'auraslow-2'
+    ])
+  })
+
+  it('keeps the purchases that are not stat upgrades', () => {
+    // life, rejuv and the potions carry no stats, so "already better" cannot be
+    // computed for them — and a maxed character can still use an extra life
+    expect(ids(applyFullyUpgraded({}), 'shared.xml')).toEqual([
+      'life',
+      'rejuv',
+      'pot-dmg',
+      'pot-rejuv',
+      'pot-invul'
+    ])
+  })
+
+  it('leaves an upgrade that still improves something', () => {
+    // scaling moves the ladder too, so every tier still beats the starting stat
+    const scaled = applyStatFactor('health', 2, {})
+    expect(ids(scaled, 'knight.xml').filter((id) => id.startsWith('health'))).toEqual([
+      'health-1',
+      'health-2',
+      'health-3',
+      'health-4',
+      'health-5'
+    ])
+    expect(isDeadUpgrade(knightFile(scaled), knightUpgrade('health-1', scaled), scaled)).toBe(false)
+  })
+
+  it('counts a skill unlock you already have as spent', () => {
+    // its only effect is a bool that is already true
+    const unlocked = applySkillUnlocks(true, {})
+    expect(isDeadUpgrade(knightFile(unlocked), knightUpgrade('whirl', unlocked), unlocked)).toBe(true)
+    expect(isDeadUpgrade(knightFile(), knightUpgrade('whirl'), {})).toBe(false)
+  })
+
+  it('validates clean and emits well-formed files', () => {
+    const tweaks = applyFullyUpgraded({})
+    expect(validateParameters(params(tweaks)).errors).toEqual([])
+    const knight = emitTweakFiles(tweaks).find((f) => f.path === 'tweak/knight.xml')?.content ?? ''
+    // an empty <upgrades> is the shape this produces — see the DISCOVERY-LOG note
+    expect(knight).toContain('<upgrades>')
+    expect(knight).toContain('</upgrades>')
+    expect(knight).not.toContain('<dictionary id=')
+  })
+})
+
+describe('tiers sold', () => {
+  const healthChain = () =>
+    buildChains(knightFile()).find((chain) => chain.key === 'health') as TweakChain
+
+  it('limits a ladder with one flag and lets the req cascade do the rest', () => {
+    const chain = healthChain()
+    const tweaks = applyTiersSold(chain, 2, {})
+    // tier 3 alone is flagged; 4 and 5 require it, so they go too
+    expect(Object.keys(tweaks)).toEqual(['player.knight.remove.health-3'])
+
+    const knight = emitTweakFiles(tweaks).find((f) => f.path === 'tweak/knight.xml')?.content ?? ''
+    const ids = [...knight.matchAll(/id="([^"]+)"/g)].map((m) => m[1])
+    expect(ids.filter((id) => id.startsWith('health'))).toEqual(['health-1', 'health-2'])
+
+    const have = new Set(ids)
+    const reqs = [...knight.matchAll(/req="([^"]+)"/g)].map((m) => m[1])
+    expect(reqs.filter((req) => !have.has(req))).toEqual([])
+  })
+
+  it('round-trips', () => {
+    const chain = healthChain()
+    for (const count of [0, 2, chain.tiers.length]) {
+      expect(deriveTiersSold(chain, applyTiersSold(chain, count, {}))).toEqual({
+        count,
+        uniform: true
+      })
+    }
+    // the full ladder is the default, so it stores nothing
+    expect(pruneTweaks(applyTiersSold(chain, chain.tiers.length, {}))).toEqual({})
+  })
+
+  it('reports a cut the cascade cannot express as custom', () => {
+    const chain = healthChain()
+    const handmade = { 'player.knight.remove.health-3': 1, 'player.knight.remove.health-5': 1 }
+    // health-4 requires health-3, so the emitted file drops it either way
+    expect(deriveTiersSold(chain, handmade)).toEqual({ count: 2, uniform: false })
+  })
+
+  it('reports the req cascade once, not once per ladder', () => {
+    const chain = healthChain()
+    const one = validateParameters(params(applyTiersSold(chain, 2, {})))
+    expect(one.warnings.filter((w) => w.message.includes('Removing health-3'))).toHaveLength(1)
+
+    // the preset shortens every ladder in the game; that is one note, not 104
+    const all = validateParameters(params(applyFullyUpgraded({})))
+    const cascade = all.warnings.filter((w) => w.message.includes('missing entry'))
+    expect(cascade).toHaveLength(1)
+    expect(cascade[0].message).toMatch(/^\d+ removed upgrades take \d+ dependent upgrades/)
+    expect(all.errors).toEqual([])
+  })
+
+  it('clamps out-of-range counts', () => {
+    const chain = healthChain()
+    expect(pruneTweaks(applyTiersSold(chain, 99, {}))).toEqual({})
+    expect(deriveTiersSold(chain, applyTiersSold(chain, -3, {}))).toEqual({
+      count: 0,
+      uniform: true
+    })
   })
 })
 

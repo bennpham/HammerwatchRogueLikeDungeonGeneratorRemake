@@ -167,6 +167,8 @@ interface ChainRowProps {
   /** shown next to the title, e.g. the stats the chain writes */
   subtitle?: string
   badge?: string
+  /** how much of the ladder the shop offers — rendered beside the heading */
+  limit?: React.ReactNode
   /** the curve knobs */
   children: React.ReactNode
   /** the per-tier inputs, revealed on demand */
@@ -174,13 +176,14 @@ interface ChainRowProps {
 }
 
 /** One upgrade ladder: its curve up front, the raw tiers behind a disclosure. */
-export function ChainRow({ title, subtitle, badge, children, tiers }: ChainRowProps) {
+export function ChainRow({ title, subtitle, badge, limit, children, tiers }: ChainRowProps) {
   return (
     <div className="chain-row">
       <div className="chain-head">
         <span className="chain-title">{title}</span>
         {subtitle && <span className="chain-subtitle">{subtitle}</span>}
         {badge && <span className="section-badge">{badge}</span>}
+        {limit !== undefined && <span className="chain-limit">{limit}</span>}
       </div>
       <div className="field-grid chain-curves">{children}</div>
       <details className="chain-tiers">

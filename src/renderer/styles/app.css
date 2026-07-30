@@ -540,6 +540,52 @@ button.primary:hover:not(:disabled) {
   padding: 2px 0 8px;
 }
 
+/* a per-file section nested inside "All characters" — indent so it reads as a
+   child of the roster knobs rather than a sibling of them */
+.section-body > .section {
+  margin-top: 6px;
+  margin-left: 10px;
+  background: var(--bg-input);
+}
+
+.skill-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px 14px;
+  margin: 6px 0 8px;
+}
+
+.skill-class {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.skill-class-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+/* the ladder's shop limit sits on the heading row, right-aligned */
+.chain-limit {
+  margin-left: auto;
+}
+
+.chain-limit .field {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.chain-limit input {
+  width: 52px;
+}
+
+.tier-flat {
+  padding: 4px 0;
+}
+
 /* quick setup: the whole-roster knobs above the seven class sections */
 
 /* the master knob sits on its own row so it reads as governing the rest */

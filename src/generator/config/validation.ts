@@ -2,7 +2,7 @@ import { DungeonParameters, THEMES } from './parameters'
 import { isKnownMonsterId } from '../objects/monsterTypes'
 import { TWEAK_BASELINE } from '../tweak/baseline'
 import { SHOP_PRICE_MAX } from '../tweak/bulk'
-import { SENTINELS, paramKey } from '../tweak/chains'
+import { SENTINELS, isDowngrade, improvesBy, paramKey } from '../tweak/chains'
 import { TWEAK_FIELDS, TWEAK_FIELD_MAP } from '../tweak/overrides'
 import type { TweakFieldDef } from '../tweak/overrides'
 import type { PlayerTweaks } from '../tweak/types'
@@ -196,6 +196,7 @@ function validatePlayerTweaks(
   const tweaks = p.playerTweaks ?? {}
   const bounties: Array<{ key: string; value: number }> = []
   const overCapped: Array<{ key: string; stat: string; value: number }> = []
+  const cascades: Array<{ key: string; id: string; extra: number }> = []
 
   for (const [key, value] of Object.entries(tweaks)) {
     const field = TWEAK_FIELD_MAP.get(key.toLowerCase())
@@ -232,15 +233,10 @@ function validatePlayerTweaks(
       }
 
       if (field.group === 'remove' && value === 1) {
+        // collected and summarised below: shortening one ladder is worth a note,
+        // but the fully-upgraded preset shortens every ladder in the game
         const cascade = removalCascade(field)
-        if (cascade > 0) {
-          warnings.push({
-            field: key,
-            message: `Removing ${field.upgradeId} also removes ${cascade} upgrade${
-              cascade === 1 ? '' : 's'
-            } that require it, so the shop never references a missing entry.`
-          })
-        }
+        if (cascade > 0) cascades.push({ key, id: field.upgradeId ?? key, extra: cascade })
       }
       continue
     }
@@ -304,6 +300,18 @@ function validatePlayerTweaks(
   }
 
   for (const issue of armedWithEmptyPath(tweaks)) errors.push(issue)
+
+  if (cascades.length > 0) {
+    cascades.sort((a, b) => a.key.localeCompare(b.key))
+    const extra = cascades.reduce((sum, entry) => sum + entry.extra, 0)
+    warnings.push({
+      field: cascades[0].key,
+      message:
+        cascades.length === 1
+          ? `Removing ${cascades[0].id} also removes ${extra} upgrade${extra === 1 ? '' : 's'} that require it, so the shop never references a missing entry.`
+          : `${cascades.length} removed upgrades take ${extra} dependent upgrades with them, so the shop never references a missing entry.`
+    })
+  }
 
   if (overCapped.length > 0) {
     overCapped.sort((a, b) => a.key.localeCompare(b.key))
@@ -466,7 +474,7 @@ function downgradeMessage(
   const start = TWEAK_FIELD_MAP.get(paramKey(field.fileId, field.stat))
   if (start === undefined || SENTINELS.has(start.stock)) return undefined
 
-  const improves = field.stock - start.stock
+  const improves = improvesBy(field.stock, start.stock)
   if (improves === 0) return undefined
 
   const current = tweaks[start.key] ?? start.stock
@@ -478,10 +486,6 @@ function downgradeMessage(
   return `${field.upgradeId} sets ${field.stat} to ${value}, ${
     improves > 0 ? 'below' : 'above'
   } the starting ${field.stat} of ${current} — buying it would downgrade the character.`
-}
-
-function isDowngrade(value: number, start: number, improves: number): boolean {
-  return improves > 0 ? value < start : value > start
 }
 
 /**
@@ -538,7 +542,7 @@ function staleUpgrades(
   // the stat's own stock ladder says which direction counts as an improvement
   let improving = 0
   for (const effect of EFFECTS_BY_STAT.get(field.key) ?? []) {
-    const improves = effect.stock - field.stock
+    const improves = improvesBy(effect.stock, field.stock)
     if (improves === 0) continue
     const value = tweaks[effect.key] ?? effect.stock
     if (isDowngrade(value, start, improves)) {
