@@ -250,6 +250,27 @@ describe('cost policy', () => {
     expect(bounty[0].message).toContain('up to 500 gold each')
   })
 
+  it('says once that percentages over 100 do nothing', () => {
+    // play-tested: shield-chance 500 on a Sorcerer still takes damage, because the
+    // stock ladder stops at exactly 100 and a proc cannot fire more than always
+    const result = validateParameters(
+      params({
+        'player.sorcerer.param.shield-chance': 500,
+        'player.thief.param.dodge-chance': 250,
+        'player.ranger.param.dodge-chance': 250
+      })
+    )
+    const capped = result.warnings.filter((w) => w.message.includes('over 100%'))
+    expect(capped).toHaveLength(1)
+    expect(capped[0].message).toContain('dodge-chance, shield-chance')
+    expect(result.errors).toEqual([])
+  })
+
+  it('leaves percentages at or below 100 alone', () => {
+    const result = validateParameters(params({ 'player.sorcerer.param.shield-chance': 100 }))
+    expect(result.warnings.filter((w) => w.message.includes('over 100%'))).toEqual([])
+  })
+
   it('rejects a price the shop cannot display', () => {
     const result = validateParameters(params({ 'player.knight.cost.health-1': 10_000_000 }))
     expect(result.errors.some((e) => e.message.includes('cannot display'))).toBe(true)

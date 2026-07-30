@@ -76,6 +76,42 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-07-30 — chance stats cap at 100, and a Thief crash the tweaks may not own
+**Tag:** [VERIFIED] for the chance cap; the crash is **[UNVERIFIED]** as to cause.
+Linux, real install, fully-upgraded roster with Damage ×2 and Defense ×5.
+
+**Context:** Answering "why do I still take damage as a Sorcerer with
+`shield-chance` at 500", and triaging a Thief crash from the same campaign.
+
+**Evidence:**
+
+1. **A percentage stat above 100 does nothing** `[VERIFIED]`. `shield-chance` 500
+   on a Sorcerer still takes damage. The stock ladder is the tell: 20/40/60/80/100,
+   stopping at exactly 100, whereas every damage ladder keeps climbing. So it is a
+   probability and a proc cannot fire more than always. It is also *not* damage
+   negation — `fshield` is the frost-shield proc, so a Sorcerer at 100 still takes
+   hits. `max-health` and `dmg-reduction` are the survivability levers, and
+   `dmg-reduction` is flat, not a percentage. `validation.ts` now warns once for
+   the whole set rather than per stat.
+   Affected names: `*-chance`, `*-slow`, `slow`, `shield-distr`.
+2. **A Thief crash whose cause the audit does not pin down.**
+   `DivideByZeroException` in `GameControls.Autofire(Int32 autofire, Int32 rate)`
+   via `PlayerThiefActorBehavior.DoUpdate`; full trace in the crash-triage skill.
+   No Thief param in the report was 0. Crucially, the two stats that could
+   plausibly feed an attack interval were both at values a **stock maxed Thief
+   also reaches**: `knives-speed-mod` −0.2 (end of the `aspeed` ladder) and
+   `max-fervor` 10 (end of the `fervor` ladder). The only values beyond stock
+   reach were `knives-dmg` 46, `kfan-dmg` 60, `dmg-reduction` 30 and
+   `dodge-chance` 250 — none of which divides an interval. That makes a vanilla
+   bug at max attack speed + max fervor a live possibility, reachable from spawn
+   with the fully-upgraded preset but only late in a normal run.
+
+**Impact:** the chance-cap warning is implemented and tested. The crash is logged
+in the crash-triage skill with a three-step bisect whose first test —
+fully-upgraded at ×1 — settles whether our multipliers are involved at all. **No
+validation rule invented for it yet**, deliberately: guessing at a cause would
+put a wrong constraint in front of every user.
+
 ### 2026-07-30 — pre-unlocked skills work, and multi-chain removal matches our emitter
 **Tag:** [VERIFIED] — Linux, real install at `~/Applications/hammerwatch`, played
 in game. Closes claim 4 of the superseded 2026-07-29 "four claims" entry.

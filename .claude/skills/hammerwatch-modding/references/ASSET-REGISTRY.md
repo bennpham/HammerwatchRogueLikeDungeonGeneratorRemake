@@ -242,9 +242,11 @@ See the 2026-07-30 discovery-log entry for the tests behind each of these.
 
 Percentage-style stats — `dodge-chance`, `bash-chance`, `shield-chance`,
 `shield-distr`, `crit-chance`, `money-chance`, `chill-slow`, `fnova-slow`,
-`slow` — can be pushed past 100 by the bulk multipliers (a ×3 fully-upgraded
-roster already yields `shield-chance` 300). Whether the game clamps them is
-`[UNVERIFIED]`.
+`slow` — **cap at 100 in effect** `[VERIFIED 2026-07-30]`: `shield-chance` 500 on
+a Sorcerer behaves no differently from 100, and the stock ladder stops at exactly
+100 while damage ladders keep climbing. `shield-chance` is also the frost-shield
+*proc* chance, not damage negation, so a Sorcerer at 100 still takes hits.
+`max-health` and flat `dmg-reduction` are the survivability levers.
 
 The `general.xml` difficulty keys `[VERIFIED]`: `EnemyHealthAll`,
 `EnemyHealthBase`, `EnemyHealthIncr`, `EnemySpeedMultiplier`,

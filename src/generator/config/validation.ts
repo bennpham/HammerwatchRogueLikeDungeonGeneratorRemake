@@ -195,6 +195,7 @@ function validatePlayerTweaks(
 ): void {
   const tweaks = p.playerTweaks ?? {}
   const bounties: Array<{ key: string; value: number }> = []
+  const overCapped: Array<{ key: string; stat: string; value: number }> = []
 
   for (const [key, value] of Object.entries(tweaks)) {
     const field = TWEAK_FIELD_MAP.get(key.toLowerCase())
@@ -265,6 +266,13 @@ function validatePlayerTweaks(
       warnings.push({ field: key, message: 'Very high health — the campaign may be trivial.' })
     }
 
+    // a probability cannot do more than always. Every stock chance ladder tops
+    // out at or below 100, and shield-chance tops out at exactly 100, so past
+    // that the extra points buy nothing at all.
+    if (field.stat !== undefined && isChanceStat(field.stat) && value > 100) {
+      overCapped.push({ key, stat: field.stat, value })
+    }
+
     if (field.group === 'effect') {
       const downgrade = downgradeMessage(field, value, tweaks)
       if (downgrade !== undefined) warnings.push({ field: key, message: downgrade })
@@ -282,6 +290,18 @@ function validatePlayerTweaks(
     }
   }
 
+  if (overCapped.length > 0) {
+    overCapped.sort((a, b) => a.key.localeCompare(b.key))
+    const stats = [...new Set(overCapped.map((o) => o.stat))].sort()
+    warnings.push({
+      field: overCapped[0].key,
+      message:
+        `${overCapped.length === 1 ? 'A percentage stat is' : `${overCapped.length} percentage stats are`} ` +
+        `over 100% (${stats.join(', ')}). The extra points do nothing — a chance cannot exceed always. ` +
+        `Raise max-health or dmg-reduction instead if you want a tougher character.`
+    })
+  }
+
   if (bounties.length > 0) {
     // sorted so the field the message points at is stable regardless of the
     // order the overrides happened to be written in
@@ -295,6 +315,21 @@ function validatePlayerTweaks(
           : `${bounties.length} upgrades pay the player instead of charging them, up to ${most} gold each.`
     })
   }
+}
+
+/**
+ * Stats the game rolls as a percentage.
+ *
+ * `shield-chance` is the giveaway: its stock ladder climbs 20/40/60/80/100 and
+ * stops exactly at 100. Play-testing confirmed that pushing it to 500 changes
+ * nothing — it is the frost-shield proc chance, and a proc cannot fire more than
+ * every time. `shield-distr` is the share of damage routed to mana, which is a
+ * percentage for the same reason.
+ */
+function isChanceStat(stat: string): boolean {
+  return (
+    stat.endsWith('-chance') || stat.endsWith('-slow') || stat === 'slow' || stat === 'shield-distr'
+  )
 }
 
 /**

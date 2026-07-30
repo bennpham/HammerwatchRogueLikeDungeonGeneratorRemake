@@ -150,10 +150,44 @@ a dungeon changed, tweaks are not the cause — say so and look elsewhere.
 | Symptom | Cause |
 | --- | --- |
 | "I changed a value but no `tweak/` folder appeared" | The value equals stock. `pruneTweaks` drops those by design, and an empty override map emits nothing. Confirm with the badge count on the Player tab. |
-| "My class edit didn't take effect in game" | The campaign's tweak file replaces the base file wholesale, so a partial file loses everything else — check the emitted file is complete. Also `[UNVERIFIED]` whether the game reads campaign tweak files at all in every context; ask for the actual file. |
+| "My class edit didn't take effect in game" | The campaign's tweak file replaces the base file wholesale `[VERIFIED]`, so a partial file loses everything else — check the emitted file is complete. If *nothing* applied, suspect the packer path first: an absolute argument to `LevelPacker.exe` keys every tweak file by its full path and the game loads none of them (see the 2026-07-29 discovery-log entry). |
+| "I set a chance stat huge and still take damage" | Not a bug. Every stock chance ladder tops out at or below 100 and `shield-chance` stops at exactly 100, so past that the points do nothing — and `shield-chance` is the frost-shield *proc* chance, not damage negation. Validation warns once for the whole set. `max-health` and `dmg-reduction` are the survivability levers. |
 | "The maxed column looks wrong" | `buildLoadouts` applies every upgrade in `req`-depth order, last write wins, because an upgrade *sets* rather than adds. A value written by two upgrades shows the later one. |
 | Inline error next to a tweak field | Validation is working. The `field` on the issue *is* the tweak key. |
 | `player.*` key reported in `unknownKeys` on import | The key isn't in `TWEAK_FIELD_MAP` — a typo, or a `parameters.txt` from a build with a different baseline. Not fatal by design. |
+
+### Known in-game crash: Thief autofire divides by zero
+
+**Unresolved — do not claim a cause.** Reported 2026-07-30 with a fully-upgraded
+roster (Damage ×2, Defense ×5):
+
+```
+System.DivideByZeroException: Division by zero
+  at ARPGGame.GameControls.Autofire (Int32 autofire, Int32 rate)
+  at ARPGGame.PlayerKeyboardControls.Attack1Autofire (Int32 rate)
+  at ARPGGame.Behaviors.Players.Thief.PlayerThiefActorBehavior.DoUpdate (Int32 ms)
+```
+
+`rate` is the Thief's attack interval and something zeroed it. What the audit
+rules **out**: no Thief param in the report was 0, and the two stats that plausibly
+feed an attack rate were both at values a stock maxed Thief also reaches —
+`knives-speed-mod` −0.2 (stock ladder ends there, `aspeed4`) and `max-fervor` 10
+(stock ladder ends there, `fervor3`). The only values beyond stock reach were
+`knives-dmg`, `kfan-dmg`, `dmg-reduction` and `dodge-chance`, none of which
+plausibly divides an interval.
+
+That leaves a real possibility that this is a **vanilla bug** at max attack speed
+plus max fervor, which the fully-upgraded preset makes reachable from spawn where
+a normal player would only reach it late. Bisect in this order — the first test
+settles whether the multipliers are involved at all:
+
+1. **Fully upgraded roster with every multiplier at ×1**, play Thief. Still
+   crashes ⇒ vanilla, nothing to do with scaling. Add a warning, not a fix.
+2. Fully upgraded, then Thief `max-fervor` back to 0.
+3. Fully upgraded, then Thief `knives-speed-mod` back to −0.6.
+
+Once identified, the response is §A's: a validation rule naming the combination,
+plus a case in `tests/validation.test.ts`.
 
 Quick-fix scope here is the same as §A: a validation rule plus a case in
 `tests/tweak.test.ts` or `tests/validation.test.ts`. **Editing `baseline.ts` is

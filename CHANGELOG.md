@@ -40,6 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   whole bounty shop in one warning rather than once per upgrade
 - `SHOP_PRICE_MAX` (999,999, the most the shop will display) replaces
   `DEFAULT_LOCK_PRICE` and is now a clamp rather than a lockout mechanism
+- **Percentage stats over 100% now warn.** Confirmed in game: a `shield-chance`
+  of 500 behaves exactly like 100, because the stock ladder stops at 100 and a
+  proc cannot fire more than always. One warning covers the whole set and points
+  at `max-health` / `dmg-reduction` as the real survivability levers
 - `bool` tweak params are now editable, stored as `0`/`1`, so skill unlocks
   round-trip through `parameters.txt` like every other override
 - The "buying it would downgrade the character" warnings no longer fire when a
