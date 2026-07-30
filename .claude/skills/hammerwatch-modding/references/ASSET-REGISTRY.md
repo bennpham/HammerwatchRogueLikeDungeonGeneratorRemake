@@ -240,13 +240,24 @@ See the 2026-07-30 discovery-log entry for the tests behind each of these.
 | **`999999` is the display ceiling** | Renders in full and reads as unaffordable. Used as a clamp (`SHOP_PRICE_MAX`), not as a lockout — removal is the better lockout. |
 | **Skills can be pre-unlocked** | Set the skill's `bool` param true *and* write the numeric params its unlock upgrade would have written; the flag alone leaves them on `-1`/`9999` sentinels and the skill does nothing. Confirmed working from the first floor. |
 
-Percentage-style stats — `dodge-chance`, `bash-chance`, `shield-chance`,
-`shield-distr`, `crit-chance`, `money-chance`, `chill-slow`, `fnova-slow`,
-`slow` — **cap at 100 in effect** `[VERIFIED 2026-07-30]`: `shield-chance` 500 on
-a Sorcerer behaves no differently from 100, and the stock ladder stops at exactly
-100 while damage ladders keep climbing. `shield-chance` is also the frost-shield
-*proc* chance, not damage negation, so a Sorcerer at 100 still takes hits.
-`max-health` and flat `dmg-reduction` are the survivability levers.
+### Percentage stats `[VERIFIED 2026-07-30]`
+
+`dodge-chance`, `bash-chance`, `shield-chance`, `shield-distr`, `crit-chance`,
+`money-chance`, `chill-slow`, `fnova-slow`, `slow`. All **cap at 100 in effect** —
+the stock ladders stop at or below 100 while damage ladders keep climbing, and
+`shield-chance` 500 behaves no differently from 100.
+
+They split into two kinds that look identical in the data and behave completely
+differently at 100:
+
+| Kind | Stats | At 100 |
+| --- | --- | --- |
+| **Evasion** — avoids the hit | `dodge-chance` | The character is **literally unhittable**. Confirmed on both Thief and Ranger. This is the one true invulnerability lever in the tweak files. |
+| **Proc** — fires alongside the hit | `shield-chance`, `bash-chance`, `crit-chance`, `money-chance`, the `*-slow` stats | The effect triggers every time, but damage still lands. A Sorcerer at `shield-chance` 100 takes full damage. |
+
+`shield-distr` is a third thing again: the share of incoming damage routed to
+mana. `max-health` and flat `dmg-reduction` are the ordinary survivability levers
+for classes without `dodge-chance`.
 
 The `general.xml` difficulty keys `[VERIFIED]`: `EnemyHealthAll`,
 `EnemyHealthBase`, `EnemyHealthIncr`, `EnemySpeedMultiplier`,

@@ -28,6 +28,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   emitted tweak file entirely; removal cascades to anything that requires it, so
   a file never ships a dangling `req`
 
+### Fixed
+
+- **Pre-unlocked skills no longer crash the game.** `combo-nova-projectile` and
+  `aura-buff` are empty in the stock files and only an upgrade fills them in, so
+  arming a combo nova's numbers without its projectile threw a
+  `NullReferenceException` mid-combat — after several minutes of play, not at load.
+  Both presets now carry an upgrade's string children alongside its numbers, and a
+  new blocking validation rule rejects any skill left pointing at an empty path.
+  As a side effect a fully-upgraded Knight also gets the wider sword-arc graphic
+  its upgrades imply
+
 ### Changed
 
 - **Upgrade shop modes reworked after play-testing.** "Locked out" priced every
@@ -40,12 +51,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   whole bounty shop in one warning rather than once per upgrade
 - `SHOP_PRICE_MAX` (999,999, the most the shop will display) replaces
   `DEFAULT_LOCK_PRICE` and is now a clamp rather than a lockout mechanism
-- **Percentage stats over 100% now warn.** Confirmed in game: a `shield-chance`
-  of 500 behaves exactly like 100, because the stock ladder stops at 100 and a
-  proc cannot fire more than always. One warning covers the whole set and points
-  at `max-health` / `dmg-reduction` as the real survivability levers
+- **Percentage stats over 100% now warn.** Confirmed in game: anything past 100
+  is wasted, because a chance cannot exceed always. The warning also distinguishes
+  the two kinds, which look identical in the data — `dodge-chance` at 100 makes a
+  Thief or Ranger literally unhittable (its stock ladder tops out at 50, so a
+  Defense ×2 gets there), while `shield-chance` at 100 leaves a Sorcerer taking
+  full damage because it is the frost-shield proc, not evasion. One warning covers
+  the whole set
 - `bool` tweak params are now editable, stored as `0`/`1`, so skill unlocks
   round-trip through `parameters.txt` like every other override
+- `string` tweak params are now editable, stored as an **index** into the values
+  the stock data offers, so an unshipped asset path cannot be emitted
 - The "buying it would downgrade the character" warnings no longer fire when a
   starting stat sits exactly on a rung of its own ladder — the signature of a
   deliberately fully-upgraded character. Overshooting a ladder still warns

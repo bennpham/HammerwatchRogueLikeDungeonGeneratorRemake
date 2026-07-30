@@ -38,6 +38,7 @@ describe('stat groups', () => {
         f.fileId !== 'general' &&
         (f.group === 'param' || f.group === 'effect') &&
         f.type !== 'bool' &&
+        f.type !== 'string' &&
         f.stat !== undefined
     )
     const owned = new Set(STAT_GROUPS.flatMap((g) => fieldsOfGroup(g.id).map((f) => f.key)))
@@ -263,7 +264,16 @@ describe('cost policy', () => {
     const capped = result.warnings.filter((w) => w.message.includes('over 100%'))
     expect(capped).toHaveLength(1)
     expect(capped[0].message).toContain('dodge-chance, shield-chance')
+    // dodge-chance really does grant invulnerability at 100; shield-chance does not
+    expect(capped[0].message).toContain('dodge-chance at 100 already avoids every hit')
     expect(result.errors).toEqual([])
+  })
+
+  it('does not claim invulnerability for a proc-only chance', () => {
+    const result = validateParameters(params({ 'player.sorcerer.param.shield-chance': 500 }))
+    const capped = result.warnings.filter((w) => w.message.includes('over 100%'))
+    expect(capped).toHaveLength(1)
+    expect(capped[0].message).not.toContain('invulnerable')
   })
 
   it('leaves percentages at or below 100 alone', () => {
@@ -306,6 +316,73 @@ describe('skill unlocks', () => {
     const tweaks = applySkillUnlocks(true, scaled)
     // whirl-dmg-multiplier is a damage stat, so the ladder moved before the bake
     expect(tweaks['player.knight.param.whirl-dmg-multiplier']).toBe(3)
+  })
+
+  it('fills in the string a skill needs, not just its numbers', () => {
+    // Regression: combo-nova-projectile and aura-buff are EMPTY at spawn and only
+    // an upgrade fills them in. Pre-unlocking the skill without them armed a combo
+    // nova with no projectile to spawn, and the game died with a
+    // NullReferenceException in PlayerActorBehavior.Update mid-fight on floor 3.
+    const tweaks = applySkillUnlocks(true, {})
+
+    // the priest's aura upgrade carries its buff path as a child, so unlocking it
+    // must bring the path along
+    const priest = emitTweakFiles(tweaks).find((f) => f.path === 'tweak/priest.xml')
+    expect(priest?.content).toContain('<bool name="aura">true</bool>')
+    expect(priest?.content).not.toContain('<string name="aura-buff"></string>')
+    expect(priest?.content).toContain('buffs/priest_cripple_1.xml')
+  })
+
+  it('leaves no skill armed with an empty path', () => {
+    // the general form of the crash above: any string param that starts empty must
+    // not still be empty once its skill is switched on
+    // combo is the case that actually crashed: its flag lives on one upgrade and
+    // the nova's projectile on another, so arming the numbers without the path is
+    // reachable only through the fully-upgraded preset
+    for (const tweaks of [applyFullyUpgraded({}), applyFullyUpgraded(applyMasterFactor(2, {}))]) {
+      for (const file of emitTweakFiles(tweaks)) {
+        expect(file.content).not.toMatch(/<string name="[^"]+"><\/string>/)
+      }
+      expect(validateParameters(params(tweaks)).errors).toEqual([])
+    }
+  })
+
+  it('blocks an armed skill with no projectile path', () => {
+    // exactly the shape that crashed: combo nova numbers set, projectile still ""
+    const result = validateParameters(
+      params({
+        'player.shared.param.combo': 1,
+        'player.shared.param.combo-nova-dmg': 84,
+        'player.shared.param.combo-nova-parts': 22
+      })
+    )
+    expect(
+      result.errors.some(
+        (e) =>
+          e.field === 'player.shared.param.combo-nova-projectile' &&
+          e.message.includes('empty path and crash the game')
+      )
+    ).toBe(true)
+  })
+
+  it('advances a string ladder to its top when fully upgraded', () => {
+    const tweaks = applyFullyUpgraded({})
+    const shared = emitTweakFiles(tweaks).find((f) => f.path === 'tweak/shared.xml')
+    // combo-nova-5 is the last rung
+    expect(shared?.content).toContain('projectiles/player_combo_nova_3.xml')
+    const wizard = emitTweakFiles(tweaks).find((f) => f.path === 'tweak/wizard.xml')
+    expect(wizard?.content).toContain('projectiles/player_fireball_6.xml')
+  })
+
+  it('never lets a multiplier touch a string index', () => {
+    const tweaks = applyMasterFactor(3, applySkillUnlocks(true, {}))
+    // a scaled index would point at an unrelated projectile, or off the end
+    for (const key of Object.keys(tweaks)) {
+      const field = TWEAK_FIELDS.find((f) => f.key === key)
+      if (field?.type !== 'string') continue
+      expect(tweaks[key]).toBeLessThan(field.choices?.length ?? 0)
+    }
+    expect(validateParameters(params(tweaks)).errors).toEqual([])
   })
 
   it('reverses cleanly', () => {

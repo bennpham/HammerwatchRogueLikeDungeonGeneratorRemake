@@ -230,8 +230,11 @@ export function PlayerForm({ tweaks, issues, onChange }: PlayerFormProps) {
           )
         }
 
-        // bools are the skill-unlock flags; they get checkboxes, not 0/1 inputs
-        const params = fields.filter((f) => f.group === 'param' && f.type !== 'bool')
+        // bools are the skill-unlock flags (checkboxes, not 0/1 inputs) and strings
+        // are stored as an index into their stock values — neither is a number to type
+        const params = fields.filter(
+          (f) => f.group === 'param' && f.type !== 'bool' && f.type !== 'string'
+        )
         const flags = fields.filter((f) => f.group === 'param' && f.type === 'bool')
         const chains = CHAINS_BY_FILE.get(file.id) ?? []
         const fieldsByChain = new Map<string, TweakFieldDef[]>()

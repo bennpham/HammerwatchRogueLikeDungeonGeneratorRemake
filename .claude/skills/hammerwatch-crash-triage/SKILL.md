@@ -151,10 +151,29 @@ a dungeon changed, tweaks are not the cause — say so and look elsewhere.
 | --- | --- |
 | "I changed a value but no `tweak/` folder appeared" | The value equals stock. `pruneTweaks` drops those by design, and an empty override map emits nothing. Confirm with the badge count on the Player tab. |
 | "My class edit didn't take effect in game" | The campaign's tweak file replaces the base file wholesale `[VERIFIED]`, so a partial file loses everything else — check the emitted file is complete. If *nothing* applied, suspect the packer path first: an absolute argument to `LevelPacker.exe` keys every tweak file by its full path and the game loads none of them (see the 2026-07-29 discovery-log entry). |
-| "I set a chance stat huge and still take damage" | Not a bug. Every stock chance ladder tops out at or below 100 and `shield-chance` stops at exactly 100, so past that the points do nothing — and `shield-chance` is the frost-shield *proc* chance, not damage negation. Validation warns once for the whole set. `max-health` and `dmg-reduction` are the survivability levers. |
+| "I set a chance stat huge and still take damage" | Not a bug, and which stat matters. Everything past 100 is wasted either way. `dodge-chance` at 100 makes a Thief or Ranger **unhittable**; `shield-chance` at 100 leaves a Sorcerer taking full damage, because it is the frost-shield *proc*, not evasion. For classes without `dodge-chance`, `max-health` and flat `dmg-reduction` are the levers. Validation warns once for the whole set and only claims invulnerability for evasion stats. |
+| "A character is invincible and I didn't expect it" | `dodge-chance` ≥ 100, almost certainly from a Defense multiplier — the stock ladder tops out at 50, so ×2 reaches it. Working as designed; the warning says so. |
 | "The maxed column looks wrong" | `buildLoadouts` applies every upgrade in `req`-depth order, last write wins, because an upgrade *sets* rather than adds. A value written by two upgrades shows the later one. |
 | Inline error next to a tweak field | Validation is working. The `field` on the issue *is* the tweak key. |
 | `player.*` key reported in `unknownKeys` on import | The key isn't in `TWEAK_FIELD_MAP` — a typo, or a `parameters.txt` from a build with a different baseline. Not fatal by design. |
+
+### Fixed: NullReferenceException in PlayerActorBehavior.Update
+
+```
+System.NullReferenceException: Object reference not set to an instance of an object
+  at ARPGGame.Behaviors.Players.PlayerActorBehavior.Update (Int32 ms, …)
+```
+
+Mid-combat, any class, on a campaign with pre-unlocked skills. A skill was armed
+with an **empty asset path**: `combo-nova-projectile` and `aura-buff` are `""` at
+creation and only an upgrade fills them in, so setting the numbers without the
+string gives a combo nova with no projectile to spawn. Now blocked by
+`armedWithEmptyPath` in `validation.ts` as an *error*. If this recurs, a string
+param is empty while its siblings are live — check the emitted file for
+`<string name="…"></string>`.
+
+Note that `error.txt` **appends**, so a report may contain older unrelated crashes.
+Check the timestamps before treating two traces as one incident.
 
 ### Known in-game crash: Thief autofire divides by zero
 

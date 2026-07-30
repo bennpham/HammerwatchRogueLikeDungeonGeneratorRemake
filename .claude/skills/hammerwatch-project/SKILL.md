@@ -223,8 +223,11 @@ same `GeneratedFile[]` the levels produce.
     Sentinel stock values (`-1` locked, `9999` unaffordable) and `0` are skipped;
     scaling a sentinel would corrupt it. A test asserts every numeric stat lands
     in exactly one group, so a new baseline stat cannot escape the editor.
-  - **Pre-unlocking a skill applies the whole unlock upgrade.** The flag alone
-    leaves `whirl-dur` at `-1`. `applyFullyUpgraded` is a one-shot action, not a
+  - **Pre-unlocking a skill applies the whole unlock upgrade — strings included.**
+    The flag alone leaves `whirl-dur` at `-1`, and dropping the *string* children
+    left `combo-nova-projectile` empty, which crashed the game mid-combat. String
+    params are overridden by index into `TweakFieldDef.choices`, so the map stays
+    numeric and an unshipped path cannot be emitted. `applyFullyUpgraded` is a one-shot action, not a
     toggle, and reads the *tweaked* files so it composes with the factors.
   - **"No upgrades" removes, it does not overprice.** An omitted upgrade is
     genuinely absent from the shop (verified), so the lockout empties

@@ -54,6 +54,18 @@ export interface TweakFieldDef {
   type: TweakValueType
   /** stock value, used as the form default and to detect tampering */
   stock: number
+  /**
+   * For `string` params only: every value the stock data can give this param —
+   * its starting value first, then each upgrade's, deduped in file order.
+   *
+   * A string cannot live in `PlayerTweaks` (it is `Record<string, number>`), so
+   * the override stores an *index* into this list. That is not merely a
+   * workaround: some skills park their string on `""` until an upgrade fills it
+   * in — `combo-nova-projectile` and `aura-buff` both do — and handing a player
+   * such a skill with an empty projectile path crashes the game. The index lets
+   * the presets advance the string alongside the numbers.
+   */
+  choices?: string[]
 }
 
 /**
@@ -76,6 +88,27 @@ function shopGroupOf(fileId: string, upgradeId: string, cat: string): string {
   if (cat.startsWith('off')) return 'Offense upgrades'
   if (cat.startsWith('def')) return 'Defense upgrades'
   return 'Other upgrades'
+}
+
+/**
+ * Every value the stock data gives a string param: its starting value first, then
+ * each upgrade's, in file order and deduped. Index 0 is therefore always "stock".
+ */
+function stringChoices(file: TweakUnitFile, name: string): string[] {
+  const seen: string[] = []
+  const add = (value: unknown): void => {
+    const text = String(value)
+    if (!seen.includes(text)) seen.push(text)
+  }
+
+  const start = file.params.find((p) => p.name === name && p.type === 'string')
+  if (start !== undefined) add(start.value)
+  for (const upgrade of file.upgrades) {
+    for (const child of upgrade.children) {
+      if (child.name === name && child.type === 'string') add(child.value)
+    }
+  }
+  return seen
 }
 
 function buildFields(): TweakFieldDef[] {
@@ -101,8 +134,6 @@ function buildFields(): TweakFieldDef[] {
     }
 
     for (const param of file.params) {
-      // strings are structure, not balance, and pass straight through
-      if (param.type === 'string') continue
       fields.push({
         key: paramKey(file.id, param.name),
         fileId: file.id,
@@ -111,8 +142,10 @@ function buildFields(): TweakFieldDef[] {
         label: param.name,
         stat: param.name,
         type: param.type,
-        // bools ride the numeric rail as 0/1 so PlayerTweaks stays Record<string, number>
-        stock: param.type === 'bool' ? (param.value === true ? 1 : 0) : Number(param.value)
+        // bools ride the numeric rail as 0/1, strings as an index into `choices`,
+        // so PlayerTweaks stays Record<string, number>
+        stock: param.type === 'bool' ? (param.value === true ? 1 : 0) : param.type === 'string' ? 0 : Number(param.value),
+        choices: param.type === 'string' ? stringChoices(file, param.name) : undefined
       })
     }
 
@@ -234,9 +267,18 @@ function cloneFile(file: TweakFile): TweakFile {
   }
 }
 
-/** A stored 0/1 turned back into whatever the XML expects for that param. */
-function decode(param: TweakParam, value: number): number | boolean {
-  return param.type === 'bool' ? value !== 0 : value
+/** A stored number turned back into whatever the XML expects for that param. */
+function decode(
+  param: TweakParam,
+  value: number,
+  field: TweakFieldDef
+): number | boolean | string {
+  if (param.type === 'bool') return value !== 0
+  if (param.type === 'string') {
+    // out-of-range indices keep the stock value rather than writing "undefined"
+    return field.choices?.[value] ?? param.value
+  }
+  return value
 }
 
 /**
@@ -288,7 +330,7 @@ export function applyTweaks(tweaks: PlayerTweaks): TweakFile[] {
 
     if (field.group === 'param') {
       const target = file.params.find((p) => p.name === field.stat)
-      if (target !== undefined) target.value = decode(target, value)
+      if (target !== undefined) target.value = decode(target, value, field)
       continue
     }
 
@@ -310,7 +352,7 @@ export function applyTweaks(tweaks: PlayerTweaks): TweakFile[] {
       upgrade.cost = value
     } else if (field.group === 'effect') {
       const target = upgrade.children.find((k) => k.name === field.stat)
-      if (target !== undefined) target.value = decode(target, value)
+      if (target !== undefined) target.value = decode(target, value, field)
     }
   }
 

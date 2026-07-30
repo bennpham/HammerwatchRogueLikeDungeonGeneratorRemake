@@ -76,6 +76,57 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-07-30 — a skill with an empty asset path crashes the game mid-combat
+**Tag:** [VERIFIED] — Linux, real install, HMW 1.41. Ranger, floor 3, mid-fight.
+
+**Context:** A fully-upgraded roster crashed after several minutes of play:
+
+```
+System.NullReferenceException: Object reference not set to an instance of an object
+  at ARPGGame.Behaviors.Players.PlayerActorBehavior.Update (Int32 ms, …)
+```
+
+**Evidence:** Two string params in the stock files are `""` at character creation
+and only an upgrade fills them in:
+
+| Param | Filled by |
+| --- | --- |
+| `shared/combo-nova-projectile` | `combo-nova-1` / `-3` / `-5` |
+| `priest/aura-buff` | `aura`, `auraslow-1` / `-2` |
+
+The reported campaign had `combo` on with `combo-nova-dmg` 84 and
+`combo-nova-parts` 22 — a combo nova armed with **no projectile to spawn** — while
+`combo-nova-projectile` was still `""`. Combo builds during combat, which is why
+it died on floor 3 rather than at load, and `PlayerActorBehavior` is the shared
+base class, so it reaches every class regardless of which one is played. The same
+latent fault existed for the Priest's cripple aura in the same file.
+
+**This was our bug, not the game's.** `applySkillUnlocks` and `applyFullyUpgraded`
+wrote an upgrade's *numeric* children and silently dropped its string children,
+because `PlayerTweaks` is `Record<string, number>` and strings were excluded from
+the field model outright.
+
+**Impact:**
+
+- String params are now fields whose override is an **index** into `choices` —
+  every value the stock data gives that param, starting value first. That keeps
+  `PlayerTweaks` numeric and makes it impossible to emit a path the game does not
+  ship. `applyTweaks` decodes the index back to the string.
+- Both presets now advance strings alongside numbers, so a maxed Knight also gets
+  `effects/knight_slash_240.xml` for its widened arc — a fidelity fix that fell
+  out of the same change.
+- **New blocking validation rule** (`armedWithEmptyPath`): a string param that
+  starts empty and is still empty while the numbers its upgrades write are live is
+  an *error*, not a warning. Derived from the baseline, so a future empty-path
+  param is covered automatically. This is the invariant-4 response — the crash
+  path is now unreachable through the UI.
+- Multipliers explicitly skip string fields; scaling an index would swap the
+  projectile for an unrelated one.
+
+**Note on reading the report:** `error.txt` appends, so the file also contained
+the earlier Thief `DivideByZeroException` from 25 minutes before. Those are two
+different crashes; the Thief one is still open (see the entry below).
+
 ### 2026-07-30 — chance stats cap at 100, and a Thief crash the tweaks may not own
 **Tag:** [VERIFIED] for the chance cap; the crash is **[UNVERIFIED]** as to cause.
 Linux, real install, fully-upgraded roster with Damage ×2 and Defense ×5.
@@ -85,15 +136,28 @@ Linux, real install, fully-upgraded roster with Damage ×2 and Defense ×5.
 
 **Evidence:**
 
-1. **A percentage stat above 100 does nothing** `[VERIFIED]`. `shield-chance` 500
-   on a Sorcerer still takes damage. The stock ladder is the tell: 20/40/60/80/100,
-   stopping at exactly 100, whereas every damage ladder keeps climbing. So it is a
-   probability and a proc cannot fire more than always. It is also *not* damage
-   negation — `fshield` is the frost-shield proc, so a Sorcerer at 100 still takes
-   hits. `max-health` and `dmg-reduction` are the survivability levers, and
-   `dmg-reduction` is flat, not a percentage. `validation.ts` now warns once for
-   the whole set rather than per stat.
-   Affected names: `*-chance`, `*-slow`, `slow`, `shield-distr`.
+1. **A percentage stat above 100 does nothing extra, but what 100 *means* splits
+   in two** `[VERIFIED]`. The cap itself is clear from the stock data:
+   `shield-chance` climbs 20/40/60/80/100 and stops exactly at 100, whereas every
+   damage ladder keeps climbing. A probability cannot exceed always, so 500 is
+   wasted. What took a second test to separate is that the stats fall into two
+   kinds that look identical in the data:
+
+   - **Evasion** — `dodge-chance`. At 100 a Thief or Ranger is *literally
+     unhittable*: "I basically CANNOT be hit at all… you're practically
+     invincible." Note the stock ladder tops out at 50, so a Defense ×2 reaches
+     100 and a ×5 sails past it. This is the only real invulnerability lever in
+     the tweak files, and it is reachable by accident.
+   - **Proc** — `shield-chance`, `bash-chance`, `crit-chance`, `money-chance`, the
+     `*-slow` stats. The effect fires every time but the hit still lands. A
+     Sorcerer at `shield-chance` 100 takes full damage, because `fshield` is the
+     frost-shield proc, not evasion. This is what the original "still taking
+     damage as a Sorcerer" report was.
+
+   `shield-distr` is a third thing: the share of damage routed to mana.
+   `validation.ts` warns once for the whole set and only claims invulnerability
+   for the evasion stats — an earlier draft told everyone to raise `max-health`
+   instead, which is wrong advice for a class that has `dodge-chance`.
 2. **A Thief crash whose cause the audit does not pin down.**
    `DivideByZeroException` in `GameControls.Autofire(Int32 autofire, Int32 rate)`
    via `PlayerThiefActorBehavior.DoUpdate`; full trace in the crash-triage skill.

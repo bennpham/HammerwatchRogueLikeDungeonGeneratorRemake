@@ -61,8 +61,27 @@ describe('tweak baseline', () => {
     expect(TWEAK_FIELD_MAP.get('player.general.hard.enemydamagebase')?.stock).toBe(1.75)
   })
 
-  it('does not expose string params as editable fields', () => {
-    expect(TWEAK_FIELD_MAP.has('player.knight.param.sword-arc-gfx')).toBe(false)
+  it('exposes string params as an index into their stock values', () => {
+    // not a free-text field: the override is an index, so only paths the game
+    // actually ships can ever be emitted
+    const gfx = TWEAK_FIELD_MAP.get('player.knight.param.sword-arc-gfx')
+    expect(gfx?.type).toBe('string')
+    expect(gfx?.stock).toBe(0)
+    // one graphic per rung of the sword-arc ladder, starting value first
+    expect(gfx?.choices).toEqual([
+      'effects/knight_slash_90.xml',
+      'effects/knight_slash_120.xml',
+      'effects/knight_slash_150.xml',
+      'effects/knight_slash_180.xml',
+      'effects/knight_slash_210.xml',
+      'effects/knight_slash_240.xml'
+    ])
+
+    // index 0 is always the stock starting value
+    const projectile = TWEAK_FIELD_MAP.get('player.shared.param.combo-nova-projectile')
+    expect(projectile?.choices?.[0]).toBe('')
+    expect(projectile?.choices?.length).toBe(4)
+
     expect(TWEAK_FIELD_MAP.has('player.knight.param.sword-arc')).toBe(true)
   })
 

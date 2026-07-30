@@ -8,7 +8,7 @@ import {
   same,
   withOverride
 } from './chains'
-import { maxedParams } from './loadout'
+import { maxedParams, maxedStrings } from './loadout'
 import { TWEAK_FIELDS, TWEAK_FIELD_MAP, applyTweaks } from './overrides'
 import type { TweakFieldDef } from './overrides'
 import type { PlayerTweaks, TweakUnitFile } from './types'
@@ -146,6 +146,9 @@ const SCALABLE_FIELDS: TweakFieldDef[] = TWEAK_FIELDS.filter(
     field.fileId !== 'general' &&
     (field.group === 'param' || field.group === 'effect') &&
     field.type !== 'bool' &&
+    // a string override is an index into `choices`; scaling it would swap the
+    // projectile for an unrelated one
+    field.type !== 'string' &&
     field.stat !== undefined
 )
 
@@ -345,6 +348,8 @@ export interface SkillUnlock {
   upgradeId: string
   /** the numeric stats it fills in at the same time */
   stats: string[]
+  /** the string params it fills in — projectile and buff paths */
+  strings: string[]
 }
 
 /**
@@ -367,7 +372,8 @@ export const SKILL_UNLOCKS: SkillUnlock[] = ((): SkillUnlock[] => {
           fileId: file.id,
           flag: child.name,
           upgradeId: upgrade.id,
-          stats: editableChildren(upgrade).map((stat) => stat.name)
+          stats: editableChildren(upgrade).map((stat) => stat.name),
+          strings: upgrade.children.filter((c) => c.type === 'string').map((c) => c.name)
         })
       }
     }
@@ -397,7 +403,7 @@ function unlockInto(
 
   if (!on) {
     delete next[flagField.key]
-    for (const stat of unlock.stats) {
+    for (const stat of [...unlock.stats, ...unlock.strings]) {
       const field = TWEAK_FIELD_MAP.get(paramKey(unlock.fileId, stat))
       if (field !== undefined) delete next[field.key]
     }
@@ -415,6 +421,34 @@ function unlockInto(
     if (field === undefined || field.type === 'bool') continue
     withOverride(next, field.key, round(Number(child.value), field.type === 'int'), field.stock)
   }
+
+  // and the strings, which are not stats but still have to advance: aura-buff and
+  // combo-nova-projectile start empty, and a skill pointed at an empty path
+  // crashes the game the first time it fires
+  for (const child of upgrade.children) {
+    if (child.type !== 'string') continue
+    setStringChoice(next, unlock.fileId, child.name, String(child.value))
+  }
+}
+
+/**
+ * Points a string param at one of its stock values, by index.
+ *
+ * Silently does nothing when the value isn't one the baseline offers — the index
+ * only means anything relative to `choices`, so an unknown string has no
+ * representation and guessing one would emit a path the game cannot load.
+ */
+function setStringChoice(
+  tweaks: PlayerTweaks,
+  fileId: string,
+  name: string,
+  value: string
+): void {
+  const field = TWEAK_FIELD_MAP.get(paramKey(fileId, name))
+  if (field?.choices === undefined) return
+  const index = field.choices.indexOf(value)
+  if (index < 0) return
+  withOverride(tweaks, field.key, index, field.stock)
 }
 
 /**
@@ -478,8 +512,13 @@ export function applyFullyUpgraded(tweaks: PlayerTweaks): PlayerTweaks {
     if (file.kind !== 'unit') continue
     for (const [stat, value] of maxedParams(file)) {
       const field = TWEAK_FIELD_MAP.get(paramKey(file.id, stat))
-      if (field === undefined || field.type === 'bool') continue
+      if (field === undefined || field.type === 'bool' || field.type === 'string') continue
       withOverride(next, field.key, round(value, field.type === 'int'), field.stock)
+    }
+    // the top of each string ladder too, so a maxed character gets the projectile
+    // and buff paths its upgrades would have set
+    for (const [name, value] of maxedStrings(file)) {
+      setStringChoice(next, file.id, name, value)
     }
   }
 

@@ -41,6 +41,35 @@ function chainDepth(file: TweakUnitFile, id: string, seen = new Set<string>()): 
  * Exported because the "fully upgraded roster" bulk preset needs the same walk —
  * it writes these values back as starting stats.
  */
+/**
+ * Every upgrade in the order a player could buy them: prerequisites first, ties
+ * broken by file order. Later purchases overwrite earlier ones, which is how the
+ * game applies them.
+ */
+export function upgradesInBuyOrder(file: TweakUnitFile): TweakUnitFile['upgrades'] {
+  return file.upgrades
+    .map((upgrade, index) => ({ upgrade, index, depth: chainDepth(file, upgrade.id) }))
+    .sort((a, b) => (a.depth === b.depth ? a.index - b.index : a.depth - b.depth))
+    .map((entry) => entry.upgrade)
+}
+
+/**
+ * The string values a fully-upgraded character ends up with.
+ *
+ * Separate from {@link maxedParams} because strings are not stats — but they still
+ * have to advance, since `combo-nova-projectile` and `aura-buff` start empty and
+ * a skill pointed at an empty projectile path crashes the game.
+ */
+export function maxedStrings(file: TweakUnitFile): Map<string, string> {
+  const values = new Map<string, string>()
+  for (const upgrade of upgradesInBuyOrder(file)) {
+    for (const child of upgrade.children) {
+      if (child.type === 'string') values.set(child.name, String(child.value))
+    }
+  }
+  return values
+}
+
 export function maxedParams(file: TweakUnitFile): Map<string, number> {
   const values = new Map<string, number>()
   for (const param of file.params) {
@@ -49,9 +78,7 @@ export function maxedParams(file: TweakUnitFile): Map<string, number> {
     }
   }
 
-  const ordered = file.upgrades
-    .map((upgrade, index) => ({ upgrade, index, depth: chainDepth(file, upgrade.id) }))
-    .sort((a, b) => (a.depth === b.depth ? a.index - b.index : a.depth - b.depth))
+  const ordered = upgradesInBuyOrder(file).map((upgrade) => ({ upgrade }))
 
   for (const { upgrade } of ordered) {
     for (const child of upgrade.children) {

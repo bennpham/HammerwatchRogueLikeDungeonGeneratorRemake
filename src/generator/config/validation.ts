@@ -245,6 +245,19 @@ function validatePlayerTweaks(
       continue
     }
 
+    // a string override is an index into the values the stock data offers, so
+    // anything outside that range would emit a path the game cannot load
+    if (field.type === 'string') {
+      const count = field.choices?.length ?? 0
+      if (!Number.isInteger(value) || value < 0 || value >= count) {
+        errors.push({
+          field: key,
+          message: `Must be a whole number from 0 to ${Math.max(0, count - 1)}.`
+        })
+      }
+      continue
+    }
+
     if (field.type === 'int' && !Number.isInteger(value)) {
       errors.push({ field: key, message: 'Must be a whole number.' })
       continue
@@ -290,15 +303,20 @@ function validatePlayerTweaks(
     }
   }
 
+  for (const issue of armedWithEmptyPath(tweaks)) errors.push(issue)
+
   if (overCapped.length > 0) {
     overCapped.sort((a, b) => a.key.localeCompare(b.key))
     const stats = [...new Set(overCapped.map((o) => o.stat))].sort()
+    const evasive = stats.filter(isEvasionStat)
     warnings.push({
       field: overCapped[0].key,
       message:
         `${overCapped.length === 1 ? 'A percentage stat is' : `${overCapped.length} percentage stats are`} ` +
-        `over 100% (${stats.join(', ')}). The extra points do nothing — a chance cannot exceed always. ` +
-        `Raise max-health or dmg-reduction instead if you want a tougher character.`
+        `over 100% (${stats.join(', ')}). Anything past 100 is wasted — a chance cannot exceed always.` +
+        (evasive.length > 0
+          ? ` Note that ${evasive.join(' and ')} at 100 already avoids every hit, which makes the character invulnerable.`
+          : '')
     })
   }
 
@@ -318,18 +336,85 @@ function validatePlayerTweaks(
 }
 
 /**
+ * Skills switched on but pointed at an empty projectile or buff path.
+ *
+ * This is a **crash**, not a balance mistake. `combo-nova-projectile` and
+ * `aura-buff` are `""` in the stock files and only an upgrade fills them in, so
+ * handing a character the numbers without the path arms a skill with nothing to
+ * spawn. The game dies with a `NullReferenceException` in
+ * `PlayerActorBehavior.Update` the moment it fires — which is mid-combat, not at
+ * load, so it survives every start-up check.
+ *
+ * Derived from the baseline rather than hardcoded: any string param that starts
+ * empty is checked against the numeric siblings the same upgrades write.
+ */
+function armedWithEmptyPath(tweaks: PlayerTweaks): ValidationIssue[] {
+  const issues: ValidationIssue[] = []
+
+  for (const file of TWEAK_BASELINE) {
+    if (file.kind !== 'unit') continue
+
+    for (const param of file.params) {
+      if (param.type !== 'string' || param.value !== '') continue
+
+      const field = TWEAK_FIELD_MAP.get(paramKey(file.id, param.name))
+      if (field === undefined) continue
+      // index 0 is the stock value, which for these is the empty string
+      if ((tweaks[field.key] ?? field.stock) !== 0) continue
+
+      // the numbers the same upgrades write. If any of those is live, the skill
+      // will try to fire and there is no path for it.
+      const siblings = new Set<string>()
+      for (const upgrade of file.upgrades) {
+        if (!upgrade.children.some((c) => c.name === param.name && c.type === 'string')) continue
+        for (const child of upgrade.children) {
+          if (child.name !== param.name && child.type !== 'bool') siblings.add(child.name)
+        }
+      }
+
+      const live = [...siblings].filter((stat) => {
+        const sibling = TWEAK_FIELD_MAP.get(paramKey(file.id, stat))
+        if (sibling === undefined || sibling.type === 'string') return false
+        return (tweaks[sibling.key] ?? sibling.stock) > 0
+      })
+
+      if (live.length > 0) {
+        issues.push({
+          field: field.key,
+          message: `${param.name} is still empty while ${live.sort().join(', ')} ${live.length === 1 ? 'is' : 'are'} set — the skill would fire with an empty path and crash the game. Point ${param.name} at one of its ${field.choices?.length ?? 0} values.`
+        })
+      }
+    }
+  }
+
+  return issues
+}
+
+/**
  * Stats the game rolls as a percentage.
  *
  * `shield-chance` is the giveaway: its stock ladder climbs 20/40/60/80/100 and
- * stops exactly at 100. Play-testing confirmed that pushing it to 500 changes
- * nothing — it is the frost-shield proc chance, and a proc cannot fire more than
- * every time. `shield-distr` is the share of damage routed to mana, which is a
- * percentage for the same reason.
+ * stops exactly at 100, whereas every damage ladder keeps climbing. Play-testing
+ * confirmed 500 behaves like 100. `shield-distr` is the share of damage routed to
+ * mana, a percentage for the same reason.
  */
 function isChanceStat(stat: string): boolean {
   return (
     stat.endsWith('-chance') || stat.endsWith('-slow') || stat === 'slow' || stat === 'shield-distr'
   )
+}
+
+/**
+ * The percentage stats that avoid the hit outright, rather than proccing an
+ * effect alongside it.
+ *
+ * The distinction is worth drawing because the two look identical in the data and
+ * behave completely differently at 100: `dodge-chance` at 100 makes a Thief or
+ * Ranger literally unhittable `[VERIFIED]`, while `shield-chance` at 100 leaves a
+ * Sorcerer taking full damage — it is the frost-shield proc, not evasion.
+ */
+function isEvasionStat(stat: string): boolean {
+  return stat === 'dodge-chance'
 }
 
 /**

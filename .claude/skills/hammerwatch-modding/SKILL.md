@@ -238,6 +238,12 @@ see `reference/hammerwatch-tweak-stats.md` for the full tables]`:
   flag on its own gives a skill whose duration is -1. This is why
   validation only floors the handful of params that genuinely must be
   positive; negative is legitimate almost everywhere.
+- **Two string params start empty and are lethal if left that way**
+  `[VERIFIED 2026-07-30]`: `shared/combo-nova-projectile` and `priest/aura-buff`
+  are `""` at creation and only an upgrade fills them in. Arm the skill's numbers
+  without the path and the game throws a `NullReferenceException` in
+  `PlayerActorBehavior.Update` the first time it fires — mid-combat, so it passes
+  every load-time check. `validation.ts` blocks this shape.
 - `mana-regen` is a **period in ms per mana point** — lower is faster.
 - Duration units are inconsistent by design: `area-duration` and `fnova-ttl`
   are ms; `whirl-dur`, `storm-dur`, `combust-dur`, `orb-time` are seconds.
@@ -256,8 +262,10 @@ Values are **not** enumerated by hand — `TWEAK_FIELDS` in
 - **To expose a value that already exists in the stock files:** nothing to do
   if it's an `int`/`float` — it's already a field, whether it sits in `<params>`
   or inside an upgrade's `children`. `bool` params are editable too, carried as
-  0/1 so the skill unlocks can be pre-set. `string` is deliberately excluded and
-  passes through at stock values, as is every upgrade's `lvl` (it is the tier
+  0/1 so the skill unlocks can be pre-set, and `string` params as an **index** into
+  `TweakFieldDef.choices` — every value the stock data gives them, starting value
+  first — which keeps `PlayerTweaks` numeric and makes an unshipped path
+  unrepresentable. Only an upgrade's `lvl` is excluded outright (it is the tier
   index, not balance).
 - **To add a new param or upgrade:** add it to `baseline.ts`. The form, the
   `parameters.txt` round-trip, the validator and the loadout sheet all follow
