@@ -76,6 +76,57 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-07-30 — an empty `<upgrades>` loads fine, and the Thief crash is not about upgrades
+**Tag:** [VERIFIED] — Linux, real install, HMW 1.41. Emitted `thief.xml` and
+`shared.xml` from a real generation, read directly, with the campaign played.
+
+**Context:** The fully-upgraded preset now removes every upgrade that can no
+longer improve anything, which for six of the seven classes means shipping a file
+with no upgrades at all. That was the last open claim in the removal path.
+
+**Evidence:**
+
+1. **An empty `<upgrades>` element is fine.** The emitted `thief.xml` ends:
+
+   ```xml
+   	</params>
+
+   	<upgrades>
+   	</upgrades>
+   </tweak>
+   ```
+
+   All 29 params present, zero `<dictionary>` entries. The campaign packed,
+   loaded, and played — the crash that followed happened *during combat*, not at
+   load. So a class file with an empty shop is valid. Closes the open item from
+   the earlier removal entries.
+2. **Dead-upgrade removal works as designed on real output.** `shared.xml` keeps
+   exactly `life`, `rejuv`, `pot-dmg`, `pot-rejuv`, `pot-invul` — the five
+   purchases that carry no stats — and nothing else.
+3. **The empty-asset-path fix is working in the wild.** `shared.xml` shows
+   `<string name="combo-nova-projectile">projectiles/player_combo_nova_3.xml</string>`
+   rather than the empty value that crashed the Ranger.
+4. **The Thief `DivideByZeroException` is independent of upgrade presence.** Two
+   crashing runs, same trace, same byte-identical Thief `<params>`:
+
+   | Run | `remove` flags | Thief shop | Result |
+   | --- | --- | --- | --- |
+   | 20:57 | 1 (`life` only) | all 46 upgrades present | DivideByZero in `Autofire` |
+   | 22:41 | 107 | empty | DivideByZero in `Autofire` |
+
+   Emitting the same starting params was verified by diffing the generated
+   `thief.xml` across the two commits. So neither the removal work nor anything
+   else in that round is implicated — this is the same crash that was already
+   open.
+
+**Impact:** the removal path is now fully verified. The Thief crash stays open;
+what this rules out is recorded in the crash-triage skill. A sweep of every stat
+group × factor confirmed that **no Thief stat reachable through the app's controls
+lands on 0**, except `chain-money-cost` and `smoke-money-cost`, which the stock
+`chain` and `smoke` upgrades also set to 0. The divisor is therefore runtime
+state, not a value we write — and since the trace is Thief-specific
+(`PlayerThiefActorBehavior`), `max-fervor` is the remaining suspect.
+
 ### 2026-07-30 — a skill with an empty asset path crashes the game mid-combat
 **Tag:** [VERIFIED] — Linux, real install, HMW 1.41. Ranger, floor 3, mid-fight.
 

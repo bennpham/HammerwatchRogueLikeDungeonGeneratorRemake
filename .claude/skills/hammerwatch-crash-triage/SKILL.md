@@ -195,15 +195,30 @@ feed an attack rate were both at values a stock maxed Thief also reaches —
 `knives-dmg`, `kfan-dmg`, `dmg-reduction` and `dodge-chance`, none of which
 plausibly divides an interval.
 
-That leaves a real possibility that this is a **vanilla bug** at max attack speed
-plus max fervor, which the fully-upgraded preset makes reachable from spawn where
-a normal player would only reach it late. Bisect in this order — the first test
-settles whether the multipliers are involved at all:
+Also ruled out since (2026-07-30, two crashing runs compared):
 
-1. **Fully upgraded roster with every multiplier at ×1**, play Thief. Still
-   crashes ⇒ vanilla, nothing to do with scaling. Add a warning, not a fix.
-2. Fully upgraded, then Thief `max-fervor` back to 0.
-3. Fully upgraded, then Thief `knives-speed-mod` back to −0.6.
+- **Not the upgrade removal.** One run had all 46 Thief upgrades present, the other
+  an empty `<upgrades>`; identical trace, byte-identical Thief `<params>`.
+- **Not a stat we write.** A sweep of every stat group × factor
+  (0.1 … 10, with and without the fully-upgraded preset) found no Thief param that
+  lands on 0 apart from `chain-money-cost` and `smoke-money-cost`, which the stock
+  `chain` and `smoke` upgrades also zero. So the divisor is runtime state.
+- **Not shared code.** The trace is `PlayerThiefActorBehavior`, and no other class
+  has reproduced it, so the quantity is Thief-specific.
+
+That leaves fervor. `max-fervor` is the only Thief stat that is a *counter feeding
+attack speed*, and a stock Thief only enters the fervor code path after buying
+`fervor1` — whereas the preset hands it `max-fervor` 10 at spawn. Likely a vanilla
+bug at max fervor that the preset makes reachable in minutes instead of at endgame.
+
+Next test, one line in `parameters.txt`:
+
+1. Delete `player.thief.param.max-fervor=10` (or set it to 0), re-import,
+   regenerate, play Thief. No crash ⇒ fervor confirmed; add a validation warning
+   and stop pre-setting it in the preset.
+2. Still crashes ⇒ set `knives-speed-mod` back to −0.6 (stock) and repeat.
+3. Still crashes ⇒ the remaining out-of-range Thief stats are `knives-dmg` 46,
+   `kfan-dmg` 60, `dmg-reduction` 30 and `dodge-chance` 250; halve them together.
 
 Once identified, the response is §A's: a validation rule naming the combination,
 plus a case in `tests/validation.test.ts`.
