@@ -205,6 +205,11 @@ Human-readable tables of the same numbers: `reference/hammerwatch-tweak-stats.md
 Emission is opt-in: only files with at least one changed value are written, so
 a stock run produces no `tweak/` folder `[EMITTED]`.
 
+An emitted file only reaches the game if `LevelPacker.exe` was run with the bare
+campaign-folder name from `<HW>/editor` as its cwd — an absolute argument keys
+every tweak file by its full path and the game silently loads none of them. See
+the 2026-07-29 packer entry.
+
 | Emitted path | Root element | Contents | Editable fields |
 | --- | --- | --- | --- |
 | `tweak/general.xml` | `<dictionary>` | 3 difficulties (`easy`, `medium`, `hard`) × 10 multiplier keys | 30 |
@@ -217,10 +222,22 @@ a stock run produces no `tweak/` folder `[EMITTED]`.
 | `tweak/warlock.xml` | `<tweak>` | 20 params (18 numeric), 51 upgrades | 69 |
 | `tweak/wizard.xml` | `<tweak>` | 25 params (20 numeric), 49 upgrades | 69 |
 
-551 editable fields total (numeric params + every upgrade cost). `string` and
-`bool` params exist in the files but are not exposed and pass through at their
-stock values. The general/class split matters: `general.xml` has no
+`string` params exist in the files but are not exposed and pass through at their
+stock values. `bool` params *are* editable, stored as 0/1, because the skill
+unlocks are bools. The general/class split matters: `general.xml` has no
 `<upgrades>` section and is serialized by a different function.
+
+### Shop rules `[VERIFIED — played in game 2026-07-30]`
+
+See the 2026-07-30 discovery-log entry for the tests behind each of these.
+
+| Rule | Detail |
+| --- | --- |
+| **Replacement, not merge** | A campaign's `tweak/<file>` wholly replaces the base game's. Deleting an upgrade from the campaign file removes it from the shop, so the complete stock transcription in `baseline.ts` is mandatory, not defensive. |
+| **5 tiers per upgrade chain, hardcoded** | Appending `health-6`…`health-10` with `cat="misc6"`…`"misc10"` has no effect at all — no shop rows, no stat change. Never offer to lengthen a ladder. Whether the limit is chain length or the `cat` namespace is open question 11. |
+| **`cost="0"` works** | The upgrade is bought normally for nothing, skill unlocks included. |
+| **Negative `cost` pays the player** | Buying it *gives* you that much gold. Supported on purpose — it makes a "sell your character down" shop possible. |
+| **`999999` is the display ceiling** | Renders in full and reads as unaffordable. Used as a clamp (`SHOP_PRICE_MAX`), not as a lockout — removal is the better lockout. |
 
 The `general.xml` difficulty keys `[VERIFIED]`: `EnemyHealthAll`,
 `EnemyHealthBase`, `EnemyHealthIncr`, `EnemySpeedMultiplier`,

@@ -59,20 +59,71 @@ until then, treat them as unknown in anything shown to the user.
 7. **Theme completeness.** Do all of `a b c d e f g i` ship the full 17-piece
    `doodads/theme_<t>/` wall set, and are the variant counts in `TILEMAPS`
    right for every one? A wrong count is a load-time error.
-8. **Do campaign tweak files replace or merge?** We emit complete files on the
-   assumption of wholesale replacement (see the 2026-07-28 entry). If the game
-   actually merges key-by-key, a campaign could ship a two-line file and
-   `baseline.ts` could shrink from 1800 lines to nothing. Test: ship a
-   `tweak/knight.xml` containing only `<params><dictionary><int
-   name="max-health">500</int></dictionary></params>` and see whether the
-   knight keeps its sword damage.
+8. ~~**Do campaign tweak files replace or merge?**~~ Answered — **replace**, see
+   the 2026-07-30 entry. Deleting upgrades from a campaign's file removes them
+   from the shop, so `baseline.ts` must keep the complete transcription.
 9. **Are malformed tweak files fatal?** Does `LevelPacker.exe` validate the
    `tweak/` folder at all, or does a bad file only surface in game (or get
    silently ignored)? Decides whether we need stricter emit-time checks.
 10. **Do tweak `name`/`desc` keys accept literal strings?** Same question as
     the `levels.xml` localization keys, and the answer probably generalizes.
+11. **Is the 5-tier upgrade cap about chain length or the `cat` namespace?**
+    Appending `health-6`…`health-10` with `cat="misc6"`…`"misc10"` did nothing
+    (2026-07-30). Stock files only ever use `misc1-5`/`off1-5`/`def1-5`, so the
+    ceiling may be the shop's column set rather than the chain. Test: add a 6th
+    tier reusing `cat="misc5"`. If it appears, extra tiers are possible after
+    all and the app could offer to lengthen a ladder.
 
 ## Entries
+
+### 2026-07-30 — the shop, play-tested: replacement confirmed, 5 tiers max, negative prices pay you
+**Tag:** [VERIFIED] — Linux, real install at `~/Applications/hammerwatch`, played
+in game with a packed campaign. Supersedes the 2026-07-29 "four claims" entry
+below and the 2026-07-28 "appear to replace the base file wholesale" entry.
+
+**Context:** Closing out the assumptions the bulk roster editor was built on.
+All of these were only testable after the packer-path fix in the entry below —
+before it, `tweak/*.xml` keys were absolute and no balance file was ever loaded.
+
+**Evidence:**
+
+1. **Campaign tweak files replace the base game's wholesale. CONFIRMED.**
+   Shipping `tweak/knight.xml` with `max-health` at 500 gives a Knight with 500
+   HP, normal sword damage, and all five health upgrades in the shop — which
+   alone proves nothing, since we emit the complete file either way. The
+   decisive test was the opposite one: **deleting** the health upgrades from the
+   campaign's file removed them from the shop. Under a merge they would have
+   survived from the base file. This is why `baseline.ts` has to carry the full
+   1832-line transcription, and it is now a verified requirement rather than an
+   inference.
+2. **An upgrade chain caps at 5 tiers — an engine limit, not a data one.**
+   Appending `health-6` … `health-10` (`cost="0"`, chained by `req`, `lvl` 6-10,
+   `cat="misc6"` … `"misc10"`) did **nothing**: no extra rows in the shop, no
+   extra health. The game hardcodes 5. Whether the ceiling is the chain length
+   or the `cat` namespace (stock only ever uses `misc1-5`, `off1-5`, `def1-5`)
+   is still open — see the new open question 11. Either way, "add a tier" is not
+   a feature this app can offer, and `chains.ts` is right to only ever rewrite
+   the tiers that already exist.
+3. **A negative `cost` pays the player.** Buying an upgrade priced below zero
+   *gives* you that much gold. Deliberately supported now: it makes a "sell your
+   character down" shop possible — start with high stats and buy debuffs for
+   money. `validation.ts` allows it and warns once for the whole shop rather
+   than once per upgrade.
+4. **`999999` is the shop's display ceiling**, and it renders in full (screenshot
+   evidence: Health Pool 1 / Mana Pool 1 at 999999, Move Speed 1 at 600). So the
+   old "price it out of reach" lockout worked — but finding 1 makes removal
+   strictly better, and the app now empties the shop instead of pricing it.
+
+**Impact:** `applyCostPolicy` gained `removed` and `custom` and lost `locked`;
+`SHOP_PRICE_MAX` replaces `DEFAULT_LOCK_PRICE` and is now a clamp, not a
+mechanism. Open question 8 is struck out above. Findings 1-4 are promoted into
+`ASSET-REGISTRY.md`. Nothing here can be promoted about the *skill pre-unlock*
+claim (item 4 of the superseded entry); that is still untested.
+
+**Still open after this round:** whether removing *every* upgrade from a file
+(an empty `<upgrades>` element, which is what the "No upgrades" mode emits) loads
+as cleanly as removing some of them; whether a pre-unlocked skill actually works
+from level 1; and whether a chance stat pushed past 100 clamps or misbehaves.
 
 ### 2026-07-29 — LevelPacker stores its folder argument verbatim as the resource key
 **Tag:** [VERIFIED] — Linux, real install at `~/Applications/hammerwatch`,
@@ -131,9 +182,9 @@ an installed game at all, so that path is always the failed fallback. Answers
 open question 2 for reading; open question 3 gains a hard fact.
 
 ### 2026-07-29 — four claims the bulk roster editor makes about the shop
-**Tag:** [UNVERIFIED] — no game install in the dev container, so none of these is
-observed in play. Each is a separate claim; the first that turns out wrong does
-not invalidate the others.
+**Tag:** [UNVERIFIED] — **superseded 2026-07-30.** Claims 1-3 are now verified in
+game (see the entry above); claim 4, the skill pre-unlock, is still untested.
+Kept for the reasoning and the fallbacks, which still apply if a claim regresses.
 
 **Context:** Adding "Quick setup — all characters" (`src/generator/tweak/bulk.ts`),
 which needs a way to make every upgrade free, to price the shop out of reach, to
@@ -207,7 +258,8 @@ treated as faithful. Chain grouping must not derive tier numbers from ids
 generated `tweak/` folder has been loaded in game, so open questions 8-10 stand.
 
 ### 2026-07-28 — campaign tweak files appear to replace the base file wholesale
-**Tag:** [UNVERIFIED] (strong inference from shipped game data)
+**Tag:** [UNVERIFIED] → **[VERIFIED] 2026-07-30.** The inference below was right;
+see the 2026-07-30 entry for the test that settled it.
 **Context:** Adding the player-balance feature (`src/generator/tweak/`), which
 lets a generated campaign override class stats, upgrade costs and difficulty
 multipliers.

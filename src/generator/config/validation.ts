@@ -1,6 +1,7 @@
 import { DungeonParameters, THEMES } from './parameters'
 import { isKnownMonsterId } from '../objects/monsterTypes'
 import { TWEAK_BASELINE } from '../tweak/baseline'
+import { SHOP_PRICE_MAX } from '../tweak/bulk'
 import { SENTINELS, paramKey } from '../tweak/chains'
 import { TWEAK_FIELDS, TWEAK_FIELD_MAP } from '../tweak/overrides'
 import type { TweakFieldDef } from '../tweak/overrides'
@@ -193,6 +194,7 @@ function validatePlayerTweaks(
   warnings: ValidationIssue[]
 ): void {
   const tweaks = p.playerTweaks ?? {}
+  const bounties: Array<{ key: string; value: number }> = []
 
   for (const [key, value] of Object.entries(tweaks)) {
     const field = TWEAK_FIELD_MAP.get(key.toLowerCase())
@@ -204,8 +206,18 @@ function validatePlayerTweaks(
     }
 
     if (field.group === 'cost') {
-      if (!Number.isInteger(value) || value < 0) {
-        errors.push({ field: key, message: 'Cost must be a whole number ≥ 0.' })
+      if (!Number.isInteger(value)) {
+        errors.push({ field: key, message: 'Cost must be a whole number.' })
+      } else if (Math.abs(value) > SHOP_PRICE_MAX) {
+        errors.push({
+          field: key,
+          message: `The shop cannot display more than ${SHOP_PRICE_MAX}.`
+        })
+      } else if (value < 0) {
+        // confirmed in game: the shop pays out on a negative price. Legal and
+        // deliberately supported, so it is collected and reported once below
+        // rather than once per upgrade — a bounty shop sets all 372 of them.
+        bounties.push({ key, value })
       }
       continue
     }
@@ -268,6 +280,20 @@ function validatePlayerTweaks(
         })
       }
     }
+  }
+
+  if (bounties.length > 0) {
+    // sorted so the field the message points at is stable regardless of the
+    // order the overrides happened to be written in
+    bounties.sort((a, b) => a.key.localeCompare(b.key))
+    const most = Math.max(...bounties.map((b) => -b.value))
+    warnings.push({
+      field: bounties[0].key,
+      message:
+        bounties.length === 1
+          ? `${bounties[0].key.split('.').pop()} pays the player ${most} gold instead of charging them.`
+          : `${bounties.length} upgrades pay the player instead of charging them, up to ${most} gold each.`
+    })
   }
 }
 

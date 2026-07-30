@@ -265,39 +265,73 @@ export function deriveMasterFactor(tweaks: PlayerTweaks): StatFactor {
 
 /* ------------------------------------------------------------------ shop ---- */
 
-export type CostPolicy = 'stock' | 'free' | 'locked' | 'mixed'
+/**
+ * What the shop sells and for how much.
+ *
+ * `removed` rather than a punitive price: play-testing confirmed that an upgrade
+ * left out of a campaign's tweak file simply is not in the shop, which is a
+ * cleaner "base stats only" than a price nobody can reach. `999999` is the
+ * highest figure the shop will display, so pricing was always a ceiling hack.
+ */
+export type CostPolicy = 'stock' | 'free' | 'removed' | 'custom' | 'mixed'
 
 /**
- * Unreachable even after a long campaign. The game's own "unaffordable"
- * sentinel is 9999, but a rich late-game party can actually pay that, and the
- * point of the lockout is base stats for the whole run.
+ * The largest price the shop renders. Verified in game — 999999 shows in full
+ * and reads as unaffordable; the game's own `9999` idiom is affordable late.
+ * Kept as the bound for a custom price rather than as a lockout mechanism.
  */
-export const DEFAULT_LOCK_PRICE = 999999
+export const SHOP_PRICE_MAX = 999999
 
 const COST_FIELDS: TweakFieldDef[] = TWEAK_FIELDS.filter((field) => field.group === 'cost')
+
+const REMOVE_FIELDS: TweakFieldDef[] = TWEAK_FIELDS.filter((field) => field.group === 'remove')
+
+/**
+ * Prices are integers and the shop pays the difference on a negative one — a
+ * confirmed quirk, and a deliberately supported one: an upgrade that *gives*
+ * gold lets a dungeon master build a cursed shop where you sell your own stats.
+ */
+export function shopPrice(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.max(-SHOP_PRICE_MAX, Math.min(SHOP_PRICE_MAX, Math.round(value)))
+}
 
 /** Every upgrade price across the seven classes and shared.xml. */
 export function applyCostPolicy(
   policy: Exclude<CostPolicy, 'mixed'>,
-  lockPrice: number,
+  price: number,
   tweaks: PlayerTweaks
 ): PlayerTweaks {
   const next: PlayerTweaks = { ...tweaks }
-  const price = policy === 'free' ? 0 : Math.max(0, Math.round(lockPrice))
+  const target = policy === 'free' ? 0 : shopPrice(price)
 
   for (const field of COST_FIELDS) {
-    if (policy === 'stock') delete next[field.key]
-    else withOverride(next, field.key, price, field.stock)
+    if (policy === 'stock' || policy === 'removed') delete next[field.key]
+    else withOverride(next, field.key, target, field.stock)
   }
+
+  // removal is all-or-nothing here; the per-upgrade flags stay available for the
+  // targeted case (extra lives), which is why this clears rather than merges
+  for (const field of REMOVE_FIELDS) {
+    if (policy === 'removed') next[field.key] = 1
+    else delete next[field.key]
+  }
+
   return next
 }
 
-export function deriveCostPolicy(tweaks: PlayerTweaks, lockPrice: number): CostPolicy {
-  if (COST_FIELDS.every((field) => tweaks[field.key] === undefined)) return 'stock'
-  const at = (target: number): boolean =>
-    COST_FIELDS.every((field) => (tweaks[field.key] ?? field.stock) === target)
+export function deriveCostPolicy(tweaks: PlayerTweaks, price: number): CostPolicy {
+  if (REMOVE_FIELDS.every((field) => tweaks[field.key] === 1)) return 'removed'
+
+  const priced = COST_FIELDS.every((field) => tweaks[field.key] === undefined)
+  const anyRemoved = REMOVE_FIELDS.some((field) => tweaks[field.key] === 1)
+  if (priced) return anyRemoved ? 'mixed' : 'stock'
+  if (anyRemoved) return 'mixed'
+
+  const at = (value: number): boolean =>
+    COST_FIELDS.every((field) => (tweaks[field.key] ?? field.stock) === value)
   if (at(0)) return 'free'
-  if (at(Math.round(lockPrice))) return 'locked'
+  if (at(shopPrice(price))) return 'custom'
   return 'mixed'
 }
 

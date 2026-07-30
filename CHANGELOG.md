@@ -30,6 +30,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Upgrade shop modes reworked after play-testing.** "Locked out" priced every
+  upgrade at 999,999; it is now **No upgrades**, which leaves them out of the
+  emitted files so the shop genuinely has nothing to sell. A new **Set a price**
+  mode takes any single price instead
+- **Negative upgrade prices are now allowed.** Confirmed in game: an upgrade
+  priced below zero *pays* the player. Useful for a "sell your character down"
+  shop — start with high stats and take debuffs for gold. Validation reports the
+  whole bounty shop in one warning rather than once per upgrade
+- `SHOP_PRICE_MAX` (999,999, the most the shop will display) replaces
+  `DEFAULT_LOCK_PRICE` and is now a clamp rather than a lockout mechanism
 - `bool` tweak params are now editable, stored as `0`/`1`, so skill unlocks
   round-trip through `parameters.txt` like every other override
 - The "buying it would downgrade the character" warnings no longer fire when a

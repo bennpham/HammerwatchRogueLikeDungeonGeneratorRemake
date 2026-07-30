@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { parseParametersTxt, serializeParametersTxt } from '../src/generator/config/configFile'
 import { defaultParameters } from '../src/generator/config/parameters'
 import {
-  DEFAULT_LOCK_PRICE,
+  SHOP_PRICE_MAX,
   applyCostPolicy,
   applyMasterFactor,
   applySkillUnlocks,
@@ -116,7 +116,7 @@ describe('parameters.txt parsing', () => {
     const original = defaultParameters()
     original.playerTweaks = applyCostPolicy(
       'free',
-      DEFAULT_LOCK_PRICE,
+      SHOP_PRICE_MAX,
       applyMasterFactor(2.5, applySkillUnlocks(true, {}))
     )
 

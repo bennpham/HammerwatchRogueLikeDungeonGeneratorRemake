@@ -96,13 +96,15 @@ describe('player tweak validation', () => {
     return validateParameters(p)
   }
 
-  it('rejects fractional and negative costs', () => {
+  it('rejects a fractional cost but allows a negative one', () => {
     const result = withTweaks({
       'player.knight.cost.health-1': 12.5,
       'player.knight.cost.health-2': -1
     })
     expect(fieldsOf(result.errors)).toContain('player.knight.cost.health-1')
-    expect(fieldsOf(result.errors)).toContain('player.knight.cost.health-2')
+    // confirmed in game: a negative price pays the player. Legal, and warned about.
+    expect(fieldsOf(result.errors)).not.toContain('player.knight.cost.health-2')
+    expect(fieldsOf(result.warnings)).toContain('player.knight.cost.health-2')
   })
 
   it('rejects a zero-health upgrade the same way as a zero-health start', () => {

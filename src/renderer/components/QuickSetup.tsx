@@ -1,6 +1,6 @@
 import React from 'react'
 import {
-  DEFAULT_LOCK_PRICE,
+  SHOP_PRICE_MAX,
   EXTRA_LIFE_UPGRADES,
   STAT_GROUPS,
   applyCostPolicy,
@@ -36,9 +36,14 @@ const SHOP_OPTIONS: Array<{ value: ShopChoice; label: string; title: string }> =
     title: 'Every upgrade costs 0, so a character can be fully kitted out — including the 2nd and ultimate skill — at any shop'
   },
   {
-    value: 'locked',
-    label: 'Locked out',
-    title: 'Prices set out of reach, so the party plays the whole campaign on its starting stats'
+    value: 'removed',
+    label: 'No upgrades',
+    title: 'Every upgrade is taken out of the shop, so the party plays the whole campaign on its starting stats'
+  },
+  {
+    value: 'custom',
+    label: 'Set a price',
+    title: 'One price for every upgrade. A negative price pays the player instead of charging them.'
   }
 ]
 
@@ -53,26 +58,26 @@ const gold = (value: number): string => value.toLocaleString('en-US')
  * ×1 — which is what keeps a stock run from emitting a tweak/ folder.
  */
 export function QuickSetup({ tweaks, badge, onChange }: QuickSetupProps) {
-  // the lock price is a UI-only choice: what gets stored is the price itself
-  const [lockPrice, setLockPrice] = React.useState(DEFAULT_LOCK_PRICE)
+  // UI-only: what gets stored is the price itself, on every upgrade
+  const [price, setPrice] = React.useState(SHOP_PRICE_MAX)
 
   const master = deriveMasterFactor(tweaks)
-  const policy = deriveCostPolicy(tweaks, lockPrice)
+  const policy = deriveCostPolicy(tweaks, price)
   const skills = deriveSkillUnlocks(tweaks)
   const noLives = deriveShopRemovals(EXTRA_LIFE_UPGRADES, tweaks)
 
   const setPolicy = (choice: ShopChoice) => {
     if (choice === 'mixed') return
-    const next = applyCostPolicy(choice, lockPrice, tweaks)
+    const next = applyCostPolicy(choice, price, tweaks)
     // free upgrades exist so a character can reach its 2nd and ultimate skill,
     // so switch those on at the same time rather than making it a second step
     onChange(choice === 'free' ? applySkillUnlocks(true, next) : next)
   }
 
-  const setLock = (value: number) => {
-    setLockPrice(value)
-    if (policy === 'locked' && Number.isFinite(value)) {
-      onChange(applyCostPolicy('locked', value, tweaks))
+  const setCustomPrice = (value: number) => {
+    setPrice(value)
+    if (policy === 'custom' && Number.isFinite(value)) {
+      onChange(applyCostPolicy('custom', value, tweaks))
     }
   }
 
@@ -129,16 +134,31 @@ export function QuickSetup({ tweaks, badge, onChange }: QuickSetupProps) {
           onChange={setPolicy}
         />
 
-        {policy === 'locked' && (
-          <div className="field-grid">
-            <CurveField
-              label="lock price"
-              value={lockPrice}
-              step={1000}
-              onChange={setLock}
-              title="High enough that the party can never save up for it"
-            />
-          </div>
+        {policy === 'custom' && (
+          <>
+            <div className="field-grid">
+              <CurveField
+                label="price each"
+                value={price}
+                step={100}
+                onChange={setCustomPrice}
+                title={`Every upgrade costs this. Max ${SHOP_PRICE_MAX} — the most the shop can display.`}
+              />
+            </div>
+            {price < 0 && (
+              <p className="hint">
+                A negative price <strong>pays</strong> the player {gold(-price)} gold per upgrade.
+                Pair it with high starting stats for a shop where you sell your character down.
+              </p>
+            )}
+          </>
+        )}
+
+        {policy === 'removed' && (
+          <p className="hint">
+            Every upgrade is left out of the emitted files, so the shop has nothing to sell. Starting
+            stats are untouched — set those with the multipliers above.
+          </p>
         )}
 
         <div className="quick-setup-checks">

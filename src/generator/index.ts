@@ -14,8 +14,8 @@ export type { ParsedConfig } from './config/configFile'
 export { MONSTER_TYPES } from './objects/monsterTypes'
 export type { MonsterTypeDef } from './objects/monsterTypes'
 export {
-  DEFAULT_LOCK_PRICE,
   EXTRA_LIFE_UPGRADES,
+  SHOP_PRICE_MAX,
   STAT_GROUPS,
   TWEAK_BASELINE,
   TWEAK_CLASS_IDS,
@@ -47,6 +47,7 @@ export {
   groupOfStat,
   pruneTweaks,
   resetQuickSetup,
+  shopPrice,
   totalShopCost
 } from './tweak'
 export type {

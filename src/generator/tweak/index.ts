@@ -32,8 +32,8 @@ export {
 } from './chains'
 export type { CostCurve, CurveMode, TweakChain, TweakChainTier, ValueCurve } from './chains'
 export {
-  DEFAULT_LOCK_PRICE,
   EXTRA_LIFE_UPGRADES,
+  SHOP_PRICE_MAX,
   SKILL_UNLOCKS,
   STAT_GROUPS,
   applyCostPolicy,
@@ -51,6 +51,7 @@ export {
   fieldsOfGroup,
   groupOfStat,
   resetQuickSetup,
+  shopPrice,
   totalShopCost
 } from './bulk'
 export type {

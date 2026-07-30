@@ -164,14 +164,20 @@ install]`:
 There is no paladin/gladiator — those are Heroes of Hammerwatch, a different
 game.
 
-**A campaign's tweak file replaces the base file wholesale** `[UNVERIFIED —
-strong inference]`. Evidence: the official Temple of the Sun campaign
-(`editor/campaign2/tweak/shared.xml`) ships a *complete* file with 28 upgrade
-entries against the base file's 34, deleting `pot-invul` — a key-level merge
-could not delete anything. This is why `src/generator/tweak/baseline.ts`
+**A campaign's tweak file replaces the base file wholesale** `[VERIFIED —
+played in game 2026-07-30]`. Deleting the health upgrades from a campaign's
+`knight.xml` removed them from the shop; under a key-level merge they would have
+survived from the base file. (Corroborating: the official Temple of the Sun
+campaign ships a *complete* `shared.xml` with 28 upgrade entries against the base
+file's 34, deleting `pot-invul`.) This is why `src/generator/tweak/baseline.ts`
 carries a full transcription of all nine stock files: changing one number still
-means emitting the whole file. **If this turns out to be wrong (files merge),
-the emitters can shrink dramatically — worth confirming in game.**
+means emitting the whole file, and that is now a requirement rather than a
+precaution.
+
+**Removing an upgrade is therefore a supported edit** — leave it out of the
+emitted file and it is not in the shop. `player.<file>.remove.<upgradeId>` does
+this, cascading to anything whose `req` chain reaches it so no dangling `req` is
+ever written. It is a better "nothing to buy" than an unaffordable price.
 
 Unit-file shape:
 
@@ -212,6 +218,16 @@ see `reference/hammerwatch-tweak-stats.md` for the full tables]`:
   `sword-dmg` 9 → upgrade `dmg1` → 14, not 23.
 - `req="<id>"` chains an upgrade behind another; no `req` = available at once.
 - `cat` is the shop grid slot: `misc1`–`misc5`, `off1`–`off5`, `def1`–`def5`.
+- **A chain caps at 5 tiers and the engine hardcodes it** `[VERIFIED
+  2026-07-30]`. Appending `health-6`…`health-10` with `cat="misc6"`…`"misc10"`
+  does nothing at all — no shop rows, no stat change. Never offer to lengthen a
+  ladder; `chains.ts` only ever rewrites tiers that already exist. Whether the
+  ceiling is the chain length or the `cat` namespace is open question 11 in the
+  discovery log.
+- **`cost` may be 0 or negative** `[VERIFIED 2026-07-30]`. 0 buys normally for
+  nothing; a negative price *pays* the player that much gold, which the app
+  supports on purpose for "sell your character down" shops. `999999` is the
+  largest figure the shop will display.
 - `name` / `desc` are **localization keys**, not display text. Editing them to
   literal strings has the same unknowns as the `levels.xml` keys above.
 - `lvl` inside an upgrade is a display-only tier number.
@@ -223,7 +239,7 @@ see `reference/hammerwatch-tweak-stats.md` for the full tables]`:
 - Duration units are inconsistent by design: `area-duration` and `fnova-ttl`
   are ms; `whirl-dur`, `storm-dur`, `combust-dur`, `orb-time` are seconds.
 
-What this generator emits `[EMITTED — never loaded in game by anyone here]`:
+What this generator emits `[VERIFIED — loaded in game 2026-07-30]`:
 only the files the user actually changed. A stock run writes no `tweak/`
 folder at all, so the pre-tweak behaviour is preserved exactly.
 `src/main/packer.ts` creates nested paths with `mkdir(dirname, {recursive})`,
@@ -236,8 +252,9 @@ Values are **not** enumerated by hand — `TWEAK_FIELDS` in
 
 - **To expose a value that already exists in the stock files:** nothing to do
   if it's an `int`/`float` — it's already a field, whether it sits in `<params>`
-  or inside an upgrade's `children`. `string` and `bool` are deliberately excluded
-  and pass through at stock values, as is every upgrade's `lvl` (it is the tier
+  or inside an upgrade's `children`. `bool` params are editable too, carried as
+  0/1 so the skill unlocks can be pre-set. `string` is deliberately excluded and
+  passes through at stock values, as is every upgrade's `lvl` (it is the tier
   index, not balance).
 - **To add a new param or upgrade:** add it to `baseline.ts`. The form, the
   `parameters.txt` round-trip, the validator and the loadout sheet all follow

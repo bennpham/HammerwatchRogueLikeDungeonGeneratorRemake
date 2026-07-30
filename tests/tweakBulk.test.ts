@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  DEFAULT_LOCK_PRICE,
+  SHOP_PRICE_MAX,
   EXTRA_LIFE_UPGRADES,
   STAT_GROUPS,
   TWEAK_FIELDS,
@@ -20,7 +20,8 @@ import {
   emitTweakFiles,
   groupOfStat,
   pruneTweaks,
-  resetQuickSetup
+  resetQuickSetup,
+  shopPrice
 } from '../src/generator/tweak'
 import { SKILL_UNLOCKS, fieldsOfGroup } from '../src/generator/tweak/bulk'
 import { validateParameters } from '../src/generator/config/validation'
@@ -158,12 +159,12 @@ describe('stat factors', () => {
 
 describe('cost policy', () => {
   it('makes every upgrade free', () => {
-    const tweaks = applyCostPolicy('free', DEFAULT_LOCK_PRICE, {})
+    const tweaks = applyCostPolicy('free', SHOP_PRICE_MAX, {})
     expect(tweaks['player.knight.cost.health-1']).toBe(0)
     expect(tweaks['player.shared.cost.life']).toBe(0)
     // the skill unlocks are ordinary upgrades, so they come free too
     expect(tweaks['player.knight.cost.whirl']).toBe(0)
-    expect(deriveCostPolicy(tweaks, DEFAULT_LOCK_PRICE)).toBe('free')
+    expect(deriveCostPolicy(tweaks, SHOP_PRICE_MAX)).toBe('free')
     // all eight unit files change, so all eight get emitted
     expect(changedFileIds(tweaks).sort()).toEqual([
       'knight',
@@ -177,35 +178,81 @@ describe('cost policy', () => {
     ])
   })
 
-  it('locks the shop out at an unreachable price', () => {
-    const tweaks = applyCostPolicy('locked', DEFAULT_LOCK_PRICE, {})
-    expect(tweaks['player.knight.cost.health-1']).toBe(999999)
-    expect(deriveCostPolicy(tweaks, DEFAULT_LOCK_PRICE)).toBe('locked')
-    // base stats are untouched — only the prices moved
+  it('empties the shop rather than pricing it out of reach', () => {
+    // play-testing showed an omitted upgrade is simply absent from the shop,
+    // which beats a price nobody can afford
+    const tweaks = applyCostPolicy('removed', SHOP_PRICE_MAX, {})
+    expect(deriveCostPolicy(tweaks, SHOP_PRICE_MAX)).toBe('removed')
+    // no price overrides at all — the upgrades are gone, not expensive
+    expect(tweaks['player.knight.cost.health-1']).toBeUndefined()
+    expect(tweaks['player.knight.remove.health-1']).toBe(1)
+    // base stats are untouched
     expect(tweaks['player.knight.param.max-health']).toBeUndefined()
+
+    const knight = emitTweakFiles(tweaks).find((f) => f.path === 'tweak/knight.xml')
+    expect(knight?.content).not.toContain('<dictionary id=')
+    expect(knight?.content).toContain('<upgrades>')
   })
 
-  it('honours a custom lock price', () => {
-    const tweaks = applyCostPolicy('locked', 12345, {})
-    expect(tweaks['player.knight.cost.health-1']).toBe(12345)
-    expect(deriveCostPolicy(tweaks, 12345)).toBe('locked')
+  it('sets any custom price, including one that pays the player', () => {
+    const bounty = applyCostPolicy('custom', -500, {})
+    expect(bounty['player.knight.cost.health-1']).toBe(-500)
+    expect(deriveCostPolicy(bounty, -500)).toBe('custom')
+
+    const dear = applyCostPolicy('custom', 12345, {})
+    expect(dear['player.knight.cost.health-1']).toBe(12345)
+    expect(deriveCostPolicy(dear, 12345)).toBe('custom')
   })
 
-  it('returns to stock', () => {
-    const locked = applyCostPolicy('locked', DEFAULT_LOCK_PRICE, {})
-    const back = applyCostPolicy('stock', DEFAULT_LOCK_PRICE, locked)
-    expect(pruneTweaks(back)).toEqual({})
-    expect(deriveCostPolicy(back, DEFAULT_LOCK_PRICE)).toBe('stock')
+  it('clamps a price to what the shop can display', () => {
+    expect(shopPrice(50_000_000)).toBe(SHOP_PRICE_MAX)
+    expect(shopPrice(-50_000_000)).toBe(-SHOP_PRICE_MAX)
+    expect(shopPrice(12.6)).toBe(13)
+    expect(shopPrice(Number.NaN)).toBe(0)
+  })
+
+  it('returns to stock from every policy', () => {
+    for (const policy of ['free', 'removed', 'custom'] as const) {
+      const changed = applyCostPolicy(policy, 4321, {})
+      const back = applyCostPolicy('stock', 4321, changed)
+      expect(pruneTweaks(back)).toEqual({})
+      expect(deriveCostPolicy(back, 4321)).toBe('stock')
+    }
   })
 
   it('reports a partly-edited shop as mixed', () => {
-    const tweaks = { 'player.knight.cost.health-1': 5 }
-    expect(deriveCostPolicy(tweaks, DEFAULT_LOCK_PRICE)).toBe('mixed')
+    expect(deriveCostPolicy({ 'player.knight.cost.health-1': 5 }, SHOP_PRICE_MAX)).toBe('mixed')
+    // one upgrade removed is the targeted extra-lives case, not a shop policy
+    expect(deriveCostPolicy({ 'player.shared.remove.life': 1 }, SHOP_PRICE_MAX)).toBe('mixed')
   })
 
-  it('validates clean when everything is free', () => {
-    const result = validateParameters(params(applyCostPolicy('free', DEFAULT_LOCK_PRICE, {})))
-    expect(result.errors).toEqual([])
+  it('validates clean when everything is free, removed, or a bounty', () => {
+    for (const [policy, price] of [
+      ['free', 0],
+      ['removed', 0],
+      ['custom', -500]
+    ] as const) {
+      const result = validateParameters(params(applyCostPolicy(policy, price, {})))
+      expect(result.errors).toEqual([])
+    }
+  })
+
+  it('warns that a negative price pays the player', () => {
+    const one = validateParameters(params({ 'player.knight.cost.health-1': -250 }))
+    expect(one.errors).toEqual([])
+    expect(one.warnings.some((w) => w.message.includes('pays the player 250 gold'))).toBe(true)
+  })
+
+  it('reports a whole bounty shop once, not 372 times', () => {
+    const result = validateParameters(params(applyCostPolicy('custom', -500, {})))
+    const bounty = result.warnings.filter((w) => w.message.includes('pay the player'))
+    expect(bounty).toHaveLength(1)
+    expect(bounty[0].message).toContain('up to 500 gold each')
+  })
+
+  it('rejects a price the shop cannot display', () => {
+    const result = validateParameters(params({ 'player.knight.cost.health-1': 10_000_000 }))
+    expect(result.errors.some((e) => e.message.includes('cannot display'))).toBe(true)
   })
 })
 
@@ -327,7 +374,7 @@ describe('shop removals', () => {
 describe('reset', () => {
   it('undoes everything the quick setup can reach', () => {
     let tweaks = applyMasterFactor(2.5, {})
-    tweaks = applyCostPolicy('free', DEFAULT_LOCK_PRICE, tweaks)
+    tweaks = applyCostPolicy('free', SHOP_PRICE_MAX, tweaks)
     tweaks = applySkillUnlocks(true, tweaks)
     tweaks = applyShopRemovals(EXTRA_LIFE_UPGRADES, true, tweaks)
     tweaks = applyFullyUpgraded(tweaks)

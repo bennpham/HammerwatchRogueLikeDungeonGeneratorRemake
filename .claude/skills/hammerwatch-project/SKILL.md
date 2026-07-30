@@ -160,9 +160,9 @@ level generation** — it runs after it, consumes no RNG, and is bolted onto the
 same `GeneratedFile[]` the levels produce.
 
 - **The baseline is the whole file.** A campaign's tweak file *replaces* the
-  base game's file wholesale; it is not a key-level merge (evidence: the
-  official `campaign2` ships 28 upgrades against the base file's 34, deleting
-  one). So `baseline.ts` holds a complete transcription of all nine stock files
+  base game's file wholesale; it is not a key-level merge. Verified in game
+  2026-07-30: deleting upgrades from a campaign's file removes them from the
+  shop. So `baseline.ts` holds a complete transcription of all nine stock files
   — `general.xml`, `shared.xml`, and one per class (`TWEAK_CLASS_IDS`: knight,
   priest, ranger, sorcerer, thief, warlock, wizard) — and one edited value
   still means emitting that entire file.
@@ -211,8 +211,8 @@ same `GeneratedFile[]` the levels produce.
 - **Bulk editing is derived, not stored** (`bulk.ts`). The "Quick setup — all
   characters" section scales the whole roster at once: a master `×` knob plus one
   per stat group (health, mana, damage, defense, utility, costs), a shop policy
-  (stock / all free / locked out at an editable price), skill pre-unlocking, and
-  a fully-upgraded preset. It writes only the ordinary `player.*` keys above, so
+  (stock prices / all free / no upgrades at all / one custom price), skill
+  pre-unlocking, and a fully-upgraded preset. It writes only the ordinary `player.*` keys above, so
   nothing else in the pipeline knows it exists. Three rules keep it honest:
   - **Factors measure from stock, never from the current value.** That makes them
     idempotent and lets `deriveStatFactor` recover the knob's value by anchoring
@@ -226,6 +226,11 @@ same `GeneratedFile[]` the levels produce.
   - **Pre-unlocking a skill applies the whole unlock upgrade.** The flag alone
     leaves `whirl-dur` at `-1`. `applyFullyUpgraded` is a one-shot action, not a
     toggle, and reads the *tweaked* files so it composes with the factors.
+  - **"No upgrades" removes, it does not overprice.** An omitted upgrade is
+    genuinely absent from the shop (verified), so the lockout empties
+    `<upgrades>` rather than pricing at `SHOP_PRICE_MAX`. That constant survives
+    only as a clamp: `999999` is the most the shop can display, and a *negative*
+    price pays the player, which is supported on purpose.
 - **UI.** `PlayerForm.tsx` (left panel, "Player" tab) renders `QuickSetup.tsx`
   between the shared stats and the first class, then starting stats as a plain
   grid, skill flags as checkboxes, and each upgrade ladder as a curve row with the
@@ -235,6 +240,10 @@ same `GeneratedFile[]` the levels produce.
   value after buying every upgrade, and a flag where the user diverged from stock.
   That is why `maxedParams` buys in `req`-depth order and lets later purchases
   overwrite earlier ones, and why `bulk.ts` reuses it rather than reimplementing.
+- **Warnings that a bulk policy would fire hundreds of times get collapsed.**
+  A bounty shop sets all 372 prices negative; that is one warning naming the
+  count, not 372 identical ones. Same principle as the exemption below — apply it
+  to any new per-field warning a quick-setup control can trigger en masse.
 - **The downgrade warnings have an exemption.** A starting stat sitting exactly on
   a rung of its own ladder is a character deliberately created fully upgraded, so
   `ladderAbsorbed` suppresses both downgrade warnings for it — otherwise the
