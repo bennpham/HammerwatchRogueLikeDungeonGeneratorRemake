@@ -163,7 +163,7 @@ export function QuickSetup({ tweaks, badge, onChange }: QuickSetupProps) {
 
         <div className="quick-setup-checks">
           <BoolField
-            label="Start with 2nd + ultimate skills unlocked"
+            label="Start with all skills unlocked"
             checked={skills}
             onChange={(on) => onChange(applySkillUnlocks(on, tweaks))}
             title="Also fills in each skill's stats, which the game leaves unset until the upgrade is bought"
