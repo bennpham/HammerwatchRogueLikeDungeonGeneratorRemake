@@ -125,7 +125,17 @@ group × factor confirmed that **no Thief stat reachable through the app's contr
 lands on 0**, except `chain-money-cost` and `smoke-money-cost`, which the stock
 `chain` and `smoke` upgrades also set to 0. The divisor is therefore runtime
 state, not a value we write — and since the trace is Thief-specific
-(`PlayerThiefActorBehavior`), `max-fervor` is the remaining suspect.
+(`PlayerThiefActorBehavior`), it is Thief-specific runtime state.
+
+**Update, same day: `max-fervor` FALSIFIED.** It was the leading suspect; the user
+removed it (back to stock 0) and the Thief crashed again, identical trace. So it
+crashes at both `max-fervor` 10 and 0. Combined with the deduction that every
+Thief starting value in the file is individually stock-safe (`knives-speed-mod`
+−0.2 is the fastest a stock maxed Thief reaches, and that Thief does not crash),
+and that the Sorcerer played the *same* `shared.xml` to completion, this points at
+an interaction or a start-vs-upgrade difference rather than a single bad value.
+Next step is a bisection (strip every `player.thief.*`), not another guess — see
+the crash-triage skill. No code change until it is isolated.
 
 ### 2026-07-30 — a skill with an empty asset path crashes the game mid-combat
 **Tag:** [VERIFIED] — Linux, real install, HMW 1.41. Ranger, floor 3, mid-fight.

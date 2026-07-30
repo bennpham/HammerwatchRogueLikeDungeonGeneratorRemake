@@ -206,22 +206,44 @@ Also ruled out since (2026-07-30, two crashing runs compared):
 - **Not shared code.** The trace is `PlayerThiefActorBehavior`, and no other class
   has reproduced it, so the quantity is Thief-specific.
 
-That leaves fervor. `max-fervor` is the only Thief stat that is a *counter feeding
-attack speed*, and a stock Thief only enters the fervor code path after buying
-`fervor1` — whereas the preset hands it `max-fervor` 10 at spawn. Likely a vanilla
-bug at max fervor that the preset makes reachable in minutes instead of at endgame.
+**`max-fervor` is FALSIFIED (2026-07-30).** It was the leading suspect; the user
+removed it (back to stock 0) and the Thief still crashed, same trace. Do not chase
+it again.
 
-Next test, one line in `parameters.txt`:
+What the crashing runs have in common, and what is now known:
 
-1. Delete `player.thief.param.max-fervor=10` (or set it to 0), re-import,
-   regenerate, play Thief. No crash ⇒ fervor confirmed; add a validation warning
-   and stop pre-setting it in the preset.
-2. Still crashes ⇒ set `knives-speed-mod` back to −0.6 (stock) and repeat.
-3. Still crashes ⇒ the remaining out-of-range Thief stats are `knives-dmg` 46,
-   `kfan-dmg` 60, `dmg-reduction` 30 and `dodge-chance` 250; halve them together.
+- **It crashes at both `max-fervor` 10 and `max-fervor` 0 (stock).** So the fervor
+  value is not the divisor.
+- **Every Thief starting value in the crashing file is individually stock-safe.**
+  `knives-speed-mod` −0.2 is the *fastest* value a stock maxed Thief reaches
+  (`aspeed4`), and a stock maxed Thief does not crash. The only values beyond
+  stock reach are `dodge-chance` 250 and `dmg-reduction` 30 — both defensive, and
+  neither feeds an attack interval. So no single Thief stat at a dangerous value
+  explains it.
+- **It is Thief-specific.** The Sorcerer was played to completion on the *same*
+  `shared.xml` (combo on, `dmg-mul` 2, `move-speed` 1.2) — the user's complaint
+  there was taking damage, i.e. alive and playing. So the shared/combo tweaks do
+  not cause it; the `Autofire` path is the Thief's auto-repeating knife throw.
+- **Upgrade presence is irrelevant** (full shop and empty shop both crash).
 
-Once identified, the response is §A's: a validation rule naming the combination,
-plus a case in `tests/validation.test.ts`.
+That combination — Thief-specific, every value individually safe, constant across
+otherwise-different runs — points at an *interaction* or a value the engine treats
+differently as a starting param than as a bought upgrade, not a single bad number.
+Reasoning cannot pin it further without the game's `Autofire`/`Attack1Autofire`
+source, which we do not have.
+
+**Definitive next test (bisection, not another guess):**
+
+1. Remove **every** `player.thief.*` line from `parameters.txt`, re-import,
+   regenerate, play Thief.
+   - No crash ⇒ it is a Thief tweak. Bisect: add back the params half, then the
+     effects half.
+   - Still crashes ⇒ it is `shared.xml` (combo/`dmg-mul`/`move-speed`) or vanilla,
+     despite the Sorcerer surviving it — look there, and get a stock-Thief control.
+
+Do **not** ship a code fix until one test isolates the cause; a guess-fix could
+mask it. Once isolated, the response is §A's: a validation rule (or a preset
+change) naming the specific combination, plus a case in `tests/validation.test.ts`.
 
 Quick-fix scope here is the same as §A: a validation rule plus a case in
 `tests/tweak.test.ts` or `tests/validation.test.ts`. **Editing `baseline.ts` is
