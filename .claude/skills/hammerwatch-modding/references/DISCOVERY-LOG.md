@@ -108,6 +108,18 @@ are keyed `levels.xml`, `doodads/example_button.xml`, and so on. Compiled
 levels (`levels/*.xml.bin`) are relative either way, which is why the campaign
 packed, listed and looked fine right up to Start.
 
+A trailing slash on the argument is separately fatal — `LevelPacker.exe
+editor/dungeon90719359/` run from `<hw>` dies before writing anything:
+
+```
+System.IndexOutOfRangeException: Index was outside the bounds of the array.
+  at TiltedEngine.Drawing.ResourceContext.ResourceNameFromPath (System.String path)
+  at ARPGLevelPacker.Program.WalkDirectoryTree (System.IO.DirectoryInfo root)
+```
+
+`ResourceNameFromPath` splits on the argument's length, so an empty trailing
+segment indexes past the end. Pass the name with no separator.
+
 **Impact:** `src/main/packer.ts` now runs `LevelPacker.exe <campaignName>` with
 `cwd` set to `<hw>/editor`; passing `campaignDir` is a bug, not a style choice.
 The same defect silently broke `tweak/*.xml` — those keys were absolute too, so
