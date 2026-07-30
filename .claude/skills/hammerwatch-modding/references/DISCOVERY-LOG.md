@@ -76,6 +76,37 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-07-30 — pre-unlocked skills work, and multi-chain removal matches our emitter
+**Tag:** [VERIFIED] — Linux, real install at `~/Applications/hammerwatch`, played
+in game. Closes claim 4 of the superseded 2026-07-29 "four claims" entry.
+
+**Context:** The last two unknowns behind the quick-setup controls.
+
+**Evidence:**
+
+1. **Pre-unlocking a skill works.** A campaign shipping the skill's `bool` param
+   set true *plus* the numeric params the unlock upgrade would have written gives
+   a working skill from the first floor — "played around with pre-unlocked skill
+   no problem". This confirms the reasoning in `applySkillUnlocks`: the flag
+   alone is not enough, because the stock files park the skill's stats on
+   sentinels (`whirl-dur: -1`, `nova-mana-cost: 9999`) and the unlock upgrade is
+   what fills them in. Applying the whole upgrade is the correct model.
+2. **Removing several chains at once behaves, and our emitter agrees byte for
+   byte on structure.** A hand-edited `knight.xml` with the `health-1…5` and
+   `mana-1…5` ladders deleted (36 of the stock 46 upgrades left) packs, loads,
+   and makes neither purchasable. Feeding the same ten ids to
+   `player.knight.remove.*` produces the identical upgrade list — same 36 ids in
+   the same order, same 107 param/child names, no dangling `req` on either side.
+   Locked in as a regression test in `tests/tweakBulk.test.ts` with the id list
+   typed out, so a baseline change that altered the shop fails loudly.
+
+**Impact:** `applySkillUnlocks` and the `remove` scope are both verified against
+the game now. **Still not tested:** an *empty* `<upgrades>` element — the file
+above is a partial removal with 36 upgrades surviving, whereas the "No upgrades"
+shop mode removes all of them. That is the one remaining claim in the removal
+path, and the cheapest way to close it is to pick "No upgrades", install, and
+open a shop.
+
 ### 2026-07-30 — the shop, play-tested: replacement confirmed, 5 tiers max, negative prices pay you
 **Tag:** [VERIFIED] — Linux, real install at `~/Applications/hammerwatch`, played
 in game with a packed campaign. Supersedes the 2026-07-29 "four claims" entry
@@ -122,8 +153,9 @@ claim (item 4 of the superseded entry); that is still untested.
 
 **Still open after this round:** whether removing *every* upgrade from a file
 (an empty `<upgrades>` element, which is what the "No upgrades" mode emits) loads
-as cleanly as removing some of them; whether a pre-unlocked skill actually works
-from level 1; and whether a chance stat pushed past 100 clamps or misbehaves.
+as cleanly as removing some of them, and whether a chance stat pushed past 100
+clamps or misbehaves. The pre-unlocked-skill question was closed the same day —
+see the entry above.
 
 ### 2026-07-29 — LevelPacker stores its folder argument verbatim as the resource key
 **Tag:** [VERIFIED] — Linux, real install at `~/Applications/hammerwatch`,
@@ -182,9 +214,10 @@ an installed game at all, so that path is always the failed fallback. Answers
 open question 2 for reading; open question 3 gains a hard fact.
 
 ### 2026-07-29 — four claims the bulk roster editor makes about the shop
-**Tag:** [UNVERIFIED] — **superseded 2026-07-30.** Claims 1-3 are now verified in
-game (see the entry above); claim 4, the skill pre-unlock, is still untested.
-Kept for the reasoning and the fallbacks, which still apply if a claim regresses.
+**Tag:** [UNVERIFIED] — **fully superseded 2026-07-30.** All four claims are now
+verified in game: 1-3 by the shop entry above, 4 (skill pre-unlock) by the entry
+above that. Kept for the reasoning and the fallbacks, which still apply if a
+claim ever regresses.
 
 **Context:** Adding "Quick setup — all characters" (`src/generator/tweak/bulk.ts`),
 which needs a way to make every upgrade free, to price the shop out of reach, to

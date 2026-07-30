@@ -232,7 +232,10 @@ see `reference/hammerwatch-tweak-stats.md` for the full tables]`:
   literal strings has the same unknowns as the `levels.xml` keys above.
 - `lvl` inside an upgrade is a display-only tier number.
 - `-1` in `<params>` (and `9999` for mana costs) is the "skill locked"
-  sentinel — the unlocking upgrade writes the real value. This is why
+  sentinel — the unlocking upgrade writes the real value. **To hand a character
+  a skill it would normally buy, set the `bool` true *and* write the numeric
+  params the unlock upgrade would have written** `[VERIFIED 2026-07-30]`; the
+  flag on its own gives a skill whose duration is -1. This is why
   validation only floors the handful of params that genuinely must be
   positive; negative is legitimate almost everywhere.
 - `mana-regen` is a **period in ms per mana point** — lower is faster.

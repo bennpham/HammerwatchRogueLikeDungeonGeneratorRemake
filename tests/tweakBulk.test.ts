@@ -354,6 +354,31 @@ describe('shop removals', () => {
     expect(shared?.content).toContain('id="pot-dmg"')
   })
 
+  it('reproduces a hand-made removal that is confirmed working in game', () => {
+    // A play-tester hand-edited knight.xml to drop the health and mana ladders,
+    // packed it, and confirmed neither is purchasable. These are the 36 upgrades
+    // that file kept, in order — typed out rather than derived, so a baseline
+    // change that altered the shop would fail here.
+    const tweaks: PlayerTweaks = {}
+    for (const id of ['health', 'mana']) {
+      for (let tier = 1; tier <= 5; tier++) tweaks[`player.knight.remove.${id}-${tier}`] = 1
+    }
+
+    const knight = emitTweakFiles(tweaks).find((f) => f.path === 'tweak/knight.xml')
+    const ids = [...(knight?.content ?? '').matchAll(/id="([^"]+)"/g)].map((m) => m[1])
+    expect(ids).toEqual([
+      'dmg1', 'dmg2', 'dmg3', 'dmg4', 'dmg5',
+      'arc1', 'arc2', 'arc3', 'arc4', 'arc5',
+      'chrgdmg1', 'chrgdmg2', 'chrgdmg3',
+      'chrgrng1', 'chrgrng2', 'chrgrng3',
+      'whirl', 'whirldmg1', 'whirldmg2', 'whirldur1', 'whirldur',
+      'bash1', 'bash2', 'bash3',
+      'armor-1', 'armor-2', 'armor-3', 'armor-4', 'armor-5',
+      'heal', 'healeff1', 'healeff2', 'healeff3',
+      'shield1', 'shield2', 'shield3'
+    ])
+  })
+
   it('never leaves a req pointing at a missing upgrade', () => {
     const shared = emitTweakFiles(applyShopRemovals(EXTRA_LIFE_UPGRADES, true, {})).find(
       (f) => f.path === 'tweak/shared.xml'

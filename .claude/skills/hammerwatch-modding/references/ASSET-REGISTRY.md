@@ -238,6 +238,13 @@ See the 2026-07-30 discovery-log entry for the tests behind each of these.
 | **`cost="0"` works** | The upgrade is bought normally for nothing, skill unlocks included. |
 | **Negative `cost` pays the player** | Buying it *gives* you that much gold. Supported on purpose — it makes a "sell your character down" shop possible. |
 | **`999999` is the display ceiling** | Renders in full and reads as unaffordable. Used as a clamp (`SHOP_PRICE_MAX`), not as a lockout — removal is the better lockout. |
+| **Skills can be pre-unlocked** | Set the skill's `bool` param true *and* write the numeric params its unlock upgrade would have written; the flag alone leaves them on `-1`/`9999` sentinels and the skill does nothing. Confirmed working from the first floor. |
+
+Percentage-style stats — `dodge-chance`, `bash-chance`, `shield-chance`,
+`shield-distr`, `crit-chance`, `money-chance`, `chill-slow`, `fnova-slow`,
+`slow` — can be pushed past 100 by the bulk multipliers (a ×3 fully-upgraded
+roster already yields `shield-chance` 300). Whether the game clamps them is
+`[UNVERIFIED]`.
 
 The `general.xml` difficulty keys `[VERIFIED]`: `EnemyHealthAll`,
 `EnemyHealthBase`, `EnemyHealthIncr`, `EnemySpeedMultiplier`,
