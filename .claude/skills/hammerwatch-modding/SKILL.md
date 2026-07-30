@@ -38,8 +38,14 @@ not against the game. Upgrading tags is the whole point of the discovery log
 Pipeline `[EMITTED]` (`src/main/packer.ts`, ported from `HammerwatchGen.main`):
 
 1. Write the campaign folder under `<HW>/editor/<campaignName>/`.
-2. `LevelPacker.exe <full path to campaign folder>` — one positional argument,
-   no flags. Runs synchronously; the port gives it a 120 s timeout.
+2. `LevelPacker.exe <campaignName>` **with `cwd` set to `<HW>/editor/`** — one
+   positional argument, no flags. Runs synchronously; the port gives it a 120 s
+   timeout. The argument must be the bare folder name: LevelPacker uses the
+   path it is handed verbatim as the resource key for every file it copies
+   rather than compiles, so an absolute path yields keys like
+   `Z:/home/…/editor/<name>/levels.xml`, the game can't find `levels.xml`, and
+   it dies in `LevelList..ctor` at Start. `[VERIFIED]` — see the 2026-07-29
+   packer-path entry in `references/DISCOVERY-LOG.md`.
 3. The packer drops `<campaignName>.hwm` **beside** the folder, in `editor/`.
 4. Move that `.hwm` into `<HW>/levels/`.
 5. If `cleanupFiles`, delete the unpacked folder.
@@ -49,8 +55,14 @@ The campaign then appears in the in-game level list under the `<name>` from
 
 Cross-platform `[VERIFIED in this codebase]`: `LevelPacker.exe` is
 Windows-only. On Linux/macOS the app shells out to `wine`; without wine the
-user must "Export folder" and pack elsewhere. `.hwm` internals are
-`[UNVERIFIED]` — do not assume it is a zip or try to write one directly.
+user must "Export folder" and pack elsewhere.
+
+`.hwm` internals `[VERIFIED]`, read-only: it is **not** a zip. Magic `HWRP`,
+`uint32` version (100), `uint32` length + `info.xml`, `uint32` length + icon
+PNG (length 0 when the folder has no `icon.png`), then one gzip stream holding
+a name-keyed resource table. Level XML is compiled into `levels/<n>.xml.bin`
+entries alongside the raw source. Enough to inspect a pack's resource keys
+when a campaign won't load; not enough to write one — keep using LevelPacker.
 
 ### info.xml
 

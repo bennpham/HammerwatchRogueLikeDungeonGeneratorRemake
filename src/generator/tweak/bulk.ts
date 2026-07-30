@@ -460,14 +460,12 @@ export interface ShopRemoval {
 }
 
 /**
- * The extra-life purchases. `life` is repeatable and its price scales by 2.6,
+ * The extra-life purchase. `life` is repeatable and its price scales by 2.6,
  * which players farm by leaving a level and coming back, so a dungeon master
- * usually wants it gone rather than merely expensive.
+ * usually wants it gone rather than merely expensive. `rejuv` is deliberately
+ * left in the shop: it is a one-off full heal, not another life.
  */
-export const EXTRA_LIFE_UPGRADES: ShopRemoval[] = [
-  { fileId: 'shared', upgradeId: 'life' },
-  { fileId: 'shared', upgradeId: 'rejuv' }
-]
+export const EXTRA_LIFE_UPGRADES: ShopRemoval[] = [{ fileId: 'shared', upgradeId: 'life' }]
 
 /** Drop `targets` from the shop entirely, or put them back. */
 export function applyShopRemovals(

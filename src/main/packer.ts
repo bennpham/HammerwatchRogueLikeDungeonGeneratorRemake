@@ -42,16 +42,23 @@ export async function installCampaign(
     }
   }
 
-  const campaignDir = join(hammerwatchPath, 'editor', campaignName)
+  const editorDir = join(hammerwatchPath, 'editor')
+  const campaignDir = join(editorDir, campaignName)
   await writeCampaign(campaignDir, files)
 
   // LevelPacker is a Windows executable; on Linux/Mac try wine as a courtesy
   const isWindows = process.platform === 'win32'
   const command = isWindows ? packerPath : 'wine'
-  const args = isWindows ? [campaignDir] : [packerPath, campaignDir]
+  // The folder MUST be passed as a bare name with cwd = <hw>/editor. LevelPacker
+  // stores whatever path it is handed as the resource key for every file it does
+  // not compile, so an absolute path produces entries like
+  // "Z:/home/.../editor/<name>/levels.xml". The game then can't find "levels.xml",
+  // falls back to assets/levels.xml, and dies in LevelList..ctor with a
+  // NullReferenceException the moment you press Start.
+  const args = isWindows ? [campaignName] : [packerPath, campaignName]
 
   const packResult = await new Promise<{ ok: boolean; message: string }>((resolve) => {
-    execFile(command, args, { timeout: 120_000 }, (error) => {
+    execFile(command, args, { cwd: editorDir, timeout: 120_000 }, (error) => {
       if (error) {
         const hint = isWindows
           ? ''

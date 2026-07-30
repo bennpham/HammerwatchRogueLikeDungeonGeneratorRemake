@@ -40,11 +40,14 @@ until then, treat them as unknown in anything shown to the user.
    relative path, or does `LevelPacker.exe` only resolve against the game's
    asset root? This decides whether "custom monsters" means *new actor files*
    or only *unused stock actors*.
-2. **`.hwm` container format.** Zip? Custom archive? Knowing this would let us
-   verify or even build packs without the Windows tool.
+2. ~~**`.hwm` container format.**~~ Answered — see the 2026-07-29 packer-path
+   entry. Custom `HWRP` archive: header, info.xml, optional icon PNG, then one
+   gzip stream holding a name-keyed resource table. Still open: the exact
+   per-entry record layout, enough to *write* a pack without the Windows tool.
 3. **`LevelPacker.exe` interface.** Any flags beyond the single positional
    folder argument? What is its exit code and stderr on malformed input? Right
-   now the app can only report "it failed".
+   now the app can only report "it failed". (Known: the positional argument is
+   used verbatim as the resource-key prefix — see the 2026-07-29 entry.)
 4. **Localization keys.** Do `lvl.act1` / `lvl.floor?floor=N` accept literal
    display strings, and can a campaign supply its own string table? Custom act
    and floor names depend on the answer.
@@ -70,6 +73,50 @@ until then, treat them as unknown in anything shown to the user.
     the `levels.xml` localization keys, and the answer probably generalizes.
 
 ## Entries
+
+### 2026-07-29 — LevelPacker stores its folder argument verbatim as the resource key
+**Tag:** [VERIFIED] — Linux, real install at `~/Applications/hammerwatch`,
+LevelPacker.exe under wine 7.0.
+
+**Context:** A campaign installed by the app packed and appeared in the level
+list, but pressing Start killed the game:
+
+```
+Resource error: : Could not find file: <hw>/assets/levels.xml
+Unhandled Exception: System.NullReferenceException
+  at ARPGGame.LevelList..ctor (TiltedEngine.Drawing.ResourceContext resContext, System.String xml)
+  at ARPGGame.GameBase.InitGame (Difficulty diff, ARPGGame.GamePlayers players, System.String mod)
+```
+
+**Evidence:** The `.hwm` is a custom `HWRP` archive — magic `HWRP`, `uint32`
+version (100), `uint32` info.xml length + info.xml, `uint32` icon PNG length +
+PNG (0 when the campaign ships no `icon.png`), then a single gzip stream
+holding the name-keyed resource table. Dumping the names out of the shipped
+`campaign.hwm` gives relative keys (`levels.xml`, `levels/level_1.xml.bin`).
+Dumping them out of the broken campaign gave:
+
+```
+/home/benpham/Applications/hammerwatch/editor/dungeon90719359/levels.xml
+/home/benpham/Applications/hammerwatch/editor/dungeon90719359/tweak/shared.xml
+```
+
+Reproduced on the stock `editor/example` folder: run from another cwd with an
+absolute argument, and every file LevelPacker copies rather than compiles is
+keyed by the wine path it was handed (`Z:/home/.../example/levels.xml`); run
+with `cwd = <hw>/editor` and the bare folder name `example`, and the same files
+are keyed `levels.xml`, `doodads/example_button.xml`, and so on. Compiled
+levels (`levels/*.xml.bin`) are relative either way, which is why the campaign
+packed, listed and looked fine right up to Start.
+
+**Impact:** `src/main/packer.ts` now runs `LevelPacker.exe <campaignName>` with
+`cwd` set to `<hw>/editor`; passing `campaignDir` is a bug, not a style choice.
+The same defect silently broke `tweak/*.xml` — those keys were absolute too, so
+no player balance file was ever loaded. Two consequences for triage: a
+`NullReferenceException` in `LevelList..ctor` plus a "Could not find file:
+.../assets/levels.xml" resource error means the pack's `levels.xml` key is
+wrong, not that the campaign XML is malformed; and `assets/` does not exist in
+an installed game at all, so that path is always the failed fallback. Answers
+open question 2 for reading; open question 3 gains a hard fact.
 
 ### 2026-07-29 — four claims the bulk roster editor makes about the shop
 **Tag:** [UNVERIFIED] — no game install in the dev container, so none of these is

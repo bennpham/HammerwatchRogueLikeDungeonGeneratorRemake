@@ -301,7 +301,8 @@ describe('shop removals', () => {
     const shared = emitTweakFiles(tweaks).find((f) => f.path === 'tweak/shared.xml')
     expect(shared).toBeDefined()
     expect(shared?.content).not.toContain('id="life"')
-    expect(shared?.content).not.toContain('id="rejuv"')
+    // rejuv is a one-off full heal, not a life — it stays in the shop
+    expect(shared?.content).toContain('id="rejuv"')
     // the rest of the shop survives
     expect(shared?.content).toContain('id="pot-dmg"')
   })

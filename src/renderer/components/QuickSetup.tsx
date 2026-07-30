@@ -149,10 +149,10 @@ export function QuickSetup({ tweaks, badge, onChange }: QuickSetupProps) {
             title="Also fills in each skill's stats, which the game leaves unset until the upgrade is bought"
           />
           <BoolField
-            label="Remove extra lives from the shop (life, rejuv)"
+            label="Remove extra lives from the shop (life)"
             checked={noLives}
             onChange={(on) => onChange(applyShopRemovals(EXTRA_LIFE_UPGRADES, on, tweaks))}
-            title="Extra lives are repeatable, so players can farm them by leaving a level and coming back"
+            title="Extra lives are repeatable, so players can farm them by leaving a level and coming back. Rejuvenation stays — it is a one-off full heal, not another life."
           />
         </div>
 

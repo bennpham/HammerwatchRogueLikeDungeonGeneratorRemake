@@ -110,6 +110,21 @@ message before investigating:
 | `LevelPacker failed: …` | packer non-zero exit or 120 s timeout | on Linux/macOS usually missing `wine`; the unpacked folder is left in place for manual packing |
 | `…ran but <name>.hwm was not produced` | packer succeeded but emitted nothing | usually malformed level XML — open the folder in the game's editor |
 
+The pack can also succeed and still kill the game at Start:
+
+```
+Resource error: : Could not find file: <hw>/assets/levels.xml
+Unhandled Exception: System.NullReferenceException
+  at ARPGGame.LevelList..ctor (…)
+```
+
+`assets/` does not exist in an installed game, so that path is always the
+failed fallback: the pack's own `levels.xml` key is wrong. Cause is the packer
+invocation, not the campaign XML — LevelPacker must be run with `cwd =
+<HW>/editor` and the bare campaign name, never an absolute folder path
+(2026-07-29 DISCOVERY-LOG entry). Confirm by dumping the pack's resource keys;
+the `HWRP` layout is in the modding skill.
+
 Environment issues are not code bugs. Say so, name the user action, stop.
 
 ## §D — Renderer / UI
