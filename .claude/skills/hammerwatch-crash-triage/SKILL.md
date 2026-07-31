@@ -232,14 +232,35 @@ differently as a starting param than as a bought upgrade, not a single bad numbe
 Reasoning cannot pin it further without the game's `Autofire`/`Attack1Autofire`
 source, which we do not have.
 
-**Definitive next test (bisection, not another guess):**
+**Bisection, round 1 (done 2026-07-30):** every `player.thief.*` line removed ⇒
+**no crash**. So it is a Thief tweak, not `shared.xml` and not vanilla. That is
+consistent with the Sorcerer having played the same `shared.xml` to completion.
 
-1. Remove **every** `player.thief.*` line from `parameters.txt`, re-import,
-   regenerate, play Thief.
-   - No crash ⇒ it is a Thief tweak. Bisect: add back the params half, then the
-     effects half.
-   - Still crashes ⇒ it is `shared.xml` (combo/`dmg-mul`/`move-speed`) or vanilla,
-     despite the Sorcerer surviving it — look there, and get a stock-Thief control.
+⚠️ **Caveat on that result:** a stock Thief is squishy and dies fast, so the run
+was short — and this crash needs *sustained* autofire. Treat "no crash" as
+suggestive, not conclusive, until a run survives long enough to attack heavily.
+
+**Bisection, round 2 — use a survivable control.** Add back only the defensive
+and resource params, which cannot plausibly feed an attack interval:
+
+```
+player.thief.param.max-health=120
+player.thief.param.dmg-reduction=30
+player.thief.param.dodge-chance=250
+player.thief.param.max-mana=165
+player.thief.param.mana-regen=500
+```
+
+`dodge-chance` ≥ 100 makes the Thief unhittable, so the run can hold the attack
+button indefinitely — the strongest possible conditions to provoke it — while
+every attack stat stays stock. This removes the short-run confound above.
+
+- **Crash** ⇒ a defensive stat, and `dodge-chance` 250 is the standout (5× beyond
+  the stock ladder's 50). Odd for an attack-rate divisor, so also suspect an
+  engine interaction with an out-of-range evasion roll.
+- **No crash after a long burst** ⇒ an attack stat. Add back one line:
+  `player.thief.param.knives-speed-mod=-0.200000` — the attack-speed stat and the
+  prime suspect. Then `knives-dmg` / `kfan-dmg` / `kfan-projs` / `kfan-arc`.
 
 Do **not** ship a code fix until one test isolates the cause; a guess-fix could
 mask it. Once isolated, the response is §A's: a validation rule (or a preset
