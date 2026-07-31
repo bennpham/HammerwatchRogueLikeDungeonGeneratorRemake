@@ -1,8 +1,6 @@
 import React from 'react'
-import { MONSTER_TYPES } from '../../generator'
+import { MONSTER_GROUPS, MONSTER_TYPES } from '../../generator'
 import type { DungeonParameters, ValidationIssue } from '../../generator'
-
-const GROUPS = ['Classic', 'Desert', 'Towers', 'Special', 'Bosses'] as const
 
 interface MonsterPoolsEditorProps {
   params: DungeonParameters
@@ -50,7 +48,7 @@ export function MonsterPoolsEditor({ params, issues, onChange }: MonsterPoolsEdi
               <span className="pool-summary">{pool.length > 0 ? pool.join(', ') : '(empty!)'}</span>
             </summary>
             <div className="pool-groups">
-              {GROUPS.map((group) => {
+              {MONSTER_GROUPS.map((group) => {
                 const members = MONSTER_TYPES.filter((t) => t.group === group)
                 if (members.length === 0) return null
                 return (

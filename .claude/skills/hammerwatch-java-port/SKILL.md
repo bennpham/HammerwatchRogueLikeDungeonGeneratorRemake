@@ -105,6 +105,13 @@ These are intentional. Do not "fix" them back.
    Critically, it **draws nothing from either RNG stream** and runs after all
    levels are built, so it cannot shift a seed. A stock run (no player edits)
    emits byte-identical output to the pre-tweak port.
+8. **Single-tier monsters clamp instead of overrunning.** `Monster.createRolled`
+   starts at `tier = 1` and only walks upward, so a one-element `tiers` array
+   left `tier` past its own end — `ArrayIndexOutOfBounds` in Java, a literal
+   `undefined` actor path in the port. The tier is now clamped with
+   `Math.min(tier, tiers.length - 1)` **after** the `while`, deliberately not
+   inside it: the number of `fRand` draws is untouched, so **no seed moves**.
+   Only single-tier types' XML changes, and their old output was broken.
 
 ## Verified parity status
 

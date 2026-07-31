@@ -18,13 +18,19 @@ XML — a wrong path fails at load time, not at build time.
 
 ## Actors (monsters)
 
-Source of truth: `src/generator/objects/monsterTypes.ts` (47 types).
+Source of truth: `src/generator/objects/monsterTypes.ts` (49 types). Groups come
+from `MONSTER_GROUPS` in the same file — the GUI iterates that list, so a group
+missing from it renders nowhere. **Append new types**: `monsterTypeById` falls
+back to the positional `MONSTER_TYPES[3]` for unknown ids.
 
 `tiers` is ordered weakest → strongest; index 0 is usually the **spawner**
 variant. `Monster.createRolled` starts at tier 1 and walks upward while
 `fRand(0,1) < upgradeChance`, so with `upgradeChance: 1.0` (every type today)
 it always lands on the top tier — tier 0 is only used where the generator asks
-for a spawner explicitly. `defaultMax` of `0` means the type is off by default.
+for a spawner explicitly. A **single-tier** type is safe: the roll clamps to the
+last index (see the 2026-07-30 `undefined` entry in the discovery log), and its
+spawner slots emit its one actor. `defaultMax` of `0` means the type is off by
+default.
 
 | id | parameters.txt key | group | defaultMax | tiers (0 = spawner) |
 | --- | --- | --- | --- | --- |
@@ -75,6 +81,19 @@ for a spawner explicitly. `defaultMax` of `0` means the type is off by default.
 | `mb_mummy` | `maxMB_Mummies` | Bosses | 0 | `actors/mummy_1_mb.xml` |
 | `mb_skeleton` | `maxMB_Skeletons` | Bosses | 0 | `actors/skeleton_1_mb.xml` |
 | `mb_tick` | `maxMB_Ticks` | Bosses | 0 | `actors/tick_1_mb.xml` |
+| `bonus_skeleton1` | `maxBonus_Skeletons1` | Bonus | 300 | `actors/spawners/bonus/skeleton_1.xml`<br>`actors/bonus/skeleton_1.xml` |
+| `bonus_archer1` | `maxBonus_Archers1` | Bonus | 60 | `actors/bonus/archer_1.xml` |
+
+The two `Bonus` rows are `[VERIFIED]` — packed and spawned in game. The bonus
+archer is the **only** roster entry with no spawner variant. It does not spawn in
+the bonus campaign (its pool is not included there), but the actor path works and
+would spawn if pooled elsewhere. The skeleton spawns both its spawner and actor.
+Both are weaker than their vanilla counterparts (archer 15 HP vs 20, skeleton 10
+vs 40), which is where the scaled-up `defaultMax` comes from — except the skeleton,
+capped at 300 by observed frame rate rather than by its HP. Neither is in
+`defaultParameters().levelMonsters`; they are opt-in via the pool editor so
+existing seeds are unaffected.
+
 ## Doodads
 
 `%s` is replaced by the theme's `doodadToken` (`config/themes.ts`) — once for

@@ -323,7 +323,7 @@ Pure data — append to `MONSTER_TYPES` in
   configKey: 'maxMy_Monsters', // parameters.txt key
   upgradeChance: 1.0,
   defaultMax: 0,               // 0 = disabled by default; safe for new types
-  group: 'Special',            // GUI grouping: Classic|Desert|Towers|Bosses|Special
+  group: 'Special',            // must be a member of MONSTER_GROUPS
   tiers: ['actors/spawners/my_monster.xml', 'actors/my_monster.xml'] }
 ```
 
@@ -332,6 +332,20 @@ monster-pool editor and the max-count table all derive from this array. Then:
 verify the actor paths exist in the target install, add the key to
 `parameters.default.txt`, and record the paths in the discovery log with
 whatever tag the evidence supports.
+
+**Append at the end.** `monsterTypeById` falls back to the *positional*
+`MONSTER_TYPES[3]` (`bat1`) for unknown ids, so inserting at index ≤ 3 changes
+what an unknown id resolves to.
+
+**A single-tier entry is safe.** `createRolled` clamps to the last index, so a
+type with one actor and no spawner (like `bonus_archer1`) emits that actor
+everywhere, including in a Lair's spawner slots. It used to emit `undefined` —
+see the discovery log.
+
+**Adding a whole group** means adding it to `MONSTER_GROUPS` in the same file;
+that array is the render order for both `MonsterPoolsEditor` and
+`MonsterMaxTable`. A group that only exists in the `group` union renders nowhere,
+with no typecheck error.
 
 **Warning:** ids are matched exactly and `configKey` is matched
 case-insensitively. Reusing an existing `configKey` silently overwrites.

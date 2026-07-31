@@ -78,3 +78,5 @@ maxMB_Maggots=0
 maxMB_Mummies=0
 maxMB_Skeletons=0
 maxMB_Ticks=0
+maxBonus_Skeletons1=300
+maxBonus_Archers1=60

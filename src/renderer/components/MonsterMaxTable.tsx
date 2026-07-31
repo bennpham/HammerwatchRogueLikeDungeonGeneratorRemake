@@ -1,8 +1,6 @@
 import React from 'react'
-import { MONSTER_TYPES } from '../../generator'
+import { MONSTER_GROUPS, MONSTER_TYPES } from '../../generator'
 import type { DungeonParameters } from '../../generator'
-
-const GROUPS = ['Classic', 'Desert', 'Towers', 'Special', 'Bosses'] as const
 
 interface MonsterMaxTableProps {
   params: DungeonParameters
@@ -24,7 +22,7 @@ export function MonsterMaxTable({ params, onChange }: MonsterMaxTableProps) {
         Horde size cap per monster type. A lair spawns roughly max/5 to max of its type, scaled by the
         monster multiplier. Types set to 0 spawn nothing — avoid them in pools.
       </p>
-      {GROUPS.map((group) => {
+      {MONSTER_GROUPS.map((group) => {
         const members = MONSTER_TYPES.filter((t) => t.group === group)
         if (members.length === 0) return null
         return (

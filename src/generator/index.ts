@@ -13,8 +13,8 @@ export { validateParameters } from './config/validation'
 export type { ValidationResult, ValidationIssue } from './config/validation'
 export { parseParametersTxt, serializeParametersTxt } from './config/configFile'
 export type { ParsedConfig } from './config/configFile'
-export { MONSTER_TYPES } from './objects/monsterTypes'
-export type { MonsterTypeDef } from './objects/monsterTypes'
+export { MONSTER_GROUPS, MONSTER_TYPES } from './objects/monsterTypes'
+export type { MonsterGroup, MonsterTypeDef } from './objects/monsterTypes'
 export {
   EXTRA_LIFE_UPGRADES,
   SHOP_PRICE_MAX,

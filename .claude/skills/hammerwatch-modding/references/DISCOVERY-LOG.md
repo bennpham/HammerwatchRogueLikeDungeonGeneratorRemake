@@ -79,6 +79,68 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-07-30 — ~400 monsters in one lair is past the game's comfortable limit
+
+**Tag:** [VERIFIED] — observed by the user in play.
+
+**Context:** picking `defaultMax` for `bonus_skeleton1`. The HP ratio against the
+vanilla skeleton (10 vs 40) argued for 100 × 4 = 400.
+
+**Evidence:** "400 got hella laggy." Cut to **300**, which is also where `slime`
+already sits — the previous highest max in the roster. `bat1` at 200 has never
+been reported as a problem.
+
+**Impact:** `defaultMax` for `bonus_skeleton1` is now 300 in `MONSTER_TYPES` and
+`parameters.default.txt`. More generally this is the first datum we have on a
+*performance* ceiling for horde size, and it constrains any future high-max type:
+a lair rolls `trunc(fRand(max/5, max) * monsterMultiplier)`, so `max` is close to
+the real worst case per room. Treat ~300 as the ceiling and remember
+`monsterMultiplier` scales on top of it — a user at ×2 reaches 600.
+**Follow-up:** unknown whether the limit is actor count, this actor's AI, or the
+machine; nobody has tested 400 of a *vanilla* type for comparison.
+
+### 2026-07-30 — a single-tier monster emitted `undefined` as its actor path
+
+**Tag:** [VERIFIED] — reproduced in `tests/monsters.test.ts` against the port.
+
+**Context:** adding the bonus archer, which ships an actor but no spawner and so
+is the first single-tier type anyone would actually put in a pool.
+
+**Evidence:** `Monster.createRolled` starts at `tier = 1` and only walks upward,
+guarded by `tier < type.tiers.length - 1`. For a one-element `tiers` that bound
+is `0`, the guard fails immediately, `tier` stays `1`, and `getXML` emits
+`<string name="type">undefined</string>`. ~20 existing types are single-tier
+(`spider`, `archer3`, `wisp2`, every `mb_*`, every `tower_*`); all sat at
+`defaultMax: 0`, which is the only reason nobody hit it. The Java original threw
+`ArrayIndexOutOfBounds` on the same line, so this is a crash path of the original
+that the port turned into silent garbage — invariant #4 territory.
+
+**Impact:** fixed by clamping with `Math.min(tier, tiers.length - 1)` **after**
+the `while`, so the number of `fRand` draws is unchanged and no existing seed
+moves. Only single-tier types' emitted XML changes, and their previous output was
+`undefined` — there was no working output to preserve. Recorded as a deliberate
+divergence in `hammerwatch-java-port/SKILL.md`.
+
+### 2026-07-30 — three `actors/bonus/` monster paths exist in the editor
+
+**Tag:** [VERIFIED] — packed and spawned in game.
+
+**Context:** looking for monsters to pair with the `bonus1`–`bonus5` themes.
+
+**Evidence:** in game: skeleton spawner and actor both spawn in the bonus levels;
+the bonus level pool does not include the archer, so it does not appear there,
+but the actor path is valid and would work if pooled.
+
+**Impact:** added as `bonus_archer1` / `bonus_skeleton1` in a new `Bonus` group,
+appended to `MONSTER_TYPES` (`monsterTypeById` falls back to the positional
+`MONSTER_TYPES[3]`, so inserting near the front would change what an unknown id
+resolves to). `defaultMax` scales the vanilla defaults by the HP gap — archer
+40 × 1.5 = 60, skeleton capped at 300 (400 was laggy). Not added to
+`defaultParameters().levelMonsters`, so every existing seed stays byte-identical;
+they are opt-in via the pool editor. Note that the archer's spawner *slots* in a
+Lair (`Monster.create(..., 0)`) emit the plain archer actor, since tier 0 is all
+it has — that's why only the skeleton's spawner appears in the bonus levels.
+
 ### 2026-07-30 — the stair sprite is the alcove's back wall, and the bonus pair has no collider
 
 **Tag:** [VERIFIED] — asset XML, confirmed in game by walking through the entrance.
