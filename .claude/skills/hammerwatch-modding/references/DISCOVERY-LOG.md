@@ -91,6 +91,19 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-07-31 — `tower_empty` spawns as a killable obstacle with no damage output
+**Tag:** [VERIFIED] (played in game, confirmed by the user)
+**Context:** `tower_empty` was previously emitted but untested in-game; the Lobby
+tab and other playtests could now confirm it.
+**Evidence:** The user placed and played a level with `tower_empty` monsters. They
+confirmed the obstacle blocks movement (full 32×32 polygon) and has HP (killable),
+but deals no damage to the player. Matches the actor XML spec: 450 HP, empty
+`skills`, passive movement.
+**Impact:** Move `tower_empty` from `[EMITTED]` to `[VERIFIED]` in
+`ASSET-REGISTRY.md`. Default of 0 is appropriate since it walls passages rather
+than attacking. No validation or emission changes needed — the behavior matches
+the intent.
+
 ### 2026-07-31 — `skeleton_3` is speed-capped, not HP-capped: 200 per lair overruns a party
 **Tag:** [VERIFIED] (played, reported by the user)
 **Context:** `skeleton3` shipped at `defaultMax: 200`, reasoned from HP alone —

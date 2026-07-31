@@ -97,10 +97,9 @@ confirmed spawning in a generated floor. Its cap is **100**, not the 200 its
 half-of-`skeleton1` HP would suggest: at 200 it swarms and overruns a party
 (2026-07-31 log entry). Speed sets this one's ceiling, not HP or frame rate.
 
-`tower_empty` is `[EMITTED]` — the path exists in the stock actor folder and
-emits, but it has not been seen in game. It is an obstacle rather than an
-attacker (450 HP, empty `skills`, full 32×32 blocking polygon), which is why it
-defaults to 0: it can wall off a passage.
+`tower_empty` is `[VERIFIED]` — spawns in-game as a killable obstacle (450 HP,
+no damage output), blocks passage with full 32×32 polygon. Defaults to 0
+because it walls off rather than attacking.
 
 `tower_archer2` is a **phantom kept as an alias**. The game never shipped a
 battlement archer 2 — the roster pointed at
