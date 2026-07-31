@@ -76,6 +76,30 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-07-30 — the game applies the `req` cascade, so one removal flag limits a ladder
+**Tag:** [VERIFIED] — played in game, "tiers sold" confirmed working.
+
+**Context:** `applyTiersSold` limits an upgrade ladder by writing a **single**
+`player.<file>.remove.<id>` flag — on the first tier to drop — and relying on
+`applyTweaks`'s `req` cascade to take the tiers above it. That representation is
+what keeps the override map small and makes `deriveTiersSold` exact, but it had
+only ever been verified for *whole-chain* removal.
+
+**Evidence:** setting a ladder's "tiers sold" to N produces a shop containing
+tiers 1…N and nothing above. This is a stronger claim than the earlier removal
+test (a hand-edited `knight.xml` with all of `health-1…5` and `mana-1…5` deleted,
+36 of 46 upgrades surviving): there, every removed entry was absent from the file.
+Here only *one* entry is deliberately dropped and the rest disappear because each
+tier's `req` points at the one below, so the **game itself** is honouring the
+dependency — exactly what the cascade in `applyTweaks` assumes.
+
+**Impact:** the boundary-flag representation in `bulk.ts` (`applyTiersSold` /
+`deriveTiersSold`) is verified rather than assumed; do not "fix" it by writing a
+flag per tier. The one shape `req` cannot express is a *non-contiguous* removal —
+drop tier 3 but keep 4 — because 4 requires 3; the UI already surfaces that as
+`· custom`. Nothing to promote to `ASSET-REGISTRY.md`: removal is already recorded
+there, and this refines how it is driven rather than adding an asset fact.
+
 ### 2026-07-30 — an empty `<upgrades>` loads fine, and the Thief crash is not about upgrades
 **Tag:** [VERIFIED] — Linux, real install, HMW 1.41. Emitted `thief.xml` and
 `shared.xml` from a real generation, read directly, with the campaign played.
