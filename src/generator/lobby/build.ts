@@ -87,21 +87,24 @@ export function diamondCount(startingGold: number): number {
  * The diamonds, walking the authored slots round-robin so the 13th lands back
  * on slot 0 rather than somewhere outside the room. Ids come from a base above
  * anything the template uses, so they cannot collide with it.
+ *
+ * This is the level editor's own items dialect — one array per item type, each
+ * entry an `<array>` of id and position — not the dictionary-per-element form
+ * the rest of the file uses. At zero gold the whole array is left out rather
+ * than emitted empty, for the same reason `<int-arr>`s are never left empty:
+ * LevelPacker.exe parses what is inside them and throws on nothing
+ * ([VERIFIED] 2026-07-31).
  */
 function diamonds(startingGold: number): string {
   const count = diamondCount(startingGold)
-  let out = ''
+  if (count === 0) return '\n\t'
+
+  let entries = ''
   for (let i = 0; i < count; i++) {
     const [x, y] = LOBBY_DIAMOND_SLOTS[i % LOBBY_DIAMOND_SLOTS.length]
-    out +=
-      '<dictionary>\n' +
-      `<int name="id">${LOBBY_ITEM_ID_BASE + i}</int>\n` +
-      `<string name="type">${DIAMOND_ITEM}</string>\n` +
-      `<float name="x">${x.toFixed(6)}</float>\n` +
-      `<float name="y">${y.toFixed(6)}</float>\n` +
-      '</dictionary>\n'
+    entries += `\t\t\t<array><int>${LOBBY_ITEM_ID_BASE + i}</int><vec2>${x} ${y}</vec2></array>\n`
   }
-  return out
+  return `\n\t\t<array name="${DIAMOND_ITEM}">\n${entries}\t\t</array>\n\t`
 }
 
 // --------------------------------------------------------------- text surgery
@@ -111,16 +114,23 @@ function diamonds(startingGold: number): string {
  *
  * An element is an unnamed `<dictionary>` whose first child is its id, which
  * makes the opening marker unambiguous — `<int name="id">0</int>` also appears
- * inside a `LevelStart`'s parameters, and anchoring on the pair rules that out.
- * The closing tag is found by counting nesting rather than by regex, because
- * elements contain a nested `parameters` (and `shape`) dictionary.
+ * inside a `LevelStart`'s parameters, and anchoring on the pair rules that out
+ * (`<dictionary name="parameters">` is a named tag and cannot match). The
+ * whitespace between the two is matched rather than assumed, because the
+ * template may be a level saved by the game's own editor, which indents with
+ * tabs. The closing tag is found by counting nesting rather than by regex,
+ * because elements contain a nested `parameters` (and `shape`) dictionary.
  */
 function elementSpan(xml: string, id: number): { start: number; end: number } {
-  const marker = `<dictionary>\n<int name="id">${id}</int>`
-  const start = xml.indexOf(marker)
-  if (start === -1) {
+  const marker = new RegExp(`<dictionary>\\s*<int name="id">${id}</int>`, 'g')
+  const opening = marker.exec(xml)
+  if (opening === null) {
     throw new Error(`lobby template has no element with id ${id}`)
   }
+  if (marker.exec(xml) !== null) {
+    throw new Error(`lobby template has more than one element with id ${id}`)
+  }
+  const start = opening.index
 
   const tag = /<dictionary\b[^>]*>|<\/dictionary>/g
   tag.lastIndex = start
@@ -128,16 +138,24 @@ function elementSpan(xml: string, id: number): { start: number; end: number } {
   let match: RegExpExecArray | null
   while ((match = tag.exec(xml)) !== null) {
     depth += match[0].startsWith('</') ? -1 : 1
-    if (depth === 0) return { start, end: match.index + match[0].length + 1 }
+    if (depth === 0) return { start, end: match.index + match[0].length }
   }
 
   throw new Error(`lobby template element ${id} is not closed`)
 }
 
-/** Drop one element, including the newline the serializer puts after it. */
+/**
+ * Drop one element, taking the whole lines it sits on.
+ *
+ * The indentation in front of it and the newline behind it go too, so removing
+ * a stall leaves no blank or indent-only line where it used to be.
+ */
 function removeElement(xml: string, id: number): string {
   const { start, end } = elementSpan(xml, id)
-  return xml.slice(0, start) + xml.slice(end)
+  let from = start
+  while (from > 0 && (xml[from - 1] === '\t' || xml[from - 1] === ' ')) from--
+  const after = /^\r?\n/.exec(xml.slice(end))
+  return xml.slice(0, from) + xml.slice(end + (after === null ? 0 : after[0].length))
 }
 
 /** Rewrite the first match of `pattern` inside one element only. */
@@ -150,13 +168,20 @@ function replaceInElement(xml: string, id: number, pattern: RegExp, replacement:
   return xml.slice(0, start) + body.replace(pattern, replacement) + xml.slice(end)
 }
 
-/** Replace the whole body of the level's `items` array. */
+/**
+ * Replace the whole body of the level's `items` section.
+ *
+ * Whatever the template author left on the floor is discarded: the authored
+ * diamonds are only there to say where the slots are — they are what
+ * scripts/import-lobby-assets.mjs reads `LOBBY_DIAMOND_SLOTS` back out of —
+ * and how many actually appear is the player's `startingGold`.
+ */
 function setItems(xml: string, body: string): string {
-  const open = '<array name="items">'
+  const open = '<dictionary name="items">'
   const start = xml.indexOf(open)
-  if (start === -1) throw new Error('lobby template has no items array')
+  if (start === -1) throw new Error('lobby template has no items section')
 
-  const tag = /<array\b[^>]*>|<\/array>/g
+  const tag = /<dictionary\b[^>]*>|<\/dictionary>/g
   tag.lastIndex = start
   let depth = 0
   let match: RegExpExecArray | null
@@ -167,5 +192,5 @@ function setItems(xml: string, body: string): string {
     }
   }
 
-  throw new Error('lobby template items array is not closed')
+  throw new Error('lobby template items section is not closed')
 }

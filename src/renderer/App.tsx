@@ -21,7 +21,9 @@ export function App() {
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<GenerateResponse | null>(null)
   const [toast, setToast] = useState<Toast | null>(null)
-  const [leftTab, setLeftTab] = useState<'dungeon' | 'player' | 'lobby'>('dungeon')
+  // the lobby is where a run starts, so it is where the app opens; the dungeon
+  // and player passes are the optional ones
+  const [leftTab, setLeftTab] = useState<'lobby' | 'dungeon' | 'player'>('lobby')
   const [rightTab, setRightTab] = useState<'preview' | 'loadout'>('preview')
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
@@ -161,6 +163,13 @@ export function App() {
         <aside className="left-panel">
           <div className="panel-tabs">
             <button
+              className={leftTab === 'lobby' ? 'tab active' : 'tab'}
+              onClick={() => setLeftTab('lobby')}
+            >
+              Lobby
+              {params.lobby.enabled && <span className="tab-count">on</span>}
+            </button>
+            <button
               className={leftTab === 'dungeon' ? 'tab active' : 'tab'}
               onClick={() => setLeftTab('dungeon')}
             >
@@ -172,13 +181,6 @@ export function App() {
             >
               Player
               {tweakCount > 0 && <span className="tab-count">{tweakCount}</span>}
-            </button>
-            <button
-              className={leftTab === 'lobby' ? 'tab active' : 'tab'}
-              onClick={() => setLeftTab('lobby')}
-            >
-              Lobby
-              {params.lobby.enabled && <span className="tab-count">on</span>}
             </button>
           </div>
 

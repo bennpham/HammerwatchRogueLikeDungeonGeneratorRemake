@@ -91,6 +91,50 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-07-31 — the script-authored fallback lobby is not enclosed; replaced by the real editor-saved level
+**Tag:** [VERIFIED] for the failure, [EMITTED] for the replacement.
+**Context:** The Lobby tab worked functionally on a real install — level
+transition, shops and gem pickup all behaved — but looked wrong. Supersedes the
+2026-07-31 fallback-lobby entry below, which flagged exactly this as the thing
+to re-check first in game.
+**Evidence:** Screenshot from Hammerwatch 1.41: a flat brown room with no wall
+art, and the user reports "walls are missing and I can hop off the map". The
+fallback's ring of stock `doodads/theme_c/c_h_8` / `c_v_8` at the offsets
+`src/generator/objects/doodad.ts` uses does **not** close the room — a ring
+computed for a room whose floor is a multiple of 8 still leaves the party a way
+out. Not chased further, because the fix was to stop authoring the room at all.
+**Impact:** `src/generator/lobby/template.ts` is now the campaign's own
+`levels/test_lobby.xml`, imported verbatim, and `LOBBY_ASSETS` carries the 10
+campaign-local files it needs. Three things this taught us about consuming
+editor output, all now handled in code:
+
+- **The editor saves UTF-8 with a BOM and CRLF.** Both are normalized in
+  `scripts/import-lobby-assets.mjs` (`clean()`) so the committed constant and
+  the string it produces are the same text.
+- **Editor dialect ≠ `Level.getXML()` dialect.** Positions are
+  `<vec2 name="pos">x y</vec2>`, not `<float name="x">`/`<float name="y">`;
+  indentation is tabs; items are `<array name="items/<type>.xml">` holding
+  `<array><int>id</int><vec2>x y</vec2></array>` per placement, not a dictionary
+  per item. `buildLobby`'s text surgery reads both — it matches whitespace
+  rather than assuming it — and now emits the editor's items form. At zero gold
+  the items section is left **empty** rather than holding an empty `<array>`,
+  by analogy with the empty-`<int-arr>` crash above.
+- **A hand-authored template's element ids are nothing like ours** (56–69 for
+  doodads, 3294–3365 for nodes and items). Rather than transcribe them, the
+  import script now *derives* `LOBBY_TEMPLATE_IDS`, `LOBBY_EXIT_NODE_ID`,
+  `LOBBY_DIAMOND_SLOTS` and `LOBBY_ITEM_ID_BASE` from the file it reads —
+  stalls by their `ShopArea`'s `cats` prefix, the stall's doodads by standing on
+  the same spot as its vendor, the slots by the distinct positions of the
+  authored diamonds. A re-import of a different lobby stays correct with no
+  hand-editing, and throws if a stall, the exit or the diamonds are missing.
+
+Confirms the `CircleShape` note below: the real template uses `CircleShape`
+under each `ShopArea` and `buildLobby` never looks at a shape's type, only its
+id. Still `[EMITTED]`, pending a pack-and-play run: that the campaign-local
+`doodads/level1/*` + `c_blood.png` and `lamp_torch_post_spor.xml` +
+`lamp_torch_post.png` render when shipped inside *our* campaign folder rather
+than the one they were authored in — which is also what closes open question 1a.
+
 ### 2026-07-31 — an empty `<int-arr>` crashes `LevelPacker.exe`; string level ids are fine
 **Tag:** [VERIFIED] — Windows 10, Hammerwatch 1.41, real Steam install.
 **Context:** "Install into Hammerwatch" failed on the first run of the Lobby tab

@@ -22,9 +22,13 @@
  *       Each --asset is read relative to --from and embedded, base64 for
  *       anything that is not XML.
  *
- * After an import, re-check the id constants at the bottom of the generated
- * template.ts against the new file: buildLobby() finds the vendor stalls,
- * the diamonds and the exit by those ids and nothing else.
+ * buildLobby() finds the vendor stalls, the diamonds and the exit by the id
+ * constants at the bottom of template.ts and nothing else, so an import
+ * *derives* those ids from the file it just read (see deriveMeta) rather than
+ * trusting the layout constants below. A re-import therefore stays correct
+ * without anyone editing the generated file by hand; if the source level is
+ * missing a stall, an exit or its diamonds, the derivation throws instead of
+ * emitting a template that would fail later inside the generator.
  */
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
@@ -282,7 +286,166 @@ function buildFallbackTemplate() {
   return dict('', [tilemap, doodads, actors, scripting, items, lighting])
 }
 
+// --------------------------------------------------------- id derivation
+
+/** The prefix a stall's `cats` entries use, e.g. `off3` -> the offense stall. */
+const CATS_PREFIX = { power: 'power', off: 'offense', misc: 'misc', def: 'defense', combo: 'combo' }
+
+const DIAMOND_ITEM = 'items/valuable_diamond_red.xml'
+
+/** The body of `<dictionary name="x">` / `<array name="x">`, brackets excluded. */
+function section(xml, tag, name) {
+  const open = `<${tag} name="${name}">`
+  const start = xml.indexOf(open)
+  if (start === -1) throw new Error(`level has no <${tag} name="${name}">`)
+
+  const scan = new RegExp(`<${tag}\\b[^>]*>|</${tag}>`, 'g')
+  scan.lastIndex = start
+  let depth = 0
+  let match
+  while ((match = scan.exec(xml)) !== null) {
+    depth += match[0].startsWith('</') ? -1 : 1
+    if (depth === 0) return xml.slice(start + open.length, match.index)
+  }
+  throw new Error(`level's <${tag} name="${name}"> is not closed`)
+}
+
+/**
+ * Every `{ id, type, x, y, body }` in a doodads/actors/nodes body.
+ *
+ * `body` is the element's whole text, nested `parameters` and `shape` included,
+ * so it is found by counting `<dictionary>` depth rather than by regex — the
+ * same way buildLobby locates an element at generation time.
+ */
+function elements(body) {
+  const out = []
+  const header =
+    /<dictionary>\s*<int name="id">(-?\d+)<\/int>\s*<string name="type">([^<]*)<\/string>[\s\S]*?<vec2 name="pos">(-?[\d.]+) (-?[\d.]+)<\/vec2>/g
+
+  let m
+  while ((m = header.exec(body)) !== null) {
+    const scan = /<dictionary\b[^>]*>|<\/dictionary>/g
+    scan.lastIndex = m.index
+    let depth = 0
+    let tag
+    while ((tag = scan.exec(body)) !== null) {
+      depth += tag[0].startsWith('</') ? -1 : 1
+      if (depth === 0) break
+    }
+    if (tag === null) throw new Error(`element ${m[1]} is not closed`)
+
+    out.push({
+      id: Number(m[1]),
+      type: m[2],
+      x: Number(m[3]),
+      y: Number(m[4]),
+      body: body.slice(m.index, tag.index)
+    })
+    header.lastIndex = tag.index
+  }
+  return out
+}
+
+/**
+ * The ids buildLobby needs, read back out of an imported level.
+ *
+ * A stall is found by its ShopArea's `cats` prefix, not by position: `cats` is
+ * the value buildLobby rewrites, so anchoring on it means a template whose
+ * stalls have been moved around still imports correctly. The doodads that make
+ * up the stall are then the ones standing on the same spot as its vendor.
+ */
+function deriveMeta(xml) {
+  const doodads = elements(section(xml, 'array', 'doodads'))
+  const nodes = elements(section(xml, 'array', 'nodes'))
+
+  const ids = {}
+  for (const node of nodes) {
+    if (node.type !== 'ShopArea') continue
+
+    const cats = /<string name="cats">([^<]*)<\/string>/.exec(node.body)
+    if (cats === null) throw new Error(`ShopArea ${node.id} has no cats`)
+    const key = CATS_PREFIX[cats[1].split(' ')[0].replace(/\d+$/, '')]
+    if (key === undefined) throw new Error(`ShopArea ${node.id} sells unknown cats "${cats[1]}"`)
+    if (ids[key] !== undefined) throw new Error(`two ShopAreas sell ${key}`)
+
+    const shape = /<dictionary name="shape">\s*<int-arr name="static">(\d+)<\/int-arr>/.exec(node.body)
+    if (shape === null) throw new Error(`ShopArea ${node.id} has no static shape`)
+
+    const vendor = doodads.find((d) => d.type === `doodads/special/vendor_${key}.xml`)
+    if (vendor === undefined) throw new Error(`no vendor_${key} doodad for ShopArea ${node.id}`)
+    const on = (d) => d.x === vendor.x && d.y === vendor.y
+    const speech = doodads.find((d) => on(d) && d.type === `doodads/special/vendor_speech_${key}.xml`)
+    if (speech === undefined) throw new Error(`no vendor_speech_${key} doodad on the ${key} stall`)
+    const badge = doodads.find((d) => on(d) && /vendor_speech_level\d+\.xml$/.test(d.type))
+
+    ids[key] = {
+      shape: Number(shape[1]),
+      shop: node.id,
+      vendor: vendor.id,
+      speech: speech.id,
+      // a single-column stall wears no tier number; buildLobby leaves it alone
+      badge: badge === undefined ? null : badge.id
+    }
+  }
+  if (Object.keys(ids).length === 0) throw new Error('level has no ShopArea nodes')
+
+  const exits = nodes.filter((n) => n.type === 'LevelExitArea')
+  if (exits.length !== 1) throw new Error(`expected exactly one LevelExitArea, found ${exits.length}`)
+
+  // The authored diamonds are only a slot map — buildLobby replaces the lot.
+  // They are stacked and listed out of order in the editor's output, so take
+  // the distinct spots in reading order and let the count come from the
+  // player's starting gold.
+  const items = section(xml, 'dictionary', 'items')
+  const seen = new Set()
+  const slots = []
+  const each = /<array><int>(\d+)<\/int><vec2>(-?[\d.]+) (-?[\d.]+)<\/vec2><\/array>/g
+  for (const stack of section(items, 'array', DIAMOND_ITEM).matchAll(each)) {
+    const [x, y] = [Number(stack[2]), Number(stack[3])]
+    const at = `${x} ${y}`
+    if (seen.has(at)) continue
+    seen.add(at)
+    slots.push([x, y])
+  }
+  if (slots.length === 0) throw new Error(`level places no ${DIAMOND_ITEM} to use as diamond slots`)
+  slots.sort((a, b) => a[1] - b[1] || a[0] - b[0])
+
+  // buildLobby allocates diamond ids from a base rather than reusing the
+  // authored ones, so the base has to clear everything the file already uses
+  const used = [...xml.matchAll(/<int name="id">(\d+)<\/int>/g)].map((m) => Number(m[1]))
+  const base = Math.max(DIAMOND_ID_BASE, Math.ceil((Math.max(...used) + 1) / 1000) * 1000)
+
+  return { ids, exit: exits[0].id, slots, base }
+}
+
+/** The same shape as deriveMeta, from the layout constants, for fallback mode. */
+function fallbackMeta() {
+  const ids = {}
+  for (const v of VENDORS) {
+    ids[v.key] = {
+      shape: v.ids,
+      shop: v.ids + 1,
+      vendor: v.ids + 2,
+      speech: v.ids + 3,
+      badge: v.key === 'power' ? null : v.ids + 4
+    }
+  }
+  return { ids, exit: IDS.exit, slots: DIAMOND_SLOTS, base: DIAMOND_ID_BASE }
+}
+
 // ----------------------------------------------------------------- emitting
+
+/**
+ * Editor output, made safe to carry as a committed string.
+ *
+ * The editor writes UTF-8 with a BOM and CRLF endings. A template literal
+ * normalizes CRLF to LF when TypeScript parses it, so doing it here keeps the
+ * committed source and the string it produces the same thing; the BOM would
+ * otherwise sit invisibly in the middle of a .ts file.
+ */
+function clean(text) {
+  return text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n')
+}
 
 function literal(text) {
   if (text.includes('`') || text.includes('${')) {
@@ -291,12 +454,15 @@ function literal(text) {
   return `\`${text.replace(/\\/g, '\\\\')}\``
 }
 
-function emitTemplate(xml, source) {
-  const slots = DIAMOND_SLOTS.map(([x, y]) => `  [${x}, ${y}]`).join(',\n')
-  const vendorIds = VENDORS.map(
-    (v) =>
-      `  ${v.key}: { shape: ${v.ids}, shop: ${v.ids + 1}, vendor: ${v.ids + 2}, speech: ${v.ids + 3}, badge: ${v.key === 'power' ? 'null' : v.ids + 4} }`
-  ).join(',\n')
+function emitTemplate(xml, source, meta) {
+  const slots = meta.slots.map(([x, y]) => `  [${x}, ${y}]`).join(',\n')
+  const vendorIds = Object.keys(meta.ids)
+    .sort()
+    .map((key) => {
+      const v = meta.ids[key]
+      return `  ${key}: { shape: ${v.shape}, shop: ${v.shop}, vendor: ${v.vendor}, speech: ${v.speech}, badge: ${v.badge === null ? 'null' : v.badge} }`
+    })
+    .join(',\n')
 
   return `/**
  * The lobby level, verbatim.
@@ -330,20 +496,20 @@ ${vendorIds}
 }
 
 /** The LevelExitArea whose target level buildLobby rewrites. */
-export const LOBBY_EXIT_NODE_ID = ${IDS.exit}
+export const LOBBY_EXIT_NODE_ID = ${meta.exit}
 
 /**
  * Where the red diamonds go, in template order.
  *
- * Starting gold past 12 diamonds walks this list again rather than spilling
- * outside the room — stacking pays out in full ([VERIFIED] 2026-07-30).
+ * Starting gold past one diamond per slot walks this list again rather than
+ * spilling outside the room — stacking pays out in full ([VERIFIED] 2026-07-30).
  */
 export const LOBBY_DIAMOND_SLOTS: ReadonlyArray<readonly [number, number]> = [
 ${slots}
 ]
 
 /** First id buildLobby hands to a diamond; above anything the template uses. */
-export const LOBBY_ITEM_ID_BASE = ${DIAMOND_ID_BASE}
+export const LOBBY_ITEM_ID_BASE = ${meta.base}
 `
 }
 
@@ -386,27 +552,33 @@ const args = parseArgs(process.argv.slice(2))
 
 let xml
 let source
+let meta
 let assets = []
 
 if (args.from === undefined) {
   xml = buildFallbackTemplate()
   source = 'authored by this script (--from not given) — stock assets only'
+  meta = fallbackMeta()
 } else {
-  xml = readFileSync(join(args.from, args.level), 'utf-8')
+  // the editor saves UTF-8 with a BOM and CRLF endings; neither survives a
+  // template literal intact, so normalize once here rather than leaving the
+  // committed constant subtly different from the file on disk
+  xml = clean(readFileSync(join(args.from, args.level), 'utf-8'))
   source = `${args.from}/${args.level}`
+  meta = deriveMeta(xml)
   assets = args.assets.map((path) => {
     const bytes = readFileSync(join(args.from, path))
     const binary = extname(path).toLowerCase() !== '.xml'
     return {
       path,
-      content: binary ? bytes.toString('base64') : bytes.toString('utf-8'),
+      content: binary ? bytes.toString('base64') : clean(bytes.toString('utf-8')),
       encoding: binary ? 'base64' : 'utf-8'
     }
   })
 }
 
 mkdirSync(outDir, { recursive: true })
-writeFileSync(join(outDir, 'template.ts'), emitTemplate(xml, source), 'utf-8')
+writeFileSync(join(outDir, 'template.ts'), emitTemplate(xml, source, meta), 'utf-8')
 writeFileSync(join(outDir, 'assets.ts'), emitAssets(assets), 'utf-8')
 
 console.log(`wrote template.ts (${xml.length} chars) and assets.ts (${assets.length} asset(s)) from ${source}`)

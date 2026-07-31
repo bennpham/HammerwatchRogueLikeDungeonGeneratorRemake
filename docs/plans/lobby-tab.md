@@ -3,14 +3,22 @@
 Tracks [issue #5](https://github.com/bennpham/HammerwatchRogueLikeDungeonGeneratorRemake/issues/5):
 *"As the party, I would like a small lobby before diving into the dungeon."*
 
-**Status: implemented** on `claude/lobby-tab-implementation-dnczao`, with one
-substitution: no Hammerwatch install was available, so `test_lobby.xml` and its
-six custom files could not be read. `scripts/import-lobby-assets.mjs` imports
-them from a real install; run without `--from` it authored the stock-asset
-fallback lobby that is committed today. The four deliberate divergences and the
-asset paths still unconfirmed are recorded in the 2026-07-31 entry of
-`.claude/skills/hammerwatch-modding/references/DISCOVERY-LOG.md`. The in-game
-verification below is still outstanding.
+**Status: implemented** on `claude/lobby-tab-implementation-dnczao`, and the
+template is now the real one. The first build shipped a stock-asset fallback
+lobby authored by `scripts/import-lobby-assets.mjs` (no Hammerwatch install was
+available at the time); played on a real install it worked but was not enclosed
+— missing walls, and the party could walk off the map. It has been replaced by
+`levels/test_lobby.xml` imported verbatim from the Dreadmann Mansion campaign,
+with its 10 campaign-local files carried in `LOBBY_ASSETS`. The import now
+derives the element ids `buildLobby` edits from the file it reads, so swapping
+in a different lobby needs no hand-editing. See the newest 2026-07-31 entry in
+`.claude/skills/hammerwatch-modding/references/DISCOVERY-LOG.md` and the "lobby
+template" section of `ASSET-REGISTRY.md`. The in-game verification below is
+still outstanding for the imported level.
+
+The tab strip also leads with **Lobby | Dungeon | Player** and opens on Lobby:
+setting up the lobby is the first thing a run needs, the other two are optional
+passes.
 
 ---
 

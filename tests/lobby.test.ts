@@ -179,7 +179,7 @@ describe('lobby — vendor stalls', () => {
 
     // every shape a node points at still exists in the file
     const ids = new Set(allIds(xml))
-    for (const match of xml.matchAll(/<dictionary name="shape">\n<int-arr name="static">([^<]*)<\/int-arr>/g)) {
+    for (const match of xml.matchAll(/<dictionary name="shape">\s*<int-arr name="static">([^<]*)<\/int-arr>/g)) {
       for (const ref of match[1].split(' ').filter((r) => r !== '')) {
         expect(ids.has(Number(ref)), `shape reference ${ref} points at a removed element`).toBe(true)
       }
@@ -207,19 +207,24 @@ describe('lobby — starting gold', () => {
   it('emits one diamond per 500 gold', () => {
     for (const gold of [0, 500, 3000, 6000]) {
       const xml = lobbyXML({ startingGold: gold })
-      const diamonds = [...xml.matchAll(/items\/valuable_diamond_red\.xml/g)]
+      // the editor's items dialect names the type once and lists a placement
+      // per item under it, so the diamonds are the placements
+      const diamonds = [...xml.matchAll(/<array><int>\d+<\/int><vec2>[^<]*<\/vec2><\/array>/g)]
       expect(diamonds).toHaveLength(gold / LOBBY_DIAMOND_VALUE)
       expect(diamondCount(gold)).toBe(gold / LOBBY_DIAMOND_VALUE)
+      expect(xml.includes('items/valuable_diamond_red.xml')).toBe(gold > 0)
     }
   })
 
-  it('emits an empty items array at 0 gold', () => {
-    expect(lobbyXML({ startingGold: 0 })).toContain('<array name="items"></array>')
+  it('leaves the items section empty at 0 gold rather than emitting an empty array', () => {
+    const xml = lobbyXML({ startingGold: 0 })
+    expect(xml).toMatch(/<dictionary name="items">\s*<\/dictionary>/)
+    expect(xml).not.toContain('items/valuable_diamond_red.xml')
   })
 
-  it('stacks past the 12 authored slots, two deep at the cap', () => {
+  it('stacks past the authored slots, two deep at the cap', () => {
     const xml = lobbyXML({ startingGold: LOBBY_GOLD_MAX })
-    const placed = [...xml.matchAll(/<float name="x">([\d.-]+)<\/float>\n<float name="y">([\d.-]+)<\/float>/g)]
+    const placed = [...xml.matchAll(/<vec2>(-?[\d.]+) (-?[\d.]+)<\/vec2>/g)]
       .map((m) => `${Number(m[1])},${Number(m[2])}`)
 
     const counts = new Map<string, number>()
@@ -233,12 +238,16 @@ describe('lobby — starting gold', () => {
   it('keeps every id in the file unique', () => {
     const xml = lobbyXML({ startingGold: LOBBY_GOLD_MAX })
     // ids appear once as an element id and, for LevelStart, once more inside
-    // its parameters — so compare against the element ids only
-    const elementIds = [...xml.matchAll(/<dictionary>\n<int name="id">(-?\d+)<\/int>/g)].map((m) =>
+    // its parameters — so compare against the element ids only. buildLobby
+    // finds an element by exactly this pattern, so a duplicate would not just
+    // be untidy, it would make the surgery ambiguous.
+    const elementIds = [...xml.matchAll(/<dictionary>\s*<int name="id">(-?\d+)<\/int>/g)].map((m) =>
       Number(m[1])
     )
-    expect(new Set(elementIds).size).toBe(elementIds.length)
-    expect(elementIds).toHaveLength(new Set(elementIds).size)
+    const itemIds = [...xml.matchAll(/<array><int>(\d+)<\/int><vec2>/g)].map((m) => Number(m[1]))
+    const all = [...elementIds, ...itemIds]
+    expect(new Set(all).size).toBe(all.length)
+    expect(itemIds).toHaveLength(LOBBY_GOLD_MAX / LOBBY_DIAMOND_VALUE)
   })
 })
 
@@ -269,6 +278,37 @@ describe('lobby — shipped assets', () => {
     const on = generateOk(withLobby({ enabled: true }), 99)
     const lobby = on.files.find((f) => f.path === LOBBY_LEVEL_PATH)
     expect(lobby?.encoding).toBeUndefined()
+  })
+
+  // The lobby template is a level saved out of the game's editor, so it can
+  // reference files that only exist inside the campaign it was authored in.
+  // Those have to ride along in LOBBY_ASSETS or the packed campaign loads a
+  // room with holes in its walls. This is what catches a re-import that forgot
+  // an --asset.
+  it('references nothing that is neither stock nor shipped', () => {
+    const stock = ['doodads/generic/', 'doodads/special/', 'doodads/theme_c/', 'items/', 'tilemaps/', 'sound/']
+    const shipped = new Set(LOBBY_ASSETS.map((a) => a.path))
+    const xml = lobbyXML({})
+
+    const referenced = [...xml.matchAll(/<string name="(?:type|tileset)">([^<]*)<\/string>/g)]
+      .map((m) => m[1])
+      .filter((path) => path.includes('/'))
+    expect(referenced.length).toBeGreaterThan(0)
+
+    for (const path of new Set(referenced)) {
+      const known = shipped.has(path) || stock.some((prefix) => path.startsWith(prefix))
+      expect(known, `${path} is neither a stock asset nor shipped in LOBBY_ASSETS`).toBe(true)
+    }
+  })
+
+  it('ships every file its shipped assets themselves reference', () => {
+    const shipped = new Set(LOBBY_ASSETS.map((a) => a.path))
+    for (const asset of LOBBY_ASSETS) {
+      if (asset.encoding !== 'utf-8') continue
+      for (const [, texture] of asset.content.matchAll(/<texture>([^<]*)<\/texture>/g)) {
+        expect(shipped.has(texture), `${asset.path} needs ${texture}`).toBe(true)
+      }
+    }
   })
 })
 

@@ -352,6 +352,49 @@ as a unit.
 
 The 6-wide `ExitUp`/`ExitDn` footprint is why `maxRoomSize` must be ≥ 7.
 
+## The lobby template `[EMITTED]`
+
+`src/generator/lobby/template.ts` is not generated geometry — it is a level
+saved out of the game's own editor, carried verbatim and edited by id. The
+committed one is `levels/test_lobby.xml` from the Dreadmann Mansion campaign
+(the author's own map). Regenerate it, never hand-edit it:
+
+```
+node scripts/import-lobby-assets.mjs --from "<HW>/editor/<campaign>" \
+  --level levels/test_lobby.xml --asset <path> --asset <path> …
+```
+
+What the import needs to find, or it throws rather than emit a template that
+would fail inside the generator: a `ShopArea` per stall whose `cats` names the
+columns it sells (`power`, `off1-5`, `misc1-5`, `def1-5`, `combo1-5`), a
+`doodads/special/vendor_<stall>.xml` with its `vendor_speech_<stall>.xml` on the
+same spot (and optionally a `vendor_speech_level<N>.xml` tier badge — a
+single-column stall has none), exactly one `LevelExitArea`, and at least one
+`items/valuable_diamond_red.xml` placement to read the diamond slots from.
+
+**Editor dialect, not `Level.getXML()` dialect.** Tab-indented, CRLF, UTF-8 BOM
+(the last two normalized on import); positions are `<vec2 name="pos">x y</vec2>`;
+items are one `<array name="items/<type>.xml">` holding
+`<array><int>id</int><vec2>x y</vec2></array>` per placement. `buildLobby`
+matches whitespace rather than assuming it, so it reads either dialect.
+
+**Campaign-local assets ride along in `LOBBY_ASSETS`**, written into the campaign
+folder next to the level (XML as text, PNG as base64). The committed set is the
+walls — `doodads/level1/{c_v_16,c_h_16,c_v_cap_dn,c_crn_l_dn,c_crn_l_up,c_crn_r_dn,c_crn_r_up}.xml`
+plus their shared texture `doodads/level1/c_blood.png` — and
+`doodads/lamp_torch_post_spor.xml` plus `doodads/lamp_torch_post.png`. Wall
+doodads carry the collision, so these are what stop the party walking out of the
+room, not decoration. Everything else the template references is stock:
+`doodads/generic/`, `doodads/special/vendor*`, `doodads/theme_c/c_ledge_up*`,
+`items/valuable_diamond_red.xml`, `sound/misc.xml`, and the tilesets
+`tilemaps/c_tiles.xml`, `tilemaps/b_tiles_red.xml`,
+`tilemaps/c_default_border_{up,dn,l,r}.xml`. `tests/lobby.test.ts` asserts that
+split, so a re-import that forgets an `--asset` fails the suite rather than
+shipping a room with holes in it.
+
+Whether a campaign-local doodad renders when packed inside *our* campaign rather
+than the one it was authored in is open question 1a — hence `[EMITTED]`.
+
 ## Tweak files (player balance)
 
 Not asset *paths* — these are files the campaign can ship itself, written to
