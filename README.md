@@ -126,10 +126,11 @@ User-data folder: `%APPDATA%/hammerwatch-roguelike-dungeon-generator` (Windows),
 | `max<Monster>` | see defaults | Horde-size cap per monster type; 0 disables the type |
 
 Monster ids include the classic set (`bat1`, `tick1`, `maggot`, `slime`,
-`skeleton1/2`, `archer1/2/3`, `eye`, `wisp1/2`, `lich`), the desert set
+`skeleton1/2/3`, `archer1/2/3`, `eye`, `wisp1/2`, `lich`), the desert set
 (`mummy_desert`, `mummy_ranged`, `guard_desert`, `guard_desert_range`,
 `lich_desert`), towers (`tower_*`), specials (`spider`, `floater_fire`,
-`pillar_fire`, `special_beheaded_kamikaze`) and bosses (`mb_*`) — the full
+`pillar_fire`, `special_beheaded_kamikaze`), bosses (`mb_*`) and the bonus
+campaign's weaker variants (`bonus_skeleton1`, `bonus_archer1`) — the full
 list with actor files is in `src/generator/objects/monsterTypes.ts`.
 
 ## Project structure

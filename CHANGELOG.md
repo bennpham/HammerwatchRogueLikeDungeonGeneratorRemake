@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`skeleton3`** — the fast swarm skeleton from stock levels 10 and 11, and what
+  `lich_3` summons. 20 HP and 8 damage at speed 1.1, against `skeleton1`'s
+  40/20 at 0.4. Capped at 100: playtested at double that they swarm and overrun
+  a party long before the frame rate suffers. Opt-in from the pool editor or
+  `monstersN=`; no existing seed changes
+- **`tower_empty`** — the empty battlement (450 HP, no skills, full 32×32
+  blocking collision). An obstacle rather than an attacker, so it defaults to 0
+- A roster-wide guard test: every actor path in `MONSTER_TYPES` must appear in
+  `tests/fixtures/actor-paths.txt`, a committed snapshot of the game's actor
+  folder. Nothing previously checked that a path pointed at a real file
+
+### Changed
+
+- The monster pool editor and the max-count table now list each category
+  **alphabetically**. `MONSTER_TYPES` is append-only, so newly added types used
+  to land at the bottom of their group regardless of name; both lists now go
+  through `monsterTypesInGroup()`, which sorts by id and hides deprecated types
+
+### Fixed
+
+- **`tower_archer2` emitted an actor the game cannot load.** It pointed at
+  `actors/tower_battlement_archer_2.xml`, which the game never shipped —
+  Hammerwatch has battlement archer 1 and 3 only. Enabling the type wrote an
+  unresolvable path into the level. It now points at the empty battlement and is
+  hidden from the GUI in favour of `tower_empty`. The id is deliberately **not**
+  deleted: `maxTowers_Archer2` still parses and re-serializes, so an existing
+  `parameters.txt` keeps loading
+
 ## [0.2.0] - 2026-07-30
 
 ### Added

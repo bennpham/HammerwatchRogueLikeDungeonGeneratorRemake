@@ -12,6 +12,39 @@ export interface ParsedConfig {
   unknownKeys: string[]
 }
 
+/**
+ * The canonical order for parameters in exported parameters.txt files.
+ * This ensures all exports follow a consistent, user-friendly order.
+ * The "monster" and "monsterMax" entries are placeholders; actual monster
+ * pools and max values follow MONSTER_TYPES order.
+ */
+export const PARAMETER_ORDER = [
+  'path',
+  'levels',
+  'minRoomSize',
+  'maxRoomSize',
+  'minPassageWidth',
+  'maxPassageWidth',
+  'minRoomCount',
+  'maxRoomCount',
+  'mapWidth',
+  'mapHeight',
+  'edgePadding',
+  'roomPadding',
+  'cleanupFiles',
+  'themes',
+  'monsterMultiplier',
+  'goldMultiplier',
+  'foodMultiplier',
+  'shopChance',
+  'vaultChance',
+  'lockChance',
+  'keyChance',
+  'monster', // placeholder: expanded to monsters0...monstersN
+  'monsterMax', // placeholder: expanded per MONSTER_TYPES order
+  'playerTweaks', // placeholder: sorted by key
+] as const
+
 const configKeyToMonsterId = new Map(MONSTER_TYPES.map((t) => [t.configKey.toLowerCase(), t.id]))
 
 /**
@@ -120,42 +153,70 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   return result
 }
 
-/** Serialize parameters back into the original parameters.txt format. */
+/** Serialize parameters back into the original parameters.txt format, following PARAMETER_ORDER. */
 export function serializeParametersTxt(params: DungeonParameters, path?: string, cleanupFiles = true): string {
   const lines: string[] = []
-  if (path !== undefined) lines.push(`path=${path}`)
-  lines.push(`levels=${params.levels}`)
-  lines.push(`minRoomSize=${params.minRoomSize}`)
-  lines.push(`maxRoomSize=${params.maxRoomSize}`)
-  lines.push(`minPassageWidth=${params.minPassageWidth}`)
-  lines.push(`maxPassageWidth=${params.maxPassageWidth}`)
-  lines.push(`minRoomCount=${params.minRoomCount}`)
-  lines.push(`maxRoomCount=${params.maxRoomCount}`)
-  lines.push(`mapWidth=${params.mapWidth}`)
-  lines.push(`mapHeight=${params.mapHeight}`)
-  lines.push(`edgePadding=${params.edgePadding}`)
-  lines.push(`roomPadding=${params.roomPadding}`)
-  lines.push(`cleanupFiles=${cleanupFiles ? 1 : 0}`)
-  lines.push(`themes=${params.themes.join(',')}`)
-  lines.push(`monsterMultiplier=${params.monsterMultiplier.toFixed(6)}`)
-  lines.push(`goldMultiplier=${params.goldMultiplier.toFixed(6)}`)
-  lines.push(`foodMultiplier=${params.foodMultiplier.toFixed(6)}`)
-  lines.push(`shopChance=${params.shopChance.toFixed(6)}`)
-  lines.push(`vaultChance=${params.vaultChance.toFixed(6)}`)
-  lines.push(`lockChance=${params.lockChance.toFixed(6)}`)
-  lines.push(`keyChance=${params.keyChance.toFixed(6)}`)
-  params.levelMonsters.forEach((pool, i) => {
-    lines.push(`monsters${i}=${pool.join(',')}`)
-  })
-  for (const t of MONSTER_TYPES) {
-    lines.push(`${t.configKey}=${params.monsterMax[t.id] ?? 0}`)
+
+  for (const key of PARAMETER_ORDER) {
+    if (key === 'path') {
+      if (path !== undefined) lines.push(`path=${path}`)
+    } else if (key === 'levels') {
+      lines.push(`levels=${params.levels}`)
+    } else if (key === 'minRoomSize') {
+      lines.push(`minRoomSize=${params.minRoomSize}`)
+    } else if (key === 'maxRoomSize') {
+      lines.push(`maxRoomSize=${params.maxRoomSize}`)
+    } else if (key === 'minPassageWidth') {
+      lines.push(`minPassageWidth=${params.minPassageWidth}`)
+    } else if (key === 'maxPassageWidth') {
+      lines.push(`maxPassageWidth=${params.maxPassageWidth}`)
+    } else if (key === 'minRoomCount') {
+      lines.push(`minRoomCount=${params.minRoomCount}`)
+    } else if (key === 'maxRoomCount') {
+      lines.push(`maxRoomCount=${params.maxRoomCount}`)
+    } else if (key === 'mapWidth') {
+      lines.push(`mapWidth=${params.mapWidth}`)
+    } else if (key === 'mapHeight') {
+      lines.push(`mapHeight=${params.mapHeight}`)
+    } else if (key === 'edgePadding') {
+      lines.push(`edgePadding=${params.edgePadding}`)
+    } else if (key === 'roomPadding') {
+      lines.push(`roomPadding=${params.roomPadding}`)
+    } else if (key === 'cleanupFiles') {
+      lines.push(`cleanupFiles=${cleanupFiles ? 1 : 0}`)
+    } else if (key === 'themes') {
+      lines.push(`themes=${params.themes.join(',')}`)
+    } else if (key === 'monsterMultiplier') {
+      lines.push(`monsterMultiplier=${params.monsterMultiplier.toFixed(6)}`)
+    } else if (key === 'goldMultiplier') {
+      lines.push(`goldMultiplier=${params.goldMultiplier.toFixed(6)}`)
+    } else if (key === 'foodMultiplier') {
+      lines.push(`foodMultiplier=${params.foodMultiplier.toFixed(6)}`)
+    } else if (key === 'shopChance') {
+      lines.push(`shopChance=${params.shopChance.toFixed(6)}`)
+    } else if (key === 'vaultChance') {
+      lines.push(`vaultChance=${params.vaultChance.toFixed(6)}`)
+    } else if (key === 'lockChance') {
+      lines.push(`lockChance=${params.lockChance.toFixed(6)}`)
+    } else if (key === 'keyChance') {
+      lines.push(`keyChance=${params.keyChance.toFixed(6)}`)
+    } else if (key === 'monster') {
+      params.levelMonsters.forEach((pool, i) => {
+        lines.push(`monsters${i}=${pool.join(',')}`)
+      })
+    } else if (key === 'monsterMax') {
+      for (const t of MONSTER_TYPES) {
+        lines.push(`${t.configKey}=${params.monsterMax[t.id] ?? 0}`)
+      }
+    } else if (key === 'playerTweaks') {
+      const tweaks = pruneTweaks(params.playerTweaks ?? {})
+      for (const tweakKey of Object.keys(tweaks).sort()) {
+        const field = TWEAK_FIELD_MAP.get(tweakKey)
+        const value = tweaks[tweakKey]
+        lines.push(`${tweakKey}=${field?.type === 'float' ? value.toFixed(6) : value}`)
+      }
+    }
   }
-  // only values the user actually changed, so a stock file stays as it always was
-  const tweaks = pruneTweaks(params.playerTweaks ?? {})
-  for (const key of Object.keys(tweaks).sort()) {
-    const field = TWEAK_FIELD_MAP.get(key)
-    const value = tweaks[key]
-    lines.push(`${key}=${field?.type === 'float' ? value.toFixed(6) : value}`)
-  }
+
   return lines.join('\r\n') + '\r\n'
 }

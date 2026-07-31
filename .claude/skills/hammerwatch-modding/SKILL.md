@@ -294,10 +294,12 @@ silently missing entity or a load failure rather than a build error.
 The full inventory of paths this generator emits is in
 [`references/ASSET-REGISTRY.md`](references/ASSET-REGISTRY.md). Summary:
 
-- **Actors** — `actors/*.xml` and `actors/spawners/*.xml`. 47 monster types in
+- **Actors** — `actors/*.xml` and `actors/spawners/*.xml`. 51 monster types in
   `src/generator/objects/monsterTypes.ts`, each with a **tier list**: index 0
   is usually the spawner variant, higher indices are stronger variants,
-  rolled upward by `upgradeChance`.
+  rolled upward by `upgradeChance`. Every path in that file must also appear in
+  `tests/fixtures/actor-paths.txt` — the roster once shipped an actor the game
+  never had (see the 2026-07-31 discovery-log entry).
 - **Doodads** — `doodads/generic/*` (torches, markers), `doodads/special/*`
   (vendors, colour covers, the shared bonus entrance/exit), `doodads/theme_<t>/<t>_*.xml`
   (wall pieces; the theme's token is substituted **twice** into the path — it is
@@ -329,13 +331,29 @@ Pure data — append to `MONSTER_TYPES` in
 
 That single entry is enough — validation, the `parameters.txt` round-trip, the
 monster-pool editor and the max-count table all derive from this array. Then:
-verify the actor paths exist in the target install, add the key to
-`parameters.default.txt`, and record the paths in the discovery log with
-whatever tag the evidence supports.
+verify the actor paths exist in the target install, add them to
+`tests/fixtures/actor-paths.txt` (the roster-wide guard test fails otherwise —
+that is the point of it), add the key to `parameters.default.txt`, and record
+the paths in the discovery log with whatever tag the evidence supports.
+
+**Retiring a type is a repoint, not a delete.** Removing an id turns a saved
+pool entry in someone's `parameters.txt` into a hard validation error, so point
+its `tiers` at a real actor and set `deprecated: true` — both
+`MonsterPoolsEditor` and `MonsterMaxTable` filter those out, while
+`configFile.ts` keeps parsing and emitting the key. `tower_archer2` is the
+worked example.
 
 **Append at the end.** `monsterTypeById` falls back to the *positional*
 `MONSTER_TYPES[3]` (`bat1`) for unknown ids, so inserting at index ≤ 3 changes
-what an unknown id resolves to.
+what an unknown id resolves to. Appending does not make the GUI list read out of
+order: both lists call `monsterTypesInGroup(group)`, which drops `deprecated`
+types and sorts by id. Sort there, never by moving array entries.
+
+**Size the cap by what actually kills a party.** `defaultMax` was twice reasoned
+from HP alone and once corrected by play: `skeleton3` at 200 (half `skeleton1`'s
+HP, so double its cap) swarmed and overran players, and came down to 100. For a
+fast melee monster, movement speed sets the ceiling before HP or frame rate
+does — see the 2026-07-31 entry in the discovery log.
 
 **A single-tier entry is safe.** `createRolled` clamps to the last index, so a
 type with one actor and no spawner (like `bonus_archer1`) emits that actor

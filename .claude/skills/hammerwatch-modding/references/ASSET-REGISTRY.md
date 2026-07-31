@@ -18,10 +18,15 @@ XML — a wrong path fails at load time, not at build time.
 
 ## Actors (monsters)
 
-Source of truth: `src/generator/objects/monsterTypes.ts` (49 types). Groups come
+Source of truth: `src/generator/objects/monsterTypes.ts` (51 types). Groups come
 from `MONSTER_GROUPS` in the same file — the GUI iterates that list, so a group
 missing from it renders nowhere. **Append new types**: `monsterTypeById` falls
 back to the positional `MONSTER_TYPES[3]` for unknown ids.
+
+Because the array is append-only, it is *not* in display order. Both GUI lists
+go through `monsterTypesInGroup(group)`, which drops `deprecated` types and
+sorts the rest by id — so a newly appended type still reads alphabetically in
+its category. The table below is in array order, not GUI order.
 
 `tiers` is ordered weakest → strongest; index 0 is usually the **spawner**
 variant. `Monster.createRolled` starts at tier 1 and walks upward while
@@ -60,7 +65,7 @@ default.
 | `tower_banner2` | `maxTowers_Banner2` | Towers | 0 | `actors/tower_banner_2.xml` |
 | `tower_banner3` | `maxTowers_Banner3` | Towers | 0 | `actors/tower_banner_3.xml` |
 | `tower_archer1` | `maxTowers_Archer1` | Towers | 0 | `actors/tower_battlement_archer_1.xml` |
-| `tower_archer2` | `maxTowers_Archer2` | Towers | 0 | `actors/tower_battlement_archer_2.xml` |
+| `tower_archer2` | `maxTowers_Archer2` | Towers *(deprecated, hidden)* | 0 | `actors/tower_battlement_empty.xml` |
 | `tower_archer3` | `maxTowers_Archer3` | Towers | 0 | `actors/tower_battlement_archer_3.xml` |
 | `tower_flower1` | `maxTowers_Flower1` | Towers | 0 | `actors/tower_flower_1.xml` |
 | `tower_flower1_small` | `maxTowers_Flower1_Small` | Towers | 0 | `actors/tower_flower_1_small.xml` |
@@ -83,6 +88,27 @@ default.
 | `mb_tick` | `maxMB_Ticks` | Bosses | 0 | `actors/tick_1_mb.xml` |
 | `bonus_skeleton1` | `maxBonus_Skeletons1` | Bonus | 300 | `actors/spawners/bonus/skeleton_1.xml`<br>`actors/bonus/skeleton_1.xml` |
 | `bonus_archer1` | `maxBonus_Archers1` | Bonus | 60 | `actors/bonus/archer_1.xml` |
+| `skeleton3` | `maxSkeletons3` | Classic | 100 | `actors/skeleton_3.xml` |
+| `tower_empty` | `maxTowers_Empty` | Towers | 0 | `actors/tower_battlement_empty.xml` |
+
+`skeleton3` is `[VERIFIED]` — the fast swarm skeleton of stock
+`level_10`/`level_11` (20 HP, 8 dmg, speed 1.1), what `lich_3` summons, and
+confirmed spawning in a generated floor. Its cap is **100**, not the 200 its
+half-of-`skeleton1` HP would suggest: at 200 it swarms and overruns a party
+(2026-07-31 log entry). Speed sets this one's ceiling, not HP or frame rate.
+
+`tower_empty` is `[VERIFIED]` — spawns in-game as a killable obstacle (450 HP,
+no damage output), blocks passage with full 32×32 polygon. Defaults to 0
+because it walls off rather than attacking.
+
+`tower_archer2` is a **phantom kept as an alias**. The game never shipped a
+battlement archer 2 — the roster pointed at
+`actors/tower_battlement_archer_2.xml`, which does not exist anywhere in
+`editor/`, so enabling the type wrote an unresolvable actor path into the level.
+It is repointed at the empty battlement, flagged `deprecated` so neither
+`MonsterPoolsEditor` nor `MonsterMaxTable` renders it, and **not** deleted: an id
+that disappears turns a saved pool entry into a hard validation error, and
+`configFile.ts` still round-trips `maxTowers_Archer2`. Use `tower_empty` instead.
 
 The two `Bonus` rows are `[VERIFIED]` — packed and spawned in game. The bonus
 archer is the **only** roster entry with no spawner variant. It does not spawn in

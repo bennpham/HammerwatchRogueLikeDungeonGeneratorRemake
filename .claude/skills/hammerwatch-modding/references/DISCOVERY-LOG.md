@@ -91,6 +91,90 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-07-31 — `tower_empty` spawns as a killable obstacle with no damage output
+**Tag:** [VERIFIED] (played in game, confirmed by the user)
+**Context:** `tower_empty` was previously emitted but untested in-game; the Lobby
+tab and other playtests could now confirm it.
+**Evidence:** The user placed and played a level with `tower_empty` monsters. They
+confirmed the obstacle blocks movement (full 32×32 polygon) and has HP (killable),
+but deals no damage to the player. Matches the actor XML spec: 450 HP, empty
+`skills`, passive movement.
+**Impact:** Move `tower_empty` from `[EMITTED]` to `[VERIFIED]` in
+`ASSET-REGISTRY.md`. Default of 0 is appropriate since it walls passages rather
+than attacking. No validation or emission changes needed — the behavior matches
+the intent.
+
+### 2026-07-31 — `skeleton_3` is speed-capped, not HP-capped: 200 per lair overruns a party
+**Tag:** [VERIFIED] (played, reported by the user)
+**Context:** `skeleton3` shipped at `defaultMax: 200`, reasoned from HP alone —
+20 HP against `skeleton1`'s 40, so double the cap, the same
+weaker-monster-higher-cap trade as `bonus_skeleton1`.
+**Evidence:** Playing a floor pooled to `skeleton3`: *"their attack speed are
+really fast and I get swarm and overrun quite quickly by them which make them
+have high DPS."* No frame-rate complaint — this is a balance ceiling, hit well
+before the ~400/lair lag ceiling in the 2026-07-30 entry.
+**Impact:** `defaultMax` lowered to 100 — `skeleton1`'s own default — in
+`monsterTypes.ts` and `parameters.default.txt`. The general rule the HP
+reasoning missed: **for a fast melee monster, speed sets the cap, not HP.**
+`bonus_skeleton1` (10 HP, capped 300) is slow, which is why the same trade
+holds there. Check movement speed before scaling a cap by HP again. Confirms
+`skeleton3` spawns from a generated floor, so it moves `[EMITTED]` →
+`[VERIFIED]` in `ASSET-REGISTRY.md`; `tower_empty` is still unverified.
+
+### 2026-07-31 — the roster shipped an actor path the game never had
+**Tag:** [VERIFIED] (file listing from a real install)
+**Context:** Auditing all 187 actor XMLs in `editor/assetsExtract/actors/`
+against the 49 types in `monsterTypes.ts` — see `docs/plans/all-monsters.md`.
+**Evidence:** `tower_archer2` pointed at `actors/tower_battlement_archer_2.xml`.
+`grep -rl tower_battlement_archer_2` over the whole `editor/` tree returns
+nothing — no XML, no PNG, no reference from any level or actor. The game
+shipped battlement archer **1** and **3** only; archer_1 even reuses
+`tower_battlement_archer_3_razed.xml` as its corpse. The type has
+`defaultMax: 0`, so it only bites a user who enables it, and then it writes
+`<string name="type">actors/tower_battlement_archer_2.xml</string>` into a
+level the game cannot resolve. Same class of defect as the `>undefined<` path
+below, and nothing caught it: the tests checked tier-array *shape*, never that
+a path resolves to a real file.
+**Impact:** `tower_archer2` is repointed at `actors/tower_battlement_empty.xml`
+and marked `deprecated` (new optional field on `MonsterTypeDef`) so the GUI
+hides it, but the id survives for `parameters.txt` back-compat — deleting it
+would turn a saved pool entry into a hard validation error.
+`tests/monsters.test.ts` now checks every roster path against a committed
+allow-list, `tests/fixtures/actor-paths.txt`, which is the test that would have
+caught this. Registry updated.
+
+### 2026-07-31 — `skeleton_3` is a real monster the generator could not place
+**Tag:** [VERIFIED] (stats and level references read from a real install)
+**Context:** Same audit. Of 82 live in-scope actors, 79 were already wired.
+**Evidence:** `actors/skeleton_3.xml` — 20 HP, 8 dmg, speed **1.1** (vs
+skeleton_1's 40 / 20 / 0.4), aggro 14, `behavior="melee"`, full 8-direction
+sprite set, `effects/gibs/gib_skeleton_3.xml` present. Placed in stock
+`campaign/levels/level_10.xml`, `level_11.xml` and `level_esc_1.xml`, and it is
+what `lich_3.xml` summons (3 per cast, 2 s timer). No spawner and no
+small/elite variant ship for it. Also found: `actors/tower_battlement_empty.xml`
+is a real actor (450 HP, `multiplayer-scale-hp false`, **empty `skills`**,
+`movement: passive`, full 32×32 blocking polygon, corpse →
+`tower_battlement_empty_razed.xml`), used in `campaign2/levels/level_temple_3.xml`
+and `level_boss_1.xml` — an obstacle, not an attacker.
+**Impact:** Both added to the roster as `skeleton3` (cap 200, single-tier) and
+`tower_empty` (cap 0, because the collision polygon can seal a corridor). Both
+`[EMITTED]` — not yet seen in game. Outstanding: confirm 200 fast skeletons in
+one lair do not lag, and confirm `tower_empty` cannot trap a party in a
+passage; if it can, it needs a rooms-only placement restriction.
+
+### 2026-07-31 — `tower_static_frost_ground.xml` is a doodad, not an actor
+**Tag:** [VERIFIED] (read from a real install)
+**Context:** Same audit — it sat in `actors/` and looked like a missing monster.
+**Evidence:** Its root element is `<doodad>`, not `<actor>`. It is the ground
+decal drawn under the frost tower, which is why `tower_static_frost.xml` is
+wired and this is not.
+**Impact:** Out of scope for `monsterTypes.ts` — belongs to the doodad registry
+whenever doodad work happens next. Not added. Also noted, no action:
+`guard_1.png` … `guard_4.png` exist with no accompanying XML, so they are not
+placeable actors. And all 27 in-scope `*_razed.xml` files are named in a live
+actor's `corpse` entry; none is ever placed directly, so none belongs in the
+roster.
+
 ### 2026-07-30 — money items stack on a single coordinate and pay out in full
 
 **Tag:** [VERIFIED] — observed by the user in play, Windows.
