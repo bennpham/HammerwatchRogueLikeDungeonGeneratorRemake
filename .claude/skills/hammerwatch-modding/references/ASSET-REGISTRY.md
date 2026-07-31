@@ -193,3 +193,74 @@ as a unit.
 | `RestoreOrb` | 1 × 1 | — | unused; kept for parity with the original |
 
 The 6-wide `ExitUp`/`ExitDn` footprint is why `maxRoomSize` must be ≥ 7.
+
+## Tweak files (player balance)
+
+Not asset *paths* — these are files the campaign can ship itself, written to
+`tweak/<file>` inside the campaign folder. Source of truth:
+`src/generator/tweak/baseline.ts`, transcribed from a real install's
+`<HW>/editor/assetsExtract/tweak/` `[VERIFIED — read from that install]`.
+Human-readable tables of the same numbers: `reference/hammerwatch-tweak-stats.md`.
+
+Emission is opt-in: only files with at least one changed value are written, so
+a stock run produces no `tweak/` folder `[EMITTED]`.
+
+An emitted file only reaches the game if `LevelPacker.exe` was run with the bare
+campaign-folder name from `<HW>/editor` as its cwd — an absolute argument keys
+every tweak file by its full path and the game silently loads none of them. See
+the 2026-07-29 packer entry.
+
+| Emitted path | Root element | Contents | Editable fields |
+| --- | --- | --- | --- |
+| `tweak/general.xml` | `<dictionary>` | 3 difficulties (`easy`, `medium`, `hard`) × 10 multiplier keys | 30 |
+| `tweak/shared.xml` | `<tweak>` | 9 params (7 numeric), 29 upgrades | 36 |
+| `tweak/knight.xml` | `<tweak>` | 22 params (19 numeric), 46 upgrades | 65 |
+| `tweak/priest.xml` | `<tweak>` | 31 params (24 numeric), 53 upgrades | 77 |
+| `tweak/ranger.xml` | `<tweak>` | 21 params (17 numeric), 47 upgrades | 64 |
+| `tweak/sorcerer.xml` | `<tweak>` | 27 params (21 numeric), 51 upgrades | 72 |
+| `tweak/thief.xml` | `<tweak>` | 29 params (23 numeric), 46 upgrades | 69 |
+| `tweak/warlock.xml` | `<tweak>` | 20 params (18 numeric), 51 upgrades | 69 |
+| `tweak/wizard.xml` | `<tweak>` | 25 params (20 numeric), 49 upgrades | 69 |
+
+`string` params exist in the files but are not exposed and pass through at their
+stock values. `bool` params *are* editable, stored as 0/1, because the skill
+unlocks are bools. The general/class split matters: `general.xml` has no
+`<upgrades>` section and is serialized by a different function.
+
+### Shop rules `[VERIFIED — played in game 2026-07-30]`
+
+See the 2026-07-30 discovery-log entry for the tests behind each of these.
+
+| Rule | Detail |
+| --- | --- |
+| **Replacement, not merge** | A campaign's `tweak/<file>` wholly replaces the base game's. Deleting an upgrade from the campaign file removes it from the shop, so the complete stock transcription in `baseline.ts` is mandatory, not defensive. |
+| **5 tiers per upgrade chain, hardcoded** | Appending `health-6`…`health-10` with `cat="misc6"`…`"misc10"` has no effect at all — no shop rows, no stat change. Never offer to lengthen a ladder. Whether the limit is chain length or the `cat` namespace is open question 11. |
+| **`cost="0"` works** | The upgrade is bought normally for nothing, skill unlocks included. |
+| **Negative `cost` pays the player** | Buying it *gives* you that much gold. Supported on purpose — it makes a "sell your character down" shop possible. |
+| **`999999` is the display ceiling** | Renders in full and reads as unaffordable. Used as a clamp (`SHOP_PRICE_MAX`), not as a lockout — removal is the better lockout. |
+| **Skills can be pre-unlocked** | Set the skill's `bool` param true *and* write the numeric params its unlock upgrade would have written; the flag alone leaves them on `-1`/`9999` sentinels and the skill does nothing. Confirmed working from the first floor. |
+
+### Percentage stats `[VERIFIED 2026-07-30]`
+
+`dodge-chance`, `bash-chance`, `shield-chance`, `shield-distr`, `crit-chance`,
+`money-chance`, `chill-slow`, `fnova-slow`, `slow`. All **cap at 100 in effect** —
+the stock ladders stop at or below 100 while damage ladders keep climbing, and
+`shield-chance` 500 behaves no differently from 100.
+
+They split into two kinds that look identical in the data and behave completely
+differently at 100:
+
+| Kind | Stats | At 100 |
+| --- | --- | --- |
+| **Evasion** — avoids the hit | `dodge-chance` | The character is **literally unhittable**. Confirmed on both Thief and Ranger. This is the one true invulnerability lever in the tweak files. |
+| **Proc** — fires alongside the hit | `shield-chance`, `bash-chance`, `crit-chance`, `money-chance`, the `*-slow` stats | The effect triggers every time, but damage still lands. A Sorcerer at `shield-chance` 100 takes full damage. |
+
+`shield-distr` is a third thing again: the share of incoming damage routed to
+mana. `max-health` and flat `dmg-reduction` are the ordinary survivability levers
+for classes without `dodge-chance`.
+
+The `general.xml` difficulty keys `[VERIFIED]`: `EnemyHealthAll`,
+`EnemyHealthBase`, `EnemyHealthIncr`, `EnemySpeedMultiplier`,
+`EnemyDamageBase`, `EnemyDamageIncr`, `SpawnFreqBase`, `SpawnFreqDecr`,
+`MoneyBase`, `MoneyIncr`. `medium` is the 1.0 baseline; `MoneyIncr` is 0 in
+all three, so gold scaling is flat within a difficulty.

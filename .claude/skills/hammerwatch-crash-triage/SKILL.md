@@ -20,6 +20,7 @@ orchestrator.
 | `RangeError: Invalid array length` / OOM | `mapWidth`/`mapHeight` absurdly large — `Tile[]` is `w*h` | §A |
 | `LevelPacker failed` / `.hwm was not produced` | Environment, not code | §C |
 | Campaign packs but doesn't appear in game | Wrong destination folder or a bad asset path | §C |
+| Campaign loads but a class/difficulty is broken in game | Player tweak values, not level generation | §E |
 | Renderer blank / React error | UI bug | §D |
 | `Generate a dungeon first.` on export | User flow, not a bug | — |
 
@@ -49,9 +50,14 @@ Constraints enforced today (`src/generator/config/validation.ts`):
 | `levelMonsters.length ≥ levels`, none empty, all ids known | short/empty pool → index out of bounds |
 | chances in `[0,1]`; multipliers ≥ 0 | |
 | every `monsterMax` an integer ≥ 0 | |
+| every `playerTweaks` value finite | see §E |
+| upgrade costs: whole number ≥ 0 | |
+| `int`-typed tweak params: whole number | |
+| `max-health` / `max-mana` ≥ 1 | |
+| difficulty multipliers ≥ 0 | |
 
 Warnings (non-blocking): room-area-vs-map capacity heuristic; map dimensions
-not multiples of 20.
+not multiples of 20; `max-health` above 10000.
 
 **Known gaps — likely causes of a §A report.** Confirm before "fixing":
 
@@ -104,6 +110,21 @@ message before investigating:
 | `LevelPacker failed: …` | packer non-zero exit or 120 s timeout | on Linux/macOS usually missing `wine`; the unpacked folder is left in place for manual packing |
 | `…ran but <name>.hwm was not produced` | packer succeeded but emitted nothing | usually malformed level XML — open the folder in the game's editor |
 
+The pack can also succeed and still kill the game at Start:
+
+```
+Resource error: : Could not find file: <hw>/assets/levels.xml
+Unhandled Exception: System.NullReferenceException
+  at ARPGGame.LevelList..ctor (…)
+```
+
+`assets/` does not exist in an installed game, so that path is always the
+failed fallback: the pack's own `levels.xml` key is wrong. Cause is the packer
+invocation, not the campaign XML — LevelPacker must be run with `cwd =
+<HW>/editor` and the bare campaign name, never an absolute folder path
+(2026-07-29 DISCOVERY-LOG entry). Confirm by dumping the pack's resource keys;
+the `HWRP` layout is in the modding skill.
+
 Environment issues are not code bugs. Say so, name the user action, stop.
 
 ## §D — Renderer / UI
@@ -114,6 +135,142 @@ from the `walls` bitmap string and room/passage geometry — an exception there
 usually means a preview field is missing for a newly added room type. Nothing
 in the renderer should crash generation; if it does, the boundary leaked.
 
+The left panel has Dungeon/Player tabs and the right panel Preview/Loadout
+tabs (`App.tsx`). Note that **"Reset defaults" is tab-sensitive**: on the
+Player tab it clears tweaks only, on the Dungeon tab it resets parameters and
+*keeps* tweaks. "I hit reset and my changes are still there" is that, not a bug.
+
+## §E — Player tweaks (`tweak/*.xml`)
+
+`src/generator/tweak/`. Balance overrides for classes, upgrade costs and
+difficulty multipliers. **This layer cannot break level generation**: it draws
+no random values, runs after every level is built, and only appends files. If
+a dungeon changed, tweaks are not the cause — say so and look elsewhere.
+
+| Symptom | Cause |
+| --- | --- |
+| "I changed a value but no `tweak/` folder appeared" | The value equals stock. `pruneTweaks` drops those by design, and an empty override map emits nothing. Confirm with the badge count on the Player tab. |
+| "My class edit didn't take effect in game" | The campaign's tweak file replaces the base file wholesale `[VERIFIED]`, so a partial file loses everything else — check the emitted file is complete. If *nothing* applied, suspect the packer path first: an absolute argument to `LevelPacker.exe` keys every tweak file by its full path and the game loads none of them (see the 2026-07-29 discovery-log entry). |
+| "I set a chance stat huge and still take damage" | Not a bug, and which stat matters. Everything past 100 is wasted either way. `dodge-chance` at 100 makes a Thief or Ranger **unhittable**; `shield-chance` at 100 leaves a Sorcerer taking full damage, because it is the frost-shield *proc*, not evasion. For classes without `dodge-chance`, `max-health` and flat `dmg-reduction` are the levers. Validation warns once for the whole set and only claims invulnerability for evasion stats. |
+| "A character is invincible and I didn't expect it" | `dodge-chance` ≥ 100, almost certainly from a Defense multiplier — the stock ladder tops out at 50, so ×2 reaches it. Working as designed; the warning says so. |
+| "The maxed column looks wrong" | `buildLoadouts` applies every upgrade in `req`-depth order, last write wins, because an upgrade *sets* rather than adds. A value written by two upgrades shows the later one. |
+| Inline error next to a tweak field | Validation is working. The `field` on the issue *is* the tweak key. |
+| `player.*` key reported in `unknownKeys` on import | The key isn't in `TWEAK_FIELD_MAP` — a typo, or a `parameters.txt` from a build with a different baseline. Not fatal by design. |
+
+### Fixed: NullReferenceException in PlayerActorBehavior.Update
+
+```
+System.NullReferenceException: Object reference not set to an instance of an object
+  at ARPGGame.Behaviors.Players.PlayerActorBehavior.Update (Int32 ms, …)
+```
+
+Mid-combat, any class, on a campaign with pre-unlocked skills. A skill was armed
+with an **empty asset path**: `combo-nova-projectile` and `aura-buff` are `""` at
+creation and only an upgrade fills them in, so setting the numbers without the
+string gives a combo nova with no projectile to spawn. Now blocked by
+`armedWithEmptyPath` in `validation.ts` as an *error*. If this recurs, a string
+param is empty while its siblings are live — check the emitted file for
+`<string name="…"></string>`.
+
+Note that `error.txt` **appends**, so a report may contain older unrelated crashes.
+Check the timestamps before treating two traces as one incident.
+
+### Known in-game crash: Thief autofire divides by zero
+
+**Unresolved — do not claim a cause.** Reported 2026-07-30 with a fully-upgraded
+roster (Damage ×2, Defense ×5):
+
+```
+System.DivideByZeroException: Division by zero
+  at ARPGGame.GameControls.Autofire (Int32 autofire, Int32 rate)
+  at ARPGGame.PlayerKeyboardControls.Attack1Autofire (Int32 rate)
+  at ARPGGame.Behaviors.Players.Thief.PlayerThiefActorBehavior.DoUpdate (Int32 ms)
+```
+
+`rate` is the Thief's attack interval and something zeroed it. What the audit
+rules **out**: no Thief param in the report was 0, and the two stats that plausibly
+feed an attack rate were both at values a stock maxed Thief also reaches —
+`knives-speed-mod` −0.2 (stock ladder ends there, `aspeed4`) and `max-fervor` 10
+(stock ladder ends there, `fervor3`). The only values beyond stock reach were
+`knives-dmg`, `kfan-dmg`, `dmg-reduction` and `dodge-chance`, none of which
+plausibly divides an interval.
+
+Also ruled out since (2026-07-30, two crashing runs compared):
+
+- **Not the upgrade removal.** One run had all 46 Thief upgrades present, the other
+  an empty `<upgrades>`; identical trace, byte-identical Thief `<params>`.
+- **Not a stat we write.** A sweep of every stat group × factor
+  (0.1 … 10, with and without the fully-upgraded preset) found no Thief param that
+  lands on 0 apart from `chain-money-cost` and `smoke-money-cost`, which the stock
+  `chain` and `smoke` upgrades also zero. So the divisor is runtime state.
+- **Not shared code.** The trace is `PlayerThiefActorBehavior`, and no other class
+  has reproduced it, so the quantity is Thief-specific.
+
+**`max-fervor` is FALSIFIED (2026-07-30).** It was the leading suspect; the user
+removed it (back to stock 0) and the Thief still crashed, same trace. Do not chase
+it again.
+
+What the crashing runs have in common, and what is now known:
+
+- **It crashes at both `max-fervor` 10 and `max-fervor` 0 (stock).** So the fervor
+  value is not the divisor.
+- **Every Thief starting value in the crashing file is individually stock-safe.**
+  `knives-speed-mod` −0.2 is the *fastest* value a stock maxed Thief reaches
+  (`aspeed4`), and a stock maxed Thief does not crash. The only values beyond
+  stock reach are `dodge-chance` 250 and `dmg-reduction` 30 — both defensive, and
+  neither feeds an attack interval. So no single Thief stat at a dangerous value
+  explains it.
+- **It is Thief-specific.** The Sorcerer was played to completion on the *same*
+  `shared.xml` (combo on, `dmg-mul` 2, `move-speed` 1.2) — the user's complaint
+  there was taking damage, i.e. alive and playing. So the shared/combo tweaks do
+  not cause it; the `Autofire` path is the Thief's auto-repeating knife throw.
+- **Upgrade presence is irrelevant** (full shop and empty shop both crash).
+
+That combination — Thief-specific, every value individually safe, constant across
+otherwise-different runs — points at an *interaction* or a value the engine treats
+differently as a starting param than as a bought upgrade, not a single bad number.
+Reasoning cannot pin it further without the game's `Autofire`/`Attack1Autofire`
+source, which we do not have.
+
+**Bisection, round 1 (done 2026-07-30):** every `player.thief.*` line removed ⇒
+**no crash**. So it is a Thief tweak, not `shared.xml` and not vanilla. That is
+consistent with the Sorcerer having played the same `shared.xml` to completion.
+
+⚠️ **Caveat on that result:** a stock Thief is squishy and dies fast, so the run
+was short — and this crash needs *sustained* autofire. Treat "no crash" as
+suggestive, not conclusive, until a run survives long enough to attack heavily.
+
+**Bisection, round 2 — use a survivable control.** Add back only the defensive
+and resource params, which cannot plausibly feed an attack interval:
+
+```
+player.thief.param.max-health=120
+player.thief.param.dmg-reduction=30
+player.thief.param.dodge-chance=250
+player.thief.param.max-mana=165
+player.thief.param.mana-regen=500
+```
+
+`dodge-chance` ≥ 100 makes the Thief unhittable, so the run can hold the attack
+button indefinitely — the strongest possible conditions to provoke it — while
+every attack stat stays stock. This removes the short-run confound above.
+
+- **Crash** ⇒ a defensive stat, and `dodge-chance` 250 is the standout (5× beyond
+  the stock ladder's 50). Odd for an attack-rate divisor, so also suspect an
+  engine interaction with an out-of-range evasion roll.
+- **No crash after a long burst** ⇒ an attack stat. Add back one line:
+  `player.thief.param.knives-speed-mod=-0.200000` — the attack-speed stat and the
+  prime suspect. Then `knives-dmg` / `kfan-dmg` / `kfan-projs` / `kfan-arc`.
+
+Do **not** ship a code fix until one test isolates the cause; a guess-fix could
+mask it. Once isolated, the response is §A's: a validation rule (or a preset
+change) naming the specific combination, plus a case in `tests/validation.test.ts`.
+
+Quick-fix scope here is the same as §A: a validation rule plus a case in
+`tests/tweak.test.ts` or `tests/validation.test.ts`. **Editing `baseline.ts` is
+an escalation** — it is a transcription of the real game files, and changing a
+number there silently ships wrong balance to every user.
+
 ## Where the logs and state live
 
 The app does not write its own log file. Ask the reporter for:
@@ -123,7 +280,9 @@ The app does not write its own log file. Ask the reporter for:
    builds: Electron's default log locations, or relaunch from a terminal.
 2. **The parameters and the seed.** Ideally an exported `parameters.txt`
    (header → *Export parameters.txt*) plus the seed shown on the result.
-   Without both, most reports are unreproducible.
+   Without both, most reports are unreproducible. The export carries player
+   tweaks too, as trailing `player.*=…` lines — their absence means the user
+   changed nothing, which rules out §E in one glance.
 3. **Platform + whether wine is involved**, for anything packer-related.
 
 Settings and the `parameters.txt` override live in Electron's userData dir
@@ -153,6 +312,9 @@ the app's initial state, which reports whether defaults or an override loaded.
 - Anything in `map/`, `objects/`, or `wallPattern.ts` beyond a guard.
 - Anything needing a redesign, a new parameter, or a schema change.
 - Anything you can't reproduce.
+- Any change to `src/generator/tweak/baseline.ts` — it is a transcription of
+  the shipped game files, and a wrong number there is invisible until someone
+  plays the campaign.
 
 **Escalation writeup** — hand back exactly this, nothing else:
 

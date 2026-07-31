@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { parseParametersTxt, serializeParametersTxt } from '../src/generator/config/configFile'
 import { defaultParameters } from '../src/generator/config/parameters'
+import {
+  SHOP_PRICE_MAX,
+  applyCostPolicy,
+  applyMasterFactor,
+  applySkillUnlocks,
+  pruneTweaks
+} from '../src/generator/tweak'
 
 describe('parameters.txt parsing', () => {
   it('overrides only the keys present in the file', () => {
@@ -54,5 +61,80 @@ describe('parameters.txt parsing', () => {
     expect(parsed.params.monsterMax['bat1']).toBe(42)
     expect(parsed.params.shopChance).toBeCloseTo(0.5)
     expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('writes no player.* lines when nothing was tweaked', () => {
+    const text = serializeParametersTxt(defaultParameters())
+    expect(text).not.toContain('player.')
+  })
+
+  it('round-trips player tweaks', () => {
+    const original = defaultParameters()
+    original.playerTweaks = {
+      'player.knight.param.max-health': 120,
+      'player.knight.cost.health-1': 250,
+      'player.knight.effect.health-1.max-health': 400,
+      'player.knight.effect.chrgdmg1.charge-dmg-multiplier': 3.5,
+      'player.general.hard.enemydamagebase': 2.25
+    }
+
+    const text = serializeParametersTxt(original)
+    expect(text).toContain('player.knight.param.max-health=120')
+    expect(text).toContain('player.knight.cost.health-1=250')
+    // the effect scope carries an extra dot segment; the parser must not split on it
+    expect(text).toContain('player.knight.effect.health-1.max-health=400')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.params.playerTweaks['player.knight.param.max-health']).toBe(120)
+    expect(parsed.params.playerTweaks['player.knight.cost.health-1']).toBe(250)
+    expect(parsed.params.playerTweaks['player.knight.effect.health-1.max-health']).toBe(400)
+    expect(
+      parsed.params.playerTweaks['player.knight.effect.chrgdmg1.charge-dmg-multiplier']
+    ).toBeCloseTo(3.5)
+    expect(parsed.params.playerTweaks['player.general.hard.enemydamagebase']).toBeCloseTo(2.25)
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('round-trips skill flags and shop removals', () => {
+    const original = defaultParameters()
+    original.playerTweaks = {
+      'player.knight.param.whirl': 1,
+      'player.shared.remove.life': 1
+    }
+
+    const text = serializeParametersTxt(original)
+    expect(text).toContain('player.knight.param.whirl=1')
+    expect(text).toContain('player.shared.remove.life=1')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.params.playerTweaks['player.knight.param.whirl']).toBe(1)
+    expect(parsed.params.playerTweaks['player.shared.remove.life']).toBe(1)
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('round-trips a whole quick-setup roster', () => {
+    const original = defaultParameters()
+    original.playerTweaks = applyCostPolicy(
+      'free',
+      SHOP_PRICE_MAX,
+      applyMasterFactor(2.5, applySkillUnlocks(true, {}))
+    )
+
+    const parsed = parseParametersTxt(serializeParametersTxt(original))
+    expect(parsed.unknownKeys).toEqual([])
+    expect(pruneTweaks(parsed.params.playerTweaks)).toEqual(pruneTweaks(original.playerTweaks))
+  })
+
+  it('drops player values that equal the stock game', () => {
+    const parsed = parseParametersTxt('player.knight.param.max-health=75')
+    expect(parsed.params.playerTweaks).toEqual({})
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('reports unrecognised player keys without throwing', () => {
+    const parsed = parseParametersTxt('player.bogus.param.nope=5\nlevels=4')
+    expect(parsed.params.levels).toBe(4)
+    expect(parsed.unknownKeys).toEqual(['player.bogus.param.nope'])
+    expect(parsed.params.playerTweaks).toEqual({})
   })
 })

@@ -1,5 +1,6 @@
 import { DungeonParameters, defaultParameters } from './parameters'
 import { MONSTER_TYPES } from '../objects/monsterTypes'
+import { TWEAK_FIELD_MAP, pruneTweaks } from '../tweak/overrides'
 
 export interface ParsedConfig {
   params: DungeonParameters
@@ -22,6 +23,8 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   const params: DungeonParameters = base
     ? JSON.parse(JSON.stringify(base))
     : defaultParameters()
+  // a base object round-tripped from an older settings file may predate this field
+  if (params.playerTweaks === undefined) params.playerTweaks = {}
   const result: ParsedConfig = { params, unknownKeys: [] }
 
   const intKeys: Record<string, (v: number) => void> = {
@@ -81,6 +84,17 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       continue
     }
 
+    if (keyLower.startsWith('player.')) {
+      const field = TWEAK_FIELD_MAP.get(keyLower)
+      const n = parseFloat(value)
+      if (field === undefined || Number.isNaN(n)) {
+        result.unknownKeys.push(key)
+      } else if (n !== field.stock) {
+        params.playerTweaks[keyLower] = field.type === 'int' ? Math.trunc(n) : n
+      }
+      continue
+    }
+
     const monsterId = configKeyToMonsterId.get(keyLower)
     if (monsterId !== undefined) {
       const n = parseInt(value, 10)
@@ -135,6 +149,13 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
   })
   for (const t of MONSTER_TYPES) {
     lines.push(`${t.configKey}=${params.monsterMax[t.id] ?? 0}`)
+  }
+  // only values the user actually changed, so a stock file stays as it always was
+  const tweaks = pruneTweaks(params.playerTweaks ?? {})
+  for (const key of Object.keys(tweaks).sort()) {
+    const field = TWEAK_FIELD_MAP.get(key)
+    const value = tweaks[key]
+    lines.push(`${key}=${field?.type === 'float' ? value.toFixed(6) : value}`)
   }
   return lines.join('\r\n') + '\r\n'
 }

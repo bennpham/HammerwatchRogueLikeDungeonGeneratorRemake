@@ -20,6 +20,7 @@ roster** — that modified pair, not the vanilla one, is what this port follows.
 | `Parameters` (statics) | `config/parameters.ts` | `DungeonParameters` + `defaultParameters()` |
 | `ConfigFile` | `config/configFile.ts` | `parameters.txt` parse/serialize |
 | — (no equivalent) | `config/validation.ts` | **new**: the original had no validation |
+| — (no equivalent) | `tweak/**` | **new**: player balance files. No Java counterpart at all — see divergence 7 |
 | `Level` | `map/level.ts` | |
 | `Room` | `map/room.ts` | |
 | `Passage` | `map/passage.ts` | |
@@ -96,6 +97,14 @@ These are intentional. Do not "fix" them back.
 6. **Unknown monster ids.** `Monster.parseString` fell through to bats; the
    port keeps that fallback in `monsterTypeById()` **but** validation rejects
    unknown ids before generation, so the fallback is unreachable in practice.
+7. **Player tweak files.** `src/generator/tweak/**` is a pure addition — the
+   Java tool never touched `tweak/*.xml` and knows nothing about class stats,
+   upgrade costs or difficulty multipliers. It has no parity obligation and no
+   Java source to diff against; `reference/hammerwatch-tweak-stats.md` and the
+   game's own `editor/assetsExtract/tweak/` are its references instead.
+   Critically, it **draws nothing from either RNG stream** and runs after all
+   levels are built, so it cannot shift a seed. A stock run (no player edits)
+   emits byte-identical output to the pre-tweak port.
 
 ## Verified parity status
 
