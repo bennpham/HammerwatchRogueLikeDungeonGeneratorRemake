@@ -91,6 +91,23 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-07-31 — `skeleton_3` is speed-capped, not HP-capped: 200 per lair overruns a party
+**Tag:** [VERIFIED] (played, reported by the user)
+**Context:** `skeleton3` shipped at `defaultMax: 200`, reasoned from HP alone —
+20 HP against `skeleton1`'s 40, so double the cap, the same
+weaker-monster-higher-cap trade as `bonus_skeleton1`.
+**Evidence:** Playing a floor pooled to `skeleton3`: *"their attack speed are
+really fast and I get swarm and overrun quite quickly by them which make them
+have high DPS."* No frame-rate complaint — this is a balance ceiling, hit well
+before the ~400/lair lag ceiling in the 2026-07-30 entry.
+**Impact:** `defaultMax` lowered to 100 — `skeleton1`'s own default — in
+`monsterTypes.ts` and `parameters.default.txt`. The general rule the HP
+reasoning missed: **for a fast melee monster, speed sets the cap, not HP.**
+`bonus_skeleton1` (10 HP, capped 300) is slow, which is why the same trade
+holds there. Check movement speed before scaling a cap by HP again. Confirms
+`skeleton3` spawns from a generated floor, so it moves `[EMITTED]` →
+`[VERIFIED]` in `ASSET-REGISTRY.md`; `tower_empty` is still unverified.
+
 ### 2026-07-31 — the roster shipped an actor path the game never had
 **Tag:** [VERIFIED] (file listing from a real install)
 **Context:** Auditing all 187 actor XMLs in `editor/assetsExtract/actors/`

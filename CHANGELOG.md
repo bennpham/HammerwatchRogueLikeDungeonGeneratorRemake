@@ -11,13 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`skeleton3`** — the fast swarm skeleton from stock levels 10 and 11, and what
   `lich_3` summons. 20 HP and 8 damage at speed 1.1, against `skeleton1`'s
-  40/20 at 0.4, so its horde cap is 200. Opt-in from the pool editor or
+  40/20 at 0.4. Capped at 100: playtested at double that they swarm and overrun
+  a party long before the frame rate suffers. Opt-in from the pool editor or
   `monstersN=`; no existing seed changes
 - **`tower_empty`** — the empty battlement (450 HP, no skills, full 32×32
   blocking collision). An obstacle rather than an attacker, so it defaults to 0
 - A roster-wide guard test: every actor path in `MONSTER_TYPES` must appear in
   `tests/fixtures/actor-paths.txt`, a committed snapshot of the game's actor
   folder. Nothing previously checked that a path pointed at a real file
+
+### Changed
+
+- The monster pool editor and the max-count table now list each category
+  **alphabetically**. `MONSTER_TYPES` is append-only, so newly added types used
+  to land at the bottom of their group regardless of name; both lists now go
+  through `monsterTypesInGroup()`, which sorts by id and hides deprecated types
 
 ### Fixed
 

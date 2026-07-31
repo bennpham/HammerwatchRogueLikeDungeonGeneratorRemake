@@ -95,16 +95,34 @@ export const MONSTER_TYPES: MonsterTypeDef[] = [
   { id: 'bonus_skeleton1', configKey: 'maxBonus_Skeletons1', upgradeChance: 1.0, defaultMax: 300, group: 'Bonus', tiers: ['actors/spawners/bonus/skeleton_1.xml', 'actors/bonus/skeleton_1.xml'] },
   { id: 'bonus_archer1', configKey: 'maxBonus_Archers1', upgradeChance: 1.0, defaultMax: 60, group: 'Bonus', tiers: ['actors/bonus/archer_1.xml'] },
   // Fast swarm skeleton from stock levels 10/11, and what lich_3 summons.
-  // 20 HP / 8 dmg / speed 1.1 — half skeleton1's HP at nearly 3x its speed, so
-  // the cap is doubled to 200 on the same weaker-monster-higher-cap reasoning as
-  // bonus_skeleton1. Still well under the ~400/lair lag ceiling.
+  // 20 HP / 8 dmg / speed 1.1 — half skeleton1's HP at nearly 3x its speed.
+  // Capped at 100 (skeleton1's own default) rather than the doubled 200 its HP
+  // would suggest: playtested at 200 they swarm and overrun a party well before
+  // the frame rate becomes the problem. Speed, not HP, sets this one's ceiling.
   // No spawner and no small/elite variant ship for it; single-tier is safe
   // because createRolled clamps to the last index.
-  { id: 'skeleton3', configKey: 'maxSkeletons3', upgradeChance: 1.0, defaultMax: 200, group: 'Classic', tiers: ['actors/skeleton_3.xml'] },
+  { id: 'skeleton3', configKey: 'maxSkeletons3', upgradeChance: 1.0, defaultMax: 100, group: 'Classic', tiers: ['actors/skeleton_3.xml'] },
   // 450 HP, no skills, full 32x32 blocking collision. An obstacle, not an
   // attacker; off by default because it can wall off a passage.
   { id: 'tower_empty', configKey: 'maxTowers_Empty', upgradeChance: 1.0, defaultMax: 0, group: 'Towers', tiers: ['actors/tower_battlement_empty.xml'] }
 ]
+
+/**
+ * The members of `group` as the GUI should list them: deprecated types dropped,
+ * the rest sorted by id.
+ *
+ * MONSTER_TYPES itself is append-only — monsterTypeById falls back to the
+ * positional MONSTER_TYPES[3] — so a new type always lands at the end of the
+ * array no matter where it belongs alphabetically. Sorting here is what keeps
+ * the checkbox lists readable without touching that order. Both
+ * MonsterPoolsEditor and MonsterMaxTable go through this, so the pool editor
+ * and the max table can never disagree about what exists or in what order.
+ */
+export function monsterTypesInGroup(group: MonsterGroup): MonsterTypeDef[] {
+  return MONSTER_TYPES.filter((t) => t.group === group && !t.deprecated).sort((a, b) =>
+    a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+  )
+}
 
 const byId = new Map(MONSTER_TYPES.map((t) => [t.id, t]))
 

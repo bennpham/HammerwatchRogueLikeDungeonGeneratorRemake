@@ -23,6 +23,11 @@ from `MONSTER_GROUPS` in the same file — the GUI iterates that list, so a grou
 missing from it renders nowhere. **Append new types**: `monsterTypeById` falls
 back to the positional `MONSTER_TYPES[3]` for unknown ids.
 
+Because the array is append-only, it is *not* in display order. Both GUI lists
+go through `monsterTypesInGroup(group)`, which drops `deprecated` types and
+sorts the rest by id — so a newly appended type still reads alphabetically in
+its category. The table below is in array order, not GUI order.
+
 `tiers` is ordered weakest → strongest; index 0 is usually the **spawner**
 variant. `Monster.createRolled` starts at tier 1 and walks upward while
 `fRand(0,1) < upgradeChance`, so with `upgradeChance: 1.0` (every type today)
@@ -83,15 +88,19 @@ default.
 | `mb_tick` | `maxMB_Ticks` | Bosses | 0 | `actors/tick_1_mb.xml` |
 | `bonus_skeleton1` | `maxBonus_Skeletons1` | Bonus | 300 | `actors/spawners/bonus/skeleton_1.xml`<br>`actors/bonus/skeleton_1.xml` |
 | `bonus_archer1` | `maxBonus_Archers1` | Bonus | 60 | `actors/bonus/archer_1.xml` |
-| `skeleton3` | `maxSkeletons3` | Classic | 200 | `actors/skeleton_3.xml` |
+| `skeleton3` | `maxSkeletons3` | Classic | 100 | `actors/skeleton_3.xml` |
 | `tower_empty` | `maxTowers_Empty` | Towers | 0 | `actors/tower_battlement_empty.xml` |
 
-`skeleton3` and `tower_empty` are `[EMITTED]` — both paths exist in the stock
-actor folder and both emit, but neither has been seen in game yet. `skeleton3`
-is the fast swarm skeleton of stock `level_10`/`level_11` (20 HP, 8 dmg, speed
-1.1) and is what `lich_3` summons; `tower_empty` is an obstacle rather than an
+`skeleton3` is `[VERIFIED]` — the fast swarm skeleton of stock
+`level_10`/`level_11` (20 HP, 8 dmg, speed 1.1), what `lich_3` summons, and
+confirmed spawning in a generated floor. Its cap is **100**, not the 200 its
+half-of-`skeleton1` HP would suggest: at 200 it swarms and overruns a party
+(2026-07-31 log entry). Speed sets this one's ceiling, not HP or frame rate.
+
+`tower_empty` is `[EMITTED]` — the path exists in the stock actor folder and
+emits, but it has not been seen in game. It is an obstacle rather than an
 attacker (450 HP, empty `skills`, full 32×32 blocking polygon), which is why it
-defaults to 0 — it can wall off a passage.
+defaults to 0: it can wall off a passage.
 
 `tower_archer2` is a **phantom kept as an alias**. The game never shipped a
 battlement archer 2 — the roster pointed at

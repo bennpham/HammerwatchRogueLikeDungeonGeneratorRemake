@@ -7,6 +7,7 @@ import {
   MONSTER_TYPES,
   defaultParameters,
   generateDungeon,
+  monsterTypesInGroup,
   parseParametersTxt,
   serializeParametersTxt
 } from '../src/generator'
@@ -54,6 +55,26 @@ describe('monster roster', () => {
 
   it('keeps bat1 at index 3 for the unknown-id fallback', () => {
     expect(MONSTER_TYPES[3].id).toBe('bat1')
+  })
+
+  it('lists each group alphabetically without reordering the array', () => {
+    // The array is append-only, so a new type lands at the end wherever it
+    // belongs alphabetically — monsterTypesInGroup is what makes the GUI read
+    // in order. skeleton3 and tower_empty are exactly that case.
+    for (const group of MONSTER_GROUPS) {
+      const ids = monsterTypesInGroup(group).map((t) => t.id)
+      expect(ids, group).toEqual([...ids].sort())
+    }
+    const classic = monsterTypesInGroup('Classic').map((t) => t.id)
+    expect(classic.indexOf('skeleton3')).toBe(classic.indexOf('skeleton2') + 1)
+    const towers = monsterTypesInGroup('Towers').map((t) => t.id)
+    expect(towers.indexOf('tower_empty')).toBe(towers.indexOf('tower_flower1') - 1)
+  })
+
+  it('covers every non-deprecated type across the groups', () => {
+    const listed = MONSTER_GROUPS.flatMap((g) => monsterTypesInGroup(g)).map((t) => t.id)
+    const expected = MONSTER_TYPES.filter((t) => !t.deprecated).map((t) => t.id)
+    expect(listed.sort()).toEqual(expected.sort())
   })
 
   // The roster shipped actors/tower_battlement_archer_2.xml — a file the game
@@ -109,7 +130,7 @@ describe('skeleton3 and tower_empty', () => {
       expect(pool).not.toContain('skeleton3')
       expect(pool).not.toContain('tower_empty')
     }
-    expect(params.monsterMax.skeleton3).toBe(200)
+    expect(params.monsterMax.skeleton3).toBe(100)
     expect(params.monsterMax.tower_empty).toBe(0)
   })
 
@@ -135,12 +156,12 @@ describe('skeleton3 and tower_empty', () => {
 
 describe('deprecated monster types', () => {
   it('hides tower_archer2 from what the GUI renders', () => {
-    // Both MonsterPoolsEditor and MonsterMaxTable render
-    // MONSTER_TYPES.filter(t => t.group === group && !t.deprecated).
-    const rendered = MONSTER_TYPES.filter((t) => !t.deprecated).map((t) => t.id)
+    const rendered = MONSTER_GROUPS.flatMap((g) => monsterTypesInGroup(g)).map((t) => t.id)
     expect(rendered).not.toContain('tower_archer2')
     expect(rendered).toContain('tower_empty')
     expect(rendered).toContain('skeleton3')
+    // hidden from the lists, still a real type everywhere else
+    expect(MONSTER_TYPES.some((t) => t.id === 'tower_archer2')).toBe(true)
   })
 
   it('still round-trips through parameters.txt', () => {

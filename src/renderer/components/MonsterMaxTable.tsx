@@ -1,5 +1,5 @@
 import React from 'react'
-import { MONSTER_GROUPS, MONSTER_TYPES } from '../../generator'
+import { MONSTER_GROUPS, monsterTypesInGroup } from '../../generator'
 import type { DungeonParameters } from '../../generator'
 
 interface MonsterMaxTableProps {
@@ -23,7 +23,7 @@ export function MonsterMaxTable({ params, onChange }: MonsterMaxTableProps) {
         monster multiplier. Types set to 0 spawn nothing — avoid them in pools.
       </p>
       {MONSTER_GROUPS.map((group) => {
-        const members = MONSTER_TYPES.filter((t) => t.group === group && !t.deprecated)
+        const members = monsterTypesInGroup(group)
         if (members.length === 0) return null
         return (
           <details key={group} className="max-group" open={group === 'Classic'}>

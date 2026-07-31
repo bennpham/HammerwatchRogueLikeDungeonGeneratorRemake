@@ -345,7 +345,15 @@ worked example.
 
 **Append at the end.** `monsterTypeById` falls back to the *positional*
 `MONSTER_TYPES[3]` (`bat1`) for unknown ids, so inserting at index ≤ 3 changes
-what an unknown id resolves to.
+what an unknown id resolves to. Appending does not make the GUI list read out of
+order: both lists call `monsterTypesInGroup(group)`, which drops `deprecated`
+types and sorts by id. Sort there, never by moving array entries.
+
+**Size the cap by what actually kills a party.** `defaultMax` was twice reasoned
+from HP alone and once corrected by play: `skeleton3` at 200 (half `skeleton1`'s
+HP, so double its cap) swarmed and overran players, and came down to 100. For a
+fast melee monster, movement speed sets the ceiling before HP or frame rate
+does — see the 2026-07-31 entry in the discovery log.
 
 **A single-tier entry is safe.** `createRolled` clamps to the last index, so a
 type with one actor and no spawner (like `bonus_archer1`) emits that actor
