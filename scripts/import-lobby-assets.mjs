@@ -186,8 +186,10 @@ function wallDoodads(startId) {
 function lobbyDoodads() {
   const out = []
 
-  out.push(doodad(IDS.teleportStand, 'doodads/special/exit_teleport_stand.xml', PAD.x, PAD.y))
-  out.push(doodad(IDS.teleport, 'doodads/special/exit_teleport.xml', PAD.x, PAD.y))
+  // generic/, not special/ — special/ only has bonus_exit, bonus_teleport and
+  // minimap_exit_dn; the pad and its portal live under generic/
+  out.push(doodad(IDS.teleportStand, 'doodads/generic/exit_teleport_stand.xml', PAD.x, PAD.y))
+  out.push(doodad(IDS.teleport, 'doodads/generic/exit_teleport.xml', PAD.x, PAD.y))
 
   for (const v of VENDORS) {
     out.push(doodad(v.ids + 2, `doodads/special/vendor_${v.key}.xml`, v.x, VENDOR_Y))
@@ -240,13 +242,19 @@ function lobbyNodes() {
   out.push(
     node(IDS.sound, 'PlaySound', PAD.x, PAD.y, [str('sound', 'sound/misc.xml:info_teleport_activate')])
   )
-  // the level string is the one value buildLobby rewrites; the trigger fires
-  // this node directly, so its own shape stays empty
+  // The level string is the one value buildLobby rewrites.
+  //
+  // The shape points back at the pad rather than being left empty: an empty
+  // <int-arr> is not a legal SValue, and LevelPacker.exe dies parsing it with
+  // `System.FormatException` out of Int32.Parse. Sharing one shape across
+  // several nodes is what the stock campaigns do, and it is what the dungeon's
+  // own exit does (objectSet.ts builds one RectangleShape and connects the
+  // exit to it).
   out.push(
     node(IDS.exit, 'LevelExitArea', EXIT.x, EXIT.y, [
       str('level', '1'),
       int('start id', 0),
-      shapeRef([])
+      shapeRef([IDS.pad])
     ])
   )
 

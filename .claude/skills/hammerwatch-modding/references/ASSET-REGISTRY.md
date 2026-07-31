@@ -149,6 +149,17 @@ a piece, deliberately — see the offset rule below.
 | `ExitUp` (bonus only) | `doodads/special/bonus_entrance.xml` | 0, 0 |
 | `ExitDn` (bonus only) | `doodads/special/bonus_exit.xml` | 0, 0 |
 
+**The exit teleporter is under `generic/`, not `special/`** `[VERIFIED]` — the
+lobby's pad and portal are `doodads/generic/exit_teleport_stand.xml` and
+`doodads/generic/exit_teleport.xml`. `doodads/special/` holds only
+`bonus_entrance.xml`, `bonus_exit.xml` and `minimap_exit_dn.xml`; there is no
+`special/exit_teleport*`. Referencing a doodad that does not exist does **not**
+fail the pack — it becomes a `Resource error:` line in `<HW>/editor/game.log`
+and renders as nothing, so a wrong path here is invisible until someone loads
+the level. Related `generic/` variants that do exist: `exit_teleport_boss.xml`,
+`exit_teleport_exit.xml`, and the `_boss_desert` / `_switch_desert` sets.
+See the 2026-07-31 packer entry in `DISCOVERY-LOG.md`.
+
 **`Cover` is a character-occlusion overlay, not a collider** `[VERIFIED]` — read
 from the asset: `special/color_theme_a_16.xml` declares **zero**
 `collision="true"` polygons. Its pattern matches a 2×2 block of *wall* tiles, so

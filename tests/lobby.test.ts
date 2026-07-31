@@ -54,7 +54,9 @@ describe('lobby — determinism', () => {
       expect(levelsOf(on)).toEqual(levelsOf(off))
       expect(on.levels).toEqual(off.levels)
     }
-  })
+    // six full campaigns; the 5s default times this one out whenever the suite
+    // runs its files in parallel, which is every time
+  }, 60_000)
 
   it('produces the same lobby for the same options', () => {
     expect(lobbyXML({ startingGold: 2500 })).toBe(lobbyXML({ startingGold: 2500 }))
@@ -107,6 +109,39 @@ describe('lobby — campaign wiring', () => {
     const on = generateOk(withLobby({ enabled: true }), 555)
     expect(on.levels).toHaveLength(8)
     expect(on.levels.map((l) => l.level)).toEqual([0, 1, 2, 3, 4, 5, 6, 7])
+  })
+
+  // LevelPacker.exe parses every <int-arr> body with Int32.Parse and dies on an
+  // empty one — `System.FormatException: Input string was not in a correct
+  // format` out of TiltedEngine.SValue.ParseXMLNode, no .hwm written. The
+  // lobby's LevelExitArea shipped exactly that and broke every install
+  // ([VERIFIED] 2026-07-31). This is the general form: any empty or
+  // non-integer int-arr, in any emitted file, in any stall configuration.
+  it('never emits an empty or non-integer int-arr, which LevelPacker cannot parse', () => {
+    // The first bad int-arr in `xml`, or null. Hand-rolled rather than one
+    // expect() per token: the tilemap arrays run to hundreds of thousands of
+    // integers apiece and the assertion overhead alone times the test out.
+    const badIntArray = (xml: string): string | null => {
+      for (const [, name, body] of xml.matchAll(/<int-arr name="([^"]*)">([^<]*)<\/int-arr>/g)) {
+        if (body === '') return `<int-arr name="${name}"> is empty`
+        const bad = body.split(' ').find((token) => !/^-?\d+$/.test(token))
+        if (bad !== undefined) return `<int-arr name="${name}"> holds "${bad}"`
+      }
+      return null
+    }
+
+    // one full campaign covers the dungeon levels and the default lobby
+    for (const file of generateOk(withLobby({ enabled: true, startingGold: LOBBY_GOLD_MAX }), 555).files) {
+      if (file.encoding === 'base64') continue
+      expect(badIntArray(file.content), file.path).toBeNull()
+    }
+
+    // the stall configurations only change the lobby, and buildLobby is text
+    // surgery, so they need no further generation
+    for (const shopCategories of [[], ['power'], ALL_LOBBY_CATEGORIES.filter((c) => !c.startsWith('misc'))]) {
+      const label = `lobby with shops [${shopCategories.join(' ')}]`
+      expect(badIntArray(lobbyXML({ shopCategories })), label).toBeNull()
+    }
   })
 })
 

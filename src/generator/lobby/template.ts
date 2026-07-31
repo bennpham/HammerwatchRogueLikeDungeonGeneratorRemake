@@ -69,14 +69,14 @@ export const LOBBY_TEMPLATE = `<dictionary>
 <dictionary name="doodads">
 <array name="doodads"><dictionary>
 <int name="id">20</int>
-<string name="type">doodads/special/exit_teleport_stand.xml</string>
+<string name="type">doodads/generic/exit_teleport_stand.xml</string>
 <float name="x">20.000000</float>
 <float name="y">12.000000</float>
 <bool name="need-sync">False</bool>
 </dictionary>
 <dictionary>
 <int name="id">21</int>
-<string name="type">doodads/special/exit_teleport.xml</string>
+<string name="type">doodads/generic/exit_teleport.xml</string>
 <float name="x">20.000000</float>
 <float name="y">12.000000</float>
 <bool name="need-sync">False</bool>
@@ -516,7 +516,7 @@ export const LOBBY_TEMPLATE = `<dictionary>
 <string name="level">1</string>
 <int name="start id">0</int>
 <dictionary name="shape">
-<int-arr name="static"></int-arr>
+<int-arr name="static">10</int-arr>
 </dictionary>
 
 </dictionary>

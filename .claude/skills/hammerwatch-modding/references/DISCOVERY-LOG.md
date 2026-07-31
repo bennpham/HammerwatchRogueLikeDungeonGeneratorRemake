@@ -91,6 +91,87 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-07-31 — an empty `<int-arr>` crashes `LevelPacker.exe`; string level ids are fine
+**Tag:** [VERIFIED] — Windows 10, Hammerwatch 1.41, real Steam install.
+**Context:** "Install into Hammerwatch" failed on the first run of the Lobby tab
+against a real install. No `.hwm` was produced. Supersedes the `[UNVERIFIED]`
+2026-07-31 fallback-lobby entry below on the two points it guessed at.
+**Evidence:**
+
+1. **Empty `<int-arr>` is fatal.** The packer died with:
+
+   ```
+   Unhandled Exception: System.FormatException: Input string was not in a
+   correct format.
+     at System.Number.StringToNumber(...)
+     at System.Int32.Parse(String s, IFormatProvider provider)
+     at TiltedEngine.SValue.ParseXMLNode(XElement node)  SValue.cs:220
+     at TiltedEngine.SValue.ParseXMLNode(XElement node)  SValue.cs:194   (x2)
+     at TiltedEngine.SValue.ParseXMLNode(XElement node)  SValue.cs:182
+     at TiltedEngine.SValue.ParseXMLNode(XElement node)  SValue.cs:194   (x3)
+     at ARPGLevelPacker.Program.LoadLevelInfo(String path)
+   ```
+
+   The cause was one node in `levels/lobby.xml`:
+
+   ```xml
+   <dictionary name="shape">
+   <int-arr name="static"></int-arr>
+   </dictionary>
+   ```
+
+   `ParseXMLNode` splits an `int-arr` body and hands each token to
+   `Int32.Parse`; an empty body yields `Int32.Parse("")`. It was the only empty
+   `int-arr` in the 5.2 MB campaign, and there are **zero** empty `int-arr` in
+   any shipped `campaign/`, `campaign2/` or `example/` level. Filling it with
+   the id of the `RectangleShape` already at the teleport pad
+   (`<int-arr name="static">10</int-arr>`) made the same folder pack: `Scanning
+   and reading files... / Writing resource file...`, exit code 0, a 163 KB
+   `.hwm`. Nothing else changed.
+
+   **Rule: every `<int-arr>` must contain at least one integer.** A node with
+   nothing to reference must still name something — sharing one shape id across
+   several nodes is normal, `campaign/levels/level_2.xml` reuses single shape
+   ids across up to four.
+
+2. **Non-numeric level ids in `levels.xml` are legal.** This was the leading
+   theory for the crash and is **[REFUTED]**. The stock game ships them:
+   `campaign2/levels.xml` has `<levels start="hub">` with `<level id="hub" …>`,
+   and `campaign/levels.xml` has `id="boss_1"`, `id="bonus_1"`, `id="esc_1"`,
+   `id="10b"`. The third-party `pht6_quiky_dreadmann_mansion` ships
+   `start="start"`. `LOBBY_LEVEL_ID = 'lobby'` and `start="lobby"` pack fine.
+
+3. **The exit teleporter doodads are under `generic/`, not `special/`.** The
+   lobby template referenced `doodads/special/exit_teleport.xml` and
+   `…_stand.xml`; neither exists. `assetsExtract/doodads/special/` contains only
+   `bonus_exit.xml`, `bonus_teleport.xml`, `minimap_exit_dn.xml`. The real paths
+   are `doodads/generic/exit_teleport.xml` and
+   `doodads/generic/exit_teleport_stand.xml`. A missing doodad does **not** stop
+   the pack — it surfaces later as a `Resource error:` line in
+   `<HW>/editor/game.log` and the doodad simply does not render. Every other
+   asset the lobby references resolves, so `LOBBY_ASSETS` stays empty and the
+   campaign folder needs no copied assets.
+
+4. **Script node type names that exist in the 1.41 binaries** (string search):
+   `AllPlayersAreaTrigger`, `ShopArea`, `LevelExitArea`, `LevelStart` in
+   `Hammerwatch.exe`; `RectangleShape`, `PlaySound` in `TiltedEngine.dll`.
+   Caveat: `AllPlayersAreaTrigger` appears in **no** stock campaign level, so
+   the lobby's trigger→exit chain is recognised but its runtime behaviour is
+   still unwitnessed.
+
+5. **Partially answers open question 3.** On malformed input `LevelPacker.exe`
+   exits non-zero and writes the .NET stack trace to stderr, leaving the
+   unpacked folder in place. On success it prints two progress lines and exits
+   0. The trace is genuinely useful — `src/main/packer.ts` currently discards
+   the packer's stdout/stderr, which is why this one had to be read off a
+   screenshot.
+
+**Impact:** Fixed in `scripts/import-lobby-assets.mjs` (the authoring source;
+`src/generator/lobby/template.ts` is generated from it) and pinned by
+`tests/lobby.test.ts` — "never emits an empty or non-integer int-arr". Promote
+the `generic/exit_teleport*` paths into `ASSET-REGISTRY.md`. Open question 1a is
+still open: this proves the lobby *packs*, not that it *renders*.
+
 ### 2026-07-31 — the Lobby tab ships a fallback lobby, not the Dreadmann template
 **Tag:** [UNVERIFIED] — nothing in this entry has been loaded in game.
 **Context:** Implementing `docs/plans/lobby-tab.md`. The plan's source of truth

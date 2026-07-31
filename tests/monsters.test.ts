@@ -138,15 +138,23 @@ describe('skeleton3 and tower_empty', () => {
     // Hashes measured on c494670, the commit before the roster grew. The two
     // new types are opt-in and defaultMax is only a ceiling, so adding them
     // must not move a single tile. If this fails, something reached the RNG.
+    //
+    // Only `levels/level*.xml` is hashed — those are the RNG's output, and the
+    // rest of the campaign is not. The original digest covered every file, so
+    // it broke the moment the Lobby tab added `levels/lobby.xml` and a line to
+    // `levels.xml`, neither of which draws a random value. These hashes are the
+    // same ones c494670 produces over the same subset, re-measured against that
+    // commit rather than re-baselined against current output.
     const expected: Record<number, string> = {
-      1234: '55740132b55cb9fca45f4d390b86bb4bee1f73d702857b8be229220d23c37f72',
-      987654: 'f4418602de9f01e3cda7a5d0f6b74e25181bf67eeaf70271101f8b3253c66784'
+      1234: 'c445b4fb607fd0da97765021e313f15289dcb34545a5bb0dc4975a7b92ba3d38',
+      987654: '4c17825da8a43a2dc8de7fee67cd01de62a95ac3bf0e074df383956d59bc1949'
     }
     for (const [seed, hash] of Object.entries(expected)) {
       const result = generateDungeon(defaultParameters(), Number(seed))
       expect(result.ok).toBe(true)
       const digest = createHash('sha256')
       for (const file of (result as DungeonResult).files) {
+        if (!/^levels\/level\d+\.xml$/.test(file.path)) continue
         digest.update(`${file.path} ${file.content} `)
       }
       expect(digest.digest('hex'), `seed ${seed}`).toBe(hash)
