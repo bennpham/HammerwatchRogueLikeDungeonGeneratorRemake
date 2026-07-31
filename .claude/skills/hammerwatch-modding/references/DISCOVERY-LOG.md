@@ -123,28 +123,23 @@ divergence in `hammerwatch-java-port/SKILL.md`.
 
 ### 2026-07-30 — three `actors/bonus/` monster paths exist in the editor
 
-**Tag:** [UNVERIFIED] — read off the editor's Characters tab; not yet packed or
-played.
+**Tag:** [VERIFIED] — packed and spawned in game.
 
 **Context:** looking for monsters to pair with the `bonus1`–`bonus5` themes.
 
-**Evidence:** the editor's Characters tab lists `actors/bonus/archer_1.xml`,
-`actors/bonus/skeleton_1.xml` and `actors/spawners/bonus/skeleton_1.xml`. The
-skeleton ships a spawner **and** an actor; the archer ships an actor only —
-the first roster entry with no spawner variant. Observed HP: bonus archer 15
-(vanilla 20), bonus skeleton 10 (vanilla 40).
+**Evidence:** in game: skeleton spawner and actor both spawn in the bonus levels;
+the bonus level pool does not include the archer, so it does not appear there,
+but the actor path is valid and would work if pooled.
 
 **Impact:** added as `bonus_archer1` / `bonus_skeleton1` in a new `Bonus` group,
 appended to `MONSTER_TYPES` (`monsterTypeById` falls back to the positional
 `MONSTER_TYPES[3]`, so inserting near the front would change what an unknown id
 resolves to). `defaultMax` scales the vanilla defaults by the HP gap — archer
-40 × 1.5 = 60, and the skeleton's 100 × 4 = 400 was cut to **300** on frame rate
-(see the entry below). Not added to `defaultParameters().levelMonsters`,
-so every existing seed stays byte-identical; they are opt-in via the pool editor.
-**Follow-up:** confirm `LevelPacker.exe` packs the three paths and that the
-monsters spawn, then promote to `[VERIFIED]` in `ASSET-REGISTRY.md`. Note that
-the archer's spawner *slots* in a Lair (`Monster.create(..., 0)`) emit the plain
-archer actor, since tier 0 is all it has.
+40 × 1.5 = 60, skeleton capped at 300 (400 was laggy). Not added to
+`defaultParameters().levelMonsters`, so every existing seed stays byte-identical;
+they are opt-in via the pool editor. Note that the archer's spawner *slots* in a
+Lair (`Monster.create(..., 0)`) emit the plain archer actor, since tier 0 is all
+it has — that's why only the skeleton's spawner appears in the bonus levels.
 
 ### 2026-07-30 — the stair sprite is the alcove's back wall, and the bonus pair has no collider
 

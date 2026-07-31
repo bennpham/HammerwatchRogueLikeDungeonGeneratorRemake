@@ -84,13 +84,15 @@ default.
 | `bonus_skeleton1` | `maxBonus_Skeletons1` | Bonus | 300 | `actors/spawners/bonus/skeleton_1.xml`<br>`actors/bonus/skeleton_1.xml` |
 | `bonus_archer1` | `maxBonus_Archers1` | Bonus | 60 | `actors/bonus/archer_1.xml` |
 
-The two `Bonus` rows are `[UNVERIFIED]` — paths read off the editor's Characters
-tab, not yet packed or played. The bonus archer is the **only** roster entry with
-no spawner variant. Both are weaker than their vanilla counterparts (archer 15 HP
-vs 20, skeleton 10 vs 40), which is where the scaled-up `defaultMax` comes from —
-except the skeleton, capped at 300 by observed frame rate rather than by its HP.
-Neither is in `defaultParameters().levelMonsters`; they are opt-in via the pool
-editor so existing seeds are unaffected.
+The two `Bonus` rows are `[VERIFIED]` — packed and spawned in game. The bonus
+archer is the **only** roster entry with no spawner variant. It does not spawn in
+the bonus campaign (its pool is not included there), but the actor path works and
+would spawn if pooled elsewhere. The skeleton spawns both its spawner and actor.
+Both are weaker than their vanilla counterparts (archer 15 HP vs 20, skeleton 10
+vs 40), which is where the scaled-up `defaultMax` comes from — except the skeleton,
+capped at 300 by observed frame rate rather than by its HP. Neither is in
+`defaultParameters().levelMonsters`; they are opt-in via the pool editor so
+existing seeds are unaffected.
 
 ## Doodads
 
