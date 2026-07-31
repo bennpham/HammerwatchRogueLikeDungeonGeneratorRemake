@@ -79,6 +79,52 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-07-30 — a single-tier monster emitted `undefined` as its actor path
+
+**Tag:** [VERIFIED] — reproduced in `tests/monsters.test.ts` against the port.
+
+**Context:** adding the bonus archer, which ships an actor but no spawner and so
+is the first single-tier type anyone would actually put in a pool.
+
+**Evidence:** `Monster.createRolled` starts at `tier = 1` and only walks upward,
+guarded by `tier < type.tiers.length - 1`. For a one-element `tiers` that bound
+is `0`, the guard fails immediately, `tier` stays `1`, and `getXML` emits
+`<string name="type">undefined</string>`. ~20 existing types are single-tier
+(`spider`, `archer3`, `wisp2`, every `mb_*`, every `tower_*`); all sat at
+`defaultMax: 0`, which is the only reason nobody hit it. The Java original threw
+`ArrayIndexOutOfBounds` on the same line, so this is a crash path of the original
+that the port turned into silent garbage — invariant #4 territory.
+
+**Impact:** fixed by clamping with `Math.min(tier, tiers.length - 1)` **after**
+the `while`, so the number of `fRand` draws is unchanged and no existing seed
+moves. Only single-tier types' emitted XML changes, and their previous output was
+`undefined` — there was no working output to preserve. Recorded as a deliberate
+divergence in `hammerwatch-java-port/SKILL.md`.
+
+### 2026-07-30 — three `actors/bonus/` monster paths exist in the editor
+
+**Tag:** [UNVERIFIED] — read off the editor's Characters tab; not yet packed or
+played.
+
+**Context:** looking for monsters to pair with the `bonus1`–`bonus5` themes.
+
+**Evidence:** the editor's Characters tab lists `actors/bonus/archer_1.xml`,
+`actors/bonus/skeleton_1.xml` and `actors/spawners/bonus/skeleton_1.xml`. The
+skeleton ships a spawner **and** an actor; the archer ships an actor only —
+the first roster entry with no spawner variant. Observed HP: bonus archer 15
+(vanilla 20), bonus skeleton 10 (vanilla 40).
+
+**Impact:** added as `bonus_archer1` / `bonus_skeleton1` in a new `Bonus` group,
+appended to `MONSTER_TYPES` (`monsterTypeById` falls back to the positional
+`MONSTER_TYPES[3]`, so inserting near the front would change what an unknown id
+resolves to). `defaultMax` scales the vanilla defaults by the HP gap — skeleton
+100 × 4 = 400, archer 40 × 1.5 = 60. Not added to `defaultParameters().levelMonsters`,
+so every existing seed stays byte-identical; they are opt-in via the pool editor.
+**Follow-up:** confirm `LevelPacker.exe` packs the three paths and that the
+monsters spawn, then promote to `[VERIFIED]` in `ASSET-REGISTRY.md`. Note that
+the archer's spawner *slots* in a Lair (`Monster.create(..., 0)`) emit the plain
+archer actor, since tier 0 is all it has.
+
 ### 2026-07-30 — the stair sprite is the alcove's back wall, and the bonus pair has no collider
 
 **Tag:** [VERIFIED] — asset XML, confirmed in game by walking through the entrance.

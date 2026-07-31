@@ -35,7 +35,12 @@ export class Monster extends XMLObject {
     while (ctx.rand.fRand(0, 1) < type.upgradeChance && tier < type.tiers.length - 1) {
       tier++
     }
-    const m = new Monster(ctx, x, y, type, tier)
+    // Clamped *after* the loop, never inside it: the draw count is unchanged, so
+    // no existing seed moves. This only bites single-tier types, where the guard
+    // fails immediately and tier stays 1 — those emitted tiers[1] === undefined
+    // before, so there is no working output to preserve. (The Java original threw
+    // ArrayIndexOutOfBounds here.)
+    const m = new Monster(ctx, x, y, type, Math.min(tier, type.tiers.length - 1))
     ctx.monsters.push(m)
     return m
   }

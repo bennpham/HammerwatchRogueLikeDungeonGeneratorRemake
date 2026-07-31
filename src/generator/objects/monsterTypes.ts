@@ -4,6 +4,15 @@
  * the plain-text id used in parameters.txt monster pools, the parameters.txt
  * key for its max count, and the default max count.
  */
+/**
+ * Display groups, in render order. The GUI iterates this list, so the union and
+ * the thing the UI draws are the same list — a monster can't be defined into a
+ * group that renders nowhere.
+ */
+export const MONSTER_GROUPS = ['Classic', 'Desert', 'Towers', 'Special', 'Bosses', 'Bonus'] as const
+
+export type MonsterGroup = (typeof MONSTER_GROUPS)[number]
+
 export interface MonsterTypeDef {
   /** plain string used in parameters.txt monster pools (e.g. "bat1") */
   id: string
@@ -14,7 +23,7 @@ export interface MonsterTypeDef {
   upgradeChance: number
   defaultMax: number
   /** display grouping for the GUI */
-  group: 'Classic' | 'Desert' | 'Towers' | 'Bosses' | 'Special'
+  group: MonsterGroup
 }
 
 export const MONSTER_TYPES: MonsterTypeDef[] = [
@@ -64,7 +73,12 @@ export const MONSTER_TYPES: MonsterTypeDef[] = [
   { id: 'mb_maggot', configKey: 'maxMB_Maggots', upgradeChance: 1.0, defaultMax: 0, group: 'Bosses', tiers: ['actors/maggot_1_mb.xml'] },
   { id: 'mb_mummy', configKey: 'maxMB_Mummies', upgradeChance: 1.0, defaultMax: 0, group: 'Bosses', tiers: ['actors/mummy_1_mb.xml'] },
   { id: 'mb_skeleton', configKey: 'maxMB_Skeletons', upgradeChance: 1.0, defaultMax: 0, group: 'Bosses', tiers: ['actors/skeleton_1_mb.xml'] },
-  { id: 'mb_tick', configKey: 'maxMB_Ticks', upgradeChance: 1.0, defaultMax: 0, group: 'Bosses', tiers: ['actors/tick_1_mb.xml'] }
+  { id: 'mb_tick', configKey: 'maxMB_Ticks', upgradeChance: 1.0, defaultMax: 0, group: 'Bosses', tiers: ['actors/tick_1_mb.xml'] },
+  // Bonus-campaign actors. Weaker than their vanilla counterparts (archer 15 HP
+  // vs 20, skeleton 10 HP vs 40), so the maxes are the vanilla defaults scaled up
+  // to compensate. Append only — monsterTypeById falls back to MONSTER_TYPES[3].
+  { id: 'bonus_skeleton1', configKey: 'maxBonus_Skeletons1', upgradeChance: 1.0, defaultMax: 400, group: 'Bonus', tiers: ['actors/spawners/bonus/skeleton_1.xml', 'actors/bonus/skeleton_1.xml'] },
+  { id: 'bonus_archer1', configKey: 'maxBonus_Archers1', upgradeChance: 1.0, defaultMax: 60, group: 'Bonus', tiers: ['actors/bonus/archer_1.xml'] }
 ]
 
 const byId = new Map(MONSTER_TYPES.map((t) => [t.id, t]))
