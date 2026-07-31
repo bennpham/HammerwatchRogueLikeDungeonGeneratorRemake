@@ -77,9 +77,15 @@ for a spawner explicitly. `defaultMax` of `0` means the type is off by default.
 | `mb_tick` | `maxMB_Ticks` | Bosses | 0 | `actors/tick_1_mb.xml` |
 ## Doodads
 
-`%s` is replaced by the level's theme letter — once for `themeSubs: 1`, twice
-for `themeSubs: 2`. Offsets in `src/generator/objects/doodad.ts` are added to
-the tile coordinate when the doodad is serialized.
+`%s` is replaced by the theme's `doodadToken` (`config/themes.ts`) — once for
+`themeSubs: 1`, twice for `themeSubs: 2`. The token is the theme letter for
+`a`–`i` and `bonus1`…`bonus5` for the bonus sets. Offsets in
+`src/generator/objects/doodad.ts` are added to the tile coordinate when the
+doodad is serialized.
+
+A theme may also declare `doodadOverrides` (a complete path used verbatim, no
+substitution) or `omit` (skip the piece entirely) for pieces its folder does not
+ship.
 
 ### Generic & special (theme-independent)
 
@@ -94,6 +100,8 @@ the tile coordinate when the doodad is serialized.
 | `VendorOffense` | `doodads/special/vendor_offense.xml` | 0, 0 |
 | `VendorDefense` | `doodads/special/vendor_defense.xml` | 0, 0 |
 | `Cover` | `doodads/special/color_theme_%s_16.xml` (1 sub) | 0.5, 0.5 |
+| `ExitUp` (bonus only) | `doodads/special/bonus_entrance.xml` | 0, 0 |
+| `ExitDn` (bonus only) | `doodads/special/bonus_exit.xml` | 0, 0 |
 
 ### Themed wall pieces (2 subs, `doodads/theme_<t>/<t>_…`)
 
@@ -117,8 +125,14 @@ the tile coordinate when the doodad is serialized.
 | `ExitDn` | `_exit_h_dn.xml` | 0, 0 |
 | `ExitUp` | `_exit_h_up.xml` | 0, 0 |
 
-A theme must ship all 17 of these or levels using it will have gaps where the
-matcher wanted a piece that doesn't exist.
+A theme must ship all 17 of these, or declare a `doodadOverrides` / `omit` entry
+for each one it lacks — otherwise levels using it will reference a path that
+doesn't exist. The `bonus1`–`bonus5` folders are the known incomplete case: they
+have no `_exit_h_dn` / `_exit_h_up`, so both are overridden to the shared
+`doodads/special/bonus_entrance.xml` / `bonus_exit.xml`, and `Cover` is omitted
+because `color_theme_bonus<n>_16.xml` does not exist. Those folders also carry
+`_pillar`, `_h_16`, `_v_16` (and `bonus5_deteriorate`) which the wall matcher has
+no pattern for and never emits.
 
 ## Items
 
@@ -142,9 +156,9 @@ are horizontal while 3–5 are the vertical variants of the same three tiers.
 
 ## Tilemaps (themes)
 
-`TILEMAPS` in `src/generator/map/level.ts`. `tiles` is how many floor variants
-the tileset has; `data-t` values are `1..tiles`, with `0` meaning wall/void.
-**Emitting an index above `tiles` is a load-time error.**
+`THEME_DEFS` in `src/generator/config/themes.ts`. `tiles` is how many floor
+variants the tileset has; `data-t` values are `1..tiles`, with `0` meaning
+wall/void. **Emitting an index above `tiles` is a load-time error.**
 
 | Theme | Path | Variants | Set |
 | --- | --- | --- | --- |
@@ -156,10 +170,24 @@ the tileset has; `data-t` values are `1..tiles`, with `0` meaning wall/void.
 | `f` | `tilemaps/f_default.xml` | 2 | castle |
 | `g` | `tilemaps/g_default.xml` | 2 | castle |
 | `i` | `tilemaps/i_default.xml` | 8 | desert |
+| `bonus1` | `tilemaps/bonus_1.xml` | 1 `[UNVERIFIED]` | bonus |
+| `bonus2` | `tilemaps/bonus_2.xml` | 1 `[UNVERIFIED]` | bonus |
+| `bonus3` | `tilemaps/bonus_3.xml` | 1 `[UNVERIFIED]` | bonus |
+| `bonus4` | `tilemaps/bonus_4.xml` | 1 `[UNVERIFIED]` | bonus |
+| `bonus5` | `tilemaps/bonus_5.xml` | 1 `[UNVERIFIED]` | bonus |
+
+Note the naming asymmetry: the bonus tileset is `bonus_3` but its doodad folder
+is `theme_bonus3/bonus3_*`. The two are separate registry fields for this reason.
+
+The bonus variant counts are an assumption, not a measurement — each paints as
+one uniform texture in the editor, and `1` is the only value guaranteed in range.
+All five are also **much darker** than the lettered tilesets `[EMITTED]`.
+
+`tilemaps/bonus_shadow.xml` exists but is not a floor tileset and is not used.
 
 There is **no theme `h`** — the letter is skipped in the game's assets
-`[EMITTED]`. An unknown theme letter falls back to `a` in `Level.getXML`, but
-validation rejects it first.
+`[EMITTED]`. An unknown theme id falls back to the first registry entry (`a`) in
+`Level.getXML`, but validation rejects it first.
 
 ## Script node types
 

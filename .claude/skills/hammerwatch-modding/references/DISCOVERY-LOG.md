@@ -57,8 +57,11 @@ until then, treat them as unknown in anything shown to the user.
 6. **`info.xml` fields.** Is `<lives>0</lives>` really unlimited? Are there
    other supported fields (difficulty, party size, campaign icon)?
 7. **Theme completeness.** Do all of `a b c d e f g i` ship the full 17-piece
-   `doodads/theme_<t>/` wall set, and are the variant counts in `TILEMAPS`
-   right for every one? A wrong count is a load-time error.
+   `doodads/theme_<t>/` wall set, and are the variant counts in `THEME_DEFS`
+   right for every one? A wrong count is a load-time error. Partially answered
+   for the bonus themes — see the 2026-07-30 bonus-theme entry: they ship 18
+   pieces but **not** the two `_exit_h_*` frames, and their variant counts are
+   still assumed rather than measured.
 8. ~~**Do campaign tweak files replace or merge?**~~ Answered — **replace**, see
    the 2026-07-30 entry. Deleting upgrades from a campaign's file removes them
    from the shop, so `baseline.ts` must keep the complete transcription.
@@ -75,6 +78,47 @@ until then, treat them as unknown in anything shown to the user.
     all and the app could offer to lengthen a ladder.
 
 ## Entries
+
+### 2026-07-30 — five `bonus` themes exist, with mismatched tileset/doodad naming and no stair frames
+
+**Tag:** [UNVERIFIED] — everything below is read off the editor's asset browser;
+nothing has been packed or played yet.
+
+**Context:** adding `bonus1`–`bonus5` to the theme dropdown for playtest.
+
+**Evidence:** the editor's Doodads tab filtered on `theme_` lists
+`doodads/theme_bonus3/bonus3_crn_l_dn.xml`, `bonus3_h_8.xml`, `bonus3_x_x.xml`
+etc. — i.e. exactly the `doodads/theme_<t>/<t>_*.xml` shape the lettered themes
+use, with a multi-character token. Per bonus folder the listing shows **18**
+files: the 4 corners, `h_8`/`h_16`, `v_8`/`v_16`, `h_cap_l`/`h_cap_r`,
+`v_cap_dn`/`v_cap_up`, the 4 `x_t_*`, `x_x`, and `pillar`; `bonus5` adds
+`deteriorate`. The listing is alphabetical and **`exit_h_dn` / `exit_h_up` are
+absent** (they would sort between `deteriorate` and `h_16`, where `bonus5` shows
+`deteriorate` and nothing else). The user identified
+`doodads/special/bonus_entrance.xml` and `doodads/special/bonus_exit.xml` as the
+shared replacements.
+
+The Tilemap tab filtered on `bonus` lists `tilemaps/bonus_1.xml` …
+`tilemaps/bonus_5.xml` plus `tilemaps/bonus_shadow.xml`. **The naming does not
+match the doodad side** — tileset `bonus_3`, doodad folder `theme_bonus3` with
+prefix `bonus3`. Painting all five into a map shows each as a single uniform
+texture (no visible per-tile variation) and all five markedly darker than the
+lettered tilesets.
+
+**Impact:**
+- `TILEMAPS` in `map/level.ts` and `THEMES` in `config/parameters.ts` are replaced
+  by a single `THEME_DEFS` registry in `config/themes.ts`, because no single
+  token derives both path families any more.
+- `ThemeDef` gains `doodadOverrides` (verbatim replacement path) and `omit`.
+  Bonus themes override `ExitUp`→`bonus_entrance.xml`, `ExitDn`→`bonus_exit.xml`
+  and omit `Cover`, since `color_theme_bonus<n>_16.xml` does not exist.
+- Bonus `tiles` set to **1**, the only always-in-range value. If a bonus level
+  loads and the floor looks too repetitive, that is the number to raise.
+- Still open after playtest: do the shared `bonus_*` stair doodads sit correctly
+  at our `(0, 0)` `ExitDn`/`ExitUp` offsets, what are the real variant counts,
+  are bonus levels too dark to play, and what is `bonus_shadow.xml` for.
+- Promote to `[VERIFIED]` in `ASSET-REGISTRY.md` once a packed campaign has been
+  played; revert the feature if it has not.
 
 ### 2026-07-30 — the game applies the `req` cascade, so one removal flag limits a ladder
 **Tag:** [VERIFIED] — played in game, "tiers sold" confirmed working.

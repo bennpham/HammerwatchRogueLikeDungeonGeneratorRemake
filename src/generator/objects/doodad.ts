@@ -1,4 +1,5 @@
 import { XMLBool, XMLDictionary, XMLFloat, XMLInt, XMLObject, XMLString } from '../xml'
+import { getTheme } from '../config/themes'
 import type { GenerationContext } from '../core/context'
 
 interface DoodadTypeDef {
@@ -43,15 +44,28 @@ export const DoodadType = {
 export type DoodadTypeName = keyof typeof DoodadType
 
 export function doodadPath(type: DoodadTypeName, theme: string): string {
+  const themeDef = getTheme(theme)
+
+  // a theme that does not ship this piece can point at a complete replacement
+  // path, which is used verbatim — no %s substitution
+  const override = themeDef?.doodadOverrides?.[type]
+  if (override !== undefined) return override
+
+  const token = themeDef?.doodadToken ?? theme
   const def = DoodadType[type]
   switch (def.themeSubs) {
     case 1:
-      return def.path.replace('%s', theme)
+      return def.path.replace('%s', token)
     case 2:
-      return def.path.replace('%s', theme).replace('%s', theme)
+      return def.path.replace('%s', token).replace('%s', token)
     default:
       return def.path
   }
+}
+
+/** True when the theme has no asset at all for this piece, so it is not emitted. */
+function isOmitted(type: DoodadTypeName, theme: string): boolean {
+  return getTheme(theme)?.omit?.includes(type) ?? false
 }
 
 export class Doodad extends XMLObject {
@@ -68,9 +82,13 @@ export class Doodad extends XMLObject {
     this.id = ctx.idCounter++
   }
 
+  /**
+   * The id is consumed even for an omitted piece, so a theme's missing assets
+   * do not renumber the doodads around them.
+   */
   static create(ctx: GenerationContext, x: number, y: number, type: DoodadTypeName, theme: string): Doodad {
     const d = new Doodad(ctx, x, y, type, theme)
-    ctx.doodads.push(d)
+    if (!isOmitted(type, theme)) ctx.doodads.push(d)
     return d
   }
 

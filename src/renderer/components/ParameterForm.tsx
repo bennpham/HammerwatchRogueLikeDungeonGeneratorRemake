@@ -1,9 +1,17 @@
 import React from 'react'
-import { THEMES } from '../../generator'
+import { THEME_DEFS } from '../../generator'
 import type { DungeonParameters, ValidationIssue } from '../../generator'
 import { NumberField, Section } from './fields'
 import { MonsterPoolsEditor } from './MonsterPoolsEditor'
 import { MonsterMaxTable } from './MonsterMaxTable'
+
+/** Themes bucketed by their registry group, in registry order. */
+const THEME_GROUPS = THEME_DEFS.reduce<[string, (typeof THEME_DEFS)[number][]][]>((groups, def) => {
+  const existing = groups.find(([name]) => name === def.group)
+  if (existing) existing[1].push(def)
+  else groups.push([def.group, [def]])
+  return groups
+}, [])
 
 interface ParameterFormProps {
   params: DungeonParameters
@@ -73,16 +81,24 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
       </Section>
 
       <Section title="Themes" badge={params.themes.slice(0, params.levels).join(', ')}>
-        <p className="hint">Tileset per level: a–d classic dungeon, e–g castle, i desert.</p>
+        <p className="hint">
+          Tileset per level: a–d classic dungeon, e–g castle, i desert. The bonus sets are
+          experimental — they are much darker and have no floor overlay, and their stairs use the
+          game's shared bonus entrance/exit art rather than matching wall pieces.
+        </p>
         <div className="theme-grid">
           {Array.from({ length: Math.max(params.levels, 0) || 0 }, (_, i) => (
             <label key={i} className="theme-item">
               <span>Level {i + 1}</span>
               <select value={params.themes[i] ?? 'a'} onChange={(e) => setTheme(i, e.target.value)}>
-                {THEMES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
+                {THEME_GROUPS.map(([group, defs]) => (
+                  <optgroup key={group} label={group}>
+                    {defs.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </label>

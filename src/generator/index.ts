@@ -6,6 +6,8 @@ import { emitTweakFiles } from './tweak/overrides'
 
 export type { DungeonParameters } from './config/parameters'
 export { THEMES } from './config/parameters'
+export { THEME_DEFS, getTheme } from './config/themes'
+export type { ThemeDef } from './config/themes'
 export { defaultParameters }
 export { validateParameters } from './config/validation'
 export type { ValidationResult, ValidationIssue } from './config/validation'
