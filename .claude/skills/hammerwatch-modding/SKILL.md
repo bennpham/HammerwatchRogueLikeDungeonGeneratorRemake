@@ -305,10 +305,11 @@ The full inventory of paths this generator emits is in
 - **Items** — `items/*.xml`: valuables 1–9, breakables, health/mana, powerup
   potions and chests, bronze/silver/gold keys and doors, three crystal orbs.
 - **Tilemaps** — `tilemaps/{a,b,c,d,e,f,g,i}_default.xml` plus
-  `tilemaps/bonus_{1..5}.xml`. **There is no theme `h`.** Variant counts differ
-  per theme (a: 2, b: 4, c: 4, d: 8, e–g: 2, i: 8, bonus: assumed 1) and must
-  match the `tiles` field in `config/themes.ts` or `data-t` will index a variant
-  the tileset doesn't have.
+  `tilemaps/bonus_{1..5}.xml`. **There is no usable theme `h`** — the tileset
+  exists but `doodads/theme_h/` ships only corner pieces. Variant counts differ
+  per theme (a: 2, b: 4, c: 4, d: 8, e–g: 2, i: 8, bonus1: 2, bonus2–5: 1) and
+  must match the `tiles` field in `config/themes.ts` or `data-t` will index a
+  variant the tileset doesn't have.
 
 ## Adding custom content
 
@@ -359,13 +360,24 @@ game does not name them consistently (`tilemaps/bonus_3.xml` pairs with
 
 Confirm the matching `doodads/theme_<token>/` wall set exists — a theme without
 wall doodads produces a level with no visible walls. If it is missing individual
-pieces, use `doodadOverrides` to point them at a complete replacement path (used
-verbatim, no `%s`). **Never just skip a missing piece**: wall doodads carry the
-collision, so a gap in the set is a gap the player walks through into the void.
-`Cover` especially — it fills wall interiors and every theme needs one.
+pieces, use `doodadOverrides[piece].path` to point them at a complete replacement
+(used verbatim, no `%s`). **Never just skip a missing piece**: wall doodads carry
+the collision, so a gap in the set is a gap the player walks through.
 
-Set `tiles` to the tileset's real floor-variant count; when unknown, **1 is the
-only always-safe value**.
+**Then read the new art's `<origin>`, and do not assume the classic offsets
+apply.** `DoodadType`'s offsets exist purely to compensate for the classic
+anchor — `yOffset` = the asset's `origin_y / 16` — and they move the collision
+polygon along with the sprite. The bonus sets are anchored `0 0` where the
+lettered ones are `0 32`/`0 16`, so they override every wall piece to
+`yOffset: 0`. Getting this wrong yields walls that render but do not block. See
+`references/ASSET-REGISTRY.md` for the offset table.
+
+Set `tiles` to the tileset's `<sprite>` count — read it out of the tileset XML
+rather than guessing; when genuinely unknown, `1` is the only always-safe value.
+
+All of this is checkable without launching the game: the assets are extracted at
+`<HW>/editor/assetsExtract/`, and the stock campaigns under
+`<HW>/editor/campaign*/levels/` show how the game itself uses a tileset.
 
 ## When a campaign fails to load
 

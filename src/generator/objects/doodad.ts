@@ -48,7 +48,7 @@ export function doodadPath(type: DoodadTypeName, theme: string): string {
 
   // a theme that does not ship this piece can point at a complete replacement
   // path, which is used verbatim — no %s substitution
-  const override = themeDef?.doodadOverrides?.[type]
+  const override = themeDef?.doodadOverrides?.[type]?.path
   if (override !== undefined) return override
 
   const token = themeDef?.doodadToken ?? theme
@@ -60,6 +60,23 @@ export function doodadPath(type: DoodadTypeName, theme: string): string {
       return def.path.replace('%s', token).replace('%s', token)
     default:
       return def.path
+  }
+}
+
+/**
+ * Where this piece sits relative to its tile.
+ *
+ * The defaults in `DoodadType` compensate for the anchor of the classic themes'
+ * art (`yOffset` = the asset's `<origin>` y / 16). A theme whose art is anchored
+ * differently overrides them — and must, since the offset moves the doodad's
+ * collision polygon, not just its sprite.
+ */
+export function doodadOffset(type: DoodadTypeName, theme: string): { x: number; y: number } {
+  const def = DoodadType[type]
+  const override = getTheme(theme)?.doodadOverrides?.[type]
+  return {
+    x: override?.xOffset ?? def.xOffset,
+    y: override?.yOffset ?? def.yOffset
   }
 }
 
@@ -84,12 +101,12 @@ export class Doodad extends XMLObject {
   }
 
   getXML(): string {
-    const def = DoodadType[this.type]
+    const offset = doodadOffset(this.type, this.theme)
     const dict = new XMLDictionary('')
     dict.addData(new XMLInt('id', this.id))
     dict.addData(new XMLString('type', doodadPath(this.type, this.theme)))
-    dict.addData(new XMLFloat('x', this.x + def.xOffset))
-    dict.addData(new XMLFloat('y', this.y + def.yOffset))
+    dict.addData(new XMLFloat('x', this.x + offset.x))
+    dict.addData(new XMLFloat('y', this.y + offset.y))
     dict.addData(new XMLBool('need-sync', false))
     return dict.getXML()
   }

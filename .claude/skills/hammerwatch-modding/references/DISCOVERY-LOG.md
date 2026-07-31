@@ -79,7 +79,81 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
-### 2026-07-30 — `Cover` is a collider, not decoration: omitting it lets players walk through walls
+### 2026-07-30 — the extracted game assets are readable; check them before theorising
+
+**Tag:** [VERIFIED]
+
+**Context:** three rounds of guessing at why bonus-theme walls did not block.
+
+**Evidence:** the full asset tree is on disk at
+`<Steam>/steamapps/common/Hammerwatch/editor/assetsExtract/` — `tilemaps/*.xml`,
+`doodads/**/*.xml`, and the game's own campaigns under `editor/campaign*/levels/`.
+These are plain XML and directly readable. Reading two files
+(`theme_a/a_h_8.xml`, `theme_bonus1/bonus1_h_8.xml`) answered in one step what
+two playtest round-trips and three hypotheses had failed to.
+
+**Impact:** for any question of the form "what does this asset actually do" —
+collision, anchoring, sprite size, tile variant counts, layer order, how the
+stock campaign uses a thing — **read the asset**. Only questions about runtime
+behaviour need a playtest. Tile-variant counts are the `<sprite>` count;
+collision is `<polygon collision="true">`; anchoring is `<origin>`.
+
+### 2026-07-30 — bonus walls did not block because of a sprite-origin mismatch
+
+**Tag:** [VERIFIED] — read from the asset XML.
+
+**Context:** bonus-theme levels loaded and looked plausible, but walls were
+visibly misaligned and the player could run through them off the map.
+**Supersedes and retracts the `Cover` entry below.**
+
+**Evidence:**
+
+```
+theme_a/a_h_8.xml         <origin>0 32</origin>   collider y = -24 .. 16
+theme_bonus1/bonus1_h_8   <origin>0 0</origin>    collider y =   0 .. 16
+```
+
+Both have colliders, so nothing was "missing". Comparing all 15 matcher-placed
+pieces gives an exact rule: **the `yOffset` in `DoodadType` equals the classic
+asset's `origin_y / 16`.** `0 32` → 2, `0 16` → 1. Every piece in all five bonus
+folders is anchored `0 0`, so applying the classic offsets displaced each wall by
+1–2 tiles — sprite and collision polygon together.
+
+Also read directly from the assets, correcting earlier guesses:
+- `special/color_theme_a_16.xml` has **zero** `collision="true"` polygons.
+  `Cover` is a character-occlusion overlay. The user demonstrated this in game by
+  walking *underneath* a cover while the wall was still non-solid.
+- Real tile-variant counts: `bonus_1` = 2 (not 1), `bonus_2..5` = 1. Every
+  lettered count already in the registry was correct.
+- The bonus tilesets work standalone: the stock `campaign/levels/level_bonus_1.xml`
+  uses `bonus_1.xml` + `bonus_shadow.xml` as two datasets and **no `_default`
+  base layer**, disproving a "missing base layer" theory.
+- `tilemaps/h_default.xml` exists (14 sprites) and `doodads/theme_h/` exists, but
+  ships only the 4 corner pieces — so "no theme h" is right in effect, and now
+  for a documented reason.
+
+**Impact:**
+- `ThemeDef.doodadOverrides` values became `{ path?, xOffset?, yOffset? }`;
+  bonus themes set `yOffset: 0` on every themed wall piece. New
+  `doodadOffset(type, theme)` in `objects/doodad.ts` feeds `Doodad.getXML`.
+- **Adding a theme now requires reading the new art's `<origin>`**, not just
+  checking that filenames exist.
+- Still unconfirmed until played: whether the walls now block, and whether the
+  tuned offsets for the 24×24 `bonus_entrance`/`bonus_exit` sprites sit square in
+  the 2-tile alcove built for the 32×48 lettered frames.
+
+### 2026-07-30 — [RETRACTED] `Cover` is a collider, not decoration: omitting it lets players walk through walls
+
+**This entry is wrong.** `Cover` has no collision polygons at all; see the
+sprite-origin entry above for the real cause. Kept per the append-only rule. The
+reasoning error worth remembering: "it was the only difference that *could*
+explain it" is not evidence, and it was tagged `[VERIFIED]` off a single
+screenshot rather than off the asset that would have settled it in one read.
+
+Its incidental observations — brightness is fine, `tiles: 1` loads — do still
+hold. Original entry preserved verbatim below.
+
+---
 
 **Tag:** [VERIFIED] — playtested on Windows, `bonus1`, 8-level campaign.
 

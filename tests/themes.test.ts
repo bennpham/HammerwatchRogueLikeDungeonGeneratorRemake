@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { generateDungeon, defaultParameters, getTheme, THEMES, THEME_DEFS, DungeonResult } from '../src/generator'
-import { DoodadType, doodadPath } from '../src/generator/objects/doodad'
+import { DoodadType, doodadPath, doodadOffset } from '../src/generator/objects/doodad'
+import { THEMED_WALL_PIECES } from '../src/generator/config/themes'
+import type { DoodadTypeName } from '../src/generator/objects/doodad'
 
 function generateWithTheme(theme: string, seed: number, levels?: number): DungeonResult {
   const params = defaultParameters()
@@ -48,9 +50,46 @@ describe('theme registry', () => {
     }
   })
 
-  it('gives every theme a Cover, since it is what makes wall interiors solid', () => {
+  it('gives every theme a Cover — the character-occlusion overlay over wall tops', () => {
     for (const def of THEME_DEFS) {
       expect(doodadPath('Cover', def.id)).toMatch(/^doodads\/special\/color_theme_[a-gi]_16\.xml$/)
+    }
+  })
+
+  it('keeps THEMED_WALL_PIECES in sync with the themeSubs:2 entries of DoodadType', () => {
+    const fromTable = (Object.keys(DoodadType) as DoodadTypeName[]).filter(
+      (k) => DoodadType[k].themeSubs === 2
+    )
+    expect([...THEMED_WALL_PIECES].sort()).toEqual([...fromTable].sort())
+  })
+})
+
+describe('doodadOffset — the anchor compensation', () => {
+  // DoodadType's offsets encode the classic art's <origin> y / 16. The bonus art
+  // is anchored at 0 0, so reusing the classic offsets displaces the collision
+  // polygon and the player walks through walls.
+  it('uses the classic anchors for lettered themes', () => {
+    expect(doodadOffset('Horizontal', 'a')).toEqual({ x: 0, y: 2 })
+    expect(doodadOffset('Vertical', 'a')).toEqual({ x: 0, y: 1 })
+    expect(doodadOffset('CrossWall', 'a')).toEqual({ x: 0, y: 1 })
+    expect(doodadOffset('TDown', 'a')).toEqual({ x: 0, y: 2 })
+  })
+
+  it('flattens every wall piece to yOffset 0 for the bonus themes', () => {
+    for (const def of THEME_DEFS.filter((t) => t.id.startsWith('bonus'))) {
+      for (const piece of THEMED_WALL_PIECES) {
+        // the stair frames are a different sprite entirely, tuned separately
+        if (piece === 'ExitUp' || piece === 'ExitDn') continue
+        expect(doodadOffset(piece, def.id)).toEqual({ x: 0, y: 0 })
+      }
+    }
+  })
+
+  it('leaves non-themed pieces on their defaults for every theme', () => {
+    for (const def of THEME_DEFS) {
+      expect(doodadOffset('Spawn', def.id)).toEqual({ x: 1, y: 1 })
+      expect(doodadOffset('Torch', def.id)).toEqual({ x: 0.5, y: 1 })
+      expect(doodadOffset('Cover', def.id)).toEqual({ x: 0.5, y: 0.5 })
     }
   })
 })
@@ -90,12 +129,30 @@ describe('generating with a bonus theme', () => {
     const level = result.files.find((f) => f.path === 'levels/level3.xml')!.content
     expect(level).toContain('doodads/special/bonus_entrance.xml')
     expect(level).toContain('doodads/special/bonus_exit.xml')
-    // wall interiors must still be filled — this is what stops players walking
-    // through walls, not just a visual
+    // the occlusion overlay, so the character does not show through wall tops
     expect(level).toContain('doodads/special/color_theme_a_16.xml')
     for (const file of result.files.filter((f) => f.path.startsWith('levels/level'))) {
       expect(file.content).not.toContain('exit_h_')
       expect(file.content).not.toContain('color_theme_bonus')
+    }
+  })
+
+  it('emits bonus wall doodads without the classic anchor shift', () => {
+    // end-to-end version of the doodadOffset unit tests: the same wall piece on
+    // the same seed must sit 2 tiles higher for bonus1 than for theme a
+    const yOf = (theme: string): number[] => {
+      const xml = generateWithTheme(theme, 5150, 1).files.find((f) => f.path === 'levels/level0.xml')!
+        .content
+      return [...xml.matchAll(/<string name="type">[^<]*_h_8\.xml<\/string>\s*<float name="x">[^<]*<\/float>\s*<float name="y">([^<]*)<\/float>/g)]
+        .map((m) => Number(m[1]))
+        .slice(0, 20)
+    }
+    const classicYs = yOf('a')
+    const bonusYs = yOf('bonus1')
+    expect(classicYs.length).toBeGreaterThan(0)
+    expect(bonusYs.length).toBe(classicYs.length)
+    for (let i = 0; i < classicYs.length; i++) {
+      expect(classicYs[i] - bonusYs[i]).toBe(2)
     }
   })
 
