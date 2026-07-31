@@ -42,6 +42,11 @@ src/
 │   │                     wallPattern.ts, posDir.ts
 │   ├── objects/          monsterTypes.ts (roster data), monster.ts, item.ts,
 │   │                     doodad.ts, nodes.ts, scriptNode.ts, objectSet.ts
+│   ├── lobby/            the prebuilt starting level — NOT generated geometry
+│   │   ├── template.ts   the lobby XML verbatim (generated + committed)
+│   │   ├── assets.ts     custom files it references, base64 when binary
+│   │   ├── shops.ts      the five vendor stalls and their shop columns
+│   │   └── build.ts      buildLobby() — four surgical edits, no RNG
 │   ├── tweak/            player balance (tweak/*.xml) — NOT level generation
 │   │   ├── types.ts      TweakFile/TweakParam/TweakUpgrade, PlayerTweaks
 │   │   ├── baseline.ts   full stock transcription of the 9 game tweak files
@@ -96,11 +101,13 @@ reference/hammerwatch-tweak-stats.md
    in `src/main/ipc.ts` and are *stripped* from the renderer response; the
    renderer only ever receives previews. Don't send megabytes of XML over the
    bridge.
-8. **Tweaks never touch the RNG.** `src/generator/tweak/**` draws no random
+8. **Tweaks and the lobby never touch the RNG.** `src/generator/tweak/**` draws no random
    values and is called *after* every level is built. A stock run (no player
    edits) must emit exactly the files it emitted before the feature existed —
    no `tweak/` folder at all. Adding a tweak field must not change any seed's
-   dungeon.
+   dungeon. The same holds for `src/generator/lobby/**`: it is applied after the
+   level loop, draws no random values, and a seed's `levels/level*.xml` must be
+   byte-identical whether the lobby is on or off.
 
 ## Parameters (the app's whole surface)
 
@@ -121,6 +128,7 @@ reference/hammerwatch-tweak-stats.md
 | `levelMonsters[i]` | see defaults | non-empty; ids must exist in `MONSTER_TYPES`; repeat an id to weight it |
 | `monsterMax[id]` | per-type | integer ≥ 0; **0 disables the type entirely** |
 | `playerTweaks` | `{}` | sparse `Record<lowercase key, number>` of player-balance overrides; empty = no `tweak/` folder. See below |
+| `lobby` | on, 0 gold, all 21 columns | prebuilt starting level: `enabled`, `startingGold` (multiple of 500, ≤ 12000), `shopCategories`. `enabled: false` reproduces the pre-lobby campaign exactly |
 
 Plus two app settings that are *not* generator parameters:
 `hammerwatchPath` and `cleanupFiles` (persisted in Electron userData via

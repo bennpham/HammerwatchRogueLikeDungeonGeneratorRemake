@@ -103,7 +103,9 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
 
     const zip = new JSZip()
     for (const file of result.files) {
-      zip.file(`${result.campaignName}/${file.path}`, file.content)
+      zip.file(`${result.campaignName}/${file.path}`, file.content, {
+        base64: file.encoding === 'base64'
+      })
     }
     const buffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
     await writeFile(picked.filePath, buffer)

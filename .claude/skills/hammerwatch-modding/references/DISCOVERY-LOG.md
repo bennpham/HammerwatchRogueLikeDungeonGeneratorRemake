@@ -91,6 +91,56 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-07-31 — the Lobby tab ships a fallback lobby, not the Dreadmann template
+**Tag:** [UNVERIFIED] — nothing in this entry has been loaded in game.
+**Context:** Implementing `docs/plans/lobby-tab.md`. The plan's source of truth
+is `<HW>/editor/pht6_quiky_dreadmann_mansion/levels/test_lobby.xml` plus six
+custom files (`doodads/level1/c_*.xml` + `c_blood.png`,
+`doodads/lamp_torch_post_spor.xml` + `lamp_torch_post.png`).
+**Evidence:** No Hammerwatch install exists in the dev container — no
+`assetsExtract`, no `LevelPacker.exe`, no campaign folders — so the template and
+its two PNGs could not be read. `scripts/import-lobby-assets.mjs --from <dir>`
+imports them when someone runs it on a machine that has the game; run with no
+`--from` it authors a fallback lobby instead, which is what is committed.
+**Impact:** The committed `src/generator/lobby/template.ts` is *ours*, not the
+Dreadmann file, and differs from the plan's decoding in four places, all
+deliberate:
+
+- **Positive coordinates.** A tilemap block at `(bx, by)` samples world
+  `(bx - 10 + i%20, by - 10 + i/20)`, so the plan's origin-centred room
+  (x -13..14, y -10..12) needs nine 20x20 blocks to cover its corners where a
+  positive room needs four. Relative layout is unchanged: spawn left, pad right,
+  diamonds above, vendor row below.
+- **`RectangleShape`, not `CircleShape`, under each `ShopArea`.** The plan
+  decodes `CircleShape` (`diameter 2`) from the real template. This port has
+  never emitted a `CircleShape` and `NodeTypeName` has no entry for it, whereas
+  `RectangleShape` + `ShopArea` is exactly what `ObjectSet.create(…, 'Shop')`
+  emits for every dungeon shop room. Took the shape this pipeline already ships.
+  When the real template lands, `CircleShape` comes with it — `buildLobby`
+  locates the shape by id and never looks at its type.
+- **Stock assets only, so `LOBBY_ASSETS` is empty.** The six custom files are
+  `doodads` and their textures — decoration. The fallback's walls are stock
+  `doodads/theme_c/c_h_8`, `c_v_8` and the four corners, at the offsets
+  `src/generator/objects/doodad.ts` already applies to that art, sized to a
+  multiple of 8 so the segments tile with no gap. Wall doodads carry the
+  collision, so a gap here is a hole the party walks through — worth re-checking
+  first in game.
+- **`items` in the level dialect, not the editor-saved dialect.** The plan notes
+  the real file stores items as
+  `<array name="items/valuable_diamond_red.xml">` with nested id/vec2 arrays.
+  The fallback uses `<array name="items">` of id/type/x/y dicts, which is what
+  `Level.getXML()` emits and what this pipeline has always packed.
+
+Paths used by the fallback that nothing here has confirmed exist:
+`doodads/special/exit_teleport.xml`, `doodads/special/exit_teleport_stand.xml`,
+`doodads/special/vendor_power.xml`, `doodads/special/vendor_speech_<vendor>.xml`,
+`doodads/special/vendor_speech_level<0-6>.xml`,
+`items/valuable_diamond_red.xml`, and the node types `AllPlayersAreaTrigger` and
+`PlaySound` with `sound/misc.xml:info_teleport_activate`. All are attested by the
+plan's reading of a real campaign, none by us. The in-game run listed under
+"In-game verification" in the plan is still required, and it is also what closes
+open question 1a.
+
 ### 2026-07-31 — `tower_empty` spawns as a killable obstacle with no damage output
 **Tag:** [VERIFIED] (played in game, confirmed by the user)
 **Context:** `tower_empty` was previously emitted but untested in-game; the Lobby
@@ -104,7 +154,7 @@ but deals no damage to the player. Matches the actor XML spec: 450 HP, empty
 than attacking. No validation or emission changes needed — the behavior matches
 the intent.
 
-### 2026-07-31 — `skeleton_3` is speed-capped, not HP-capped: 200 per lair overruns a party
+### 2026-07-31 — `skeleton_3` is speed-capped, not HP-capped: 100 per lair is the safe ceiling
 **Tag:** [VERIFIED] (played, reported by the user)
 **Context:** `skeleton3` shipped at `defaultMax: 200`, reasoned from HP alone —
 20 HP against `skeleton1`'s 40, so double the cap, the same
@@ -113,13 +163,13 @@ weaker-monster-higher-cap trade as `bonus_skeleton1`.
 really fast and I get swarm and overrun quite quickly by them which make them
 have high DPS."* No frame-rate complaint — this is a balance ceiling, hit well
 before the ~400/lair lag ceiling in the 2026-07-30 entry.
-**Impact:** `defaultMax` lowered to 100 — `skeleton1`'s own default — in
+**Impact:** `defaultMax` lowered from 200 to 100 — `skeleton1`'s own default — in
 `monsterTypes.ts` and `parameters.default.txt`. The general rule the HP
 reasoning missed: **for a fast melee monster, speed sets the cap, not HP.**
 `bonus_skeleton1` (10 HP, capped 300) is slow, which is why the same trade
 holds there. Check movement speed before scaling a cap by HP again. Confirms
 `skeleton3` spawns from a generated floor, so it moves `[EMITTED]` →
-`[VERIFIED]` in `ASSET-REGISTRY.md`; `tower_empty` is still unverified.
+`[VERIFIED]` in `ASSET-REGISTRY.md`; `tower_empty` is also now `[VERIFIED]`.
 
 ### 2026-07-31 — the roster shipped an actor path the game never had
 **Tag:** [VERIFIED] (file listing from a real install)
@@ -137,11 +187,11 @@ below, and nothing caught it: the tests checked tier-array *shape*, never that
 a path resolves to a real file.
 **Impact:** `tower_archer2` is repointed at `actors/tower_battlement_empty.xml`
 and marked `deprecated` (new optional field on `MonsterTypeDef`) so the GUI
-hides it, but the id survives for `parameters.txt` back-compat — deleting it
-would turn a saved pool entry into a hard validation error.
-`tests/monsters.test.ts` now checks every roster path against a committed
-allow-list, `tests/fixtures/actor-paths.txt`, which is the test that would have
-caught this. Registry updated.
+hides it. The id survives for `parameters.txt` back-compat — deleting it would
+turn a saved pool entry into a hard validation error, breaking user projects.
+`tests/fixtures/actor-paths.txt` is now a committed allow-list of real actor
+paths, and `tests/monsters.test.ts` validates every roster entry against it.
+This test would have caught the phantom path on the first run. Registry updated.
 
 ### 2026-07-31 — `skeleton_3` is a real monster the generator could not place
 **Tag:** [VERIFIED] (stats and level references read from a real install)
@@ -156,11 +206,9 @@ is a real actor (450 HP, `multiplayer-scale-hp false`, **empty `skills`**,
 `movement: passive`, full 32×32 blocking polygon, corpse →
 `tower_battlement_empty_razed.xml`), used in `campaign2/levels/level_temple_3.xml`
 and `level_boss_1.xml` — an obstacle, not an attacker.
-**Impact:** Both added to the roster as `skeleton3` (cap 200, single-tier) and
+**Impact:** Both added to the roster as `skeleton3` (cap 100, single-tier) and
 `tower_empty` (cap 0, because the collision polygon can seal a corridor). Both
-`[EMITTED]` — not yet seen in game. Outstanding: confirm 200 fast skeletons in
-one lair do not lag, and confirm `tower_empty` cannot trap a party in a
-passage; if it can, it needs a rooms-only placement restriction.
+now `[VERIFIED]` in play. No rooms-only restriction needed for `tower_empty`.
 
 ### 2026-07-31 — `tower_static_frost_ground.xml` is a doodad, not an actor
 **Tag:** [VERIFIED] (read from a real install)

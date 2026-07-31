@@ -1,5 +1,6 @@
 import { MONSTER_TYPES } from '../objects/monsterTypes'
 import { THEME_DEFS } from './themes'
+import { ALL_LOBBY_CATEGORIES } from '../lobby/shops'
 import type { PlayerTweaks } from '../tweak/types'
 
 /** Ids of every theme the generator can emit — see themes.ts for the registry. */
@@ -40,6 +41,24 @@ export interface DungeonParameters {
    * changed nothing, in which case no tweak/ folder is emitted at all.
    */
   playerTweaks: PlayerTweaks
+  /**
+   * The prebuilt starting level. `enabled: false` reproduces the pre-lobby
+   * campaign exactly — same files, same `levels.xml`, same seeds.
+   */
+  lobby: LobbyOptions
+}
+
+/**
+ * The lobby is a hand-authored level, not generated geometry, so its options
+ * describe what to *edit* in the committed template rather than how to lay it
+ * out. See src/generator/lobby/.
+ */
+export interface LobbyOptions {
+  enabled: boolean
+  /** multiple of 500 — each 500 is one red diamond on the lobby floor */
+  startingGold: number
+  /** selected shop columns, e.g. ['misc1', 'misc2', 'off1', 'power'] */
+  shopCategories: string[]
 }
 
 export function defaultParameters(): DungeonParameters {
@@ -74,6 +93,9 @@ export function defaultParameters(): DungeonParameters {
       ['skeleton2', 'lich']
     ],
     monsterMax: Object.fromEntries(MONSTER_TYPES.map((t) => [t.id, t.defaultMax])),
-    playerTweaks: {}
+    playerTweaks: {},
+    // lobby on, but no gold on the floor: the point of the default is to show
+    // the vendors exist, not to hand the party a head start they didn't ask for
+    lobby: { enabled: true, startingGold: 0, shopCategories: [...ALL_LOBBY_CATEGORIES] }
   }
 }

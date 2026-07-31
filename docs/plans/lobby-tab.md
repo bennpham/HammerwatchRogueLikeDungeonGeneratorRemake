@@ -3,8 +3,14 @@
 Tracks [issue #5](https://github.com/bennpham/HammerwatchRogueLikeDungeonGeneratorRemake/issues/5):
 *"As the party, I would like a small lobby before diving into the dungeon."*
 
-**Status: approved, not implemented.** This document is the spec to hand an
-implementer; no code in this PR.
+**Status: implemented** on `claude/lobby-tab-implementation-dnczao`, with one
+substitution: no Hammerwatch install was available, so `test_lobby.xml` and its
+six custom files could not be read. `scripts/import-lobby-assets.mjs` imports
+them from a real install; run without `--from` it authored the stock-asset
+fallback lobby that is committed today. The four deliberate divergences and the
+asset paths still unconfirmed are recorded in the 2026-07-31 entry of
+`.claude/skills/hammerwatch-modding/references/DISCOVERY-LOG.md`. The in-game
+verification below is still outstanding.
 
 ---
 

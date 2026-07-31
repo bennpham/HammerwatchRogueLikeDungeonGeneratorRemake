@@ -10,7 +10,13 @@ export async function writeCampaign(targetDir: string, files: GeneratedFile[]): 
   for (const file of files) {
     const fullPath = join(targetDir, file.path)
     await mkdir(dirname(fullPath), { recursive: true })
-    await writeFile(fullPath, file.content, 'utf-8')
+    // the generator is pure and hands back strings only, so a binary asset
+    // (the lobby ships its own art) arrives base64 and is decoded here
+    await writeFile(
+      fullPath,
+      file.encoding === 'base64' ? Buffer.from(file.content, 'base64') : file.content,
+      file.encoding === 'base64' ? undefined : 'utf-8'
+    )
   }
 }
 

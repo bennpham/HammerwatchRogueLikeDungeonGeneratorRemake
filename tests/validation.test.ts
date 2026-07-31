@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { defaultParameters } from '../src/generator/config/parameters'
 import { validateParameters } from '../src/generator/config/validation'
+import { LOBBY_GOLD_MAX } from '../src/generator/lobby'
 
 const fieldsOf = (issues: Array<{ field: string }>) => issues.map((i) => i.field)
 
@@ -170,5 +171,70 @@ describe('player tweak validation', () => {
     const result = withTweaks({ 'player.knight.effect.whirldur1.whirl-dur': 3 })
     expect(result.warnings).toEqual([])
     expect(result.valid).toBe(true)
+  })
+})
+
+describe('lobby validation', () => {
+  const withLobby = (patch: Partial<ReturnType<typeof defaultParameters>['lobby']>) => {
+    const p = defaultParameters()
+    p.lobby = { ...p.lobby, ...patch }
+    return validateParameters(p)
+  }
+
+  it('accepts the default lobby', () => {
+    const result = withLobby({})
+    expect(result.errors).toEqual([])
+    expect(result.warnings).toEqual([])
+  })
+
+  it('rejects gold that is not a multiple of 500', () => {
+    const result = withLobby({ startingGold: 750 })
+    expect(result.valid).toBe(false)
+    expect(fieldsOf(result.errors)).toContain('lobby.startingGold')
+  })
+
+  it('rejects negative and fractional gold', () => {
+    expect(withLobby({ startingGold: -500 }).valid).toBe(false)
+    expect(withLobby({ startingGold: 500.5 }).valid).toBe(false)
+  })
+
+  it('rejects gold past the stack depth anyone has actually confirmed', () => {
+    expect(withLobby({ startingGold: LOBBY_GOLD_MAX }).valid).toBe(true)
+    const over = withLobby({ startingGold: LOBBY_GOLD_MAX + 500 })
+    expect(over.valid).toBe(false)
+    expect(fieldsOf(over.errors)).toContain('lobby.startingGold')
+  })
+
+  it('rejects an unknown shop column', () => {
+    const result = withLobby({ shopCategories: ['misc1', 'misc6'] })
+    expect(result.valid).toBe(false)
+    expect(fieldsOf(result.errors)).toContain('lobby.shopCategories')
+  })
+
+  it('warns, without blocking, when no vendor is selected', () => {
+    const result = withLobby({ shopCategories: [] })
+    expect(result.valid).toBe(true)
+    expect(fieldsOf(result.warnings)).toContain('lobby.shopCategories')
+  })
+
+  it('stays quiet about vendors while the lobby is off', () => {
+    const result = withLobby({ enabled: false, shopCategories: [] })
+    expect(result.warnings).toEqual([])
+  })
+
+  it('collapses emptied columns into one warning', () => {
+    const p = defaultParameters()
+    // strip every upgrade the power column sells
+    p.playerTweaks = {
+      'player.shared.remove.life': 1,
+      'player.shared.remove.rejuv': 1,
+      'player.shared.remove.pot-dmg': 1,
+      'player.shared.remove.pot-rejuv': 1,
+      'player.shared.remove.pot-invul': 1
+    }
+    const result = validateParameters(p)
+    const lobbyWarnings = result.warnings.filter((w) => w.field === 'lobby.shopCategories')
+    expect(lobbyWarnings).toHaveLength(1)
+    expect(lobbyWarnings[0].message).toContain('Power')
   })
 })

@@ -1,0 +1,404 @@
+#!/usr/bin/env node
+/**
+ * Regenerates the two committed data modules of src/generator/lobby/:
+ *
+ *   template.ts   the lobby level XML, verbatim, as a string literal
+ *   assets.ts     the custom files the template references, base64 where binary
+ *
+ * Run by hand, never by the build. The generator must stay pure and the app
+ * must work on a machine with no Hammerwatch installed, so the lobby ships as
+ * committed data rather than something read from the Steam folder at runtime.
+ *
+ * Two modes:
+ *
+ *   node scripts/import-lobby-assets.mjs
+ *       Authors the built-in fallback lobby from the layout constants below.
+ *       Stock assets only, so `assets.ts` comes out empty. This is what is
+ *       committed today.
+ *
+ *   node scripts/import-lobby-assets.mjs --from "<HW>/editor/<campaign>" \
+ *        --level levels/test_lobby.xml --asset doodads/level1/c_v_16.xml ...
+ *       Imports a real hand-authored lobby and the custom files it references.
+ *       Each --asset is read relative to --from and embedded, base64 for
+ *       anything that is not XML.
+ *
+ * After an import, re-check the id constants at the bottom of the generated
+ * template.ts against the new file: buildLobby() finds the vendor stalls,
+ * the diamonds and the exit by those ids and nothing else.
+ */
+
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { join, dirname, extname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const here = dirname(fileURLToPath(import.meta.url))
+const outDir = join(here, '..', 'src', 'generator', 'lobby')
+
+// ---------------------------------------------------------------- layout
+
+/**
+ * The fallback lobby's geometry, in tiles.
+ *
+ * Positive coordinates on purpose. The Dreadmann Mansion template this is
+ * standing in for is centred on the origin (x -13..14, y -10..12), but a
+ * tilemap block at (bx, by) samples world (bx - 10 + i%20, by - 10 + i/20),
+ * so an origin-centred room needs nine 20x20 blocks to cover its corners
+ * where a positive one needs four. The relative layout — spawn left, pad
+ * right, diamonds above, vendor row below — is the same.
+ */
+const FLOOR = { x0: 1, y0: 1, x1: 24, y1: 24 }
+const BLOCKS = [
+  [0, 0],
+  [20, 0],
+  [0, 20],
+  [20, 20]
+]
+const TILESET = 'tilemaps/c_default.xml'
+/** every floor cell gets variant 1: the lobby draws no random values at all */
+const TILE_VARIANT = 1
+
+const SPAWN = { x: 3, y: 12 }
+const PAD = { x: 20, y: 12 }
+const EXIT = { x: 23, y: 10 }
+const VENDOR_Y = 20
+/** offsets from the vendor doodad, preserved from the decoded template */
+const SHOP_AREA_DY = -3.5
+const SHOP_SHAPE_DY = -0.25
+
+const VENDORS = [
+  { key: 'combo', x: 4, ids: 100 },
+  { key: 'defense', x: 8, ids: 110 },
+  { key: 'misc', x: 12, ids: 120 },
+  { key: 'offense', x: 16, ids: 130 },
+  { key: 'power', x: 20, ids: 140 }
+]
+
+const DIAMOND_SLOTS = []
+for (const y of [5, 7]) {
+  for (const x of [5.5, 8.5, 11.5, 14.5, 17.5, 20.5]) DIAMOND_SLOTS.push([x, y])
+}
+
+const IDS = {
+  levelStart: 0,
+  pad: 10,
+  trigger: 11,
+  sound: 12,
+  exit: 13,
+  teleportStand: 20,
+  teleport: 21
+}
+
+/** ids at or above this are buildLobby's to allocate; the template uses none */
+const DIAMOND_ID_BASE = 10000
+
+// ------------------------------------------------------------ XML helpers
+
+const int = (name, v) => `<int name="${name}">${Math.trunc(v)}</int>`
+const flt = (name, v) => `<float name="${name}">${v.toFixed(6)}</float>`
+const str = (name, v) => `<string name="${name}">${v}</string>`
+const bool = (name, v) => `<bool name="${name}">${v ? 'True' : 'False'}</bool>`
+const intArr = (name, v) => `<int-arr name="${name}">${v.map(Math.trunc).join(' ')}</int-arr>`
+
+const dict = (name, children) =>
+  `<dictionary${name === '' ? '' : ` name="${name}"`}>\n${children.map((c) => `${c}\n`).join('')}</dictionary>\n`
+
+const arr = (name, children) => `<array name="${name}">${children.join('')}</array>`
+
+const doodad = (id, type, x, y) => dict('', [int('id', id), str('type', type), flt('x', x), flt('y', y), bool('need-sync', false)])
+
+const item = (id, type, x, y) => dict('', [int('id', id), str('type', type), flt('x', x), flt('y', y)])
+
+const node = (id, type, x, y, params, connections) =>
+  dict('', [
+    int('id', id),
+    str('type', type),
+    bool('enabled', true),
+    int('trigger-times', -1),
+    flt('x', x),
+    flt('y', y),
+    dict('parameters', params),
+    ...(connections === undefined ? [] : [intArr('connections', connections), intArr('delays', connections)])
+  ])
+
+const shapeRef = (ids) => dict('shape', [intArr('static', ids)])
+
+// ------------------------------------------------------------- the tilemap
+
+function tileBlock(bx, by) {
+  const t = []
+  for (let i = 0; i < 400; i++) {
+    const x = bx - 10 + (i % 20)
+    const y = by - 10 + Math.trunc(i / 20)
+    const floor = x >= FLOOR.x0 && x <= FLOOR.x1 && y >= FLOOR.y0 && y <= FLOOR.y1
+    t.push(floor ? TILE_VARIANT : 0)
+  }
+  const full = new Array(400).fill(255)
+  const set = dict('', [
+    str('tileset', TILESET),
+    intArr('data-t', t),
+    intArr('data-r', full),
+    intArr('data-g', full),
+    intArr('data-b', full),
+    intArr('data-a', full)
+  ])
+  return dict('', [int('x', bx), int('y', by), arr('datasets', [set])])
+}
+
+// ------------------------------------------------------------- the doodads
+
+/**
+ * A ring of stock theme_c wall pieces around the floor.
+ *
+ * Wall doodads carry the collision, so this is what stops the party walking
+ * off the edge — it is not decoration. The floor is sized in multiples of 8
+ * so the 8-tile segments tile it exactly with no gap to fall through, and the
+ * per-piece offsets are the ones src/generator/objects/doodad.ts applies to
+ * the same art.
+ */
+function wallDoodads(startId) {
+  const out = []
+  let id = startId
+  const push = (type, x, y, dx, dy) => {
+    out.push(doodad(id++, `doodads/theme_c/${type}.xml`, x + dx, y + dy))
+  }
+
+  const left = FLOOR.x0 - 1
+  const right = FLOOR.x1 + 1
+  const top = FLOOR.y0 - 1
+  const bottom = FLOOR.y1 + 1
+
+  for (let x = FLOOR.x0; x <= FLOOR.x1; x += 8) {
+    push('c_h_8', x, top, 0, 2)
+    push('c_h_8', x, bottom, 0, 2)
+  }
+  for (let y = FLOOR.y0; y <= FLOOR.y1; y += 8) {
+    push('c_v_8', left, y, 0, 1)
+    push('c_v_8', right, y, 0, 1)
+  }
+  push('c_crn_l_up', left, top, 0, 1)
+  push('c_crn_r_up', right, top, 0, 1)
+  push('c_crn_l_dn', left, bottom, 0, 2)
+  push('c_crn_r_dn', right, bottom, 0, 2)
+
+  return out
+}
+
+function lobbyDoodads() {
+  const out = []
+
+  out.push(doodad(IDS.teleportStand, 'doodads/special/exit_teleport_stand.xml', PAD.x, PAD.y))
+  out.push(doodad(IDS.teleport, 'doodads/special/exit_teleport.xml', PAD.x, PAD.y))
+
+  for (const v of VENDORS) {
+    out.push(doodad(v.ids + 2, `doodads/special/vendor_${v.key}.xml`, v.x, VENDOR_Y))
+    out.push(doodad(v.ids + 3, `doodads/special/vendor_speech_${v.key}.xml`, v.x, VENDOR_Y))
+    // the little number over a vendor is a plain doodad, not shop data. It
+    // starts at the full column count and buildLobby rewrites the path to match
+    // the selection. `power` is a single column, so it wears no badge at all.
+    if (v.key !== 'power') {
+      out.push(doodad(v.ids + 4, 'doodads/special/vendor_speech_level5.xml', v.x, VENDOR_Y))
+    }
+  }
+
+  out.push(...wallDoodads(200))
+  return out
+}
+
+// --------------------------------------------------------------- the nodes
+
+function lobbyNodes() {
+  const out = []
+
+  out.push(node(IDS.levelStart, 'LevelStart', SPAWN.x, SPAWN.y, [int('id', 0), int('dir', 2)]))
+
+  for (const v of VENDORS) {
+    const cats =
+      v.key === 'power' ? 'power' : [1, 2, 3, 4, 5].map((n) => `${shortCat(v.key)}${n}`).join(' ')
+    out.push(
+      node(v.ids, 'RectangleShape', v.x, VENDOR_Y + SHOP_SHAPE_DY, [
+        flt('w', 2),
+        flt('h', 2),
+        int('types', 15)
+      ])
+    )
+    out.push(
+      node(v.ids + 1, 'ShopArea', v.x, VENDOR_Y + SHOP_AREA_DY, [str('cats', cats), shapeRef([v.ids])])
+    )
+  }
+
+  out.push(node(IDS.pad, 'RectangleShape', PAD.x, PAD.y, [flt('w', 3), flt('h', 3), int('types', 15)]))
+  out.push(
+    node(
+      IDS.trigger,
+      'AllPlayersAreaTrigger',
+      PAD.x,
+      PAD.y,
+      [shapeRef([IDS.pad])],
+      [IDS.sound, IDS.exit]
+    )
+  )
+  out.push(
+    node(IDS.sound, 'PlaySound', PAD.x, PAD.y, [str('sound', 'sound/misc.xml:info_teleport_activate')])
+  )
+  // the level string is the one value buildLobby rewrites; the trigger fires
+  // this node directly, so its own shape stays empty
+  out.push(
+    node(IDS.exit, 'LevelExitArea', EXIT.x, EXIT.y, [
+      str('level', '1'),
+      int('start id', 0),
+      shapeRef([])
+    ])
+  )
+
+  return out
+}
+
+function shortCat(key) {
+  return { combo: 'combo', defense: 'def', misc: 'misc', offense: 'off' }[key]
+}
+
+// ------------------------------------------------------------ the whole file
+
+function buildFallbackTemplate() {
+  const tilemap = dict('tilemap', [arr('tiledata', BLOCKS.map(([x, y]) => tileBlock(x, y)))])
+  const doodads = dict('doodads', [arr('doodads', lobbyDoodads())])
+  const actors = dict('actors', [arr('actors', [])])
+  const scripting = dict('scripting', [arr('nodes', lobbyNodes())])
+  const items = dict('items', [arr('items', [])])
+  const lighting = dict('lighting', [
+    arr('lights', []),
+    dict('ambient-color', [int('r', 255), int('g', 255), int('b', 255), int('a', 255)]),
+    dict('shadow-color', [int('r', 128), int('g', 128), int('b', 128), int('a', 128)])
+  ])
+
+  return dict('', [tilemap, doodads, actors, scripting, items, lighting])
+}
+
+// ----------------------------------------------------------------- emitting
+
+function literal(text) {
+  if (text.includes('`') || text.includes('${')) {
+    throw new Error('template contains a backtick or ${ and cannot be emitted as a template literal')
+  }
+  return `\`${text.replace(/\\/g, '\\\\')}\``
+}
+
+function emitTemplate(xml, source) {
+  const slots = DIAMOND_SLOTS.map(([x, y]) => `  [${x}, ${y}]`).join(',\n')
+  const vendorIds = VENDORS.map(
+    (v) =>
+      `  ${v.key}: { shape: ${v.ids}, shop: ${v.ids + 1}, vendor: ${v.ids + 2}, speech: ${v.ids + 3}, badge: ${v.key === 'power' ? 'null' : v.ids + 4} }`
+  ).join(',\n')
+
+  return `/**
+ * The lobby level, verbatim.
+ *
+ * GENERATED by scripts/import-lobby-assets.mjs — do not edit by hand.
+ * Source: ${source}
+ *
+ * Treated as an opaque swappable template: buildLobby() rewrites four things
+ * in it by id (vendor \`cats\`, badge doodad paths, the diamond list and the
+ * exit's target level) and touches nothing else. Nothing here is re-serialized
+ * through src/generator/xml/, and no value is drawn from either RNG stream.
+ */
+export const LOBBY_TEMPLATE = ${literal(xml)}
+
+/** Element ids buildLobby edits, one group per vendor stall. */
+export interface LobbyVendorIds {
+  /** the shape the ShopArea covers */
+  shape: number
+  /** the ShopArea node carrying \`cats\` */
+  shop: number
+  /** the vendor doodad */
+  vendor: number
+  /** the speech-bubble doodad */
+  speech: number
+  /** the little tier number over the vendor, or null for a single-column stall */
+  badge: number | null
+}
+
+export const LOBBY_TEMPLATE_IDS: Readonly<Record<string, LobbyVendorIds>> = {
+${vendorIds}
+}
+
+/** The LevelExitArea whose target level buildLobby rewrites. */
+export const LOBBY_EXIT_NODE_ID = ${IDS.exit}
+
+/**
+ * Where the red diamonds go, in template order.
+ *
+ * Starting gold past 12 diamonds walks this list again rather than spilling
+ * outside the room — stacking pays out in full ([VERIFIED] 2026-07-30).
+ */
+export const LOBBY_DIAMOND_SLOTS: ReadonlyArray<readonly [number, number]> = [
+${slots}
+]
+
+/** First id buildLobby hands to a diamond; above anything the template uses. */
+export const LOBBY_ITEM_ID_BASE = ${DIAMOND_ID_BASE}
+`
+}
+
+function emitAssets(assets) {
+  const entries = assets
+    .map(
+      (a) =>
+        `  {\n    path: '${a.path}',\n    content: ${literal(a.content)},\n    encoding: '${a.encoding}'\n  }`
+    )
+    .join(',\n')
+
+  return `import type { GeneratedFile } from '../index'
+
+/**
+ * Files the lobby template references that the game does not already ship.
+ *
+ * GENERATED by scripts/import-lobby-assets.mjs — do not edit by hand.
+ *
+ * Empty for the built-in fallback lobby, which deliberately references stock
+ * assets only. Importing a hand-authored lobby fills this in; binary files are
+ * carried as base64 and written back out by src/main/packer.ts.
+ */
+export const LOBBY_ASSETS: readonly GeneratedFile[] = [${entries === '' ? '' : `\n${entries}\n`}]
+`
+}
+
+// --------------------------------------------------------------------- main
+
+function parseArgs(argv) {
+  const out = { from: undefined, level: 'levels/test_lobby.xml', assets: [] }
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--from') out.from = argv[++i]
+    else if (argv[i] === '--level') out.level = argv[++i]
+    else if (argv[i] === '--asset') out.assets.push(argv[++i])
+  }
+  return out
+}
+
+const args = parseArgs(process.argv.slice(2))
+
+let xml
+let source
+let assets = []
+
+if (args.from === undefined) {
+  xml = buildFallbackTemplate()
+  source = 'authored by this script (--from not given) — stock assets only'
+} else {
+  xml = readFileSync(join(args.from, args.level), 'utf-8')
+  source = `${args.from}/${args.level}`
+  assets = args.assets.map((path) => {
+    const bytes = readFileSync(join(args.from, path))
+    const binary = extname(path).toLowerCase() !== '.xml'
+    return {
+      path,
+      content: binary ? bytes.toString('base64') : bytes.toString('utf-8'),
+      encoding: binary ? 'base64' : 'utf-8'
+    }
+  })
+}
+
+mkdirSync(outDir, { recursive: true })
+writeFileSync(join(outDir, 'template.ts'), emitTemplate(xml, source), 'utf-8')
+writeFileSync(join(outDir, 'assets.ts'), emitAssets(assets), 'utf-8')
+
+console.log(`wrote template.ts (${xml.length} chars) and assets.ts (${assets.length} asset(s)) from ${source}`)
