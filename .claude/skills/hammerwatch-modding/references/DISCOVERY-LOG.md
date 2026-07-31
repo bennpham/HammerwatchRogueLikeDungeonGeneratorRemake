@@ -91,6 +91,60 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-07-31 — the roster shipped an actor path the game never had
+**Tag:** [VERIFIED] (file listing from a real install)
+**Context:** Auditing all 187 actor XMLs in `editor/assetsExtract/actors/`
+against the 49 types in `monsterTypes.ts` — see `docs/plans/all-monsters.md`.
+**Evidence:** `tower_archer2` pointed at `actors/tower_battlement_archer_2.xml`.
+`grep -rl tower_battlement_archer_2` over the whole `editor/` tree returns
+nothing — no XML, no PNG, no reference from any level or actor. The game
+shipped battlement archer **1** and **3** only; archer_1 even reuses
+`tower_battlement_archer_3_razed.xml` as its corpse. The type has
+`defaultMax: 0`, so it only bites a user who enables it, and then it writes
+`<string name="type">actors/tower_battlement_archer_2.xml</string>` into a
+level the game cannot resolve. Same class of defect as the `>undefined<` path
+below, and nothing caught it: the tests checked tier-array *shape*, never that
+a path resolves to a real file.
+**Impact:** `tower_archer2` is repointed at `actors/tower_battlement_empty.xml`
+and marked `deprecated` (new optional field on `MonsterTypeDef`) so the GUI
+hides it, but the id survives for `parameters.txt` back-compat — deleting it
+would turn a saved pool entry into a hard validation error.
+`tests/monsters.test.ts` now checks every roster path against a committed
+allow-list, `tests/fixtures/actor-paths.txt`, which is the test that would have
+caught this. Registry updated.
+
+### 2026-07-31 — `skeleton_3` is a real monster the generator could not place
+**Tag:** [VERIFIED] (stats and level references read from a real install)
+**Context:** Same audit. Of 82 live in-scope actors, 79 were already wired.
+**Evidence:** `actors/skeleton_3.xml` — 20 HP, 8 dmg, speed **1.1** (vs
+skeleton_1's 40 / 20 / 0.4), aggro 14, `behavior="melee"`, full 8-direction
+sprite set, `effects/gibs/gib_skeleton_3.xml` present. Placed in stock
+`campaign/levels/level_10.xml`, `level_11.xml` and `level_esc_1.xml`, and it is
+what `lich_3.xml` summons (3 per cast, 2 s timer). No spawner and no
+small/elite variant ship for it. Also found: `actors/tower_battlement_empty.xml`
+is a real actor (450 HP, `multiplayer-scale-hp false`, **empty `skills`**,
+`movement: passive`, full 32×32 blocking polygon, corpse →
+`tower_battlement_empty_razed.xml`), used in `campaign2/levels/level_temple_3.xml`
+and `level_boss_1.xml` — an obstacle, not an attacker.
+**Impact:** Both added to the roster as `skeleton3` (cap 200, single-tier) and
+`tower_empty` (cap 0, because the collision polygon can seal a corridor). Both
+`[EMITTED]` — not yet seen in game. Outstanding: confirm 200 fast skeletons in
+one lair do not lag, and confirm `tower_empty` cannot trap a party in a
+passage; if it can, it needs a rooms-only placement restriction.
+
+### 2026-07-31 — `tower_static_frost_ground.xml` is a doodad, not an actor
+**Tag:** [VERIFIED] (read from a real install)
+**Context:** Same audit — it sat in `actors/` and looked like a missing monster.
+**Evidence:** Its root element is `<doodad>`, not `<actor>`. It is the ground
+decal drawn under the frost tower, which is why `tower_static_frost.xml` is
+wired and this is not.
+**Impact:** Out of scope for `monsterTypes.ts` — belongs to the doodad registry
+whenever doodad work happens next. Not added. Also noted, no action:
+`guard_1.png` … `guard_4.png` exist with no accompanying XML, so they are not
+placeable actors. And all 27 in-scope `*_razed.xml` files are named in a live
+actor's `corpse` entry; none is ever placed directly, so none belongs in the
+roster.
+
 ### 2026-07-30 — money items stack on a single coordinate and pay out in full
 
 **Tag:** [VERIFIED] — observed by the user in play, Windows.

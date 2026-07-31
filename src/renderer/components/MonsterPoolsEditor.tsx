@@ -49,7 +49,7 @@ export function MonsterPoolsEditor({ params, issues, onChange }: MonsterPoolsEdi
             </summary>
             <div className="pool-groups">
               {MONSTER_GROUPS.map((group) => {
-                const members = MONSTER_TYPES.filter((t) => t.group === group)
+                const members = MONSTER_TYPES.filter((t) => t.group === group && !t.deprecated)
                 if (members.length === 0) return null
                 return (
                   <div key={group} className="pool-group">

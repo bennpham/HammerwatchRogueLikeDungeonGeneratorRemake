@@ -24,6 +24,12 @@ export interface MonsterTypeDef {
   defaultMax: number
   /** display grouping for the GUI */
   group: MonsterGroup
+  /**
+   * Hidden from the GUI but still parsed and emitted by configFile.ts, so an
+   * existing parameters.txt keeps round-tripping. Never delete a deprecated id —
+   * validation.ts rejects unknown ids in a saved pool.
+   */
+  deprecated?: boolean
 }
 
 export const MONSTER_TYPES: MonsterTypeDef[] = [
@@ -53,7 +59,14 @@ export const MONSTER_TYPES: MonsterTypeDef[] = [
   { id: 'tower_banner2', configKey: 'maxTowers_Banner2', upgradeChance: 1.0, defaultMax: 0, group: 'Towers', tiers: ['actors/tower_banner_2.xml'] },
   { id: 'tower_banner3', configKey: 'maxTowers_Banner3', upgradeChance: 1.0, defaultMax: 0, group: 'Towers', tiers: ['actors/tower_banner_3.xml'] },
   { id: 'tower_archer1', configKey: 'maxTowers_Archer1', upgradeChance: 1.0, defaultMax: 0, group: 'Towers', tiers: ['actors/tower_battlement_archer_1.xml'] },
-  { id: 'tower_archer2', configKey: 'maxTowers_Archer2', upgradeChance: 1.0, defaultMax: 0, group: 'Towers', tiers: ['actors/tower_battlement_archer_2.xml'] },
+  // The game never shipped a battlement archer 2 — this entry was always a
+  // phantom pointing at a file that does not exist, and enabling it emitted an
+  // actor path the game cannot resolve. Kept so existing parameters.txt files
+  // and saved pools keep loading; repointed at the empty battlement and hidden
+  // from the GUI in favour of tower_empty.
+  // Do not delete: removing the id turns a saved pool entry into a hard
+  // validation error.
+  { id: 'tower_archer2', configKey: 'maxTowers_Archer2', upgradeChance: 1.0, defaultMax: 0, group: 'Towers', deprecated: true, tiers: ['actors/tower_battlement_empty.xml'] },
   { id: 'tower_archer3', configKey: 'maxTowers_Archer3', upgradeChance: 1.0, defaultMax: 0, group: 'Towers', tiers: ['actors/tower_battlement_archer_3.xml'] },
   { id: 'tower_flower1', configKey: 'maxTowers_Flower1', upgradeChance: 1.0, defaultMax: 0, group: 'Towers', tiers: ['actors/tower_flower_1.xml'] },
   { id: 'tower_flower1_small', configKey: 'maxTowers_Flower1_Small', upgradeChance: 1.0, defaultMax: 0, group: 'Towers', tiers: ['actors/tower_flower_1_small.xml'] },
@@ -80,7 +93,17 @@ export const MONSTER_TYPES: MonsterTypeDef[] = [
   // suggest — 400 per lair was measurably laggy in game.
   // Append only — monsterTypeById falls back to MONSTER_TYPES[3].
   { id: 'bonus_skeleton1', configKey: 'maxBonus_Skeletons1', upgradeChance: 1.0, defaultMax: 300, group: 'Bonus', tiers: ['actors/spawners/bonus/skeleton_1.xml', 'actors/bonus/skeleton_1.xml'] },
-  { id: 'bonus_archer1', configKey: 'maxBonus_Archers1', upgradeChance: 1.0, defaultMax: 60, group: 'Bonus', tiers: ['actors/bonus/archer_1.xml'] }
+  { id: 'bonus_archer1', configKey: 'maxBonus_Archers1', upgradeChance: 1.0, defaultMax: 60, group: 'Bonus', tiers: ['actors/bonus/archer_1.xml'] },
+  // Fast swarm skeleton from stock levels 10/11, and what lich_3 summons.
+  // 20 HP / 8 dmg / speed 1.1 — half skeleton1's HP at nearly 3x its speed, so
+  // the cap is doubled to 200 on the same weaker-monster-higher-cap reasoning as
+  // bonus_skeleton1. Still well under the ~400/lair lag ceiling.
+  // No spawner and no small/elite variant ship for it; single-tier is safe
+  // because createRolled clamps to the last index.
+  { id: 'skeleton3', configKey: 'maxSkeletons3', upgradeChance: 1.0, defaultMax: 200, group: 'Classic', tiers: ['actors/skeleton_3.xml'] },
+  // 450 HP, no skills, full 32x32 blocking collision. An obstacle, not an
+  // attacker; off by default because it can wall off a passage.
+  { id: 'tower_empty', configKey: 'maxTowers_Empty', upgradeChance: 1.0, defaultMax: 0, group: 'Towers', tiers: ['actors/tower_battlement_empty.xml'] }
 ]
 
 const byId = new Map(MONSTER_TYPES.map((t) => [t.id, t]))
