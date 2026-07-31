@@ -90,7 +90,12 @@ export function LobbyForm({ params, issues, onChange }: LobbyFormProps) {
           return (
             <div key={vendor.id} className="lobby-vendor">
               <div className="lobby-vendor-head">
-                <span className="lobby-vendor-name">{vendor.label}</span>
+                <span
+                  className="lobby-vendor-name"
+                  title={vendor.id === 'power' ? 'Potions, extra life, and health rejuvenation' : undefined}
+                >
+                  {vendor.label}
+                </span>
                 <span className="lobby-vendor-badge">
                   {vendor.categories.length === 1
                     ? on.length === 1

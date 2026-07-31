@@ -159,13 +159,13 @@ describe('lobby — vendor stalls', () => {
     expect(xml).toContain('doodads/special/vendor_speech_level3.xml')
   })
 
-  it('sells every column by default', () => {
+  it('sells the four main columns by default, power opt-in', () => {
     const xml = lobbyXML({})
     expect(xml).toContain('<string name="cats">combo1 combo2 combo3 combo4 combo5</string>')
     expect(xml).toContain('<string name="cats">def1 def2 def3 def4 def5</string>')
     expect(xml).toContain('<string name="cats">misc1 misc2 misc3 misc4 misc5</string>')
     expect(xml).toContain('<string name="cats">off1 off2 off3 off4 off5</string>')
-    expect(xml).toContain('<string name="cats">power</string>')
+    expect(xml).not.toContain('<string name="cats">power</string>')
   })
 
   it('removes a deselected stall entirely, leaving no dangling shape reference', () => {

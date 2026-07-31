@@ -95,7 +95,8 @@ export function defaultParameters(): DungeonParameters {
     monsterMax: Object.fromEntries(MONSTER_TYPES.map((t) => [t.id, t.defaultMax])),
     playerTweaks: {},
     // lobby on, but no gold on the floor: the point of the default is to show
-    // the vendors exist, not to hand the party a head start they didn't ask for
-    lobby: { enabled: true, startingGold: 0, shopCategories: [...ALL_LOBBY_CATEGORIES] }
+    // the vendors exist, not to hand the party a head start they didn't ask for.
+    // power is off by default — potions/life/rejuv are a nice-to-have, not a must-have
+    lobby: { enabled: true, startingGold: 0, shopCategories: ALL_LOBBY_CATEGORIES.filter((c) => c !== 'power') }
   }
 }

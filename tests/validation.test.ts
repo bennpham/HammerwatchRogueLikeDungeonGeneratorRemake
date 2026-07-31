@@ -224,7 +224,9 @@ describe('lobby validation', () => {
 
   it('collapses emptied columns into one warning', () => {
     const p = defaultParameters()
-    // strip every upgrade the power column sells
+    // power is off by default, so add it to shopCategories
+    p.lobby.shopCategories.push('power')
+    // then strip every upgrade the power column sells
     p.playerTweaks = {
       'player.shared.remove.life': 1,
       'player.shared.remove.rejuv': 1,

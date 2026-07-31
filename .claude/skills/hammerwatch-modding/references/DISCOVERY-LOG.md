@@ -91,8 +91,14 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-07-31 — the lobby now ships visuals with proper walls and lighting; campaign-local doodads render in-game
+**Tag:** [VERIFIED] — Windows 10, Hammerwatch 1.41, real Steam install.
+**Context:** Final in-game verification run after importing the editor-saved lobby with its campaign-local assets.
+**Evidence:** The user played the lobby in-game. Walls render (tested walking the full perimeter — cannot leave the room). Torches and lighting render. Stalls and vendor doodads render. Diamond pickups work and pay out gold. Deselected stalls (whole vendor removed) work correctly. The exit teleport works (lands in dungeon level 0). Zero/1500/12000 gold all pay out correctly.
+**Impact:** Promotes the 2026-07-31 "fallback lobby" entry's replacement to fully `[VERIFIED]`. The campaign-local files in `LOBBY_ASSETS` work as shipped — close open question 1a, at least for doodads. Update `ASSET-REGISTRY.md` § "The lobby template" from `[EMITTED]` to `[VERIFIED]`.
+
 ### 2026-07-31 — the script-authored fallback lobby is not enclosed; replaced by the real editor-saved level
-**Tag:** [VERIFIED] for the failure, [EMITTED] for the replacement.
+**Tag:** [VERIFIED] for the failure, [SUPERSEDED] by the entry immediately above for the replacement.
 **Context:** The Lobby tab worked functionally on a real install — level
 transition, shops and gem pickup all behaved — but looked wrong. Supersedes the
 2026-07-31 fallback-lobby entry below, which flagged exactly this as the thing

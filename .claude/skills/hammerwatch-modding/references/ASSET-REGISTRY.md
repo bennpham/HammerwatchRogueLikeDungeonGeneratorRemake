@@ -352,7 +352,7 @@ as a unit.
 
 The 6-wide `ExitUp`/`ExitDn` footprint is why `maxRoomSize` must be ≥ 7.
 
-## The lobby template `[EMITTED]`
+## The lobby template `[VERIFIED 2026-07-31]`
 
 `src/generator/lobby/template.ts` is not generated geometry — it is a level
 saved out of the game's own editor, carried verbatim and edited by id. The
@@ -392,8 +392,8 @@ room, not decoration. Everything else the template references is stock:
 split, so a re-import that forgets an `--asset` fails the suite rather than
 shipping a room with holes in it.
 
-Whether a campaign-local doodad renders when packed inside *our* campaign rather
-than the one it was authored in is open question 1a — hence `[EMITTED]`.
+Campaign-local doodads do render when packed inside our campaign — `[VERIFIED 2026-07-31]`.
+This closes open question 1a (doodads and textures: custom assets can ship).
 
 ## Tweak files (player balance)
 
