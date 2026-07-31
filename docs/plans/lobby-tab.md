@@ -381,6 +381,13 @@ install, and launch:
 
 ## Explicitly out of scope
 
+- **Custom actors / custom monsters — deferred to post-1.0.** The six embedded
+  files are all *doodads and their textures*: seven `doodads/level1/` wall pieces
+  with `c_blood.png`, and `lamp_torch_post_spor.xml` with `lamp_torch_post.png`.
+  No `actors/`, no `MONSTER_TYPES` entry, no change to the monster roster or the
+  pool editor. `GeneratedFile.encoding` is added to carry two PNGs, not to open
+  the door to shipping monsters — that is its own piece of work, with its own
+  verification, after 1.0.
 - Replacing `test_lobby.xml` with a purpose-built lobby (user: "for 1.0").
 - Any change to dungeon shop rooms — finding a better vendor underground is the
   intended reward.

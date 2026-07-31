@@ -38,11 +38,15 @@ until then, treat them as unknown in anything shown to the user.
 1. **Can a campaign ship its own assets?** Can custom `actors/`, `doodads/` or
    `tilemaps/` XML be placed inside the campaign folder and referenced by
    relative path, or does `LevelPacker.exe` only resolve against the game's
-   asset root? This decides whether "custom monsters" means *new actor files*
-   or only *unused stock actors*. Partially answered — see the 2026-07-30
-   shipped-assets entry: a published third-party campaign does exactly this, but
-   nobody here has packed one and watched a custom asset render, so it stays
-   open until the Lobby tab's in-game run.
+   asset root? Split in two, because the answers are worth different things:
+   **1a — doodads and textures.** What the Lobby tab needs. Partially answered:
+   the 2026-07-30 shipped-assets entry shows a published third-party campaign
+   doing exactly this, but nobody here has packed one and watched a custom asset
+   render. The Lobby tab's in-game run closes this one.
+   **1b — actors.** Whether "custom monsters" can mean *new actor files* rather
+   than only *unused stock actors*. **Deferred to post-1.0** and deliberately not
+   being worked on now; it drags in spawner variants, `MONSTER_TYPES` wiring, and
+   projectile/effect/sound dependencies. A passing 1a run does not answer it.
 2. ~~**`.hwm` container format.**~~ Answered — see the 2026-07-29 packer-path
    entry. Custom `HWRP` archive: header, info.xml, optional icon PNG, then one
    gzip stream holding a name-keyed resource table. Still open: the exact
@@ -146,8 +150,16 @@ published for others to play is unlikely to be broken.
 campaign folder, which is what `docs/plans/lobby-tab.md` assumes. It is **not**
 proof: nobody in this repo has packed a campaign containing a custom asset and
 watched it render. The plan's in-game verification step covers exactly this
-(does the blood-textured wall appear, and does it still block?). Promote to
-[VERIFIED] and close open question 1 only after that run.
+(does the blood-textured wall appear, and does it still block?).
+
+**Scope — read this before acting on it.** That run would confirm the **doodad**
+path only, and that is all the Lobby tab needs. **Custom actors are deferred to
+post-1.0 and are not in scope now:** shipping a monster is a separate question
+with its own failure modes (spawner variants, `MONSTER_TYPES` wiring, projectile
+and effect and sound dependencies, per-DLC availability) and needs its own
+verification run. Do not read a passing lobby run as clearance to add custom
+monsters, and do not treat open question 1 as fully closed by it — split the
+question if that is what it takes to keep the two apart.
 
 **Follow-up:** whether `LevelPacker.exe` needs the assets present at pack time or
 whether it packs whatever files it finds in the folder — relevant because the
