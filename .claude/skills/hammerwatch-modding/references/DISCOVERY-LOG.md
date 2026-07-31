@@ -100,17 +100,25 @@ own walls. `special/bonus_entrance.xml` is:
 No polygon at all — not even a shadow one. `bonus_exit.xml` likewise (layer 0).
 So the bonus alcove had a floor, decorative stair art, and nothing solid.
 
+**The alcove geometry, learned the hard way.** `Room.transform` places the set at
+`room.y - 2` (`map/room.ts`), so within the prefab's local coordinates **`y + 1`
+is the room's wall row and `y + 2` onward is room floor**. A first attempt filled
+`y+1..y+3` with solid blocks; two of those rows landed in the middle of the room
+and were plainly visible in game. Only `y + 1` may be filled. Horizontally the
+prefab already caps the band with `TDown` at `x + 1` and `x + 4`, so the gap is
+exactly `x + 2` and `x + 3`.
+
 **Impact:**
-- New `ThemeDef.stairBacking`, and a new `Pillar` doodad type
-  (`doodads/theme_%s/%s_pillar.xml`). `ObjectSet` fills the 2×3 tiles the
-  lettered collider spans with solid blocks for any theme that declares it;
-  lettered themes declare nothing and emit nothing new.
+- New `ThemeDef.stairBacking`. Bonus themes set it to `'Horizontal'`, and
+  `ObjectSet.addStairBacking` closes those two wall-row tiles with an ordinary
+  wall segment so the band reads continuous. Lettered themes declare nothing and
+  emit nothing new.
+- Draw order is by `defaultlayer` — the stair art (10) floats above the wall
+  pieces (0) `[VERIFIED]`, so the backing does not hide the door.
 - `bonus<n>_pillar.xml` is a bare 16×16 `collision="true"` block with no shadow
-  polygon — ideal structural filler. The wall matcher has no pattern for it, so
-  this is its only use. Note the lettered themes call theirs `_special_pillar`,
-  so `Pillar` resolves only for bonus themes.
-- Draw order is by `defaultlayer`, so the stair art (10) floats above the
-  backing (0) `[VERIFIED]` — the blocks are invisible in play.
+  polygon, which looked like ideal filler but is not needed once the fill is
+  restricted to the wall row. Still unused by the generator. Note the lettered
+  themes name theirs `_special_pillar`.
 - **General rule: a prefab that sets `replaceWalls` depends on its own doodads
   being solid.** Before reusing a stair/door sprite from another theme, check it
   declares `<polygon collision="true">`.

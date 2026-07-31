@@ -139,36 +139,41 @@ describe('generating with a bonus theme', () => {
 
   it('emits bonus wall doodads without the classic anchor shift', () => {
     // end-to-end version of the doodadOffset unit tests: the same wall piece on
-    // the same seed must sit 2 tiles higher for bonus1 than for theme a
+    // the same seed must sit 1 tile higher for bonus1 than for theme a.
+    // Uses _v_8 rather than _h_8 because the latter doubles as stair backing,
+    // which bonus themes emit and lettered ones do not.
     const yOf = (theme: string): number[] => {
       const xml = generateWithTheme(theme, 5150, 1).files.find((f) => f.path === 'levels/level0.xml')!
         .content
-      return [...xml.matchAll(/<string name="type">[^<]*_h_8\.xml<\/string>\s*<float name="x">[^<]*<\/float>\s*<float name="y">([^<]*)<\/float>/g)]
+      return [...xml.matchAll(/<string name="type">[^<]*_v_8\.xml<\/string>\s*<float name="x">[^<]*<\/float>\s*<float name="y">([^<]*)<\/float>/g)]
         .map((m) => Number(m[1]))
-        .slice(0, 20)
     }
     const classicYs = yOf('a')
     const bonusYs = yOf('bonus1')
     expect(classicYs.length).toBeGreaterThan(0)
     expect(bonusYs.length).toBe(classicYs.length)
     for (let i = 0; i < classicYs.length; i++) {
-      expect(classicYs[i] - bonusYs[i]).toBe(2)
+      expect(classicYs[i] - bonusYs[i]).toBe(1)
     }
   })
 
-  it('walls off the stair alcove, since the bonus stair art has no collider', () => {
-    const result = generateWithTheme('bonus2', 777)
-    const level = result.files.find((f) => f.path === 'levels/level3.xml')!.content
-    // 2x3 solid blocks behind each of the two stair sets
-    const pillars = [...level.matchAll(/doodads\/theme_bonus2\/bonus2_pillar\.xml/g)]
-    expect(pillars).toHaveLength(12)
+  it('closes the wall band the stair alcove opens, 2 tiles per stair set', () => {
+    // same seed => identical layout, so the only difference in doodad count is
+    // the backing bonus themes need and lettered themes do not
+    const countDoodads = (theme: string): number => {
+      const level = generateWithTheme(theme, 777).files.find(
+        (f) => f.path === 'levels/level3.xml'
+      )!.content
+      return [...level.matchAll(/<bool name="need-sync">/g)].length
+    }
+    // a middle level carries both an entrance and an exit set
+    expect(countDoodads('bonus2') - countDoodads('a')).toBe(4)
   })
 
-  it('adds no stair backing for the lettered themes, whose stair art is solid', () => {
-    const result = generateDungeon(defaultParameters(), 777)
-    expect(result.ok).toBe(true)
-    for (const file of (result as DungeonResult).files) {
-      expect(file.content).not.toContain('_pillar.xml')
+  it('declares stair backing only for themes whose stair art lacks a collider', () => {
+    for (const def of THEME_DEFS) {
+      if (def.id.startsWith('bonus')) expect(def.stairBacking).toBe('Horizontal')
+      else expect(def.stairBacking).toBeUndefined()
     }
   })
 

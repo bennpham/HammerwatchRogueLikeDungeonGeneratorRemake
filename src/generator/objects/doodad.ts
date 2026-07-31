@@ -38,14 +38,7 @@ export const DoodadType = {
   TDown: { path: 'doodads/theme_%s/%s_x_t_dn.xml', xOffset: 0, yOffset: 2, themeSubs: 2 },
   TUp: { path: 'doodads/theme_%s/%s_x_t_up.xml', xOffset: 0, yOffset: 1, themeSubs: 2 },
   TLeft: { path: 'doodads/theme_%s/%s_x_t_l.xml', xOffset: 0, yOffset: 1, themeSubs: 2 },
-  TRight: { path: 'doodads/theme_%s/%s_x_t_r.xml', xOffset: 0, yOffset: 1, themeSubs: 2 },
-  /**
-   * A plain solid 1x1 block. The wall matcher never places it — it exists to
-   * back stair art that carries no collider of its own (see ThemeDef.stairBacking).
-   * Only the bonus folders ship a `_pillar`; the lettered themes call theirs
-   * `_special_pillar` and do not need it.
-   */
-  Pillar: { path: 'doodads/theme_%s/%s_pillar.xml', xOffset: 0, yOffset: 0, themeSubs: 2 }
+  TRight: { path: 'doodads/theme_%s/%s_x_t_r.xml', xOffset: 0, yOffset: 1, themeSubs: 2 }
 } as const satisfies Record<string, DoodadTypeDef>
 
 export type DoodadTypeName = keyof typeof DoodadType

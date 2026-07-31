@@ -40,14 +40,13 @@ export interface ThemeDef {
   /** per-piece deviations from the `DoodadType` defaults */
   doodadOverrides?: Partial<Record<DoodadTypeName, DoodadOverride>>
   /**
-   * Solid filler placed behind the stair art, for themes whose stair doodad has
-   * no collision polygon of its own.
+   * Wall piece used to close the gap the stair alcove leaves in the room's wall
+   * band, for themes whose stair doodad has no collision polygon of its own.
    *
    * The lettered themes need nothing here: `a_exit_h_up.xml` declares a solid
-   * `0..32 x -24..16` collider, so the stair sprite *is* the back wall of the
-   * alcove. The shared `bonus_entrance.xml` / `bonus_exit.xml` declare no polygon
-   * at all, so without this the player walks straight through the stairs and out
-   * of the level.
+   * `0..32 x -24..16` collider, so the stair sprite *is* the wall. The shared
+   * `bonus_entrance.xml` / `bonus_exit.xml` declare no polygon at all, so without
+   * this the player walks straight through the stairs and out of the level.
    */
   stairBacking?: DoodadTypeName
 }
@@ -75,8 +74,7 @@ const THEMED_WALL_PIECES: readonly DoodadTypeName[] = [
   'TDown',
   'TUp',
   'TLeft',
-  'TRight',
-  'Pillar'
+  'TRight'
 ]
 
 function classic(id: string, tiles: number, group: string): ThemeDef {
@@ -121,8 +119,9 @@ function bonus(n: number, tiles: number, coverLetter: string): ThemeDef {
     tiles,
     doodadToken: `bonus${n}`,
     doodadOverrides,
-    // bonus_entrance/bonus_exit are pure sprites with no collision polygon
-    stairBacking: 'Pillar'
+    // bonus_entrance/bonus_exit are pure sprites with no collision polygon, so
+    // the wall band has to be closed with an ordinary wall segment
+    stairBacking: 'Horizontal'
   }
 }
 

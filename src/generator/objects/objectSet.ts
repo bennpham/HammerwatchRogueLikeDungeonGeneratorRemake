@@ -45,20 +45,21 @@ export class ObjectSet {
   }
 
   /**
-   * Fill the stair footprint with solid blocks, for themes whose stair sprite has
-   * no collider (see ThemeDef.stairBacking). Covers the same 2x3 tiles the
-   * lettered themes' `_exit_h_*` collision polygon spans, so the alcove is walled
-   * off exactly as it is for theme a. Emits nothing when the theme's own stair
-   * art is already solid.
+   * Close the gap the stair alcove leaves in the room's wall band, for themes
+   * whose stair sprite has no collider of its own (see ThemeDef.stairBacking).
+   *
+   * The set is placed at `room.y - 2`, so `y + 1` is the wall row and everything
+   * below is room floor. The prefab already caps that row with `TDown` at
+   * `x + 1` and `x + 4`, leaving exactly `x + 2` and `x + 3` open — the two tiles
+   * the lettered themes cover with their solid `_exit_h_*` sprite. Emits nothing
+   * when the theme's own stair art is already solid.
    */
   private addStairBacking(ctx: GenerationContext, x: number, y: number, theme: string): void {
     const backing = getTheme(theme)?.stairBacking
     if (backing === undefined) return
 
     for (let dx = 2; dx <= 3; dx++) {
-      for (let dy = 1; dy <= 3; dy++) {
-        this.doodads.push(Doodad.create(ctx, x + dx, y + dy, backing, theme))
-      }
+      this.doodads.push(Doodad.create(ctx, x + dx, y + 1, backing, theme))
     }
   }
 
