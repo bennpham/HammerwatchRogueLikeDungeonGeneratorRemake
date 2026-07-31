@@ -76,8 +76,10 @@ export const MONSTER_TYPES: MonsterTypeDef[] = [
   { id: 'mb_tick', configKey: 'maxMB_Ticks', upgradeChance: 1.0, defaultMax: 0, group: 'Bosses', tiers: ['actors/tick_1_mb.xml'] },
   // Bonus-campaign actors. Weaker than their vanilla counterparts (archer 15 HP
   // vs 20, skeleton 10 HP vs 40), so the maxes are the vanilla defaults scaled up
-  // to compensate. Append only — monsterTypeById falls back to MONSTER_TYPES[3].
-  { id: 'bonus_skeleton1', configKey: 'maxBonus_Skeletons1', upgradeChance: 1.0, defaultMax: 400, group: 'Bonus', tiers: ['actors/spawners/bonus/skeleton_1.xml', 'actors/bonus/skeleton_1.xml'] },
+  // to compensate. The skeleton is capped at 300 rather than the 4× its HP would
+  // suggest — 400 per lair was measurably laggy in game.
+  // Append only — monsterTypeById falls back to MONSTER_TYPES[3].
+  { id: 'bonus_skeleton1', configKey: 'maxBonus_Skeletons1', upgradeChance: 1.0, defaultMax: 300, group: 'Bonus', tiers: ['actors/spawners/bonus/skeleton_1.xml', 'actors/bonus/skeleton_1.xml'] },
   { id: 'bonus_archer1', configKey: 'maxBonus_Archers1', upgradeChance: 1.0, defaultMax: 60, group: 'Bonus', tiers: ['actors/bonus/archer_1.xml'] }
 ]
 

@@ -81,13 +81,14 @@ default.
 | `mb_mummy` | `maxMB_Mummies` | Bosses | 0 | `actors/mummy_1_mb.xml` |
 | `mb_skeleton` | `maxMB_Skeletons` | Bosses | 0 | `actors/skeleton_1_mb.xml` |
 | `mb_tick` | `maxMB_Ticks` | Bosses | 0 | `actors/tick_1_mb.xml` |
-| `bonus_skeleton1` | `maxBonus_Skeletons1` | Bonus | 400 | `actors/spawners/bonus/skeleton_1.xml`<br>`actors/bonus/skeleton_1.xml` |
+| `bonus_skeleton1` | `maxBonus_Skeletons1` | Bonus | 300 | `actors/spawners/bonus/skeleton_1.xml`<br>`actors/bonus/skeleton_1.xml` |
 | `bonus_archer1` | `maxBonus_Archers1` | Bonus | 60 | `actors/bonus/archer_1.xml` |
 
 The two `Bonus` rows are `[UNVERIFIED]` — paths read off the editor's Characters
 tab, not yet packed or played. The bonus archer is the **only** roster entry with
 no spawner variant. Both are weaker than their vanilla counterparts (archer 15 HP
-vs 20, skeleton 10 vs 40), which is where the scaled-up `defaultMax` comes from.
+vs 20, skeleton 10 vs 40), which is where the scaled-up `defaultMax` comes from —
+except the skeleton, capped at 300 by observed frame rate rather than by its HP.
 Neither is in `defaultParameters().levelMonsters`; they are opt-in via the pool
 editor so existing seeds are unaffected.
 

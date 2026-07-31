@@ -79,6 +79,26 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-07-30 — ~400 monsters in one lair is past the game's comfortable limit
+
+**Tag:** [VERIFIED] — observed by the user in play.
+
+**Context:** picking `defaultMax` for `bonus_skeleton1`. The HP ratio against the
+vanilla skeleton (10 vs 40) argued for 100 × 4 = 400.
+
+**Evidence:** "400 got hella laggy." Cut to **300**, which is also where `slime`
+already sits — the previous highest max in the roster. `bat1` at 200 has never
+been reported as a problem.
+
+**Impact:** `defaultMax` for `bonus_skeleton1` is now 300 in `MONSTER_TYPES` and
+`parameters.default.txt`. More generally this is the first datum we have on a
+*performance* ceiling for horde size, and it constrains any future high-max type:
+a lair rolls `trunc(fRand(max/5, max) * monsterMultiplier)`, so `max` is close to
+the real worst case per room. Treat ~300 as the ceiling and remember
+`monsterMultiplier` scales on top of it — a user at ×2 reaches 600.
+**Follow-up:** unknown whether the limit is actor count, this actor's AI, or the
+machine; nobody has tested 400 of a *vanilla* type for comparison.
+
 ### 2026-07-30 — a single-tier monster emitted `undefined` as its actor path
 
 **Tag:** [VERIFIED] — reproduced in `tests/monsters.test.ts` against the port.
@@ -117,8 +137,9 @@ the first roster entry with no spawner variant. Observed HP: bonus archer 15
 **Impact:** added as `bonus_archer1` / `bonus_skeleton1` in a new `Bonus` group,
 appended to `MONSTER_TYPES` (`monsterTypeById` falls back to the positional
 `MONSTER_TYPES[3]`, so inserting near the front would change what an unknown id
-resolves to). `defaultMax` scales the vanilla defaults by the HP gap — skeleton
-100 × 4 = 400, archer 40 × 1.5 = 60. Not added to `defaultParameters().levelMonsters`,
+resolves to). `defaultMax` scales the vanilla defaults by the HP gap — archer
+40 × 1.5 = 60, and the skeleton's 100 × 4 = 400 was cut to **300** on frame rate
+(see the entry below). Not added to `defaultParameters().levelMonsters`,
 so every existing seed stays byte-identical; they are opt-in via the pool editor.
 **Follow-up:** confirm `LevelPacker.exe` packs the three paths and that the
 monsters spawn, then promote to `[VERIFIED]` in `ASSET-REGISTRY.md`. Note that

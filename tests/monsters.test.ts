@@ -55,7 +55,7 @@ describe('single-tier monsters', () => {
 
 describe('bonus monsters', () => {
   it('emits both the spawner and the actor for bonus_skeleton1', () => {
-    const xml = levelXML(generateWithOnly('bonus_skeleton1', 909, 400))
+    const xml = levelXML(generateWithOnly('bonus_skeleton1', 909, 300))
     expect(xml).toContain('actors/bonus/skeleton_1.xml')
     expect(xml).toContain('actors/spawners/bonus/skeleton_1.xml')
     expect(xml).not.toContain('>undefined<')
@@ -67,7 +67,7 @@ describe('bonus monsters', () => {
       expect(pool).not.toContain('bonus_skeleton1')
       expect(pool).not.toContain('bonus_archer1')
     }
-    expect(params.monsterMax.bonus_skeleton1).toBe(400)
+    expect(params.monsterMax.bonus_skeleton1).toBe(300)
     expect(params.monsterMax.bonus_archer1).toBe(60)
   })
 })
