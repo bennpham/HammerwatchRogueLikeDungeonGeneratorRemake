@@ -34,6 +34,7 @@ src/
 │   │   └── context.ts    GenerationContext — replaces the Java statics
 │   ├── config/
 │   │   ├── parameters.ts DungeonParameters + defaultParameters() + THEMES
+│   │   ├── themes.ts     THEME_DEFS — tileset path, tile count, doodad token
 │   │   ├── configFile.ts parameters.txt parse/serialize (original format)
 │   │   └── validation.ts every crash path of the original, as a rule
 │   ├── xml/              XMLDictionary/Array/Int/Float/Bool/String/IntArray
@@ -114,7 +115,7 @@ reference/hammerwatch-tweak-stats.md
 | `minRoomCount`–`maxRoomCount` | 12–15 | ≥ 2 |
 | `minPassageWidth`–`maxPassageWidth` | 3–6 | **`maxPassageWidth` ≤ `minRoomSize`** or doors land outside rooms |
 | `edgePadding` / `roomPadding` | 2 / 2 | ≥ 0 |
-| `themes` | `a,a,b,b,c,c,d,d` | one per level, from `a b c d e f g i` (**no `h`**) |
+| `themes` | `a,a,b,b,c,c,d,d` | one per level, from `a b c d e f g i` (**no `h`**) or `bonus1`–`bonus5`; registry in `config/themes.ts` |
 | `shopChance` / `vaultChance` / `lockChance` / `keyChance` | 1.0 / 0.3 / 0.8 / 1.0 | 0–1 inclusive |
 | `monsterMultiplier` / `goldMultiplier` / `foodMultiplier` | 1.0 / 1.1 / 1.2 | ≥ 0 |
 | `levelMonsters[i]` | see defaults | non-empty; ids must exist in `MONSTER_TYPES`; repeat an id to weight it |

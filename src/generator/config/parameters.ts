@@ -1,9 +1,9 @@
 import { MONSTER_TYPES } from '../objects/monsterTypes'
+import { THEME_DEFS } from './themes'
 import type { PlayerTweaks } from '../tweak/types'
 
-/** Themes the tilemaps support (there is no theme "h" in the game assets). */
-export const THEMES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'i'] as const
-export type Theme = (typeof THEMES)[number]
+/** Ids of every theme the generator can emit — see themes.ts for the registry. */
+export const THEMES: readonly string[] = THEME_DEFS.map((t) => t.id)
 
 /**
  * All knobs of the generator, ported from the modified Parameters.java.

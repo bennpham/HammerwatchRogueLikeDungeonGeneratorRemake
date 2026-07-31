@@ -77,9 +77,16 @@ for a spawner explicitly. `defaultMax` of `0` means the type is off by default.
 | `mb_tick` | `maxMB_Ticks` | Bosses | 0 | `actors/tick_1_mb.xml` |
 ## Doodads
 
-`%s` is replaced by the level's theme letter — once for `themeSubs: 1`, twice
-for `themeSubs: 2`. Offsets in `src/generator/objects/doodad.ts` are added to
-the tile coordinate when the doodad is serialized.
+`%s` is replaced by the theme's `doodadToken` (`config/themes.ts`) — once for
+`themeSubs: 1`, twice for `themeSubs: 2`. The token is the theme letter for
+`a`–`i` and `bonus1`…`bonus5` for the bonus sets. Offsets in
+`src/generator/objects/doodad.ts` are added to the tile coordinate when the
+doodad is serialized.
+
+A theme may also declare `doodadOverrides` per piece: `path` (a complete path
+used verbatim, no substitution) for a piece its folder does not ship, and
+`xOffset`/`yOffset` when its art is anchored differently. There is no way to skip
+a piece, deliberately — see the offset rule below.
 
 ### Generic & special (theme-independent)
 
@@ -94,6 +101,20 @@ the tile coordinate when the doodad is serialized.
 | `VendorOffense` | `doodads/special/vendor_offense.xml` | 0, 0 |
 | `VendorDefense` | `doodads/special/vendor_defense.xml` | 0, 0 |
 | `Cover` | `doodads/special/color_theme_%s_16.xml` (1 sub) | 0.5, 0.5 |
+| `ExitUp` (bonus only) | `doodads/special/bonus_entrance.xml` | 0, 0 |
+| `ExitDn` (bonus only) | `doodads/special/bonus_exit.xml` | 0, 0 |
+
+**`Cover` is a character-occlusion overlay, not a collider** `[VERIFIED]` — read
+from the asset: `special/color_theme_a_16.xml` declares **zero**
+`collision="true"` polygons. Its pattern matches a 2×2 block of *wall* tiles, so
+it sits over wall tops and hides the player passing behind them. Every theme
+still needs one or the character shows through. `color_theme_*_16` exists only
+for `a b c d e f g i`, so the bonus themes borrow one (currently `a`, the most
+neutral dark blue).
+
+An earlier revision of this file claimed `Cover` was structural and that omitting
+it let players walk through walls. **That was wrong** — see the 2026-07-30
+sprite-origin entry in the discovery log for the actual cause.
 
 ### Themed wall pieces (2 subs, `doodads/theme_<t>/<t>_…`)
 
@@ -117,8 +138,53 @@ the tile coordinate when the doodad is serialized.
 | `ExitDn` | `_exit_h_dn.xml` | 0, 0 |
 | `ExitUp` | `_exit_h_up.xml` | 0, 0 |
 
-A theme must ship all 17 of these or levels using it will have gaps where the
-matcher wanted a piece that doesn't exist.
+`ExitDn`/`ExitUp` are placed by `ObjectSet`, not the matcher, and the lettered
+ones are **structural**: `a_exit_h_up.xml` has a solid `0..32 × -24..16` collider
+that forms the wall behind the alcove, which is why the prefab sets
+`replaceWalls` and suppresses the matcher there. A stair sprite borrowed from
+another theme must be checked for `<polygon collision="true">` — the shared
+`bonus_entrance`/`bonus_exit` have none.
+
+**The alcove geometry:** the set is placed at `room.y - 2`, so `y + 1` is the
+room's wall row and everything below it is floor. The prefab already caps that
+row with `TDown` at `x + 1` and `x + 4`, leaving exactly `x + 2` and `x + 3`
+open. A theme whose stair art is not solid declares
+`stairBacking: 'Horizontal'`, and `ObjectSet` closes those two tiles with an
+ordinary wall segment so the band reads continuous. Do **not** fill the rows
+below `y + 1` — they are room floor, and blocks there stand in the open.
+
+A theme must ship all 17 of these, or declare a `doodadOverrides.path` for each
+one it lacks — otherwise levels using it reference a path that doesn't exist. Do
+not simply skip a missing piece: an absent wall doodad is an absent collider, and
+the player walks through the gap.
+
+### The offset rule — `yOffset` = the asset's `<origin>` y ÷ 16 `[VERIFIED]`
+
+**The offsets above are not layout choices; they compensate for where the art is
+anchored, and they move the collision polygon along with the sprite.** Verified
+across all 15 matcher-placed pieces:
+
+| `<origin>` in the asset | required offset |
+| --- | --- |
+| `0 32` (`a_h_8`, `a_crn_*_dn`, `a_x_t_dn`, `a_h_cap_*`, `a_v_cap_dn`) | `yOffset: 2` |
+| `0 16` (`a_v_8`, `a_crn_*_up`, `a_x_x`, `a_x_t_up/l/r`, `a_v_cap_up`) | `yOffset: 1` |
+| `0 0` (**every** `bonus1`–`bonus5` piece) | `yOffset: 0` |
+
+Reusing the classic offsets on `0 0`-anchored art displaces the wall 1–2 tiles,
+collider included — the walls look shifted *and* the player walks through them.
+This was the real cause of the bonus walk-through-walls bug, 2026-07-30.
+
+**When adding a theme, read the new art's `<origin>` — do not assume the classic
+offsets apply.** Assets are extractable at
+`<Steam>/steamapps/common/Hammerwatch/editor/assetsExtract/`.
+
+The `bonus1`–`bonus5` folders are the known incomplete case: they have no
+`_exit_h_dn` / `_exit_h_up`, so both are overridden to the shared
+`doodads/special/bonus_entrance.xml` / `bonus_exit.xml` — which are 24×24 at
+origin `0 0` where the lettered frames are 32×48 at origin `0 32`, so they carry
+their own tuned offsets. Those folders also carry `_pillar`, `_h_16`, `_v_16`
+(and `bonus5_deteriorate`) which the wall matcher has no pattern for and never
+emits.
 
 ## Items
 
@@ -142,23 +208,45 @@ are horizontal while 3–5 are the vertical variants of the same three tiers.
 
 ## Tilemaps (themes)
 
-`TILEMAPS` in `src/generator/map/level.ts`. `tiles` is how many floor variants
-the tileset has; `data-t` values are `1..tiles`, with `0` meaning wall/void.
-**Emitting an index above `tiles` is a load-time error.**
+`THEME_DEFS` in `src/generator/config/themes.ts`. `tiles` is how many floor
+variants the tileset has; `data-t` values are `1..tiles`, with `0` meaning
+wall/void. **Emitting an index above `tiles` is a load-time error.**
 
-| Theme | Path | Variants | Set |
-| --- | --- | --- | --- |
-| `a` | `tilemaps/a_default.xml` | 2 | classic |
-| `b` | `tilemaps/b_default.xml` | 4 | classic |
-| `c` | `tilemaps/c_default.xml` | 4 | classic |
-| `d` | `tilemaps/d_default.xml` | 8 | classic |
-| `e` | `tilemaps/e_default.xml` | 2 | castle |
-| `f` | `tilemaps/f_default.xml` | 2 | castle |
-| `g` | `tilemaps/g_default.xml` | 2 | castle |
-| `i` | `tilemaps/i_default.xml` | 8 | desert |
+All counts below are `[VERIFIED]` — they are the `<sprite>` count of the tileset
+XML, read from `assetsExtract/tilemaps/`. `level` is the tileset's draw layer.
 
-There is **no theme `h`** — the letter is skipped in the game's assets
-`[EMITTED]`. An unknown theme letter falls back to `a` in `Level.getXML`, but
+| Theme | Path | Variants | `level` | Set |
+| --- | --- | --- | --- | --- |
+| `a` | `tilemaps/a_default.xml` | 2 | 10 | classic |
+| `b` | `tilemaps/b_default.xml` | 4 | 20 | classic |
+| `c` | `tilemaps/c_default.xml` | 4 | 50 | classic |
+| `d` | `tilemaps/d_default.xml` | 8 | 70 | classic |
+| `e` | `tilemaps/e_default.xml` | 2 | 100 | castle |
+| `f` | `tilemaps/f_default.xml` | 2 | 120 | castle |
+| `g` | `tilemaps/g_default.xml` | 2 | 130 | castle |
+| `i` | `tilemaps/i_default.xml` | 8 | 150 | desert |
+| `bonus1` | `tilemaps/bonus_1.xml` | **2** | 500 | bonus |
+| `bonus2` | `tilemaps/bonus_2.xml` | 1 | 501 | bonus |
+| `bonus3` | `tilemaps/bonus_3.xml` | 1 | 502 | bonus |
+| `bonus4` | `tilemaps/bonus_4.xml` | 1 | 503 | bonus |
+| `bonus5` | `tilemaps/bonus_5.xml` | 1 | 504 | bonus |
+
+Note the naming asymmetry: the bonus tileset is `bonus_3` but its doodad folder
+is `theme_bonus3/bonus3_*`. The two are separate registry fields for this reason.
+
+Bonus brightness in game is fine `[VERIFIED]` — the editor's paint preview makes
+these tilesets look far darker than they render.
+
+`tilemaps/bonus_shadow.xml` (1 sprite, `level` 600) is not a floor tileset and we
+do not emit it. The game's own `campaign/levels/level_bonus_1.xml` pairs it with
+`bonus_1.xml` as a **second dataset** in the same tile block — `datasets` is an
+array, so we could do the same. Cosmetic; not currently done.
+
+There is **no usable theme `h`** `[VERIFIED]`: `tilemaps/h_default.xml` exists
+(14 sprites, `level` 140) and `doodads/theme_h/` exists, but that folder ships
+only the four corner pieces — no `h_8`, `v_8`, `x_x`, caps or tees, and no
+`color_theme_h_16` — so the matcher could not build a wall from it. An unknown
+theme id falls back to the first registry entry (`a`) in `Level.getXML`, but
 validation rejects it first.
 
 ## Script node types

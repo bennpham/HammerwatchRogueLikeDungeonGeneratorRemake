@@ -299,13 +299,16 @@ The full inventory of paths this generator emits is in
   is usually the spawner variant, higher indices are stronger variants,
   rolled upward by `upgradeChance`.
 - **Doodads** — `doodads/generic/*` (torches, markers), `doodads/special/*`
-  (vendors, colour covers), `doodads/theme_<t>/<t>_*.xml` (wall pieces; the
-  theme letter is substituted **twice** into the path).
+  (vendors, colour covers, the shared bonus entrance/exit), `doodads/theme_<t>/<t>_*.xml`
+  (wall pieces; the theme's token is substituted **twice** into the path — it is
+  a letter for the classic themes and `bonus1`…`bonus5` for the bonus sets).
 - **Items** — `items/*.xml`: valuables 1–9, breakables, health/mana, powerup
   potions and chests, bronze/silver/gold keys and doors, three crystal orbs.
-- **Tilemaps** — `tilemaps/{a,b,c,d,e,f,g,i}_default.xml`. **There is no theme
-  `h`.** Variant counts differ per theme (a: 2, b: 4, c: 4, d: 8, e–g: 2,
-  i: 8) and must match `TILEMAPS` in `map/level.ts` or `data-t` will index a
+- **Tilemaps** — `tilemaps/{a,b,c,d,e,f,g,i}_default.xml` plus
+  `tilemaps/bonus_{1..5}.xml`. **There is no usable theme `h`** — the tileset
+  exists but `doodads/theme_h/` ships only corner pieces. Variant counts differ
+  per theme (a: 2, b: 4, c: 4, d: 8, e–g: 2, i: 8, bonus1: 2, bonus2–5: 1) and
+  must match the `tiles` field in `config/themes.ts` or `data-t` will index a
   variant the tileset doesn't have.
 
 ## Adding custom content
@@ -347,10 +350,34 @@ That changes emitted geometry, so add a fixed-seed test.
 
 ### A new theme / tileset
 
-Add the letter to `THEMES` in `config/parameters.ts` **and** an entry to
-`TILEMAPS` in `map/level.ts` with its path and variant count, **and** confirm
-the matching `doodads/theme_<letter>/` wall set exists — a theme without wall
-doodads produces a level with no visible walls.
+Add one `ThemeDef` to `THEME_DEFS` in `config/themes.ts`. Everything
+else derives from it: `THEMES`, validation, the `parameters.txt` round-trip, the
+grouped dropdown, the tileset emitted by `map/level.ts` and the doodad paths.
+
+The tileset path and the doodad token are **separate fields** on purpose — the
+game does not name them consistently (`tilemaps/bonus_3.xml` pairs with
+`doodads/theme_bonus3/bonus3_*.xml`). Do not try to derive one from the other.
+
+Confirm the matching `doodads/theme_<token>/` wall set exists — a theme without
+wall doodads produces a level with no visible walls. If it is missing individual
+pieces, use `doodadOverrides[piece].path` to point them at a complete replacement
+(used verbatim, no `%s`). **Never just skip a missing piece**: wall doodads carry
+the collision, so a gap in the set is a gap the player walks through.
+
+**Then read the new art's `<origin>`, and do not assume the classic offsets
+apply.** `DoodadType`'s offsets exist purely to compensate for the classic
+anchor — `yOffset` = the asset's `origin_y / 16` — and they move the collision
+polygon along with the sprite. The bonus sets are anchored `0 0` where the
+lettered ones are `0 32`/`0 16`, so they override every wall piece to
+`yOffset: 0`. Getting this wrong yields walls that render but do not block. See
+`references/ASSET-REGISTRY.md` for the offset table.
+
+Set `tiles` to the tileset's `<sprite>` count — read it out of the tileset XML
+rather than guessing; when genuinely unknown, `1` is the only always-safe value.
+
+All of this is checkable without launching the game: the assets are extracted at
+`<HW>/editor/assetsExtract/`, and the stock campaigns under
+`<HW>/editor/campaign*/levels/` show how the game itself uses a tileset.
 
 ## When a campaign fails to load
 

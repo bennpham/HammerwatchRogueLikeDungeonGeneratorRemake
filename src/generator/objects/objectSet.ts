@@ -1,4 +1,5 @@
 import { Doodad } from './doodad'
+import { getTheme } from '../config/themes'
 import { Item } from './item'
 import { ScriptNode } from './scriptNode'
 import {
@@ -43,6 +44,25 @@ export class ObjectSet {
     ctx.objectSets = ctx.objectSets.filter((o) => o !== s)
   }
 
+  /**
+   * Close the gap the stair alcove leaves in the room's wall band, for themes
+   * whose stair sprite has no collider of its own (see ThemeDef.stairBacking).
+   *
+   * The set is placed at `room.y - 2`, so `y + 1` is the wall row and everything
+   * below is room floor. The prefab already caps that row with `TDown` at
+   * `x + 1` and `x + 4`, leaving exactly `x + 2` and `x + 3` open — the two tiles
+   * the lettered themes cover with their solid `_exit_h_*` sprite. Emits nothing
+   * when the theme's own stair art is already solid.
+   */
+  private addStairBacking(ctx: GenerationContext, x: number, y: number, theme: string): void {
+    const backing = getTheme(theme)?.stairBacking
+    if (backing === undefined) return
+
+    for (let dx = 2; dx <= 3; dx++) {
+      this.doodads.push(Doodad.create(ctx, x + dx, y + 1, backing, theme))
+    }
+  }
+
   constructor(
     ctx: GenerationContext,
     public x: number,
@@ -52,6 +72,8 @@ export class ObjectSet {
   ) {
     switch (type) {
       case 'ExitUp': {
+        // first, so the stair sprite is emitted after it and draws on top
+        this.addStairBacking(ctx, x, y, theme)
         this.doodads.push(Doodad.create(ctx, x + 1, y + 1, 'TDown', theme))
         this.doodads.push(Doodad.create(ctx, x + 4, y + 1, 'TDown', theme))
         this.doodads.push(Doodad.create(ctx, x + 1, y + 3, 'TorchOff', theme))
@@ -94,6 +116,8 @@ export class ObjectSet {
       }
 
       case 'ExitDn': {
+        // first, so the stair sprite is emitted after it and draws on top
+        this.addStairBacking(ctx, x, y, theme)
         this.doodads.push(Doodad.create(ctx, x + 1, y + 1, 'TDown', theme))
         this.doodads.push(Doodad.create(ctx, x + 4, y + 1, 'TDown', theme))
         this.doodads.push(Doodad.create(ctx, x + 1, y + 3, 'Torch', theme))

@@ -3,22 +3,11 @@ import { Passage } from './passage'
 import { Tile } from './tile'
 import { searchPatterns } from './wallPattern'
 import { Doodad } from '../objects/doodad'
+import { getTheme, THEME_DEFS } from '../config/themes'
 import { XMLArray, XMLDictionary, XMLInt, XMLIntArray, XMLString } from '../xml'
 import type { GenerationContext } from '../core/context'
 
 const TILEMAP_SIZE = 20
-
-/** tileset XML per theme letter + how many floor tile variants it has */
-const TILEMAPS: Record<string, { path: string; tiles: number }> = {
-  a: { path: 'tilemaps/a_default.xml', tiles: 2 },
-  b: { path: 'tilemaps/b_default.xml', tiles: 4 },
-  c: { path: 'tilemaps/c_default.xml', tiles: 4 },
-  d: { path: 'tilemaps/d_default.xml', tiles: 8 },
-  e: { path: 'tilemaps/e_default.xml', tiles: 2 },
-  f: { path: 'tilemaps/f_default.xml', tiles: 2 },
-  g: { path: 'tilemaps/g_default.xml', tiles: 2 },
-  i: { path: 'tilemaps/i_default.xml', tiles: 8 }
-}
 
 /**
  * One generated floor: places rooms, connects them with passages, assigns
@@ -199,12 +188,14 @@ export class Level {
     const xTiles = Math.ceil(this.ctx.params.mapWidth / TILEMAP_SIZE)
     const yTiles = Math.ceil(this.ctx.params.mapHeight / TILEMAP_SIZE)
 
-    const tilemap = TILEMAPS[this.theme] ?? TILEMAPS.a
+    // validation rejects an unknown theme before we get here; the fallback
+    // matches the original's default branch rather than throwing
+    const tilemap = getTheme(this.theme) ?? THEME_DEFS[0]
 
     for (let x = 0; x < xTiles + 1; x++) {
       for (let y = 0; y < yTiles + 1; y++) {
         const tileSet = new XMLDictionary('')
-        tileSet.addData(new XMLString('tileset', tilemap.path))
+        tileSet.addData(new XMLString('tileset', tilemap.tilemap))
         tileSet.addData(new XMLIntArray('data-t', this.getTiles(x * TILEMAP_SIZE, y * TILEMAP_SIZE, tilemap.tiles)))
         tileSet.addData(this.defaultIntArray('data-r'))
         tileSet.addData(this.defaultIntArray('data-g'))

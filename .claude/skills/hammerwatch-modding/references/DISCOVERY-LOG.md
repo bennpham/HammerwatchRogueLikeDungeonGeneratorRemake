@@ -57,8 +57,11 @@ until then, treat them as unknown in anything shown to the user.
 6. **`info.xml` fields.** Is `<lives>0</lives>` really unlimited? Are there
    other supported fields (difficulty, party size, campaign icon)?
 7. **Theme completeness.** Do all of `a b c d e f g i` ship the full 17-piece
-   `doodads/theme_<t>/` wall set, and are the variant counts in `TILEMAPS`
-   right for every one? A wrong count is a load-time error.
+   `doodads/theme_<t>/` wall set, and are the variant counts in `THEME_DEFS`
+   right for every one? A wrong count is a load-time error. Partially answered
+   for the bonus themes — see the 2026-07-30 bonus-theme entry: they ship 18
+   pieces but **not** the two `_exit_h_*` frames, and their variant counts are
+   still assumed rather than measured.
 8. ~~**Do campaign tweak files replace or merge?**~~ Answered — **replace**, see
    the 2026-07-30 entry. Deleting upgrades from a campaign's file removes them
    from the shop, so `baseline.ts` must keep the complete transcription.
@@ -75,6 +78,195 @@ until then, treat them as unknown in anything shown to the user.
     all and the app could offer to lengthen a ladder.
 
 ## Entries
+
+### 2026-07-30 — the stair sprite is the alcove's back wall, and the bonus pair has no collider
+
+**Tag:** [VERIFIED] — asset XML, confirmed in game by walking through the entrance.
+
+**Context:** with the sprite-origin fix in, bonus walls block correctly, but the
+player could still walk straight through the entrance and out of the level.
+
+**Evidence:** `theme_a/a_exit_h_up.xml` carries a solid collider spanning
+`0..32 x -24..16` — the stair sprite **is** the wall behind the alcove, which is
+why `ObjectSet` marks the alcove `replaceWalls` and lets the prefab supply its
+own walls. `special/bonus_entrance.xml` is:
+
+```xml
+<doodad defaultlayer="10">
+  <sprite scale="16"> … <frame>0 0 24 24</frame> </sprite>
+</doodad>
+```
+
+No polygon at all — not even a shadow one. `bonus_exit.xml` likewise (layer 0).
+So the bonus alcove had a floor, decorative stair art, and nothing solid.
+
+**The alcove geometry, learned the hard way.** `Room.transform` places the set at
+`room.y - 2` (`map/room.ts`), so within the prefab's local coordinates **`y + 1`
+is the room's wall row and `y + 2` onward is room floor**. A first attempt filled
+`y+1..y+3` with solid blocks; two of those rows landed in the middle of the room
+and were plainly visible in game. Only `y + 1` may be filled. Horizontally the
+prefab already caps the band with `TDown` at `x + 1` and `x + 4`, so the gap is
+exactly `x + 2` and `x + 3`.
+
+**Impact:**
+- New `ThemeDef.stairBacking`. Bonus themes set it to `'Horizontal'`, and
+  `ObjectSet.addStairBacking` closes those two wall-row tiles with an ordinary
+  wall segment so the band reads continuous. Lettered themes declare nothing and
+  emit nothing new.
+- Draw order is by `defaultlayer` — the stair art (10) floats above the wall
+  pieces (0) `[VERIFIED]`, so the backing does not hide the door.
+- `bonus<n>_pillar.xml` is a bare 16×16 `collision="true"` block with no shadow
+  polygon, which looked like ideal filler but is not needed once the fill is
+  restricted to the wall row. Still unused by the generator. Note the lettered
+  themes name theirs `_special_pillar`.
+- **General rule: a prefab that sets `replaceWalls` depends on its own doodads
+  being solid.** Before reusing a stair/door sprite from another theme, check it
+  declares `<polygon collision="true">`.
+
+### 2026-07-30 — the extracted game assets are readable; check them before theorising
+
+**Tag:** [VERIFIED]
+
+**Context:** three rounds of guessing at why bonus-theme walls did not block.
+
+**Evidence:** the full asset tree is on disk at
+`<Steam>/steamapps/common/Hammerwatch/editor/assetsExtract/` — `tilemaps/*.xml`,
+`doodads/**/*.xml`, and the game's own campaigns under `editor/campaign*/levels/`.
+These are plain XML and directly readable. Reading two files
+(`theme_a/a_h_8.xml`, `theme_bonus1/bonus1_h_8.xml`) answered in one step what
+two playtest round-trips and three hypotheses had failed to.
+
+**Impact:** for any question of the form "what does this asset actually do" —
+collision, anchoring, sprite size, tile variant counts, layer order, how the
+stock campaign uses a thing — **read the asset**. Only questions about runtime
+behaviour need a playtest. Tile-variant counts are the `<sprite>` count;
+collision is `<polygon collision="true">`; anchoring is `<origin>`.
+
+### 2026-07-30 — bonus walls did not block because of a sprite-origin mismatch
+
+**Tag:** [VERIFIED] — read from the asset XML.
+
+**Context:** bonus-theme levels loaded and looked plausible, but walls were
+visibly misaligned and the player could run through them off the map.
+**Supersedes and retracts the `Cover` entry below.**
+
+**Evidence:**
+
+```
+theme_a/a_h_8.xml         <origin>0 32</origin>   collider y = -24 .. 16
+theme_bonus1/bonus1_h_8   <origin>0 0</origin>    collider y =   0 .. 16
+```
+
+Both have colliders, so nothing was "missing". Comparing all 15 matcher-placed
+pieces gives an exact rule: **the `yOffset` in `DoodadType` equals the classic
+asset's `origin_y / 16`.** `0 32` → 2, `0 16` → 1. Every piece in all five bonus
+folders is anchored `0 0`, so applying the classic offsets displaced each wall by
+1–2 tiles — sprite and collision polygon together.
+
+Also read directly from the assets, correcting earlier guesses:
+- `special/color_theme_a_16.xml` has **zero** `collision="true"` polygons.
+  `Cover` is a character-occlusion overlay. The user demonstrated this in game by
+  walking *underneath* a cover while the wall was still non-solid.
+- Real tile-variant counts: `bonus_1` = 2 (not 1), `bonus_2..5` = 1. Every
+  lettered count already in the registry was correct.
+- The bonus tilesets work standalone: the stock `campaign/levels/level_bonus_1.xml`
+  uses `bonus_1.xml` + `bonus_shadow.xml` as two datasets and **no `_default`
+  base layer**, disproving a "missing base layer" theory.
+- `tilemaps/h_default.xml` exists (14 sprites) and `doodads/theme_h/` exists, but
+  ships only the 4 corner pieces — so "no theme h" is right in effect, and now
+  for a documented reason.
+
+**Impact:**
+- `ThemeDef.doodadOverrides` values became `{ path?, xOffset?, yOffset? }`;
+  bonus themes set `yOffset: 0` on every themed wall piece. New
+  `doodadOffset(type, theme)` in `objects/doodad.ts` feeds `Doodad.getXML`.
+- **Adding a theme now requires reading the new art's `<origin>`**, not just
+  checking that filenames exist.
+- Still unconfirmed until played: whether the walls now block, and whether the
+  tuned offsets for the 24×24 `bonus_entrance`/`bonus_exit` sprites sit square in
+  the 2-tile alcove built for the 32×48 lettered frames.
+
+### 2026-07-30 — [RETRACTED] `Cover` is a collider, not decoration: omitting it lets players walk through walls
+
+**This entry is wrong.** `Cover` has no collision polygons at all; see the
+sprite-origin entry above for the real cause. Kept per the append-only rule. The
+reasoning error worth remembering: "it was the only difference that *could*
+explain it" is not evidence, and it was tagged `[VERIFIED]` off a single
+screenshot rather than off the asset that would have settled it in one read.
+
+Its incidental observations — brightness is fine, `tiles: 1` loads — do still
+hold. Original entry preserved verbatim below.
+
+---
+
+**Tag:** [VERIFIED] — playtested on Windows, `bonus1`, 8-level campaign.
+
+**Context:** first playtest of the bonus themes added earlier the same day.
+Supersedes the "omit `Cover`" decision in the bonus-theme entry below.
+
+**Evidence:** the level loaded, ran fine and was not too dark, but had black
+rectangular holes scattered through the play area, and the player could **run
+over both the floor and the black areas**, straight out of the map. The black
+areas map exactly to wall interiors: `Cover`'s entry in `wallPattern.ts` is
+`wall: false` matching a 2×2 block of *wall* tiles at offset 0.5/0.5, i.e. it is
+the piece that fills the inside of a thick wall. It was the only bonus-specific
+difference that could remove collision — the tilemap `data-t` is emitted
+identically to a lettered theme, and the wall-edge pieces (`_h_8`, corners) both
+rendered and blocked correctly.
+
+**Impact:**
+- Wall doodads carry collision. **A missing wall doodad is a missing collider**,
+  not just missing art. `omit` was removed from `ThemeDef` entirely; a theme's
+  gaps must be filled with `doodadOverrides`.
+- `color_theme_*_16` exists only for `a b c d e f g i` — confirmed by searching
+  `color_theme` in the editor's Doodads tab, **nothing for bonus**. All five
+  bonus themes borrow `color_theme_a_16.xml` (the most neutral dark blue);
+  `coverLetter` in `config/themes.ts` is the retune knob.
+- Still unconfirmed: whether restoring `Cover` fully fixes the walk-through, and
+  whether the borrowed blue reads acceptably against the teal/orange bonus brick.
+- Also observed: bonus brightness in game is **fine** `[VERIFIED]` — the editor
+  preview was misleading. `tiles: 1` loads without error `[VERIFIED]`.
+
+### 2026-07-30 — five `bonus` themes exist, with mismatched tileset/doodad naming and no stair frames
+
+**Tag:** [UNVERIFIED] — everything below is read off the editor's asset browser;
+nothing has been packed or played yet.
+
+**Context:** adding `bonus1`–`bonus5` to the theme dropdown for playtest.
+
+**Evidence:** the editor's Doodads tab filtered on `theme_` lists
+`doodads/theme_bonus3/bonus3_crn_l_dn.xml`, `bonus3_h_8.xml`, `bonus3_x_x.xml`
+etc. — i.e. exactly the `doodads/theme_<t>/<t>_*.xml` shape the lettered themes
+use, with a multi-character token. Per bonus folder the listing shows **18**
+files: the 4 corners, `h_8`/`h_16`, `v_8`/`v_16`, `h_cap_l`/`h_cap_r`,
+`v_cap_dn`/`v_cap_up`, the 4 `x_t_*`, `x_x`, and `pillar`; `bonus5` adds
+`deteriorate`. The listing is alphabetical and **`exit_h_dn` / `exit_h_up` are
+absent** (they would sort between `deteriorate` and `h_16`, where `bonus5` shows
+`deteriorate` and nothing else). The user identified
+`doodads/special/bonus_entrance.xml` and `doodads/special/bonus_exit.xml` as the
+shared replacements.
+
+The Tilemap tab filtered on `bonus` lists `tilemaps/bonus_1.xml` …
+`tilemaps/bonus_5.xml` plus `tilemaps/bonus_shadow.xml`. **The naming does not
+match the doodad side** — tileset `bonus_3`, doodad folder `theme_bonus3` with
+prefix `bonus3`. Painting all five into a map shows each as a single uniform
+texture (no visible per-tile variation) and all five markedly darker than the
+lettered tilesets.
+
+**Impact:**
+- `TILEMAPS` in `map/level.ts` and `THEMES` in `config/parameters.ts` are replaced
+  by a single `THEME_DEFS` registry in `config/themes.ts`, because no single
+  token derives both path families any more.
+- `ThemeDef` gains `doodadOverrides` (verbatim replacement path) and `omit`.
+  Bonus themes override `ExitUp`→`bonus_entrance.xml`, `ExitDn`→`bonus_exit.xml`
+  and omit `Cover`, since `color_theme_bonus<n>_16.xml` does not exist.
+- Bonus `tiles` set to **1**, the only always-in-range value. If a bonus level
+  loads and the floor looks too repetitive, that is the number to raise.
+- Still open after playtest: do the shared `bonus_*` stair doodads sit correctly
+  at our `(0, 0)` `ExitDn`/`ExitUp` offsets, what are the real variant counts,
+  are bonus levels too dark to play, and what is `bonus_shadow.xml` for.
+- Promote to `[VERIFIED]` in `ASSET-REGISTRY.md` once a packed campaign has been
+  played; revert the feature if it has not.
 
 ### 2026-07-30 — the game applies the `req` cascade, so one removal flag limits a ladder
 **Tag:** [VERIFIED] — played in game, "tiers sold" confirmed working.
