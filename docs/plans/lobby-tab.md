@@ -123,7 +123,7 @@ Mansion's balance and would fight the Player tab's emitted tweaks.
 | **Level id** | Lobby ships as id `"lobby"`; `levels.xml` gets `start="lobby"`; its `LevelExitArea` points at `"0"`. Dungeon level files, ids and every existing seed's dungeon output stay byte-identical. |
 | **Custom assets** | Embedded and shipped with the campaign. `GeneratedFile` gains an optional binary encoding. |
 | **Shop control** | Per-category checkboxes — 5 per vendor for combo/def/misc/off, 1 for power (21 total), with an all/none shortcut per vendor. Badge doodad follows the selected count. |
-| **Starting gold** | 500 increments. Fill the 12 authored slots, then **stack** extras on the same coordinates. Stacking is `[UNVERIFIED]` — see "Verification". |
+| **Starting gold** | 500 increments. Fill the 12 authored slots, then **stack** extras on the same coordinates. Stacking is `[VERIFIED]` — 24 diamonds over 12 slots paid out 12000 in game (DISCOVERY-LOG, 2026-07-30). |
 | **Default** | Lobby **on** by default, starting gold **0** (no diamonds), all vendors selling all their columns. |
 | **Player-tab interaction** | Warn only. A vendor whose columns have no surviving upgrades after `playerTweaks` produces one advisory warning; the Lobby tab stays the sole owner of which stalls exist. |
 
@@ -249,13 +249,16 @@ new rules, per invariant 4 in CLAUDE.md:
 
 **Errors**
 - `startingGold` must be an integer ≥ 0 and a multiple of 500.
-- `startingGold` must not exceed `LOBBY_GOLD_MAX` (see Verification — start at
-  6000, raise once stacking is confirmed).
+- `startingGold` must not exceed `LOBBY_GOLD_MAX = 12000` — the depth actually
+  confirmed in play (2 diamonds per slot). See the warning below for going higher.
 - every id in `shopCategories` must be a member of `ALL_LOBBY_CATEGORIES`.
 
 **Warnings**
 - all 21 columns deselected while `enabled` → "the lobby has no vendors; the
   party can only walk to the teleport."
+- `startingGold` above 12000 is not reachable today, but if `LOBBY_GOLD_MAX` is
+  ever raised, warn past 12000 that the stack depth is untested rather than
+  silently allowing it.
 - a selected column whose upgrades are all removed by `playerTweaks` → **one**
   collapsed warning naming the affected vendors, following the existing
   collapse convention for bulk-triggered warnings. Reuse
@@ -341,7 +344,8 @@ npm run typecheck && npm test
    `ShopArea`, `CircleShape` and all three doodads, and leaves no dangling shape
    reference anywhere in the file.
 4. **Diamond count** — `startingGold / 500` entries; 0 emits an empty array;
-   past 6000 the slots repeat and all ids stay unique across the whole file.
+   past 6000 the slots repeat (12000 puts exactly two on every slot) and all ids
+   stay unique across the whole file.
 5. **Exit target** — the lobby's `LevelExitArea` `level` is `0`, and
    `levels.xml` has `start="lobby"` with a resolvable `res`.
 6. **Assets** — the 6 asset files are present with the right `encoding`, and the
@@ -364,12 +368,14 @@ install, and launch:
 4. The blood-textured walls and post lamps render **and block movement** — the
    custom `doodads/level1` pieces carry a collision polygon and the modding
    skill's offset warning applies.
-5. **The stacking experiment.** Set `startingGold` to 10000 (20 diamonds on 12
-   spots) and confirm: do all 20 render, does picking up a stack award the full
-   10000, and is gold shared across the party or per-player? Record the answer
-   in `DISCOVERY-LOG.md` with a `[VERIFIED]` tag, then set `LOBBY_GOLD_MAX` to
-   the highest confirmed-safe value. **Until that run happens the cap stays at
-   6000 and the stacking code path is unreachable from the UI.**
+5. ~~**The stacking experiment.**~~ **Done — stacking works.** 24 diamonds over
+   the 12 slots paid out 12000 in game. `LOBBY_GOLD_MAX` is 12000, the depth
+   actually confirmed; see the 2026-07-30 entry in `DISCOVERY-LOG.md`.
+6. **Two-player gold.** Still open, and it decides the wording of the Lobby tab's
+   starting-gold label: does a 12000 drop give the *party* 12000 or give *each*
+   player 12000? The confirming run was solo. Until this is answered the label
+   should say "gold on the lobby floor", not "you start with N gold". Open
+   question 12 in `DISCOVERY-LOG.md`.
 
 ---
 
