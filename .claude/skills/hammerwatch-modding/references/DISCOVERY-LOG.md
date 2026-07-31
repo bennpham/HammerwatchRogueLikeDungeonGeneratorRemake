@@ -38,8 +38,15 @@ until then, treat them as unknown in anything shown to the user.
 1. **Can a campaign ship its own assets?** Can custom `actors/`, `doodads/` or
    `tilemaps/` XML be placed inside the campaign folder and referenced by
    relative path, or does `LevelPacker.exe` only resolve against the game's
-   asset root? This decides whether "custom monsters" means *new actor files*
-   or only *unused stock actors*.
+   asset root? Split in two, because the answers are worth different things:
+   **1a — doodads and textures.** What the Lobby tab needs. Partially answered:
+   the 2026-07-30 shipped-assets entry shows a published third-party campaign
+   doing exactly this, but nobody here has packed one and watched a custom asset
+   render. The Lobby tab's in-game run closes this one.
+   **1b — actors.** Whether "custom monsters" can mean *new actor files* rather
+   than only *unused stock actors*. **Deferred to post-1.0** and deliberately not
+   being worked on now; it drags in spawner variants, `MONSTER_TYPES` wiring, and
+   projectile/effect/sound dependencies. A passing 1a run does not answer it.
 2. ~~**`.hwm` container format.**~~ Answered — see the 2026-07-29 packer-path
    entry. Custom `HWRP` archive: header, info.xml, optional icon PNG, then one
    gzip stream holding a name-keyed resource table. Still open: the exact
@@ -76,8 +83,87 @@ until then, treat them as unknown in anything shown to the user.
     ceiling may be the shop's column set rather than the chain. Test: add a 6th
     tier reusing `cat="misc5"`. If it appears, extra tiers are possible after
     all and the app could offer to lengthen a ladder.
+12. **Is a money pickup shared or per-player?** Stacked diamonds pay out in full
+    (2026-07-30), but only tested solo. Does a 12000 drop give the party 12000 or
+    each player 12000? The Lobby tab's "starting gold" label cannot promise
+    either until someone runs it with two players. Same question applies to the
+    dungeon's `goldMultiplier`.
 
 ## Entries
+
+### 2026-07-30 — money items stack on a single coordinate and pay out in full
+
+**Tag:** [VERIFIED] — observed by the user in play, Windows.
+
+**Context:** designing the Lobby tab's "starting gold" knob
+(`docs/plans/lobby-tab.md`). Gold is spawned as `items/valuable_diamond_red.xml`,
+a stock money item worth **500** each (`<entry name="amount"><int>500</int></entry>`
+in its `behavior` dict). The lobby template we are starting from,
+`pht6_quiky_dreadmann_mansion/levels/test_lobby.xml`, authors only 12 diamond
+positions on a 6×2 grid — `x ∈ {−7.5, −4.5, −1.5, 1.5, 4.5, 7.5}`, `y ∈ {−8, −10}` —
+which caps a one-per-slot scheme at 6000 gold. The open question was whether
+placing several items on the *same* `vec2` renders and awards them all, or
+whether the engine collapses or drops the duplicates.
+
+**Evidence:** the user placed diamonds beyond the 12 authored slots and collected
+**12000 gold** in game (HUD screenshot, "PRISON / Floor 1"). 12000 / 500 = 24
+diamonds over 12 positions, i.e. two deep on every slot, all of them picked up and
+credited. No visual glitch and no lost pickups reported.
+
+**Impact:** starting gold is not bounded by the template's floor space.
+`LOBBY_GOLD_MAX` in the plan no longer needs to clamp at 6000, and the round-robin
+slot walk (13th diamond returns to slot 0) is a supported layout rather than an
+experiment. Also generalises: any level that wants a large money drop in a small
+area can stack money items rather than needing distinct tiles.
+
+**Follow-up — still unknown, do not present as settled:**
+
+- **Maximum practical stack depth.** Two deep is confirmed; nothing above that is.
+  There is a plausible ceiling from pickup radius or render overdraw, and the
+  ~300-monster performance note above is a reminder that this game has soft limits
+  that only show up in play. Until someone tests ~5 deep, treat depth 2 as the
+  confirmed figure and anything higher as expected-but-unproven.
+- **Shared vs per-player gold.** The screenshot is a single-player run, so it does
+  not say whether a 12000 drop gives the *party* 12000 or gives *each* player
+  12000. This decides what the Lobby tab's "starting gold" label should promise.
+  Test with two players before the label claims either.
+
+### 2026-07-30 — a published campaign ships its own assets inside the campaign folder
+
+**Tag:** [UNVERIFIED] — file listing from a real install; not yet observed loading.
+
+**Context:** open question 1 ("Can a campaign ship its own assets?"), reopened
+while planning the Lobby tab, which wants to ship two non-stock doodads.
+
+**Evidence:** `<HW>/editor/pht6_quiky_dreadmann_mansion/` — a third-party campaign
+distributed on the forums — contains `actors/` (22 files), `doodads/` (47),
+`effects/` (6), `items/` (2), `projectiles/` (3), `sound/` (9), `tilemaps/` (8)
+and `tweak/` (7), including `.png` textures alongside the `.xml`. Its
+`levels/test_lobby.xml` references these by the same flat relative paths used for
+stock assets — e.g. `doodads/level1/c_v_16.xml` and `doodads/lamp_torch_post_spor.xml`,
+neither of which exists in `editor/assetsExtract/`. Cross-checked every path the
+file references: only those two families are non-stock. So the campaign is either
+relying on campaign-relative resolution, or it is broken — and a campaign
+published for others to play is unlikely to be broken.
+
+**Impact:** strong circumstantial support for shipping custom assets in the
+campaign folder, which is what `docs/plans/lobby-tab.md` assumes. It is **not**
+proof: nobody in this repo has packed a campaign containing a custom asset and
+watched it render. The plan's in-game verification step covers exactly this
+(does the blood-textured wall appear, and does it still block?).
+
+**Scope — read this before acting on it.** That run would confirm the **doodad**
+path only, and that is all the Lobby tab needs. **Custom actors are deferred to
+post-1.0 and are not in scope now:** shipping a monster is a separate question
+with its own failure modes (spawner variants, `MONSTER_TYPES` wiring, projectile
+and effect and sound dependencies, per-DLC availability) and needs its own
+verification run. Do not read a passing lobby run as clearance to add custom
+monsters, and do not treat open question 1 as fully closed by it — split the
+question if that is what it takes to keep the two apart.
+
+**Follow-up:** whether `LevelPacker.exe` needs the assets present at pack time or
+whether it packs whatever files it finds in the folder — relevant because the
+generator writes the campaign folder itself and must include them before packing.
 
 ### 2026-07-30 — ~400 monsters in one lair is past the game's comfortable limit
 

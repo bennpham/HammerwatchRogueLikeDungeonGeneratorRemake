@@ -225,6 +225,20 @@ Keys and doors are index-matched: bronze/silver/gold at 0/1/2, and doors 0–2
 are horizontal while 3–5 are the vertical variants of the same three tiers.
 `ctx.lastLockType` carries the tier from the door to its key.
 
+### Money items `[VERIFIED 2026-07-30]`
+
+Not in `item.ts` — used by the lobby template only. `items/valuable_diamond_red.xml`
+is stock and pays exactly **500** (`<entry name="amount"><int>500</int></entry>`
+in its `behavior` dict), which is what makes "starting gold in 500 steps" a clean
+one-diamond-per-step mapping.
+
+**Money items stack.** Several on the same `vec2` all render and all pay out —
+24 diamonds over 12 positions collected the full 12000 in game. So a large drop
+does not need a large floor. Confirmed depth is **2 per position**; deeper is
+expected to work but untested, and there may be a pickup-radius or overdraw
+ceiling. Whether a pickup credits the party or each player is **still unknown**
+(open question 12) — do not write UI copy that assumes either.
+
 ## Tilemaps (themes)
 
 `THEME_DEFS` in `src/generator/config/themes.ts`. `tiles` is how many floor
