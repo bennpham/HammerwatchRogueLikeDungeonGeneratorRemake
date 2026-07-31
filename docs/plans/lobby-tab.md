@@ -3,8 +3,22 @@
 Tracks [issue #5](https://github.com/bennpham/HammerwatchRogueLikeDungeonGeneratorRemake/issues/5):
 *"As the party, I would like a small lobby before diving into the dungeon."*
 
-**Status: approved, not implemented.** This document is the spec to hand an
-implementer; no code in this PR.
+**Status: implemented** on `claude/lobby-tab-implementation-dnczao`, and the
+template is now the real one. The first build shipped a stock-asset fallback
+lobby authored by `scripts/import-lobby-assets.mjs` (no Hammerwatch install was
+available at the time); played on a real install it worked but was not enclosed
+— missing walls, and the party could walk off the map. It has been replaced by
+`levels/test_lobby.xml` imported verbatim from the Dreadmann Mansion campaign,
+with its 10 campaign-local files carried in `LOBBY_ASSETS`. The import now
+derives the element ids `buildLobby` edits from the file it reads, so swapping
+in a different lobby needs no hand-editing. See the newest 2026-07-31 entry in
+`.claude/skills/hammerwatch-modding/references/DISCOVERY-LOG.md` and the "lobby
+template" section of `ASSET-REGISTRY.md`. The in-game verification below is
+still outstanding for the imported level.
+
+The tab strip also leads with **Lobby | Dungeon | Player** and opens on Lobby:
+setting up the lobby is the first thing a run needs, the other two are optional
+passes.
 
 ---
 

@@ -1,5 +1,6 @@
 import { DungeonParameters, defaultParameters } from './parameters'
 import { MONSTER_TYPES } from '../objects/monsterTypes'
+import { isLobbyCategory } from '../lobby/shops'
 import { TWEAK_FIELD_MAP, pruneTweaks } from '../tweak/overrides'
 
 export interface ParsedConfig {
@@ -56,8 +57,9 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   const params: DungeonParameters = base
     ? JSON.parse(JSON.stringify(base))
     : defaultParameters()
-  // a base object round-tripped from an older settings file may predate this field
+  // a base object round-tripped from an older settings file may predate these
   if (params.playerTweaks === undefined) params.playerTweaks = {}
+  if (params.lobby === undefined) params.lobby = defaultParameters().lobby
   const result: ParsedConfig = { params, unknownKeys: [] }
 
   const intKeys: Record<string, (v: number) => void> = {
@@ -104,6 +106,27 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     }
     if (keyLower === 'themes') {
       params.themes = value.split(',').map((t) => t.trim())
+      continue
+    }
+
+    if (keyLower === 'lobby') {
+      params.lobby.enabled = value === '1'
+      continue
+    }
+    if (keyLower === 'lobbygold') {
+      const n = parseInt(value, 10)
+      if (Number.isNaN(n)) result.unknownKeys.push(key)
+      else params.lobby.startingGold = n
+      continue
+    }
+    if (keyLower === 'lobbyshops') {
+      // space separated to mirror the `cats` string it becomes. Unknown column
+      // ids are reported rather than dropped silently, but never throw.
+      const wanted = value.split(/\s+/).filter((c) => c !== '')
+      params.lobby.shopCategories = wanted.filter(isLobbyCategory)
+      for (const bad of wanted.filter((c) => !isLobbyCategory(c))) {
+        result.unknownKeys.push(`${key} value "${bad}"`)
+      }
       continue
     }
 
@@ -217,6 +240,11 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
       }
     }
   }
+
+  // Add lobby params after the main loop
+  lines.push(`lobby=${params.lobby.enabled ? 1 : 0}`)
+  lines.push(`lobbyGold=${params.lobby.startingGold}`)
+  lines.push(`lobbyShops=${params.lobby.shopCategories.join(' ')}`)
 
   return lines.join('\r\n') + '\r\n'
 }

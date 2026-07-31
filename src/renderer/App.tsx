@@ -4,6 +4,7 @@ import type { DungeonParameters, PlayerTweaks } from '../generator'
 import type { AppSettings, GenerateResponse } from '../shared/ipc'
 import { ParameterForm } from './components/ParameterForm'
 import { PlayerForm } from './components/PlayerForm'
+import { LobbyForm } from './components/LobbyForm'
 import { LevelPreview } from './components/LevelPreview'
 import { LoadoutSheet } from './components/LoadoutSheet'
 import { OutputPanel } from './components/OutputPanel'
@@ -20,7 +21,9 @@ export function App() {
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<GenerateResponse | null>(null)
   const [toast, setToast] = useState<Toast | null>(null)
-  const [leftTab, setLeftTab] = useState<'dungeon' | 'player'>('dungeon')
+  // the lobby is where a run starts, so it is where the app opens; the dungeon
+  // and player passes are the optional ones
+  const [leftTab, setLeftTab] = useState<'lobby' | 'dungeon' | 'player'>('lobby')
   const [rightTab, setRightTab] = useState<'preview' | 'loadout'>('preview')
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
@@ -88,14 +91,19 @@ export function App() {
     setParams({ ...params, playerTweaks })
   }
 
-  /** Resets whichever tab you are looking at, leaving the other one alone. */
+  /** Resets whichever tab you are looking at, leaving the others alone. */
   const resetDefaults = () => {
     if (leftTab === 'player') {
       setParams({ ...params, playerTweaks: {} })
       showToast('info', 'Player tweaks cleared — no tweak files will be written.')
       return
     }
-    setParams({ ...defaultParameters(), playerTweaks: params.playerTweaks })
+    if (leftTab === 'lobby') {
+      setParams({ ...params, lobby: defaultParameters().lobby })
+      showToast('info', 'Lobby reset to defaults.')
+      return
+    }
+    setParams({ ...defaultParameters(), playerTweaks: params.playerTweaks, lobby: params.lobby })
     showToast('info', 'Dungeon parameters reset to defaults.')
   }
 
@@ -146,7 +154,7 @@ export function App() {
           <button onClick={importParams} disabled={busy}>Import parameters.txt</button>
           <button onClick={exportParams} disabled={busy}>Export parameters.txt</button>
           <button onClick={resetDefaults} disabled={busy}>
-            {leftTab === 'player' ? 'Reset player tweaks' : 'Reset defaults'}
+            {leftTab === 'player' ? 'Reset player tweaks' : leftTab === 'lobby' ? 'Reset lobby' : 'Reset defaults'}
           </button>
         </div>
       </header>
@@ -154,6 +162,13 @@ export function App() {
       <div className="app-body">
         <aside className="left-panel">
           <div className="panel-tabs">
+            <button
+              className={leftTab === 'lobby' ? 'tab active' : 'tab'}
+              onClick={() => setLeftTab('lobby')}
+            >
+              Lobby
+              {params.lobby.enabled && <span className="tab-count">on</span>}
+            </button>
             <button
               className={leftTab === 'dungeon' ? 'tab active' : 'tab'}
               onClick={() => setLeftTab('dungeon')}
@@ -169,14 +184,18 @@ export function App() {
             </button>
           </div>
 
-          {leftTab === 'dungeon' ? (
+          {leftTab === 'dungeon' && (
             <ParameterForm params={params} issues={validation.errors} onChange={setParams} />
-          ) : (
+          )}
+          {leftTab === 'player' && (
             <PlayerForm
               tweaks={params.playerTweaks ?? {}}
               issues={validation.errors}
               onChange={setTweaks}
             />
+          )}
+          {leftTab === 'lobby' && (
+            <LobbyForm params={params} issues={validation.errors} onChange={setParams} />
           )}
         </aside>
 

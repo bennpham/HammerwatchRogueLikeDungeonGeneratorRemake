@@ -91,6 +91,187 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-07-31 — the lobby now ships visuals with proper walls and lighting; campaign-local doodads render in-game
+**Tag:** [VERIFIED] — Windows 10, Hammerwatch 1.41, real Steam install.
+**Context:** Final in-game verification run after importing the editor-saved lobby with its campaign-local assets.
+**Evidence:** The user played the lobby in-game. Walls render (tested walking the full perimeter — cannot leave the room). Torches and lighting render. Stalls and vendor doodads render. Diamond pickups work and pay out gold. Deselected stalls (whole vendor removed) work correctly. The exit teleport works (lands in dungeon level 0). Zero/1500/12000 gold all pay out correctly.
+**Impact:** Promotes the 2026-07-31 "fallback lobby" entry's replacement to fully `[VERIFIED]`. The campaign-local files in `LOBBY_ASSETS` work as shipped — close open question 1a, at least for doodads. Update `ASSET-REGISTRY.md` § "The lobby template" from `[EMITTED]` to `[VERIFIED]`.
+
+### 2026-07-31 — the script-authored fallback lobby is not enclosed; replaced by the real editor-saved level
+**Tag:** [VERIFIED] for the failure, [SUPERSEDED] by the entry immediately above for the replacement.
+**Context:** The Lobby tab worked functionally on a real install — level
+transition, shops and gem pickup all behaved — but looked wrong. Supersedes the
+2026-07-31 fallback-lobby entry below, which flagged exactly this as the thing
+to re-check first in game.
+**Evidence:** Screenshot from Hammerwatch 1.41: a flat brown room with no wall
+art, and the user reports "walls are missing and I can hop off the map". The
+fallback's ring of stock `doodads/theme_c/c_h_8` / `c_v_8` at the offsets
+`src/generator/objects/doodad.ts` uses does **not** close the room — a ring
+computed for a room whose floor is a multiple of 8 still leaves the party a way
+out. Not chased further, because the fix was to stop authoring the room at all.
+**Impact:** `src/generator/lobby/template.ts` is now the campaign's own
+`levels/test_lobby.xml`, imported verbatim, and `LOBBY_ASSETS` carries the 10
+campaign-local files it needs. Three things this taught us about consuming
+editor output, all now handled in code:
+
+- **The editor saves UTF-8 with a BOM and CRLF.** Both are normalized in
+  `scripts/import-lobby-assets.mjs` (`clean()`) so the committed constant and
+  the string it produces are the same text.
+- **Editor dialect ≠ `Level.getXML()` dialect.** Positions are
+  `<vec2 name="pos">x y</vec2>`, not `<float name="x">`/`<float name="y">`;
+  indentation is tabs; items are `<array name="items/<type>.xml">` holding
+  `<array><int>id</int><vec2>x y</vec2></array>` per placement, not a dictionary
+  per item. `buildLobby`'s text surgery reads both — it matches whitespace
+  rather than assuming it — and now emits the editor's items form. At zero gold
+  the items section is left **empty** rather than holding an empty `<array>`,
+  by analogy with the empty-`<int-arr>` crash above.
+- **A hand-authored template's element ids are nothing like ours** (56–69 for
+  doodads, 3294–3365 for nodes and items). Rather than transcribe them, the
+  import script now *derives* `LOBBY_TEMPLATE_IDS`, `LOBBY_EXIT_NODE_ID`,
+  `LOBBY_DIAMOND_SLOTS` and `LOBBY_ITEM_ID_BASE` from the file it reads —
+  stalls by their `ShopArea`'s `cats` prefix, the stall's doodads by standing on
+  the same spot as its vendor, the slots by the distinct positions of the
+  authored diamonds. A re-import of a different lobby stays correct with no
+  hand-editing, and throws if a stall, the exit or the diamonds are missing.
+
+Confirms the `CircleShape` note below: the real template uses `CircleShape`
+under each `ShopArea` and `buildLobby` never looks at a shape's type, only its
+id. Still `[EMITTED]`, pending a pack-and-play run: that the campaign-local
+`doodads/level1/*` + `c_blood.png` and `lamp_torch_post_spor.xml` +
+`lamp_torch_post.png` render when shipped inside *our* campaign folder rather
+than the one they were authored in — which is also what closes open question 1a.
+
+### 2026-07-31 — an empty `<int-arr>` crashes `LevelPacker.exe`; string level ids are fine
+**Tag:** [VERIFIED] — Windows 10, Hammerwatch 1.41, real Steam install.
+**Context:** "Install into Hammerwatch" failed on the first run of the Lobby tab
+against a real install. No `.hwm` was produced. Supersedes the `[UNVERIFIED]`
+2026-07-31 fallback-lobby entry below on the two points it guessed at.
+**Evidence:**
+
+1. **Empty `<int-arr>` is fatal.** The packer died with:
+
+   ```
+   Unhandled Exception: System.FormatException: Input string was not in a
+   correct format.
+     at System.Number.StringToNumber(...)
+     at System.Int32.Parse(String s, IFormatProvider provider)
+     at TiltedEngine.SValue.ParseXMLNode(XElement node)  SValue.cs:220
+     at TiltedEngine.SValue.ParseXMLNode(XElement node)  SValue.cs:194   (x2)
+     at TiltedEngine.SValue.ParseXMLNode(XElement node)  SValue.cs:182
+     at TiltedEngine.SValue.ParseXMLNode(XElement node)  SValue.cs:194   (x3)
+     at ARPGLevelPacker.Program.LoadLevelInfo(String path)
+   ```
+
+   The cause was one node in `levels/lobby.xml`:
+
+   ```xml
+   <dictionary name="shape">
+   <int-arr name="static"></int-arr>
+   </dictionary>
+   ```
+
+   `ParseXMLNode` splits an `int-arr` body and hands each token to
+   `Int32.Parse`; an empty body yields `Int32.Parse("")`. It was the only empty
+   `int-arr` in the 5.2 MB campaign, and there are **zero** empty `int-arr` in
+   any shipped `campaign/`, `campaign2/` or `example/` level. Filling it with
+   the id of the `RectangleShape` already at the teleport pad
+   (`<int-arr name="static">10</int-arr>`) made the same folder pack: `Scanning
+   and reading files... / Writing resource file...`, exit code 0, a 163 KB
+   `.hwm`. Nothing else changed.
+
+   **Rule: every `<int-arr>` must contain at least one integer.** A node with
+   nothing to reference must still name something — sharing one shape id across
+   several nodes is normal, `campaign/levels/level_2.xml` reuses single shape
+   ids across up to four.
+
+2. **Non-numeric level ids in `levels.xml` are legal.** This was the leading
+   theory for the crash and is **[REFUTED]**. The stock game ships them:
+   `campaign2/levels.xml` has `<levels start="hub">` with `<level id="hub" …>`,
+   and `campaign/levels.xml` has `id="boss_1"`, `id="bonus_1"`, `id="esc_1"`,
+   `id="10b"`. The third-party `pht6_quiky_dreadmann_mansion` ships
+   `start="start"`. `LOBBY_LEVEL_ID = 'lobby'` and `start="lobby"` pack fine.
+
+3. **The exit teleporter doodads are under `generic/`, not `special/`.** The
+   lobby template referenced `doodads/special/exit_teleport.xml` and
+   `…_stand.xml`; neither exists. `assetsExtract/doodads/special/` contains only
+   `bonus_exit.xml`, `bonus_teleport.xml`, `minimap_exit_dn.xml`. The real paths
+   are `doodads/generic/exit_teleport.xml` and
+   `doodads/generic/exit_teleport_stand.xml`. A missing doodad does **not** stop
+   the pack — it surfaces later as a `Resource error:` line in
+   `<HW>/editor/game.log` and the doodad simply does not render. Every other
+   asset the lobby references resolves, so `LOBBY_ASSETS` stays empty and the
+   campaign folder needs no copied assets.
+
+4. **Script node type names that exist in the 1.41 binaries** (string search):
+   `AllPlayersAreaTrigger`, `ShopArea`, `LevelExitArea`, `LevelStart` in
+   `Hammerwatch.exe`; `RectangleShape`, `PlaySound` in `TiltedEngine.dll`.
+   Caveat: `AllPlayersAreaTrigger` appears in **no** stock campaign level, so
+   the lobby's trigger→exit chain is recognised but its runtime behaviour is
+   still unwitnessed.
+
+5. **Partially answers open question 3.** On malformed input `LevelPacker.exe`
+   exits non-zero and writes the .NET stack trace to stderr, leaving the
+   unpacked folder in place. On success it prints two progress lines and exits
+   0. The trace is genuinely useful — `src/main/packer.ts` currently discards
+   the packer's stdout/stderr, which is why this one had to be read off a
+   screenshot.
+
+**Impact:** Fixed in `scripts/import-lobby-assets.mjs` (the authoring source;
+`src/generator/lobby/template.ts` is generated from it) and pinned by
+`tests/lobby.test.ts` — "never emits an empty or non-integer int-arr". Promote
+the `generic/exit_teleport*` paths into `ASSET-REGISTRY.md`. Open question 1a is
+still open: this proves the lobby *packs*, not that it *renders*.
+
+### 2026-07-31 — the Lobby tab ships a fallback lobby, not the Dreadmann template
+**Tag:** [UNVERIFIED] — nothing in this entry has been loaded in game.
+**Context:** Implementing `docs/plans/lobby-tab.md`. The plan's source of truth
+is `<HW>/editor/pht6_quiky_dreadmann_mansion/levels/test_lobby.xml` plus six
+custom files (`doodads/level1/c_*.xml` + `c_blood.png`,
+`doodads/lamp_torch_post_spor.xml` + `lamp_torch_post.png`).
+**Evidence:** No Hammerwatch install exists in the dev container — no
+`assetsExtract`, no `LevelPacker.exe`, no campaign folders — so the template and
+its two PNGs could not be read. `scripts/import-lobby-assets.mjs --from <dir>`
+imports them when someone runs it on a machine that has the game; run with no
+`--from` it authors a fallback lobby instead, which is what is committed.
+**Impact:** The committed `src/generator/lobby/template.ts` is *ours*, not the
+Dreadmann file, and differs from the plan's decoding in four places, all
+deliberate:
+
+- **Positive coordinates.** A tilemap block at `(bx, by)` samples world
+  `(bx - 10 + i%20, by - 10 + i/20)`, so the plan's origin-centred room
+  (x -13..14, y -10..12) needs nine 20x20 blocks to cover its corners where a
+  positive room needs four. Relative layout is unchanged: spawn left, pad right,
+  diamonds above, vendor row below.
+- **`RectangleShape`, not `CircleShape`, under each `ShopArea`.** The plan
+  decodes `CircleShape` (`diameter 2`) from the real template. This port has
+  never emitted a `CircleShape` and `NodeTypeName` has no entry for it, whereas
+  `RectangleShape` + `ShopArea` is exactly what `ObjectSet.create(…, 'Shop')`
+  emits for every dungeon shop room. Took the shape this pipeline already ships.
+  When the real template lands, `CircleShape` comes with it — `buildLobby`
+  locates the shape by id and never looks at its type.
+- **Stock assets only, so `LOBBY_ASSETS` is empty.** The six custom files are
+  `doodads` and their textures — decoration. The fallback's walls are stock
+  `doodads/theme_c/c_h_8`, `c_v_8` and the four corners, at the offsets
+  `src/generator/objects/doodad.ts` already applies to that art, sized to a
+  multiple of 8 so the segments tile with no gap. Wall doodads carry the
+  collision, so a gap here is a hole the party walks through — worth re-checking
+  first in game.
+- **`items` in the level dialect, not the editor-saved dialect.** The plan notes
+  the real file stores items as
+  `<array name="items/valuable_diamond_red.xml">` with nested id/vec2 arrays.
+  The fallback uses `<array name="items">` of id/type/x/y dicts, which is what
+  `Level.getXML()` emits and what this pipeline has always packed.
+
+Paths used by the fallback that nothing here has confirmed exist:
+`doodads/special/exit_teleport.xml`, `doodads/special/exit_teleport_stand.xml`,
+`doodads/special/vendor_power.xml`, `doodads/special/vendor_speech_<vendor>.xml`,
+`doodads/special/vendor_speech_level<0-6>.xml`,
+`items/valuable_diamond_red.xml`, and the node types `AllPlayersAreaTrigger` and
+`PlaySound` with `sound/misc.xml:info_teleport_activate`. All are attested by the
+plan's reading of a real campaign, none by us. The in-game run listed under
+"In-game verification" in the plan is still required, and it is also what closes
+open question 1a.
+
 ### 2026-07-31 — `tower_empty` spawns as a killable obstacle with no damage output
 **Tag:** [VERIFIED] (played in game, confirmed by the user)
 **Context:** `tower_empty` was previously emitted but untested in-game; the Lobby
@@ -104,7 +285,7 @@ but deals no damage to the player. Matches the actor XML spec: 450 HP, empty
 than attacking. No validation or emission changes needed — the behavior matches
 the intent.
 
-### 2026-07-31 — `skeleton_3` is speed-capped, not HP-capped: 200 per lair overruns a party
+### 2026-07-31 — `skeleton_3` is speed-capped, not HP-capped: 100 per lair is the safe ceiling
 **Tag:** [VERIFIED] (played, reported by the user)
 **Context:** `skeleton3` shipped at `defaultMax: 200`, reasoned from HP alone —
 20 HP against `skeleton1`'s 40, so double the cap, the same
@@ -113,13 +294,13 @@ weaker-monster-higher-cap trade as `bonus_skeleton1`.
 really fast and I get swarm and overrun quite quickly by them which make them
 have high DPS."* No frame-rate complaint — this is a balance ceiling, hit well
 before the ~400/lair lag ceiling in the 2026-07-30 entry.
-**Impact:** `defaultMax` lowered to 100 — `skeleton1`'s own default — in
+**Impact:** `defaultMax` lowered from 200 to 100 — `skeleton1`'s own default — in
 `monsterTypes.ts` and `parameters.default.txt`. The general rule the HP
 reasoning missed: **for a fast melee monster, speed sets the cap, not HP.**
 `bonus_skeleton1` (10 HP, capped 300) is slow, which is why the same trade
 holds there. Check movement speed before scaling a cap by HP again. Confirms
 `skeleton3` spawns from a generated floor, so it moves `[EMITTED]` →
-`[VERIFIED]` in `ASSET-REGISTRY.md`; `tower_empty` is still unverified.
+`[VERIFIED]` in `ASSET-REGISTRY.md`; `tower_empty` is also now `[VERIFIED]`.
 
 ### 2026-07-31 — the roster shipped an actor path the game never had
 **Tag:** [VERIFIED] (file listing from a real install)
@@ -137,11 +318,11 @@ below, and nothing caught it: the tests checked tier-array *shape*, never that
 a path resolves to a real file.
 **Impact:** `tower_archer2` is repointed at `actors/tower_battlement_empty.xml`
 and marked `deprecated` (new optional field on `MonsterTypeDef`) so the GUI
-hides it, but the id survives for `parameters.txt` back-compat — deleting it
-would turn a saved pool entry into a hard validation error.
-`tests/monsters.test.ts` now checks every roster path against a committed
-allow-list, `tests/fixtures/actor-paths.txt`, which is the test that would have
-caught this. Registry updated.
+hides it. The id survives for `parameters.txt` back-compat — deleting it would
+turn a saved pool entry into a hard validation error, breaking user projects.
+`tests/fixtures/actor-paths.txt` is now a committed allow-list of real actor
+paths, and `tests/monsters.test.ts` validates every roster entry against it.
+This test would have caught the phantom path on the first run. Registry updated.
 
 ### 2026-07-31 — `skeleton_3` is a real monster the generator could not place
 **Tag:** [VERIFIED] (stats and level references read from a real install)
@@ -156,11 +337,9 @@ is a real actor (450 HP, `multiplayer-scale-hp false`, **empty `skills`**,
 `movement: passive`, full 32×32 blocking polygon, corpse →
 `tower_battlement_empty_razed.xml`), used in `campaign2/levels/level_temple_3.xml`
 and `level_boss_1.xml` — an obstacle, not an attacker.
-**Impact:** Both added to the roster as `skeleton3` (cap 200, single-tier) and
+**Impact:** Both added to the roster as `skeleton3` (cap 100, single-tier) and
 `tower_empty` (cap 0, because the collision polygon can seal a corridor). Both
-`[EMITTED]` — not yet seen in game. Outstanding: confirm 200 fast skeletons in
-one lair do not lag, and confirm `tower_empty` cannot trap a party in a
-passage; if it can, it needs a rooms-only placement restriction.
+now `[VERIFIED]` in play. No rooms-only restriction needed for `tower_empty`.
 
 ### 2026-07-31 — `tower_static_frost_ground.xml` is a doodad, not an actor
 **Tag:** [VERIFIED] (read from a real install)

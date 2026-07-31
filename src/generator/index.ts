@@ -3,8 +3,9 @@ import { Level } from './map/level'
 import { DungeonParameters, defaultParameters } from './config/parameters'
 import { validateParameters, ValidationResult } from './config/validation'
 import { emitTweakFiles } from './tweak/overrides'
+import { LOBBY_ASSETS, LOBBY_LEVEL_ID, LOBBY_LEVEL_PATH, buildLobby } from './lobby'
 
-export type { DungeonParameters } from './config/parameters'
+export type { DungeonParameters, LobbyOptions } from './config/parameters'
 export { THEMES } from './config/parameters'
 export { THEME_DEFS, getTheme } from './config/themes'
 export type { ThemeDef } from './config/themes'
@@ -13,6 +14,22 @@ export { validateParameters } from './config/validation'
 export type { ValidationResult, ValidationIssue } from './config/validation'
 export { parseParametersTxt, serializeParametersTxt } from './config/configFile'
 export type { ParsedConfig } from './config/configFile'
+export {
+  ALL_LOBBY_CATEGORIES,
+  LOBBY_DIAMOND_SLOTS,
+  LOBBY_DIAMOND_VALUE,
+  LOBBY_GOLD_MAX,
+  LOBBY_LEVEL_ID,
+  LOBBY_LEVEL_PATH,
+  LOBBY_VENDORS,
+  buildLobby,
+  categoriesFor,
+  diamondCount,
+  isLobbyCategory,
+  lobbyCategoryCounts,
+  vendorOfCategory
+} from './lobby'
+export type { LobbyVendorDef } from './lobby'
 export { MONSTER_GROUPS, MONSTER_TYPES, monsterTypesInGroup } from './objects/monsterTypes'
 export type { MonsterGroup, MonsterTypeDef } from './objects/monsterTypes'
 export {
@@ -79,7 +96,14 @@ export type {
 export interface GeneratedFile {
   /** path relative to the campaign folder, e.g. "levels/level0.xml" */
   path: string
+  /** utf-8 text, or base64 when `encoding` says so */
   content: string
+  /**
+   * How to turn `content` back into bytes on the way out. Optional so every
+   * existing producer keeps compiling; absent means utf-8. The generator still
+   * returns strings only — no `fs`, no `Buffer`, no loss of purity.
+   */
+  encoding?: 'utf-8' | 'base64'
 }
 
 export interface PreviewSegment {
@@ -184,6 +208,18 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
     ctx.clearLevel()
   }
 
+  // The lobby is hand-authored, so it is emitted after the level loop and draws
+  // nothing from ctx.rand or ctx.cosmeticRand — exactly like emitTweakFiles.
+  // Same seed means the same dungeon whether the lobby is on or off; it only
+  // prepends a level entry and moves the campaign's `start`.
+  const lobbyEnabled = params.lobby?.enabled === true
+  if (lobbyEnabled) {
+    files.push({ path: LOBBY_LEVEL_PATH, content: buildLobby(params.lobby) })
+    files.push(...LOBBY_ASSETS)
+    levelString =
+      `<level id="${LOBBY_LEVEL_ID}" res="${LOBBY_LEVEL_PATH}" name="lvl.floor?floor=0" />\n` + levelString
+  }
+
   files.push({
     path: 'info.xml',
     content:
@@ -197,7 +233,11 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
   files.push({
     path: 'levels.xml',
     content:
-      '<levels start="0">\n' + '<act name="lvl.act1">\n' + levelString + '       </act>\n' + '</levels>'
+      `<levels start="${lobbyEnabled ? LOBBY_LEVEL_ID : '0'}">\n` +
+      '<act name="lvl.act1">\n' +
+      levelString +
+      '       </act>\n' +
+      '</levels>'
   })
 
   // Only the balance files the user actually edited. Untouched = no tweak/ folder,

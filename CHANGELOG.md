@@ -9,33 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`skeleton3`** — the fast swarm skeleton from stock levels 10 and 11, and what
-  `lich_3` summons. 20 HP and 8 damage at speed 1.1, against `skeleton1`'s
-  40/20 at 0.4. Capped at 100: playtested at double that they swarm and overrun
-  a party long before the frame rate suffers. Opt-in from the pool editor or
-  `monstersN=`; no existing seed changes
-- **`tower_empty`** — the empty battlement (450 HP, no skills, full 32×32
-  blocking collision). An obstacle rather than an attacker, so it defaults to 0
-- A roster-wide guard test: every actor path in `MONSTER_TYPES` must appear in
-  `tests/fixtures/actor-paths.txt`, a committed snapshot of the game's actor
-  folder. Nothing previously checked that a path pointed at a real file
+- **`skeleton3`** — a fast melee swarm skeleton (20 HP, 8 damage, speed 1.1) from stock levels 10 and 11, and what `lich_3` summons. Versus the vanilla `skeleton1` (40 HP, 20 damage, speed 0.4), it trades survivability for speed and crowd potential. Capped at 100: playtested at double that they swarm and overrun a party long before frame rate becomes a concern. Opt-in from the monster pool editor or `monstersN=` parameter; existing seeds are unaffected.
+
+- **`tower_empty`** — the empty battlement, a 450-HP obstacle with no attack skills and full 32×32 blocking collision. Suitable for walling off passages. Defaults to 0 pool weight since it does not attack.
+
+- **Monster roster audit** — introduced a guard test that validates every actor path in `MONSTER_TYPES` against `tests/fixtures/actor-paths.txt`, a committed snapshot of the game's actor folder. Previously nothing verified that an enabled monster type pointed to a file the game actually has.
+
+- **Lobby tab** — a prebuilt starting level where the party spawns into a safe room with five upgrade vendors arranged in a row, optional starting gold on the floor, and a teleport portal down to the dungeon. Enabled by default with no gold, so new users see a shop and spawn room rather than jumping straight into configuration. Features:
+  - **Per-column shop control:** each vendor stall can independently show any subset of its columns (21 total across five shops), with all/none toggles. Vendors with no columns selected are removed from the level entirely.
+  - **Starting gold in increments of 500:** gold is spawned as red diamonds, filling the 12 floor slots and stacking beyond. Stack depth capped at 12,000 (confirmed to pay out in-game, two diamonds per slot).
+  - **Upgrade impact preview:** each column displays how many upgrades it actually contains after the Player tab's edits. A column the Player tab has emptied raises a single advisory warning rather than blocking the generation.
+  - **Three new parameters:** `lobby` (enable/disable), `lobbyGold` (amount), `lobbyShops` (space-separated column list).
+
+- **`GeneratedFile.encoding`** — campaign files can now carry binary content as base64, allowing a lobby template with custom non-stock artwork to be embedded. The generator still returns strings only (no Node I/O, maintaining purity); encoding and decoding happen at the pack/write boundary.
 
 ### Changed
 
-- The monster pool editor and the max-count table now list each category
-  **alphabetically**. `MONSTER_TYPES` is append-only, so newly added types used
-  to land at the bottom of their group regardless of name; both lists now go
-  through `monsterTypesInGroup()`, which sorts by id and hides deprecated types
+- **Monster pool editor now sorts alphabetically** — categories and max-count table list types by name, not append order. `MONSTER_TYPES` is append-only for compatibility, so newly added types used to land at the bottom of their group regardless of name. Both lists now sort through the same path and hide deprecated types.
+
+- **`levels.xml` start point moves with the lobby** — when enabled, the lobby ships as level `"lobby"` and becomes the start; dungeon levels keep their numbered ids. This ensures that existing seeds produce byte-identical output whether the lobby is on or off (verified by test).
 
 ### Fixed
 
-- **`tower_archer2` emitted an actor the game cannot load.** It pointed at
-  `actors/tower_battlement_archer_2.xml`, which the game never shipped —
-  Hammerwatch has battlement archer 1 and 3 only. Enabling the type wrote an
-  unresolvable path into the level. It now points at the empty battlement and is
-  hidden from the GUI in favour of `tower_empty`. The id is deliberately **not**
-  deleted: `maxTowers_Archer2` still parses and re-serializes, so an existing
-  `parameters.txt` keeps loading
+- **`tower_archer2` emitted a non-existent actor path.** The type pointed at `actors/tower_battlement_archer_2.xml`, which the game never shipped — Hammerwatch only has battlement archer variants 1 and 3. Enabling it wrote an unresolvable path into the level. Now repointed to `tower_battlement_empty` and hidden from the GUI in favour of `tower_empty`, but the id deliberately survives so existing `parameters.txt` files with `maxTowers_Archer2` keep loading.
+
+### Notes
+
+- The committed lobby template is a stock-asset fallback authored by `scripts/import-lobby-assets.mjs`, not the Dreadmann Mansion `test_lobby.xml` referenced in the plan — that file was unavailable in the dev environment. Run the script with `--from <campaign dir>` to import a real template. Nothing about the lobby has been tested in-game yet; see the 2026-07-31 entry in the modding skill's discovery log for exactly what remains unverified.
 
 ## [0.2.0] - 2026-07-30
 

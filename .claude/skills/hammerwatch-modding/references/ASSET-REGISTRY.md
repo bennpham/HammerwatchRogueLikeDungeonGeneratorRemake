@@ -149,6 +149,17 @@ a piece, deliberately — see the offset rule below.
 | `ExitUp` (bonus only) | `doodads/special/bonus_entrance.xml` | 0, 0 |
 | `ExitDn` (bonus only) | `doodads/special/bonus_exit.xml` | 0, 0 |
 
+**The exit teleporter is under `generic/`, not `special/`** `[VERIFIED]` — the
+lobby's pad and portal are `doodads/generic/exit_teleport_stand.xml` and
+`doodads/generic/exit_teleport.xml`. `doodads/special/` holds only
+`bonus_entrance.xml`, `bonus_exit.xml` and `minimap_exit_dn.xml`; there is no
+`special/exit_teleport*`. Referencing a doodad that does not exist does **not**
+fail the pack — it becomes a `Resource error:` line in `<HW>/editor/game.log`
+and renders as nothing, so a wrong path here is invisible until someone loads
+the level. Related `generic/` variants that do exist: `exit_teleport_boss.xml`,
+`exit_teleport_exit.xml`, and the `_boss_desert` / `_switch_desert` sets.
+See the 2026-07-31 packer entry in `DISCOVERY-LOG.md`.
+
 **`Cover` is a character-occlusion overlay, not a collider** `[VERIFIED]` — read
 from the asset: `special/color_theme_a_16.xml` declares **zero**
 `collision="true"` polygons. Its pattern matches a 2×2 block of *wall* tiles, so
@@ -340,6 +351,49 @@ as a unit.
 | `RestoreOrb` | 1 × 1 | — | unused; kept for parity with the original |
 
 The 6-wide `ExitUp`/`ExitDn` footprint is why `maxRoomSize` must be ≥ 7.
+
+## The lobby template `[VERIFIED 2026-07-31]`
+
+`src/generator/lobby/template.ts` is not generated geometry — it is a level
+saved out of the game's own editor, carried verbatim and edited by id. The
+committed one is `levels/test_lobby.xml` from the Dreadmann Mansion campaign
+(the author's own map). Regenerate it, never hand-edit it:
+
+```
+node scripts/import-lobby-assets.mjs --from "<HW>/editor/<campaign>" \
+  --level levels/test_lobby.xml --asset <path> --asset <path> …
+```
+
+What the import needs to find, or it throws rather than emit a template that
+would fail inside the generator: a `ShopArea` per stall whose `cats` names the
+columns it sells (`power`, `off1-5`, `misc1-5`, `def1-5`, `combo1-5`), a
+`doodads/special/vendor_<stall>.xml` with its `vendor_speech_<stall>.xml` on the
+same spot (and optionally a `vendor_speech_level<N>.xml` tier badge — a
+single-column stall has none), exactly one `LevelExitArea`, and at least one
+`items/valuable_diamond_red.xml` placement to read the diamond slots from.
+
+**Editor dialect, not `Level.getXML()` dialect.** Tab-indented, CRLF, UTF-8 BOM
+(the last two normalized on import); positions are `<vec2 name="pos">x y</vec2>`;
+items are one `<array name="items/<type>.xml">` holding
+`<array><int>id</int><vec2>x y</vec2></array>` per placement. `buildLobby`
+matches whitespace rather than assuming it, so it reads either dialect.
+
+**Campaign-local assets ride along in `LOBBY_ASSETS`**, written into the campaign
+folder next to the level (XML as text, PNG as base64). The committed set is the
+walls — `doodads/level1/{c_v_16,c_h_16,c_v_cap_dn,c_crn_l_dn,c_crn_l_up,c_crn_r_dn,c_crn_r_up}.xml`
+plus their shared texture `doodads/level1/c_blood.png` — and
+`doodads/lamp_torch_post_spor.xml` plus `doodads/lamp_torch_post.png`. Wall
+doodads carry the collision, so these are what stop the party walking out of the
+room, not decoration. Everything else the template references is stock:
+`doodads/generic/`, `doodads/special/vendor*`, `doodads/theme_c/c_ledge_up*`,
+`items/valuable_diamond_red.xml`, `sound/misc.xml`, and the tilesets
+`tilemaps/c_tiles.xml`, `tilemaps/b_tiles_red.xml`,
+`tilemaps/c_default_border_{up,dn,l,r}.xml`. `tests/lobby.test.ts` asserts that
+split, so a re-import that forgets an `--asset` fails the suite rather than
+shipping a room with holes in it.
+
+Campaign-local doodads do render when packed inside our campaign — `[VERIFIED 2026-07-31]`.
+This closes open question 1a (doodads and textures: custom assets can ship).
 
 ## Tweak files (player balance)
 

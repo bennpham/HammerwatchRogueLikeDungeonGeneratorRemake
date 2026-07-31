@@ -1,5 +1,8 @@
 import { DungeonParameters, THEMES } from './parameters'
 import { isKnownMonsterId } from '../objects/monsterTypes'
+import { LOBBY_DIAMOND_VALUE, LOBBY_GOLD_MAX } from '../lobby/build'
+import { ALL_LOBBY_CATEGORIES, isLobbyCategory, lobbyCategoryCounts, vendorOfCategory } from '../lobby/shops'
+import { LOBBY_DIAMOND_SLOTS } from '../lobby/template'
 import { TWEAK_BASELINE } from '../tweak/baseline'
 import { SHOP_PRICE_MAX } from '../tweak/bulk'
 import { SENTINELS, isDowngrade, improvesBy, paramKey } from '../tweak/chains'
@@ -179,8 +182,74 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
   }
 
   validatePlayerTweaks(p, errors, warnings)
+  validateLobby(p, errors, warnings)
 
   return { errors, warnings, valid: errors.length === 0 }
+}
+
+/**
+ * The lobby is a hand-authored template with a fixed number of authored slots,
+ * so its rules are about what the template can physically carry rather than
+ * about layout feasibility.
+ */
+function validateLobby(
+  p: DungeonParameters,
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[]
+): void {
+  // a settings file or parameters.txt written before the feature existed has no
+  // lobby block at all; that means "off", not "invalid"
+  const lobby = p.lobby
+  if (lobby === undefined) return
+  const before = errors.length
+
+  const gold = lobby.startingGold
+  if (!Number.isInteger(gold) || gold < 0) {
+    errors.push({ field: 'lobby.startingGold', message: 'Starting gold must be a whole number ≥ 0.' })
+  } else if (gold % LOBBY_DIAMOND_VALUE !== 0) {
+    errors.push({
+      field: 'lobby.startingGold',
+      message: `Starting gold must be a multiple of ${LOBBY_DIAMOND_VALUE} — each ${LOBBY_DIAMOND_VALUE} is one red diamond.`
+    })
+  } else if (gold > LOBBY_GOLD_MAX) {
+    errors.push({
+      field: 'lobby.startingGold',
+      message: `Starting gold cannot exceed ${LOBBY_GOLD_MAX} — that is ${LOBBY_DIAMOND_SLOTS.length * 2} diamonds, the deepest stack confirmed to pay out in game.`
+    })
+  }
+
+  const unknown = lobby.shopCategories.filter((c) => !isLobbyCategory(c))
+  for (const id of [...new Set(unknown)].sort()) {
+    errors.push({
+      field: 'lobby.shopCategories',
+      message: `"${id}" is not a shop column. Valid columns: ${ALL_LOBBY_CATEGORIES.join(', ')}.`
+    })
+  }
+
+  if (!lobby.enabled || errors.length > before) return
+
+  if (lobby.shopCategories.length === 0) {
+    warnings.push({
+      field: 'lobby.shopCategories',
+      message: 'The lobby has no vendors; the party can only walk to the teleport.'
+    })
+  }
+
+  // a column the Player tab has emptied leaves a vendor standing behind an
+  // empty stall. Collapsed into one message the way the bulk tweak warnings
+  // are — deselecting every ladder in the game would otherwise fire 21 of them.
+  const counts = lobbyCategoryCounts(p.playerTweaks ?? {})
+  const empty = lobby.shopCategories.filter((c) => counts[c] === 0)
+  if (empty.length > 0) {
+    const vendors = [...new Set(empty.map((c) => vendorOfCategory(c)?.label ?? c))].sort()
+    warnings.push({
+      field: 'lobby.shopCategories',
+      message:
+        `${empty.length === 1 ? 'One selected shop column has' : `${empty.length} selected shop columns have`} ` +
+        `no upgrades left after the Player tab's edits (${vendors.join(', ')}). ` +
+        'Those stalls will stand in the lobby with nothing to sell.'
+    })
+  }
 }
 
 /**
