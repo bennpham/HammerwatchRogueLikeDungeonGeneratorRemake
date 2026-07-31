@@ -1,4 +1,5 @@
 import { Doodad } from './doodad'
+import { getTheme } from '../config/themes'
 import { Item } from './item'
 import { ScriptNode } from './scriptNode'
 import {
@@ -43,6 +44,24 @@ export class ObjectSet {
     ctx.objectSets = ctx.objectSets.filter((o) => o !== s)
   }
 
+  /**
+   * Fill the stair footprint with solid blocks, for themes whose stair sprite has
+   * no collider (see ThemeDef.stairBacking). Covers the same 2x3 tiles the
+   * lettered themes' `_exit_h_*` collision polygon spans, so the alcove is walled
+   * off exactly as it is for theme a. Emits nothing when the theme's own stair
+   * art is already solid.
+   */
+  private addStairBacking(ctx: GenerationContext, x: number, y: number, theme: string): void {
+    const backing = getTheme(theme)?.stairBacking
+    if (backing === undefined) return
+
+    for (let dx = 2; dx <= 3; dx++) {
+      for (let dy = 1; dy <= 3; dy++) {
+        this.doodads.push(Doodad.create(ctx, x + dx, y + dy, backing, theme))
+      }
+    }
+  }
+
   constructor(
     ctx: GenerationContext,
     public x: number,
@@ -52,6 +71,8 @@ export class ObjectSet {
   ) {
     switch (type) {
       case 'ExitUp': {
+        // first, so the stair sprite is emitted after it and draws on top
+        this.addStairBacking(ctx, x, y, theme)
         this.doodads.push(Doodad.create(ctx, x + 1, y + 1, 'TDown', theme))
         this.doodads.push(Doodad.create(ctx, x + 4, y + 1, 'TDown', theme))
         this.doodads.push(Doodad.create(ctx, x + 1, y + 3, 'TorchOff', theme))
@@ -94,6 +115,8 @@ export class ObjectSet {
       }
 
       case 'ExitDn': {
+        // first, so the stair sprite is emitted after it and draws on top
+        this.addStairBacking(ctx, x, y, theme)
         this.doodads.push(Doodad.create(ctx, x + 1, y + 1, 'TDown', theme))
         this.doodads.push(Doodad.create(ctx, x + 4, y + 1, 'TDown', theme))
         this.doodads.push(Doodad.create(ctx, x + 1, y + 3, 'Torch', theme))

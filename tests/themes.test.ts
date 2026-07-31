@@ -156,6 +156,22 @@ describe('generating with a bonus theme', () => {
     }
   })
 
+  it('walls off the stair alcove, since the bonus stair art has no collider', () => {
+    const result = generateWithTheme('bonus2', 777)
+    const level = result.files.find((f) => f.path === 'levels/level3.xml')!.content
+    // 2x3 solid blocks behind each of the two stair sets
+    const pillars = [...level.matchAll(/doodads\/theme_bonus2\/bonus2_pillar\.xml/g)]
+    expect(pillars).toHaveLength(12)
+  })
+
+  it('adds no stair backing for the lettered themes, whose stair art is solid', () => {
+    const result = generateDungeon(defaultParameters(), 777)
+    expect(result.ok).toBe(true)
+    for (const file of (result as DungeonResult).files) {
+      expect(file.content).not.toContain('_pillar.xml')
+    }
+  })
+
   it('never emits a floor index above the tileset variant count', () => {
     for (const def of THEME_DEFS) {
       const level0 = generateWithTheme(def.id, 99, 1).files.find(

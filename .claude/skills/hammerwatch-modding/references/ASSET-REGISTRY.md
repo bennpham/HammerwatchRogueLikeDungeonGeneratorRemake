@@ -137,6 +137,18 @@ sprite-origin entry in the discovery log for the actual cause.
 | `HCapRight` | `_h_cap_r.xml` | 0, 2 |
 | `ExitDn` | `_exit_h_dn.xml` | 0, 0 |
 | `ExitUp` | `_exit_h_up.xml` | 0, 0 |
+| `Pillar` | `_pillar.xml` (bonus themes only) | 0, 0 |
+
+`ExitDn`/`ExitUp` are placed by `ObjectSet`, not the matcher, and the lettered
+ones are **structural**: `a_exit_h_up.xml` has a solid `0..32 × -24..16` collider
+that forms the back wall of the alcove, which is why the prefab sets
+`replaceWalls` and suppresses the matcher there. A stair sprite borrowed from
+another theme must be checked for `<polygon collision="true">` — the shared
+`bonus_entrance`/`bonus_exit` have none, so bonus themes declare
+`stairBacking: 'Pillar'` and `ObjectSet` fills the same 2×3 tiles with solid
+blocks. Draw order is by `defaultlayer`, so the stair art (10) hides the backing
+(0). `Pillar` is otherwise unused — the matcher has no pattern for it, and the
+lettered themes name theirs `_special_pillar`.
 
 A theme must ship all 17 of these, or declare a `doodadOverrides.path` for each
 one it lacks — otherwise levels using it reference a path that doesn't exist. Do

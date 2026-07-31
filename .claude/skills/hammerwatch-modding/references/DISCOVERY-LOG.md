@@ -79,6 +79,42 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-07-30 — the stair sprite is the alcove's back wall, and the bonus pair has no collider
+
+**Tag:** [VERIFIED] — asset XML, confirmed in game by walking through the entrance.
+
+**Context:** with the sprite-origin fix in, bonus walls block correctly, but the
+player could still walk straight through the entrance and out of the level.
+
+**Evidence:** `theme_a/a_exit_h_up.xml` carries a solid collider spanning
+`0..32 x -24..16` — the stair sprite **is** the wall behind the alcove, which is
+why `ObjectSet` marks the alcove `replaceWalls` and lets the prefab supply its
+own walls. `special/bonus_entrance.xml` is:
+
+```xml
+<doodad defaultlayer="10">
+  <sprite scale="16"> … <frame>0 0 24 24</frame> </sprite>
+</doodad>
+```
+
+No polygon at all — not even a shadow one. `bonus_exit.xml` likewise (layer 0).
+So the bonus alcove had a floor, decorative stair art, and nothing solid.
+
+**Impact:**
+- New `ThemeDef.stairBacking`, and a new `Pillar` doodad type
+  (`doodads/theme_%s/%s_pillar.xml`). `ObjectSet` fills the 2×3 tiles the
+  lettered collider spans with solid blocks for any theme that declares it;
+  lettered themes declare nothing and emit nothing new.
+- `bonus<n>_pillar.xml` is a bare 16×16 `collision="true"` block with no shadow
+  polygon — ideal structural filler. The wall matcher has no pattern for it, so
+  this is its only use. Note the lettered themes call theirs `_special_pillar`,
+  so `Pillar` resolves only for bonus themes.
+- Draw order is by `defaultlayer`, so the stair art (10) floats above the
+  backing (0) `[VERIFIED]` — the blocks are invisible in play.
+- **General rule: a prefab that sets `replaceWalls` depends on its own doodads
+  being solid.** Before reusing a stair/door sprite from another theme, check it
+  declares `<polygon collision="true">`.
+
 ### 2026-07-30 — the extracted game assets are readable; check them before theorising
 
 **Tag:** [VERIFIED]
