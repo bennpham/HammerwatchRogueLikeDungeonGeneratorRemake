@@ -25,31 +25,21 @@ export interface ThemeDef {
   doodadToken: string
   /** complete replacement paths for pieces this theme does not ship (no %s subs) */
   doodadOverrides?: Partial<Record<DoodadTypeName, string>>
-  /** pieces this theme has no asset for at all — skipped when emitting */
-  omit?: readonly DoodadTypeName[]
 }
-
-/**
- * The bonus wall sets ship no `_exit_h_dn` / `_exit_h_up` stair frames; the game
- * provides one shared pair instead. `ExitUp` is the level-start alcove and
- * `ExitDn` is the one carrying the level-exit node (see ObjectSet).
- */
-const BONUS_OVERRIDES: Partial<Record<DoodadTypeName, string>> = {
-  ExitUp: 'doodads/special/bonus_entrance.xml',
-  ExitDn: 'doodads/special/bonus_exit.xml'
-}
-
-/**
- * `Cover` is `doodads/special/color_theme_<theme>_16.xml`, which only exists for
- * the lettered themes — the bonus sets get no overlay.
- */
-const BONUS_OMIT = ['Cover'] as const
 
 function classic(id: string, tiles: number, group: string): ThemeDef {
   return { id, label: id, group, tilemap: `tilemaps/${id}_default.xml`, tiles, doodadToken: id }
 }
 
-function bonus(n: number): ThemeDef {
+/**
+ * A bonus theme, borrowing two pieces its own folder does not ship.
+ *
+ * `coverLetter` picks which lettered theme's `color_theme_<t>_16` block fills
+ * wall interiors — there is no bonus variant. This is not cosmetic: `Cover` is
+ * what makes the inside of a thick wall solid, and without it players walk
+ * through walls into the void. Retune the letter for colour match only.
+ */
+function bonus(n: number, coverLetter: string): ThemeDef {
   return {
     id: `bonus${n}`,
     label: `bonus ${n} (experimental)`,
@@ -59,8 +49,14 @@ function bonus(n: number): ThemeDef {
     // guaranteed in range, and an out-of-range data-t index fails to load
     tiles: 1,
     doodadToken: `bonus${n}`,
-    doodadOverrides: BONUS_OVERRIDES,
-    omit: BONUS_OMIT
+    doodadOverrides: {
+      // the bonus folders ship no _exit_h_dn / _exit_h_up stair frames; the game
+      // provides one shared pair instead. ExitUp is the level-start alcove,
+      // ExitDn the one carrying the level-exit node (see ObjectSet).
+      ExitUp: 'doodads/special/bonus_entrance.xml',
+      ExitDn: 'doodads/special/bonus_exit.xml',
+      Cover: `doodads/special/color_theme_${coverLetter}_16.xml`
+    }
   }
 }
 
@@ -77,11 +73,11 @@ export const THEME_DEFS: readonly ThemeDef[] = [
   classic('f', 2, 'Castle'),
   classic('g', 2, 'Castle'),
   classic('i', 8, 'Desert'),
-  bonus(1),
-  bonus(2),
-  bonus(3),
-  bonus(4),
-  bonus(5)
+  bonus(1, 'a'),
+  bonus(2, 'a'),
+  bonus(3, 'a'),
+  bonus(4, 'a'),
+  bonus(5, 'a')
 ]
 
 const BY_ID = new Map(THEME_DEFS.map((t) => [t.id, t]))

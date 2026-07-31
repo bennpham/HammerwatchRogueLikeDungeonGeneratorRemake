@@ -79,6 +79,36 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-07-30 — `Cover` is a collider, not decoration: omitting it lets players walk through walls
+
+**Tag:** [VERIFIED] — playtested on Windows, `bonus1`, 8-level campaign.
+
+**Context:** first playtest of the bonus themes added earlier the same day.
+Supersedes the "omit `Cover`" decision in the bonus-theme entry below.
+
+**Evidence:** the level loaded, ran fine and was not too dark, but had black
+rectangular holes scattered through the play area, and the player could **run
+over both the floor and the black areas**, straight out of the map. The black
+areas map exactly to wall interiors: `Cover`'s entry in `wallPattern.ts` is
+`wall: false` matching a 2×2 block of *wall* tiles at offset 0.5/0.5, i.e. it is
+the piece that fills the inside of a thick wall. It was the only bonus-specific
+difference that could remove collision — the tilemap `data-t` is emitted
+identically to a lettered theme, and the wall-edge pieces (`_h_8`, corners) both
+rendered and blocked correctly.
+
+**Impact:**
+- Wall doodads carry collision. **A missing wall doodad is a missing collider**,
+  not just missing art. `omit` was removed from `ThemeDef` entirely; a theme's
+  gaps must be filled with `doodadOverrides`.
+- `color_theme_*_16` exists only for `a b c d e f g i` — confirmed by searching
+  `color_theme` in the editor's Doodads tab, **nothing for bonus**. All five
+  bonus themes borrow `color_theme_a_16.xml` (the most neutral dark blue);
+  `coverLetter` in `config/themes.ts` is the retune knob.
+- Still unconfirmed: whether restoring `Cover` fully fixes the walk-through, and
+  whether the borrowed blue reads acceptably against the teal/orange bonus brick.
+- Also observed: bonus brightness in game is **fine** `[VERIFIED]` — the editor
+  preview was misleading. `tiles: 1` loads without error `[VERIFIED]`.
+
 ### 2026-07-30 — five `bonus` themes exist, with mismatched tileset/doodad naming and no stair frames
 
 **Tag:** [UNVERIFIED] — everything below is read off the editor's asset browser;

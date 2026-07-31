@@ -360,8 +360,12 @@ game does not name them consistently (`tilemaps/bonus_3.xml` pairs with
 Confirm the matching `doodads/theme_<token>/` wall set exists — a theme without
 wall doodads produces a level with no visible walls. If it is missing individual
 pieces, use `doodadOverrides` to point them at a complete replacement path (used
-verbatim, no `%s`) or `omit` to skip them entirely. Set `tiles` to the tileset's
-real floor-variant count; when unknown, **1 is the only always-safe value**.
+verbatim, no `%s`). **Never just skip a missing piece**: wall doodads carry the
+collision, so a gap in the set is a gap the player walks through into the void.
+`Cover` especially — it fills wall interiors and every theme needs one.
+
+Set `tiles` to the tileset's real floor-variant count; when unknown, **1 is the
+only always-safe value**.
 
 ## When a campaign fails to load
 

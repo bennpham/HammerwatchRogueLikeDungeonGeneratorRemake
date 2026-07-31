@@ -83,8 +83,8 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
       <Section title="Themes" badge={params.themes.slice(0, params.levels).join(', ')}>
         <p className="hint">
           Tileset per level: a–d classic dungeon, e–g castle, i desert. The bonus sets are
-          experimental — they are much darker and have no floor overlay, and their stairs use the
-          game's shared bonus entrance/exit art rather than matching wall pieces.
+          experimental — they are darker, and they borrow the game's shared bonus entrance/exit art
+          and theme a's wall fill rather than shipping their own.
         </p>
         <div className="theme-grid">
           {Array.from({ length: Math.max(params.levels, 0) || 0 }, (_, i) => (

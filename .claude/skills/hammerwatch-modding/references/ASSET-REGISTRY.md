@@ -103,6 +103,13 @@ ship.
 | `ExitUp` (bonus only) | `doodads/special/bonus_entrance.xml` | 0, 0 |
 | `ExitDn` (bonus only) | `doodads/special/bonus_exit.xml` | 0, 0 |
 
+**`Cover` is structural, not decorative** `[VERIFIED]`. Its pattern matches a 2×2
+block of *wall* tiles, so it fills the interior of thick walls. Omitting it
+leaves those interiors as black holes that players can **walk through into the
+void** — playtested on `bonus1`, 2026-07-30. Every theme must resolve a `Cover`
+path. `color_theme_*_16` exists only for `a b c d e f g i`, so the bonus themes
+borrow one (currently `a`, the most neutral dark blue).
+
 ### Themed wall pieces (2 subs, `doodads/theme_<t>/<t>_…`)
 
 | Doodad | Path suffix | Offset (x, y) |
@@ -125,12 +132,14 @@ ship.
 | `ExitDn` | `_exit_h_dn.xml` | 0, 0 |
 | `ExitUp` | `_exit_h_up.xml` | 0, 0 |
 
-A theme must ship all 17 of these, or declare a `doodadOverrides` / `omit` entry
-for each one it lacks — otherwise levels using it will reference a path that
-doesn't exist. The `bonus1`–`bonus5` folders are the known incomplete case: they
-have no `_exit_h_dn` / `_exit_h_up`, so both are overridden to the shared
-`doodads/special/bonus_entrance.xml` / `bonus_exit.xml`, and `Cover` is omitted
-because `color_theme_bonus<n>_16.xml` does not exist. Those folders also carry
+A theme must ship all 17 of these, or declare a `doodadOverrides` entry for each
+one it lacks — otherwise levels using it will reference a path that doesn't
+exist. Do not simply skip a missing piece: an absent wall doodad is an absent
+collider, and the player walks through the gap.
+
+The `bonus1`–`bonus5` folders are the known incomplete case: they have no
+`_exit_h_dn` / `_exit_h_up`, so both are overridden to the shared
+`doodads/special/bonus_entrance.xml` / `bonus_exit.xml`. Those folders also carry
 `_pillar`, `_h_16`, `_v_16` (and `bonus5_deteriorate`) which the wall matcher has
 no pattern for and never emits.
 

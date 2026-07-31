@@ -63,11 +63,6 @@ export function doodadPath(type: DoodadTypeName, theme: string): string {
   }
 }
 
-/** True when the theme has no asset at all for this piece, so it is not emitted. */
-function isOmitted(type: DoodadTypeName, theme: string): boolean {
-  return getTheme(theme)?.omit?.includes(type) ?? false
-}
-
 export class Doodad extends XMLObject {
   id: number
 
@@ -82,13 +77,9 @@ export class Doodad extends XMLObject {
     this.id = ctx.idCounter++
   }
 
-  /**
-   * The id is consumed even for an omitted piece, so a theme's missing assets
-   * do not renumber the doodads around them.
-   */
   static create(ctx: GenerationContext, x: number, y: number, type: DoodadTypeName, theme: string): Doodad {
     const d = new Doodad(ctx, x, y, type, theme)
-    if (!isOmitted(type, theme)) ctx.doodads.push(d)
+    ctx.doodads.push(d)
     return d
   }
 

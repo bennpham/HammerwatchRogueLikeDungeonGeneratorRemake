@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { generateDungeon, defaultParameters, getTheme, THEMES, THEME_DEFS, DungeonResult } from '../src/generator'
 import { DoodadType, doodadPath } from '../src/generator/objects/doodad'
-import type { DoodadTypeName } from '../src/generator/objects/doodad'
 
 function generateWithTheme(theme: string, seed: number, levels?: number): DungeonResult {
   const params = defaultParameters()
@@ -34,22 +33,24 @@ describe('theme registry', () => {
     }
   })
 
-  it('only names real doodad types in overrides and omissions', () => {
+  it('only names real doodad types in its overrides', () => {
     for (const def of THEME_DEFS) {
       for (const key of Object.keys(def.doodadOverrides ?? {})) {
-        expect(DoodadType).toHaveProperty(key)
-      }
-      for (const key of def.omit ?? []) {
         expect(DoodadType).toHaveProperty(key)
       }
     }
   })
 
-  it('leaves the lettered themes with no overrides or omissions', () => {
+  it('leaves the lettered themes with no overrides', () => {
     for (const def of THEME_DEFS.filter((t) => !t.id.startsWith('bonus'))) {
       expect(def.doodadOverrides).toBeUndefined()
-      expect(def.omit).toBeUndefined()
       expect(def.doodadToken).toBe(def.id)
+    }
+  })
+
+  it('gives every theme a Cover, since it is what makes wall interiors solid', () => {
+    for (const def of THEME_DEFS) {
+      expect(doodadPath('Cover', def.id)).toMatch(/^doodads\/special\/color_theme_[a-gi]_16\.xml$/)
     }
   })
 })
@@ -83,15 +84,18 @@ describe('generating with a bonus theme', () => {
     expect(level0).toContain('doodads/theme_bonus1/bonus1_')
   })
 
-  it('replaces the stair frames and drops the missing cover overlay', () => {
+  it('substitutes the stair frames and borrows a cover block', () => {
     const result = generateWithTheme('bonus4', 4321)
     // a middle level has both an entrance and an exit
     const level = result.files.find((f) => f.path === 'levels/level3.xml')!.content
     expect(level).toContain('doodads/special/bonus_entrance.xml')
     expect(level).toContain('doodads/special/bonus_exit.xml')
+    // wall interiors must still be filled — this is what stops players walking
+    // through walls, not just a visual
+    expect(level).toContain('doodads/special/color_theme_a_16.xml')
     for (const file of result.files.filter((f) => f.path.startsWith('levels/level'))) {
       expect(file.content).not.toContain('exit_h_')
-      expect(file.content).not.toContain('color_theme_')
+      expect(file.content).not.toContain('color_theme_bonus')
     }
   })
 
@@ -117,14 +121,7 @@ describe('generating with a bonus theme', () => {
 })
 
 describe('determinism', () => {
-  it('leaves lettered-theme output untouched by the omission path', () => {
-    // every doodad type resolves and is emitted for a lettered theme, so a run
-    // that uses no bonus theme must be byte-identical to a pre-registry run
-    const omittable = THEME_DEFS.filter((t) => !t.id.startsWith('bonus')).flatMap(
-      (t) => (t.omit ?? []) as readonly DoodadTypeName[]
-    )
-    expect(omittable).toHaveLength(0)
-
+  it('is reproducible for a seed', () => {
     const a = generateDungeon(defaultParameters(), 24680)
     const b = generateDungeon(defaultParameters(), 24680)
     expect(a).toEqual(b)
