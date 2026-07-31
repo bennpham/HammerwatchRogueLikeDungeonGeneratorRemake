@@ -82,9 +82,17 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
 
       <Section title="Themes" badge={params.themes.slice(0, params.levels).join(', ')}>
         <p className="hint">
-          Tileset per level: a–d classic dungeon, e–g castle, i desert. The bonus sets are
-          experimental — they borrow the game's shared bonus entrance/exit art and theme a's
-          occlusion overlay, neither of which their own folders ship.
+          Tileset per level:<br/>
+          &nbsp;&nbsp;<strong>a–d</strong> classic dungeon<br/>
+          &nbsp;&nbsp;<strong>e–g</strong> castle<br/>
+          &nbsp;&nbsp;<strong>i</strong> desert<br/>
+          <br/>
+          Bonus levels 1–5 are Gauntlet easter eggs theme:<br/>
+          &nbsp;&nbsp;1 = asphalt<br/>
+          &nbsp;&nbsp;2 = brown crack dirt<br/>
+          &nbsp;&nbsp;3 = black/brown diagonal squares<br/>
+          &nbsp;&nbsp;4 = brown/tan checker tiles<br/>
+          &nbsp;&nbsp;5 = red tiles.
         </p>
         <div className="theme-grid">
           {Array.from({ length: Math.max(params.levels, 0) || 0 }, (_, i) => (

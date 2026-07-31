@@ -113,7 +113,7 @@ function bonus(n: number, tiles: number, coverLetter: string): ThemeDef {
 
   return {
     id: `bonus${n}`,
-    label: `bonus ${n} (experimental)`,
+    label: `bonus ${n}`,
     group: 'Bonus',
     tilemap: `tilemaps/bonus_${n}.xml`,
     tiles,
