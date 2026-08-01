@@ -91,6 +91,106 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-08-01 — `theme_h`'s colliders are edge fences, and a `CrossWall` tile is the joint that must be solid
+**Tag:** [VERIFIED] (root cause read from the install; the fix itself is
+`[EMITTED]` until a perimeter walk confirms it in game)
+**Context:** A player reported still walking out of the map after the up-corner
+anchor fix below. **Supersedes the "theme `h` no longer borrows any art from
+theme `i`" entry**, which was right about the goal and wrong about the piece:
+its `CrossWall` → `h_h_8_dn` remap is what opened the hole.
+**Evidence:** Compare the polygon the remap replaced against the one it
+installed, both normalized to tile units after the port's `yOffset`:
+
+| piece | polygon | covers | shape |
+| --- | --- | --- | --- |
+| `i_x_x` (was) | `(0,16)(0,-8)(16,-8)(16,16)`, origin `0 16` | x 0.00…1.00, y −0.50…1.00 | **solid tile** |
+| `h_h_8_dn` (became) | `(0,3)(0,-2)(16,-2)(16,3)(6,6)`, origin `0 0` | x 0.00…1.00, y −0.13…0.38 | fence on the top edge |
+
+The general finding is the one that matters: **every `doodads/theme_h/` wall
+piece barricades a single *edge* of its tile, not the tile.** `h_h_8_dn` fences
+the top, `h_v_8_l` the right (x 0.63…1.13, full height), `h_v_8_r` the left. A
+room is sealed because those fences join into a closed loop around its wall
+band — the band itself is not solid, and the player can legitimately stand
+inside a boundary tile. The `CrossWall` pattern (four orthogonal wall
+neighbours, one diagonal floor) is exactly the **outer corner of that band**,
+where the top row's fence and the side column's fence meet at right angles
+without touching. `i_x_x`'s solid block was closing that joint. A fence there
+leaves the corner open, and the void beyond has no doodads and therefore no
+collision at all, so the escape route is: floor → up into the top wall row →
+sideways into the corner → out of the level. Matches the reported symptom
+(bottom walls holding, corners leaking) exactly.
+**Impact:** `CrossWall` takes `h_h_8_up` at `yOffset: -1` — polygon
+`(0,32)(0,16)(8,13)(16,16)(16,32)` → x 0.00…1.00, y −0.19…1.00, the **only**
+piece in the folder that covers a whole tile, and already proven in game as
+`TUp`. 42 tiles per level change piece; no doodad-count change, no RNG change,
+no seed invalidated. `themes.test.ts` has a named regression test explaining why
+a better-*facing* cliff must not be substituted here. Corollary recorded in
+`ASSET-REGISTRY.md`: **substituting one theme `h` piece for another is only safe
+when the replacement fences the same edge.**
+
+Two pieces re-examined under the fence model and deliberately left alone:
+`VCapDown` (`h_h_8_dn`) fences its own top edge, which *is* the stub-to-tile-
+below boundary, so the end tile is a harmless alcove; and `CornerLD`/`CornerRD`,
+whose small polygons (x 0.88…1.31 / x −0.31…0.13, y −0.31…0.19) sit precisely at
+the tile corner where the vertical and horizontal fences meet — they are the
+joint pieces for the 2-way case, and are already correct.
+
+### 2026-08-01 — anchor is not the whole story: a `theme_h` piece's `<frame>` height decides its offset
+**Tag:** [VERIFIED] (played in game, then read from the install at
+`D:\Program Files (x86)\Steam\steamapps\common\Hammerwatch\editor\assetsExtract\`)
+**Context:** A player reported walking out of the level through the **top-left
+and top-right corners of every room** in a theme `h` level, while the bottom
+corners held. Supersedes the 2026-08-01 "every `doodads/theme_h/` piece is
+anchored `0 0`" entry, which is true about `<origin>` but wrong about what
+follows from it.
+**Evidence:** Every `theme_h` piece really does declare `<origin>0 0</origin>`,
+but the folder mixes two sprite sizes, and the collision polygon sits at a
+different place in each:
+
+| piece | `<frame>` | collider y | tiles below anchor |
+| --- | --- | --- | --- |
+| `h_crn_l_dn` / `h_crn_r_dn` | `16 16` | `-5 … 3` | −0.31 … 0.19 — own tile |
+| `h_crn_l_up` / `h_crn_r_up` | `16 32` | `16 … 32` | **+1.00 … +2.00** |
+| `h_h_8_up` | `16 32` | `13 … 32` | +0.81 … +2.00 |
+| `h_h_cap_up_l` | `16 32` | `6 … 32` | **+0.38 … +2.00** |
+| `h_h_cap_up_r` | `16 32` | `4 … 32` | **+0.25 … +2.00** |
+| `h_h_8_dn`, `h_v_8_l`, `h_v_8_r` | `16 16` | within `-2 … 16` | own tile |
+
+So `<origin>0 0</origin>` means "no *extra* compensation", not "collider is on
+this tile". The folder's **five** 16×32 pieces draw a tall cliff face upward and
+hold their polygon in the lower half; flattened to `yOffset: 0` they put both
+the art and the barrier one full tile below the wall. `h_h_8_up` was already
+special-cased at `-1`; the two *up* corners and both `h_h_cap_up_*` are the
+identical case and were missed. The corners are exactly the reported hole — and
+also why they looked "awkward", since the sprite was a tile low too.
+**Impact:** `CornerLU`, `CornerRU`, `HCapLeft` and `HCapRight` all take
+`yOffset: -1` in `desertOutdoor()`. Rule for any future theme: **read the
+asset's `<frame>` height and its polygon's y range — never infer the offset from
+`<origin>` alone.** Recorded in `ASSET-REGISTRY.md`; `themes.test.ts` pins the
+offset of every 16×32 piece so a regression cannot land silently. No seed
+changes — doodad *placement* moved, the RNG stream did not.
+
+**Follow-up:** fixing the anchors did *not* close the map. See the newer
+edge-fence entry above — a second, independent hole sat in the `CrossWall`
+corner joint.
+
+### 2026-08-01 — theme `h` no longer borrows any art from theme `i`
+**Tag:** [EMITTED] (packs and generates; the visual call came from in-game
+screenshots of the previous behaviour)
+**Context:** `CrossWall`, `VCapUp` and `VCapDown` have no cliff equivalent in
+`doodads/theme_h/` and were filled from `theme_i`, the indoor half of the
+desert set.
+**Evidence:** In game, theme `i`'s grey indoor stone among theme `h`'s sand
+cliffs reads as another tileset's wall dropped into the desert — the same
+mistake `omitCover` already avoids for the occlusion overlay.
+**Impact:** These three now map onto the horizontal cliff faces by facing, the
+way the tees already do: `VCapUp` → `h_h_8_up` (`yOffset: -1`, 16×32),
+`VCapDown` and `CrossWall` → `h_h_8_dn`. Theme `h` is now self-contained —
+`themes.test.ts` asserts no emitted level references `theme_i` at all. The
+cross is an interior junction its neighbours largely cover, so reusing the
+bottom face there costs little. Still `[EMITTED]`: nobody has confirmed the
+cross reads correctly in game.
+
 ### 2026-08-01 — the monster roster now carries a campaign-act tag for the GUI filter
 **Tag:** [UNVERIFIED] (transcribed from the fandom wiki, not observed in game)
 **Context:** Issue #4 asked for the monster pool lists to be filterable by the

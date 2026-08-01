@@ -139,21 +139,35 @@ function bonus(n: number, tiles: number, coverLetter: string): ThemeDef {
  * Theme "h" — the desert *outdoors* set, where "i" is desert indoors.
  *
  * It is a cliff/ledge set rather than a wall set, so it deviates from the
- * lettered themes in three ways, all read out of the supplied asset XML:
+ * lettered themes in four ways, all read out of the supplied asset XML:
  *
- * 1. **Anchoring.** Every piece in `doodads/theme_h/` is `<origin>0 0</origin>`,
- *    like the bonus art and unlike the lettered art — so every themed wall piece
- *    needs `yOffset: 0`. That flattening is the only reason the four corners need
- *    no path override: `h_crn_l_dn.xml` and friends already match the template.
- * 2. **Facing instead of junctions.** It ships no tees or cross, but it does ship
+ * 1. **Its colliders are edge fences, not solid tiles.** This is the fact the
+ *    rest of the theme hangs off, and the one that has bitten twice. Each piece
+ *    barricades a single edge of its tile — `h_h_8_dn` the top (y -0.13..0.38),
+ *    `h_v_8_l` the right (x 0.63..1.13), `h_v_8_r` the left — and a room is
+ *    sealed because those fences join into a closed loop around its wall band,
+ *    not because the band is solid. The player can stand *inside* a boundary
+ *    tile; that is by design. Two consequences: swapping one piece for another
+ *    is only safe when the replacement fences the *same* edge, and wherever two
+ *    perpendicular fences meet, something must close the joint (see 4).
+ * 2. **Anchoring.** Every piece is `<origin>0 0</origin>`, like the bonus art and
+ *    unlike the lettered art, so the 16x16 pieces take `yOffset: 0`. That is
+ *    *not* a blanket rule: the folder's 16x32 pieces hold their polygon in the
+ *    lower half and need `yOffset: -1` — `h_h_8_up`, both *up* corners, and both
+ *    `h_h_cap_up_*`. Read the `<frame>` height and the polygon's y range before
+ *    assuming a piece is flat; a 16x32 left at 0 fences the tile *below* the
+ *    wall, which is a hole the player walks out of the level through.
+ * 3. **Facing instead of junctions.** It ships no tees or cross, but it does ship
  *    a cliff face per direction (`h_h_8_dn`/`h_h_8_up`, `h_v_8_l`/`h_v_8_r`), and
  *    a `T*` pattern is precisely "wall mass with the opening on one side". So the
  *    tees map onto the faces by direction rather than borrowing junction art —
  *    which matters, because the tees are ~84% of a level's wall doodads.
- * 3. **Missing pieces.** No `x_x` and no `v_cap_*`; those borrow theme i, the
- *    indoor half of the desert set. An absent wall doodad is an absent collider,
- *    so skipping them is not an option. `Cover` is the exception — see
- *    `omitCover`, which this theme sets.
+ * 4. **Missing pieces.** No `x_x` and no `v_cap_*`. These take cliff faces too,
+ *    so theme h borrows nothing from theme i and never mixes indoor stone into
+ *    an outdoor level — but `CrossWall` is the corner joint from 1 and must be
+ *    given a piece that covers the *whole* tile, not a fence. An absent wall
+ *    doodad is an absent collider, so dropping any of them is not an option.
+ *    `Cover` is the exception — see `omitCover`, which this theme sets.
  */
 function desertOutdoor(): ThemeDef {
   const doodadOverrides: Partial<Record<DoodadTypeName, DoodadOverride>> = {}
@@ -174,8 +188,11 @@ function desertOutdoor(): ThemeDef {
   doodadOverrides.TRight = { path: 'doodads/theme_h/h_v_8_r.xml', yOffset: 0 } // open right
   doodadOverrides.Horizontal = { path: 'doodads/theme_h/h_h_8_dn.xml', yOffset: 0 }
   doodadOverrides.Vertical = { path: 'doodads/theme_h/h_v_8_l.xml', yOffset: 0 }
-  doodadOverrides.HCapLeft = { path: 'doodads/theme_h/h_h_cap_up_l.xml', yOffset: 0 }
-  doodadOverrides.HCapRight = { path: 'doodads/theme_h/h_h_cap_up_r.xml', yOffset: 0 }
+  // 16x32 like h_h_8_up, and mis-anchored the same way until now: h_h_cap_up_l
+  // holds its polygon at y 6..32 and h_h_cap_up_r at y 4..32, so flat they fenced
+  // the tile below the stub's end instead of the end itself.
+  doodadOverrides.HCapLeft = { path: 'doodads/theme_h/h_h_cap_up_l.xml', yOffset: -1 }
+  doodadOverrides.HCapRight = { path: 'doodads/theme_h/h_h_cap_up_r.xml', yOffset: -1 }
 
   // open above — and the one piece whose anchor is not simply 0. The other three
   // faces are 16x16 and sit inside their own tile; h_h_8_up is 16x32 with its
@@ -184,19 +201,42 @@ function desertOutdoor(): ThemeDef {
   // on the wall tile with the cliff face rising into the tile above.
   doodadOverrides.TUp = { path: 'doodads/theme_h/h_h_8_up.xml', yOffset: -1 }
 
-  // Borrowed from theme i, the indoor half of the desert set: there is no 4-way
-  // cliff piece and no vertical cap. These *replace* the flattened override
-  // rather than extending it — theme i's art carries the classic `0 32` / `0 16`
-  // anchors, so it needs the DoodadType defaults back. Leaving `yOffset: 0` on
-  // one of these would slide its collision polygon a tile or two off its sprite
-  // and the player would walk through the junction.
-  for (const [piece, file] of [
-    ['CrossWall', 'i_x_x'],
-    ['VCapUp', 'i_v_cap_up'],
-    ['VCapDown', 'i_v_cap_dn']
-  ] as const) {
-    doodadOverrides[piece] = { path: `doodads/theme_i/${file}.xml` }
-  }
+  // The two *up* corners are the same tall-sprite case as h_h_8_up, and need the
+  // same lift. h_crn_l_up.xml / h_crn_r_up.xml are 16x32 with their collision
+  // polygon in the lower half (y 16..32), where the 16x16 down corners carry
+  // theirs at y -5..3. Flattened to yOffset 0 the up corners put their barrier a
+  // full tile *below* the wall and draw their cliff a tile low with it, so the
+  // top corners of every room were both misdrawn and walk-through. -1 puts the
+  // collider back on the corner tile with the face rising into the tile above.
+  doodadOverrides.CornerLU = { yOffset: -1 }
+  doodadOverrides.CornerRU = { yOffset: -1 }
+
+  // No 4-way junction and no vertical caps in this folder. They used to borrow
+  // theme i, but grey indoor stone among sand cliffs read as someone else's wall
+  // dropped into the desert, so they take the cliff faces instead.
+  //
+  // VCapUp caps a stub from above. VCapDown fences its own *top* edge, which is
+  // exactly the stub-to-tile-below boundary — the player can stand in the end
+  // tile but cannot travel up inside the wall, so the open-bottom face is right
+  // here despite fencing only one edge. Do not "fix" it to a solid piece.
+  doodadOverrides.VCapUp = { path: 'doodads/theme_h/h_h_8_up.xml', yOffset: -1 }
+  doodadOverrides.VCapDown = { path: 'doodads/theme_h/h_h_8_dn.xml', yOffset: 0 }
+
+  // CrossWall is the one tile that needs a *solid* piece, not a fence.
+  //
+  // It matches a wall tile whose four orthogonal neighbours are all wall and one
+  // diagonal is floor — i.e. the outer corner of a room's wall band, where the
+  // top row's fence (its top edge) and the side column's fence (its outer edge)
+  // meet at right angles without touching. Only a collider covering the whole
+  // tile closes that joint; anything else leaves a gap the player walks through
+  // into the doodad-free void, which has no collision at all.
+  //
+  // h_h_8_up is the only piece in doodads/theme_h/ that qualifies: polygon
+  // (0,32)(0,16)(8,13)(16,16)(16,32) is x 0..16, y 13..32, so at yOffset -1 it
+  // covers x 0..1, y -0.19..1.0. That is the job theme i's i_x_x used to do
+  // (x 0..1, y -0.5..1.0) before this theme stopped borrowing it. Swapping in a
+  // better-facing cliff here reopens the hole — the seal is the requirement.
+  doodadOverrides.CrossWall = { path: 'doodads/theme_h/h_h_8_up.xml', yOffset: -1 }
 
   // theme h ships no stair frames, so the alcove borrows the pyramid entrance —
   // a whole doorway structure rather than `h_pyramid_exit_door`, which is only

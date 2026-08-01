@@ -329,27 +329,61 @@ the classic vocabulary.
 
 | Piece | theme `h` file | Note |
 | --- | --- | --- |
-| `CornerLD/LU/RD/RU` | `h_crn_l_dn` … `h_crn_r_up` | same names as the classic set; `_v2` alternates exist and are unused |
-| `TDown`, `Horizontal` | `h_h_8_dn` | 16×16 |
-| `TUp` | `h_h_8_up` | 16×32, collider in the lower half |
-| `TLeft`, `Vertical` | `h_v_8_l` | 16×16 |
-| `TRight` | `h_v_8_r` | 16×16 |
-| `HCapLeft` / `HCapRight` | `h_h_cap_up_l` / `h_h_cap_up_r` | 16×32 |
-| `CrossWall`, `VCapUp`, `VCapDown` | — | borrowed from `theme_i` |
-| `ExitUp` / `ExitDn` | `h_pyramid_exit` | both ends; needs `stairBacking` |
-| `Cover` | — | **not emitted** — `omitCover` |
+Coverage below is in **tile units after the port's `yOffset`** — i.e. where the
+barrier actually lands relative to the tile the pattern matcher assigned.
+
+| Piece | theme `h` file | `<frame>` | `yOffset` | covers | fences |
+| --- | --- | --- | --- | --- | --- |
+| `TDown`, `Horizontal` | `h_h_8_dn` | 16×16 | 0 | x 0.00…1.00, y −0.13…0.38 | top edge |
+| `TUp`, `VCapUp`, **`CrossWall`** | `h_h_8_up` | **16×32** | **−1** | x 0.00…1.00, y −0.19…1.00 | **whole tile** |
+| `TLeft`, `Vertical` | `h_v_8_l` | 16×16 | 0 | x 0.63…1.13, y 0.00…1.00 | right edge |
+| `TRight` | `h_v_8_r` | 16×16 | 0 | x −0.13…0.38, y 0.00…1.00 | left edge |
+| `VCapDown` | `h_h_8_dn` | 16×16 | 0 | x 0.00…1.00, y −0.13…0.38 | top edge |
+| `CornerLD` / `CornerRD` | `h_crn_l_dn` / `h_crn_r_dn` | 16×16 | 0 | x 0.88…1.31 / −0.31…0.13, y −0.31…0.19 | corner joint |
+| `CornerLU` / `CornerRU` | `h_crn_l_up` / `h_crn_r_up` | **16×32** | **−1** | x 0.63…1.13 / −0.13…0.38, y 0.00…1.00 | side edge |
+| `HCapLeft` / `HCapRight` | `h_h_cap_up_l` / `h_h_cap_up_r` | **16×32** | **−1** | x 0.38…1.00 / 0.00…0.88, y ≈−0.7…1.00 | stub end |
+| `ExitUp` / `ExitDn` | `h_pyramid_exit` | 55×59 | — | none | needs `stairBacking` |
+| `Cover` | — | — | — | — | **not emitted** — `omitCover` |
+
+**The fence model — read this before substituting any piece.** These colliders
+barricade a single *edge* of their tile, not the tile. A room is sealed because
+the fences join into a closed loop around its wall band; the band itself is not
+solid, and the player can legitimately stand inside a boundary tile. Two rules
+follow, and violating either has already shipped a hole:
+
+1. **Swap a piece only for one that fences the same edge.** Remapping
+   `CrossWall` from a solid block to `h_h_8_dn` looks like a pure art change and
+   is not.
+2. **`CrossWall` is the corner joint and must cover the whole tile.** It matches
+   a wall tile with four wall neighbours and one floor diagonal — the outer
+   corner of a wall band, where the top row's fence and the side column's fence
+   meet at right angles *without touching*. `h_h_8_up` is the only piece in the
+   folder that closes it. Unmatched void tiles carry no doodad and therefore no
+   collision, so an open corner is a route straight out of the level.
+
+Theme `h` borrows **nothing** from `theme_i`; a `[VERIFIED]` screenshot showed
+indoor grey stone among sand cliffs reading as a foreign tileset, the same
+mistake `omitCover` avoids. `themes.test.ts` asserts no emitted level mentions
+`theme_i`.
 
 Three things make it different from every lettered theme `[VERIFIED]`:
 
 1. **Every piece is `<origin>0 0</origin>`**, like the bonus art and unlike the
-   rest of the lettered art, so all its wall offsets flatten to 0. The corners
-   need no path override *because of* this — the names already match.
+   rest of the lettered art — but that alone does **not** mean `yOffset: 0`.
+   The folder mixes 16×16 and 16×32 sprites, and the 16×32 ones hold their
+   collision polygon in the lower half, so flattening them puts both art and
+   barrier a tile below the wall. Both *up* corners and both `h_h_cap_up_*` were
+   flattened this way; the corners left every room's top corners walk-through
+   `[VERIFIED]` in game. **Read the `<frame>` height and the polygon's y range;
+   never infer the offset from `<origin>` alone.** All five 16×32 pieces take
+   `yOffset: -1` (see the table above).
 2. **It has facing variants instead of junctions.** No `x_x`, no `x_t_*`, no
    `v_cap_*`. The tees map onto the cliff faces by open side (the table above),
    which is not a workaround: a `T*` pattern is a wall mass open on one side,
    which is what a directional cliff edge is. This matters because the tees are
-   ~84% of a level's wall doodads and the cross another 6.5% — mapping the tees to
-   borrowed art would make an `h` level render as theme `i`.
+   ~84% of a level's wall doodads and the cross another 6.5% — mapping either to
+   borrowed art would make an `h` level render as theme `i`. The caps and the
+   cross follow the same rule for the same reason.
 3. **None of its exit pieces are both solid and the right shape.**
    `h_exit_special` (a hole in the floor), `h_pyramid_exit` and
    `h_pyramid_shadow` declare **no** collision polygon; `h_pyramid` is 192×192

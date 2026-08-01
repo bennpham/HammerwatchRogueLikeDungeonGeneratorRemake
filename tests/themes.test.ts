@@ -224,11 +224,31 @@ describe('theme h — desert outdoors', () => {
     expect(doodadPath('TRight', 'h')).toBe('doodads/theme_h/h_v_8_r.xml') // open right
   })
 
-  it('borrows only the pieces with no cliff equivalent from theme i', () => {
-    // no 4-way cliff face exists, and no vertical cap
-    expect(doodadPath('CrossWall', 'h')).toBe('doodads/theme_i/i_x_x.xml')
-    expect(doodadPath('VCapUp', 'h')).toBe('doodads/theme_i/i_v_cap_up.xml')
-    expect(doodadPath('VCapDown', 'h')).toBe('doodads/theme_i/i_v_cap_dn.xml')
+  it('maps the pieces its folder lacks onto cliff faces, borrowing nothing', () => {
+    // there is no 4-way cliff face and no vertical cap, but theme i's indoor
+    // stone reads as someone else's wall dropped into the desert, so these take
+    // the horizontal faces by facing the same way the tees do
+    expect(doodadPath('VCapUp', 'h')).toBe('doodads/theme_h/h_h_8_up.xml') // open above
+    expect(doodadPath('VCapDown', 'h')).toBe('doodads/theme_h/h_h_8_dn.xml') // open below
+    for (const piece of THEMED_WALL_PIECES) {
+      expect(doodadPath(piece, 'h')).not.toContain('theme_i')
+    }
+  })
+
+  // Regression guard. theme h's pieces fence one edge of their tile each, and a
+  // room stays sealed because those fences form a closed loop. CrossWall is the
+  // outer corner of a wall band, where the top row's fence and the side column's
+  // fence meet at right angles without touching — only a collider covering the
+  // whole tile closes that joint. h_h_8_up (x 0..1, y -0.19..1.0 once lifted) is
+  // the sole piece in the folder that does, which is why it is here rather than
+  // a better-facing cliff. Pointing this at h_h_8_dn, whose polygon is a fence
+  // along the top edge, put a walk-through gap in every room corner of every
+  // level and the player left the map through it.
+  it('gives CrossWall the one theme h piece that seals a whole tile', () => {
+    expect(doodadPath('CrossWall', 'h')).toBe('doodads/theme_h/h_h_8_up.xml')
+    expect(doodadOffset('CrossWall', 'h')).toEqual({ x: 0, y: -1 })
+    // the piece it must never revert to: same folder, but a top-edge fence
+    expect(doodadPath('CrossWall', 'h')).not.toBe('doodads/theme_h/h_h_8_dn.xml')
   })
 
   it('uses the pyramid entrance for both stair ends, and backs it', () => {
@@ -248,19 +268,28 @@ describe('theme h — desert outdoors', () => {
     }
   })
 
-  it('flattens its own art to origin 0 0 but keeps theme i’s classic anchors', () => {
-    // every doodads/theme_h/ asset declares <origin>0 0</origin>
+  it('flattens its 16x16 art to origin 0 0 and lifts every 16x32 piece', () => {
+    // every doodads/theme_h/ asset declares <origin>0 0</origin>, so the 16x16
+    // pieces carry their collider on their own tile and need no compensation
     expect(doodadOffset('Horizontal', 'h')).toEqual({ x: 0, y: 0 })
     expect(doodadOffset('Vertical', 'h')).toEqual({ x: 0, y: 0 })
-    expect(doodadOffset('CornerLD', 'h')).toEqual({ x: 0, y: 0 })
     expect(doodadOffset('TDown', 'h')).toEqual({ x: 0, y: 0 })
-    // except h_h_8_up, the one 16x32 face: its collider sits in the lower half,
-    // so it lifts a tile to put the barrier back on the wall's edge
+    expect(doodadOffset('VCapDown', 'h')).toEqual({ x: 0, y: 0 })
+    // the 16x32 pieces hold their polygon in the lower half (h_h_8_up y 13..32,
+    // both up corners y 16..32, h_h_cap_up_l y 6..32, h_h_cap_up_r y 4..32), so
+    // at yOffset 0 the barrier lands a full tile below the wall and the player
+    // walks straight out through it. -1 puts it back on the wall tile, with the
+    // cliff face rising into the tile above. Every 16x32 piece in the folder:
     expect(doodadOffset('TUp', 'h')).toEqual({ x: 0, y: -1 })
-    // borrowed pieces must NOT inherit that flattening — theme i is anchored
-    // 0 32 / 0 16, and a stray yOffset 0 slides its collider off its sprite
-    expect(doodadOffset('CrossWall', 'h')).toEqual({ x: 0, y: 1 })
-    expect(doodadOffset('VCapUp', 'h')).toEqual({ x: 0, y: 1 })
+    expect(doodadOffset('VCapUp', 'h')).toEqual({ x: 0, y: -1 })
+    expect(doodadOffset('CrossWall', 'h')).toEqual({ x: 0, y: -1 })
+    expect(doodadOffset('CornerLU', 'h')).toEqual({ x: 0, y: -1 })
+    expect(doodadOffset('CornerRU', 'h')).toEqual({ x: 0, y: -1 })
+    expect(doodadOffset('HCapLeft', 'h')).toEqual({ x: 0, y: -1 })
+    expect(doodadOffset('HCapRight', 'h')).toEqual({ x: 0, y: -1 })
+    // the down corners really are 16x16 (collider y -5..3) and stay flat
+    expect(doodadOffset('CornerLD', 'h')).toEqual({ x: 0, y: 0 })
+    expect(doodadOffset('CornerRD', 'h')).toEqual({ x: 0, y: 0 })
   })
 
   it('emits the h tileset and no piece theme h does not ship', () => {
@@ -269,7 +298,6 @@ describe('theme h — desert outdoors', () => {
     const level = result.files.find((f) => f.path === 'levels/level3.xml')!.content
     expect(level).toContain('<string name="tileset">tilemaps/h_default.xml</string>')
     expect(level).toContain('doodads/theme_h/h_')
-    expect(level).toContain('doodads/theme_i/i_x_x.xml')
     expect(level).toContain('doodads/theme_h/h_pyramid_exit.xml')
 
     // all four cliff faces are in play — a regression that collapsed the tee map
@@ -287,8 +315,8 @@ describe('theme h — desert outdoors', () => {
       expect(file.content).not.toContain('theme_h/h_v_cap')
       expect(file.content).not.toContain('exit_h_')
       expect(file.content).not.toContain('color_theme_h')
-      // theme h has its own tees now; only the cross is borrowed
-      expect(file.content).not.toContain('i_x_t_')
+      // an outdoor level must never mix in theme i's indoor stone
+      expect(file.content).not.toContain('theme_i')
       // the floor hole, and the pieces the matcher has no pattern for
       expect(file.content).not.toContain('h_exit_special')
       expect(file.content).not.toContain('h_deco_rock')
