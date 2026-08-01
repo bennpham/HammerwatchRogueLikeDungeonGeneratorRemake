@@ -91,6 +91,86 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-08-01 — theme `h` is a usable outdoor desert set; the "only four corners" finding was a false negative
+**Tag:** [VERIFIED] (read from `doodads/theme_h/` and `tilemaps/h_default.xml`
+supplied from a real install)
+**Context:** Adding theme `h` so the Desert group covers outdoors (`h`) as well
+as indoors (`i`).
+**Evidence:** The folder holds 24 files, not four. The earlier survey searched
+the editor's Doodads tab for the classic suffixes (`_crn_*`, `_h_8`, `_v_8`,
+`_x_x`, `_x_t_*`) and missed everything named differently. What is actually
+there: `h_crn_{l,r}_{dn,up}` (+ `_v2` alternates) — the corners match the classic
+names exactly — plus `h_h_8_dn`/`h_h_8_up`, `h_v_8_l`/`h_v_8_r`,
+`h_h_cap_up_l`/`h_h_cap_up_r`, `h_h_16_dn/up`, `h_v_16_l/r`, `h_deco_rock`,
+`h_exit_special`, and the four `h_pyramid*` pieces. There is genuinely no
+`x_x`, no `x_t_*`, no `v_cap_*` and no `color_theme_h_16`.
+**Impact:** Supersedes the 2026-07-30 note inside the sprite-origin entry and
+the "no usable theme `h`" paragraph in `ASSET-REGISTRY.md`, both now rewritten.
+`themes.ts` gains `desertOutdoor()`; `tests/themes.test.ts` no longer asserts
+`THEMES` excludes `h`. Generalisable lesson: survey an asset folder by listing
+it, not by searching it for names another theme uses.
+
+### 2026-08-01 — every `doodads/theme_h/` piece is anchored `0 0`, like the bonus art
+**Tag:** [VERIFIED] (read from the supplied asset XML)
+**Context:** Choosing offsets for theme `h`, under the rule that `yOffset` =
+the asset's `<origin>` y ÷ 16.
+**Evidence:** `h_crn_l_dn.xml`, `h_h_8_dn.xml`, `h_v_8_l.xml` and every other
+wall piece declare `<origin>0 0</origin>`, where `a_h_8.xml` is `0 32` and
+`a_v_8.xml` is `0 16`.
+**Impact:** All of theme `h`'s wall offsets flatten to 0, reusing the mechanism
+`bonus()` introduced. This is also why its four corners need no path override:
+their names already match the template, so only the anchor differs. Pieces
+borrowed from `theme_i` must *not* inherit the flattening — theme `i` carries
+the classic anchors, and a stray `yOffset: 0` slides its collider off its sprite.
+
+### 2026-08-01 — the tees are ~84% of a level's wall doodads, so junction art decides how a theme looks
+**Tag:** [VERIFIED] (measured from the generator, 8 seeds × 8 levels, theme `a`)
+**Context:** Deciding whether theme `h` could borrow `theme_i`'s junctions.
+**Evidence:** Piece mix — `TRight` 22.3%, `TLeft` 22.0%, `TUp` 20.9%, `TDown`
+20.4%, `CrossWall` 6.5%, corners 6.2%, straights 1.7%, caps 0.03%. `VCapDown`
+appeared 6 times in 64 levels. Borrowing all seven missing pieces would have
+rendered an `h` level ~92% as theme `i`.
+**Evidence (mapping):** a `T*` pattern is a wall mass with the opening on
+exactly one side, which is what a directional cliff edge is — and theme `h`'s
+names line up one for one: `TDown`→`h_h_8_dn`, `TUp`→`h_h_8_up`,
+`TLeft`→`h_v_8_l`, `TRight`→`h_v_8_r`. That is very likely *why* the folder
+ships facing variants and no junctions.
+**Impact:** Theme `h` maps its tees onto its own faces and borrows only
+`CrossWall`, `VCapUp`, `VCapDown` and `Cover` — 591 theme-`h` wall pieces to 41
+borrowed on a sample level. Worth checking first for any future non-classic
+theme: a missing tee matters ~50× more than a missing cap.
+
+### 2026-08-01 — theme `h`'s exit pieces are mostly not solid; only the pyramid door can back an alcove
+**Tag:** [VERIFIED] for the polygons, [UNVERIFIED] for the offsets
+**Context:** Theme `h` ships no `exit_h_dn`/`exit_h_up`, so the stair alcove
+needed a substitute.
+**Evidence:** `h_exit_special.xml` (32×32, `<origin>16 16</origin>`) declares no
+`<polygon collision="true">` at all — it is a hole in the floor. `h_pyramid_exit.xml`
+also declares none. `h_pyramid.xml` is 192×192 with a solid box, far larger than
+the 2-tile alcove. `h_pyramid_exit_door.xml` is 32×36, `<origin>16 40</origin>`,
+with a `-16..16 × -40..0` collider — alcove-sized and solid.
+**Impact:** Both `ExitUp` and `ExitDn` use the pyramid door at `{1, 0.5}`, which
+derives from origin `(1, 2.5)` tiles and the prefab placing the piece at
+`(x+2, y+3)` with the opening on wall row `y+1`; the collider then covers
+`x+2..x+4 × y+1..y+3.5`. Because that closes the opening, theme `h` declares no
+`stairBacking`. **Verify in game** — if a gap shows, add
+`stairBacking: 'Horizontal'` as the bonus themes do. Same status for the
+`h_h_8_up` anchor (`yOffset: -1`, chosen because it is the only 16×32 face and
+its collider sits in the lower half) and for whether each cliff face points out
+of the wall mass rather than into it.
+
+### 2026-08-01 — tileset variant counts must exclude `<borders>` sprites
+**Tag:** [VERIFIED] (read from `tilemaps/h_default.xml`)
+**Context:** `ASSET-REGISTRY.md` recorded theme `h` as having 14 sprites.
+**Evidence:** `h_default.xml` has exactly 2 top-level `<sprite>` elements. The
+other 12 are inside `<borders>` — `north`, `south`, `east`, `west`, four
+corners and four `*pit` variants — and are chosen by the engine, not by
+`data-t`. The 14 figure counted every `<sprite>` tag in the file.
+**Impact:** Theme `h` is registered with `tiles: 2`. `getTiles` emits
+`1..tiles`, so an inflated count would have emitted floor indices the tileset
+cannot resolve. **Follow-up:** the same miscount may inflate `d: 8` and `i: 8`
+— re-count their top-level `<sprite>` elements when those files are available.
+
 ### 2026-07-31 — the lobby now ships visuals with proper walls and lighting; campaign-local doodads render in-game
 **Tag:** [VERIFIED] — Windows 10, Hammerwatch 1.41, real Steam install.
 **Context:** Final in-game verification run after importing the editor-saved lobby with its campaign-local assets.

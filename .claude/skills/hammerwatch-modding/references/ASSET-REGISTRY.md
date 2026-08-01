@@ -285,6 +285,12 @@ wall/void. **Emitting an index above `tiles` is a load-time error.**
 All counts below are `[VERIFIED]` — they are the `<sprite>` count of the tileset
 XML, read from `assetsExtract/tilemaps/`. `level` is the tileset's draw layer.
 
+**Count top-level `<sprite>` only.** A tileset may also carry a `<borders>` block
+whose sprites (`north`, `south`, the four corners, the four `*pit` variants) are
+picked by the engine, not by `data-t`. Counting those inflates the variant count,
+and `getTiles` then emits floor indices the tileset cannot resolve — this is how
+theme `h` was first recorded as having 14 variants when it has 2.
+
 | Theme | Path | Variants | `level` | Set |
 | --- | --- | --- | --- | --- |
 | `a` | `tilemaps/a_default.xml` | 2 | 10 | classic |
@@ -294,7 +300,8 @@ XML, read from `assetsExtract/tilemaps/`. `level` is the tileset's draw layer.
 | `e` | `tilemaps/e_default.xml` | 2 | 100 | castle |
 | `f` | `tilemaps/f_default.xml` | 2 | 120 | castle |
 | `g` | `tilemaps/g_default.xml` | 2 | 130 | castle |
-| `i` | `tilemaps/i_default.xml` | 8 | 150 | desert |
+| `h` | `tilemaps/h_default.xml` | **2** | 140 | desert (outdoors) |
+| `i` | `tilemaps/i_default.xml` | 8 | 150 | desert (indoors) |
 | `bonus1` | `tilemaps/bonus_1.xml` | **2** | 500 | bonus |
 | `bonus2` | `tilemaps/bonus_2.xml` | 1 | 501 | bonus |
 | `bonus3` | `tilemaps/bonus_3.xml` | 1 | 502 | bonus |
@@ -312,12 +319,50 @@ do not emit it. The game's own `campaign/levels/level_bonus_1.xml` pairs it with
 `bonus_1.xml` as a **second dataset** in the same tile block — `datasets` is an
 array, so we could do the same. Cosmetic; not currently done.
 
-There is **no usable theme `h`** `[VERIFIED]`: `tilemaps/h_default.xml` exists
-(14 sprites, `level` 140) and `doodads/theme_h/` exists, but that folder ships
-only the four corner pieces — no `h_8`, `v_8`, `x_x`, caps or tees, and no
-`color_theme_h_16` — so the matcher could not build a wall from it. An unknown
-theme id falls back to the first registry entry (`a`) in `Level.getXML`, but
-validation rejects it first.
+### Theme `h` — desert outdoors
+
+**Supersedes the earlier "there is no usable theme `h`" entry, which was a false
+negative** — it searched the editor's Doodads tab for the classic suffixes and
+concluded the folder held only corners. `doodads/theme_h/` is a complete outdoor
+cliff set of 24 files `[VERIFIED]` from the extracted assets; it just does not use
+the classic vocabulary.
+
+| Piece | theme `h` file | Note |
+| --- | --- | --- |
+| `CornerLD/LU/RD/RU` | `h_crn_l_dn` … `h_crn_r_up` | same names as the classic set; `_v2` alternates exist and are unused |
+| `TDown`, `Horizontal` | `h_h_8_dn` | 16×16 |
+| `TUp` | `h_h_8_up` | 16×32, collider in the lower half |
+| `TLeft`, `Vertical` | `h_v_8_l` | 16×16 |
+| `TRight` | `h_v_8_r` | 16×16 |
+| `HCapLeft` / `HCapRight` | `h_h_cap_up_l` / `h_h_cap_up_r` | 16×32 |
+| `CrossWall`, `VCapUp`, `VCapDown` | — | borrowed from `theme_i` |
+| `ExitUp` / `ExitDn` | `h_pyramid_exit_door` | both ends |
+| `Cover` | — | borrowed: `color_theme_i_16` |
+
+Three things make it different from every lettered theme `[VERIFIED]`:
+
+1. **Every piece is `<origin>0 0</origin>`**, like the bonus art and unlike the
+   rest of the lettered art, so all its wall offsets flatten to 0. The corners
+   need no path override *because of* this — the names already match.
+2. **It has facing variants instead of junctions.** No `x_x`, no `x_t_*`, no
+   `v_cap_*`. The tees map onto the cliff faces by open side (the table above),
+   which is not a workaround: a `T*` pattern is a wall mass open on one side,
+   which is what a directional cliff edge is. This matters because the tees are
+   ~84% of a level's wall doodads and the cross another 6.5% — mapping the tees to
+   borrowed art would make an `h` level render as theme `i`.
+3. **Its exit pieces are mostly not solid.** `h_exit_special` (a hole in the
+   floor) and `h_pyramid_exit` declare **no** collision polygon; `h_pyramid`
+   is 192×192 solid, far too large for a 2-tile alcove. `h_pyramid_exit_door` is
+   the only alcove-sized solid piece — 32×36, `<origin>16 40</origin>`, collider
+   `-16..16 × -40..0` — so it carries both stair ends.
+
+`[UNVERIFIED]` until someone loads a packed `h` level: the `h_pyramid_exit_door`
+offsets (`{1, 0.5}`), the `h_h_8_up` anchor (`yOffset: -1`), and whether each
+cliff face points out of the wall mass rather than into it.
+
+Unused by the matcher, present in the folder: `h_deco_rock`, `h_h_16_dn/up`,
+`h_v_16_l/r`, `h_pyramid`, `h_pyramid_exit`, `h_pyramid_shadow`, `h_exit_special`,
+and the four `_v2` corners.
 
 ## Script node types
 

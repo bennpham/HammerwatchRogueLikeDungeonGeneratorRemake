@@ -85,7 +85,7 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
           Tileset per level:<br/>
           &nbsp;&nbsp;<strong>a–d</strong> classic dungeon<br/>
           &nbsp;&nbsp;<strong>e–g</strong> castle<br/>
-          &nbsp;&nbsp;<strong>i</strong> desert<br/>
+          &nbsp;&nbsp;<strong>h</strong>–<strong>i</strong> desert (h outdoors, i indoors)<br/>
           <br/>
           Bonus levels 1–5 are Gauntlet easter eggs theme:<br/>
           &nbsp;&nbsp;1 = asphalt<br/>

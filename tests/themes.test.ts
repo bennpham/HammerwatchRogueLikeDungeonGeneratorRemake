@@ -23,8 +23,7 @@ describe('theme registry', () => {
     expect(THEMES).toContain('a')
     expect(THEMES).toContain('bonus1')
     expect(THEMES).toContain('bonus5')
-    // the game's assets skip the letter h
-    expect(THEMES).not.toContain('h')
+    expect(THEMES).toContain('h')
   })
 
   it('has unique ids and in-range tile counts', () => {
@@ -43,8 +42,12 @@ describe('theme registry', () => {
     }
   })
 
-  it('leaves the lettered themes with no overrides', () => {
-    for (const def of THEME_DEFS.filter((t) => !t.id.startsWith('bonus'))) {
+  // h is lettered too, but its folder renames half its pieces and ships no
+  // junctions at all, so it carries overrides like the bonus themes do
+  const CLASSIC_IDS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'i']
+
+  it('leaves the classic themes with no overrides', () => {
+    for (const def of THEME_DEFS.filter((t) => CLASSIC_IDS.includes(t.id))) {
       expect(def.doodadOverrides).toBeUndefined()
       expect(def.doodadToken).toBe(def.id)
     }
@@ -195,6 +198,103 @@ describe('generating with a bonus theme', () => {
       )
       expect(max).toBeLessThanOrEqual(def.tiles)
     }
+  })
+})
+
+describe('theme h — desert outdoors', () => {
+  it('takes theme h’s own art for the pieces its folder ships', () => {
+    // the corners match the template as-is; only the anchor differs
+    expect(doodadPath('CornerLD', 'h')).toBe('doodads/theme_h/h_crn_l_dn.xml')
+    expect(doodadPath('CornerRU', 'h')).toBe('doodads/theme_h/h_crn_r_up.xml')
+    // renamed with a facing suffix the template has no slot for
+    expect(doodadPath('Horizontal', 'h')).toBe('doodads/theme_h/h_h_8_dn.xml')
+    expect(doodadPath('Vertical', 'h')).toBe('doodads/theme_h/h_v_8_l.xml')
+    expect(doodadPath('HCapLeft', 'h')).toBe('doodads/theme_h/h_h_cap_up_l.xml')
+    expect(doodadPath('HCapRight', 'h')).toBe('doodads/theme_h/h_h_cap_up_r.xml')
+  })
+
+  // ~84% of a level's wall doodads, and theme h ships no tee art. Each pattern is
+  // a wall mass open on one side, so it takes the cliff face pointing that way.
+  // Getting an axis backwards turns every wall inside out, so pin all four.
+  it('maps each tee onto the cliff face for its open side', () => {
+    expect(doodadPath('TDown', 'h')).toBe('doodads/theme_h/h_h_8_dn.xml') // open below
+    expect(doodadPath('TUp', 'h')).toBe('doodads/theme_h/h_h_8_up.xml') // open above
+    expect(doodadPath('TLeft', 'h')).toBe('doodads/theme_h/h_v_8_l.xml') // open left
+    expect(doodadPath('TRight', 'h')).toBe('doodads/theme_h/h_v_8_r.xml') // open right
+  })
+
+  it('borrows only the pieces with no cliff equivalent from theme i', () => {
+    // no 4-way cliff face exists, and no vertical cap
+    expect(doodadPath('CrossWall', 'h')).toBe('doodads/theme_i/i_x_x.xml')
+    expect(doodadPath('VCapUp', 'h')).toBe('doodads/theme_i/i_v_cap_up.xml')
+    expect(doodadPath('VCapDown', 'h')).toBe('doodads/theme_i/i_v_cap_dn.xml')
+    expect(doodadPath('Cover', 'h')).toBe('doodads/special/color_theme_i_16.xml')
+  })
+
+  it('uses the pyramid door for both stair ends', () => {
+    expect(doodadPath('ExitUp', 'h')).toBe('doodads/theme_h/h_pyramid_exit_door.xml')
+    expect(doodadPath('ExitDn', 'h')).toBe('doodads/theme_h/h_pyramid_exit_door.xml')
+    // its collider spans the whole alcove opening, so no backing segment
+    expect(getTheme('h')!.stairBacking).toBeUndefined()
+  })
+
+  it('flattens its own art to origin 0 0 but keeps theme i’s classic anchors', () => {
+    // every doodads/theme_h/ asset declares <origin>0 0</origin>
+    expect(doodadOffset('Horizontal', 'h')).toEqual({ x: 0, y: 0 })
+    expect(doodadOffset('Vertical', 'h')).toEqual({ x: 0, y: 0 })
+    expect(doodadOffset('CornerLD', 'h')).toEqual({ x: 0, y: 0 })
+    expect(doodadOffset('TDown', 'h')).toEqual({ x: 0, y: 0 })
+    // except h_h_8_up, the one 16x32 face: its collider sits in the lower half,
+    // so it lifts a tile to put the barrier back on the wall's edge
+    expect(doodadOffset('TUp', 'h')).toEqual({ x: 0, y: -1 })
+    // borrowed pieces must NOT inherit that flattening — theme i is anchored
+    // 0 32 / 0 16, and a stray yOffset 0 slides its collider off its sprite
+    expect(doodadOffset('CrossWall', 'h')).toEqual({ x: 0, y: 1 })
+    expect(doodadOffset('VCapUp', 'h')).toEqual({ x: 0, y: 1 })
+  })
+
+  it('emits the h tileset and no piece theme h does not ship', () => {
+    const result = generateWithTheme('h', 6420)
+    // a middle level carries both an entrance and an exit set
+    const level = result.files.find((f) => f.path === 'levels/level3.xml')!.content
+    expect(level).toContain('<string name="tileset">tilemaps/h_default.xml</string>')
+    expect(level).toContain('doodads/theme_h/h_')
+    expect(level).toContain('doodads/theme_i/i_x_x.xml')
+    expect(level).toContain('doodads/theme_h/h_pyramid_exit_door.xml')
+
+    // all four cliff faces are in play — a regression that collapsed the tee map
+    // back onto a single face would still pass every path assertion above
+    for (const face of ['h_h_8_dn', 'h_h_8_up', 'h_v_8_l', 'h_v_8_r']) {
+      expect(level).toContain(`doodads/theme_h/${face}.xml`)
+    }
+
+    for (const file of result.files.filter((f) => f.path.startsWith('levels/level'))) {
+      // the un-suffixed template names, which theme h has no file for
+      expect(file.content).not.toContain('h_h_8.xml')
+      expect(file.content).not.toContain('h_v_8.xml')
+      expect(file.content).not.toContain('h_h_cap_l.xml')
+      expect(file.content).not.toContain('theme_h/h_x_')
+      expect(file.content).not.toContain('theme_h/h_v_cap')
+      expect(file.content).not.toContain('exit_h_')
+      expect(file.content).not.toContain('color_theme_h')
+      // theme h has its own tees now; only the cross is borrowed
+      expect(file.content).not.toContain('i_x_t_')
+      // the floor hole, and the pieces the matcher has no pattern for
+      expect(file.content).not.toContain('h_exit_special')
+      expect(file.content).not.toContain('h_deco_rock')
+    }
+  })
+
+  it('places the same walls as any other theme, only with different art', () => {
+    // same seed => identical layout, so the doodad count must match a lettered
+    // theme exactly: h adds no backing and skips no piece
+    const countDoodads = (theme: string): number => {
+      const level = generateWithTheme(theme, 777).files.find(
+        (f) => f.path === 'levels/level3.xml'
+      )!.content
+      return [...level.matchAll(/<bool name="need-sync">/g)].length
+    }
+    expect(countDoodads('h')).toBe(countDoodads('a'))
   })
 })
 
