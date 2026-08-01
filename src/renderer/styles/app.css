@@ -176,6 +176,61 @@ select:focus {
   color: var(--text-dim);
 }
 
+/* monster filter — shared by the pool editor and the max table */
+
+.monster-filter {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+  margin-bottom: 4px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.monster-filter-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.monster-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.monster-filter-chips .toggle {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+.monster-filter-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.monster-filter-actions button {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+.monster-filter-search {
+  width: 100%;
+}
+
+/* pinned because it is selected, but outside the filter — dim, still usable */
+.pool-checkbox.off-filter,
+.max-item.off-filter {
+  opacity: 0.55;
+  font-style: italic;
+}
+
 /* monster pools */
 
 .pool-level {

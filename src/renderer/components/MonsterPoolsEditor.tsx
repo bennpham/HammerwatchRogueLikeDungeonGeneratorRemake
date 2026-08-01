@@ -1,6 +1,7 @@
 import React from 'react'
 import { MONSTER_GROUPS, monsterTypesInGroup } from '../../generator'
 import type { DungeonParameters, ValidationIssue } from '../../generator'
+import { MonsterFilterBar, useMonsterFilter } from './MonsterFilterBar'
 
 interface MonsterPoolsEditorProps {
   params: DungeonParameters
@@ -13,6 +14,8 @@ interface MonsterPoolsEditorProps {
  * type from the pool at random.
  */
 export function MonsterPoolsEditor({ params, issues, onChange }: MonsterPoolsEditorProps) {
+  const filter = useMonsterFilter()
+
   const toggle = (level: number, id: string) => {
     const pools = params.levelMonsters.map((p) => [...p])
     while (pools.length <= level) pools.push([])
@@ -39,6 +42,7 @@ export function MonsterPoolsEditor({ params, issues, onChange }: MonsterPoolsEdi
             {issue.message}
           </p>
         ))}
+      <MonsterFilterBar filter={filter} />
       {Array.from({ length: Math.max(params.levels, 0) || 0 }, (_, level) => {
         const pool = params.levelMonsters[level] ?? []
         return (
@@ -49,22 +53,34 @@ export function MonsterPoolsEditor({ params, issues, onChange }: MonsterPoolsEdi
             </summary>
             <div className="pool-groups">
               {MONSTER_GROUPS.map((group) => {
-                const members = monsterTypesInGroup(group)
+                // A type already in this level's pool is pinned: it stays on
+                // screen even when its act is filtered off, so nothing the user
+                // picked can become invisible and impossible to uncheck.
+                const members = monsterTypesInGroup(group).filter((t) =>
+                  filter.visible(t, pool.includes(t.id))
+                )
                 if (members.length === 0) return null
                 return (
                   <div key={group} className="pool-group">
                     <span className="pool-group-title">{group}</span>
                     <div className="pool-checkboxes">
-                      {members.map((t) => (
-                        <label key={t.id} className="pool-checkbox">
-                          <input
-                            type="checkbox"
-                            checked={pool.includes(t.id)}
-                            onChange={() => toggle(level, t.id)}
-                          />
-                          {t.id}
-                        </label>
-                      ))}
+                      {members.map((t) => {
+                        const off = filter.offFilter(t)
+                        return (
+                          <label
+                            key={t.id}
+                            className={off ? 'pool-checkbox off-filter' : 'pool-checkbox'}
+                            title={off ? 'In this pool, but hidden by the current filter' : undefined}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={pool.includes(t.id)}
+                              onChange={() => toggle(level, t.id)}
+                            />
+                            {t.id}
+                          </label>
+                        )
+                      })}
                     </div>
                   </div>
                 )

@@ -1,6 +1,7 @@
 import React from 'react'
 import { MONSTER_GROUPS, monsterTypesInGroup } from '../../generator'
 import type { DungeonParameters } from '../../generator'
+import { MonsterFilterBar, useMonsterFilter } from './MonsterFilterBar'
 
 interface MonsterMaxTableProps {
   params: DungeonParameters
@@ -12,6 +13,8 @@ interface MonsterMaxTableProps {
  * its chosen type (times the monster multiplier).
  */
 export function MonsterMaxTable({ params, onChange }: MonsterMaxTableProps) {
+  const filter = useMonsterFilter()
+
   const setMax = (id: string, value: number) => {
     onChange({ ...params, monsterMax: { ...params.monsterMax, [id]: value } })
   }
@@ -22,24 +25,36 @@ export function MonsterMaxTable({ params, onChange }: MonsterMaxTableProps) {
         Horde size cap per monster type. A lair spawns roughly max/5 to max of its type, scaled by the
         monster multiplier. Types set to 0 spawn nothing — avoid them in pools.
       </p>
+      <MonsterFilterBar filter={filter} label="monster types" />
       {MONSTER_GROUPS.map((group) => {
-        const members = monsterTypesInGroup(group)
+        // A type with a non-zero cap is pinned, the same way an in-pool type is
+        // pinned in the editor: you can always find and reset what you changed.
+        const members = monsterTypesInGroup(group).filter((t) =>
+          filter.visible(t, (params.monsterMax[t.id] ?? 0) > 0)
+        )
         if (members.length === 0) return null
         return (
           <details key={group} className="max-group" open={group === 'Classic'}>
             <summary>{group}</summary>
             <div className="max-grid">
-              {members.map((t) => (
-                <label key={t.id} className="max-item">
-                  <span>{t.id}</span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={params.monsterMax[t.id] ?? 0}
-                    onChange={(e) => setMax(t.id, e.target.value === '' ? 0 : Number(e.target.value))}
-                  />
-                </label>
-              ))}
+              {members.map((t) => {
+                const off = filter.offFilter(t)
+                return (
+                  <label
+                    key={t.id}
+                    className={off ? 'max-item off-filter' : 'max-item'}
+                    title={off ? 'Has a cap set, but hidden by the current filter' : undefined}
+                  >
+                    <span>{t.id}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={params.monsterMax[t.id] ?? 0}
+                      onChange={(e) => setMax(t.id, e.target.value === '' ? 0 : Number(e.target.value))}
+                    />
+                  </label>
+                )
+              })}
             </div>
           </details>
         )

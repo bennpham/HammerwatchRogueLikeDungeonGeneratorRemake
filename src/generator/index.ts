@@ -30,8 +30,14 @@ export {
   vendorOfCategory
 } from './lobby'
 export type { LobbyVendorDef } from './lobby'
-export { MONSTER_GROUPS, MONSTER_TYPES, monsterTypesInGroup } from './objects/monsterTypes'
-export type { MonsterGroup, MonsterTypeDef } from './objects/monsterTypes'
+export {
+  MONSTER_CATEGORIES,
+  MONSTER_GROUPS,
+  MONSTER_TYPES,
+  monsterCategories,
+  monsterTypesInGroup
+} from './objects/monsterTypes'
+export type { MonsterAct, MonsterCategory, MonsterGroup, MonsterTypeDef } from './objects/monsterTypes'
 export {
   EXTRA_LIFE_UPGRADES,
   SHOP_PRICE_MAX,
