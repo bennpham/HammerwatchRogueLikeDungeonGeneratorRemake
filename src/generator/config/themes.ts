@@ -59,6 +59,14 @@ export interface ThemeDef {
    * theme outside `a`–`g`/`i` ships a `color_theme_*` of its own.
    */
   omitCover?: boolean
+  /**
+   * Advisory note surfaced once by `validateParameters` when the theme is used.
+   *
+   * For cosmetic quirks a theme cannot avoid — not for anything that blocks
+   * generation, which belongs in `validation.ts` as an error. Keep it to one
+   * sentence; the form renders it inline against the theme field.
+   */
+  cosmeticWarning?: string
 }
 
 /**
@@ -266,7 +274,15 @@ function desertOutdoor(): ThemeDef {
     stairBacking: 'Horizontal',
     // low cliff edges with open desert behind them: there is no wall top for an
     // occlusion overlay to sit on, and theme i's stone reads as grey slabs on sand
-    omitCover: true
+    omitCover: true,
+    // Verified in game: the level is sealed and reads correctly, but the folder
+    // has no 4-way junction art, so corners borrow the 16x32 `h_h_8_up` face —
+    // which is the only piece that seals a whole tile. Being a tile taller than
+    // its neighbours, it overlaps them and can z-fight. Cosmetic and accepted;
+    // the alternative is either grey indoor stone or a hole in every room.
+    cosmeticWarning:
+      'Theme h is an outdoor cliff set with no junction art, so wall pieces at ' +
+      'room corners overlap and may flicker. Cosmetic only — the level is sealed.'
   }
 }
 

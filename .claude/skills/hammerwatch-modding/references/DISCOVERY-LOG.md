@@ -92,8 +92,8 @@ until then, treat them as unknown in anything shown to the user.
 ## Entries
 
 ### 2026-08-01 — `theme_h`'s colliders are edge fences, and a `CrossWall` tile is the joint that must be solid
-**Tag:** [VERIFIED] (root cause read from the install; the fix itself is
-`[EMITTED]` until a perimeter walk confirms it in game)
+**Tag:** [VERIFIED] (root cause read from the install; fix played in game on
+Windows — the map is sealed and the theme still reads as an outdoor desert)
 **Context:** A player reported still walking out of the map after the up-corner
 anchor fix below. **Supersedes the "theme `h` no longer borrows any art from
 theme `i`" entry**, which was right about the goal and wrong about the piece:
@@ -127,6 +127,14 @@ no seed invalidated. `themes.test.ts` has a named regression test explaining why
 a better-*facing* cliff must not be substituted here. Corollary recorded in
 `ASSET-REGISTRY.md`: **substituting one theme `h` piece for another is only safe
 when the replacement fences the same edge.**
+
+**Accepted cost, confirmed in game:** `h_h_8_up` is 16×32, so at a corner it
+overlaps the tile above and neighbouring wall pieces can z-fight/flicker. This
+is inherent to a folder with no junction art — the only alternatives are theme
+`i`'s grey indoor stone or a hole in every room, and the flicker is the
+cheapest of the three. Surfaced to the user as `ThemeDef.cosmeticWarning`, a new
+advisory field `validateParameters` reports **once per theme** (not per level),
+so choosing theme `h` explains its own quirk instead of looking like a bug.
 
 Two pieces re-examined under the fence model and deliberately left alone:
 `VCapDown` (`h_h_8_dn`) fences its own top edge, which *is* the stub-to-tile-

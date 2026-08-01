@@ -359,7 +359,9 @@ follow, and violating either has already shipped a hole:
    corner of a wall band, where the top row's fence and the side column's fence
    meet at right angles *without touching*. `h_h_8_up` is the only piece in the
    folder that closes it. Unmatched void tiles carry no doodad and therefore no
-   collision, so an open corner is a route straight out of the level.
+   collision, so an open corner is a route straight out of the level. Being
+   16×32 it overlaps the tile above, so corner pieces can z-fight — accepted
+   `[VERIFIED]`, and declared to the user via `ThemeDef.cosmeticWarning`.
 
 Theme `h` borrows **nothing** from `theme_i`; a `[VERIFIED]` screenshot showed
 indoor grey stone among sand cliffs reading as a foreign tileset, the same

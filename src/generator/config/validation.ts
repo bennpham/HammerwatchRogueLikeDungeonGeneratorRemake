@@ -1,4 +1,5 @@
 import { DungeonParameters, THEMES } from './parameters'
+import { getTheme } from './themes'
 import { isKnownMonsterId } from '../objects/monsterTypes'
 import { LOBBY_DIAMOND_VALUE, LOBBY_GOLD_MAX } from '../lobby/build'
 import { ALL_LOBBY_CATEGORIES, isLobbyCategory, lobbyCategoryCounts, vendorOfCategory } from '../lobby/shops'
@@ -111,6 +112,15 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
       })
     }
   })
+  // a theme's cosmetic caveat is a property of the theme, not of the level, so
+  // it is reported once however many levels use it — the same collapsing the
+  // bulk tweak warnings do
+  for (const id of new Set(p.themes.slice(0, p.levels))) {
+    const note = getTheme(id)?.cosmeticWarning
+    if (note !== undefined) {
+      warnings.push({ field: 'themes', message: note })
+    }
+  }
 
   // per-level monster pools
   if (p.levelMonsters.length < p.levels) {

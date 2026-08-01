@@ -55,6 +55,25 @@ describe('parameter validation', () => {
     expect(messages).toContain('"dragon"')
   })
 
+  it('warns once about a theme with a cosmetic caveat, however many levels use it', () => {
+    const p = defaultParameters()
+    p.themes = p.themes.map(() => 'h')
+    const result = validateParameters(p)
+    // advisory only — a caveat must never block generation
+    expect(result.valid).toBe(true)
+    expect(fieldsOf(result.errors)).not.toContain('themes')
+    // one warning for 8 levels of theme h, not eight
+    const themeWarnings = result.warnings.filter((w) => w.field === 'themes')
+    expect(themeWarnings).toHaveLength(1)
+    expect(themeWarnings[0].message).toContain('Theme h')
+  })
+
+  it('stays silent for themes with no caveat', () => {
+    const p = defaultParameters()
+    p.themes = p.themes.map(() => 'a')
+    expect(validateParameters(p).warnings.filter((w) => w.field === 'themes')).toHaveLength(0)
+  })
+
   it('rejects empty monster pools', () => {
     const p = defaultParameters()
     p.levelMonsters[0] = []
