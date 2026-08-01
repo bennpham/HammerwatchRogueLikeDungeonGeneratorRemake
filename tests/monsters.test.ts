@@ -3,10 +3,12 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 import { describe, expect, it } from 'vitest'
 import {
+  MONSTER_CATEGORIES,
   MONSTER_GROUPS,
   MONSTER_TYPES,
   defaultParameters,
   generateDungeon,
+  monsterCategories,
   monsterTypesInGroup,
   parseParametersTxt,
   serializeParametersTxt
@@ -87,6 +89,75 @@ describe('monster roster', () => {
         expect(KNOWN_ACTOR_PATHS, `${type.id} -> ${path}`).toContain(path)
       }
     }
+  })
+})
+
+describe('act categories', () => {
+  // The GUI filter hides anything whose categories are all switched off, so a
+  // type with no category would be unreachable in every filter state.
+  it('gives every type at least one category the filter bar renders', () => {
+    for (const type of MONSTER_TYPES) {
+      const categories = monsterCategories(type)
+      expect(categories.length, type.id).toBeGreaterThan(0)
+      for (const category of categories) {
+        expect(MONSTER_CATEGORIES, type.id).toContain(category)
+      }
+      expect(new Set(categories).size, type.id).toBe(categories.length)
+    }
+  })
+
+  it('routes the whole Desert group to Temple of the Sun and Bonus to Bonus', () => {
+    for (const type of MONSTER_TYPES) {
+      if (type.group === 'Desert') expect(monsterCategories(type), type.id).toEqual(['Temple of the Sun'])
+      if (type.group === 'Bonus') expect(monsterCategories(type), type.id).toEqual(['Bonus'])
+    }
+  })
+
+  it('never tags a Desert or Bonus type with an act', () => {
+    // Those groups are their own category, so acts would silently do nothing.
+    for (const type of MONSTER_TYPES) {
+      if (type.group === 'Desert' || type.group === 'Bonus') {
+        expect(type.acts, type.id).toBeUndefined()
+      }
+    }
+  })
+
+  it('keeps acts in range, unique and ascending', () => {
+    for (const type of MONSTER_TYPES) {
+      if (!type.acts) continue
+      expect(new Set(type.acts).size, type.id).toBe(type.acts.length)
+      expect(type.acts, type.id).toEqual([...type.acts].sort())
+      for (const act of type.acts) expect([1, 2, 3, 4], type.id).toContain(act)
+    }
+  })
+
+  it('matches the wiki mapping quoted in issue #4', () => {
+    const categoriesOf = (id: string) => monsterCategories(MONSTER_TYPES.find((t) => t.id === id)!)
+    expect(categoriesOf('bat1')).toEqual(['Act 1'])
+    expect(categoriesOf('tick1')).toEqual(['Act 1'])
+    expect(categoriesOf('maggot')).toEqual(['Act 1', 'Act 2'])
+    expect(categoriesOf('slime')).toEqual(['Act 2'])
+    expect(categoriesOf('lich')).toEqual(['Act 3', 'Act 4'])
+    expect(categoriesOf('tower_nova1')).toEqual(['Act 2', 'Act 3', 'Act 4'])
+    // mini-bosses inherit their base monster's acts
+    expect(categoriesOf('mb_tick')).toEqual(['Act 1'])
+    expect(categoriesOf('mb_skeleton')).toEqual(['Act 2', 'Act 4'])
+    // the desert mini-boss sits in Bosses, so it needs the explicit override
+    expect(categoriesOf('mb_mummy')).toEqual(['Temple of the Sun'])
+    expect(categoriesOf('mummy_desert')).toEqual(['Temple of the Sun'])
+    expect(categoriesOf('bonus_archer1')).toEqual(['Bonus'])
+    // untagged by design — the wiki places neither
+    expect(categoriesOf('spider')).toEqual(['Other'])
+    expect(categoriesOf('tower_empty')).toEqual(['Other'])
+  })
+
+  it('is presentation only — no parameters.txt key and no default-pool change', () => {
+    // acts must never reach the config format or the generator's params.
+    const params = defaultParameters()
+    const text = serializeParametersTxt(params)
+    expect(text).not.toContain('acts')
+    expect(parseParametersTxt(text).unknownKeys).toHaveLength(0)
+    expect(parseParametersTxt(text).params.levelMonsters).toEqual(params.levelMonsters)
   })
 })
 

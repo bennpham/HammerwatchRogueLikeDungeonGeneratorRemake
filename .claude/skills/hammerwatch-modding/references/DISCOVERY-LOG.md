@@ -91,6 +91,43 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-08-01 — the monster roster now carries a campaign-act tag for the GUI filter
+**Tag:** [UNVERIFIED] (transcribed from the fandom wiki, not observed in game)
+**Context:** Issue #4 asked for the monster pool lists to be filterable by the
+act a player meets each monster in, rather than only by our internal
+`Classic/Desert/Towers/Special/Bosses/Bonus` groups.
+**Evidence:** The act membership comes from the maintainer's reading of
+<https://hammerwatch.fandom.com/wiki/Castle_Hammerwatch> and
+<https://hammerwatch.fandom.com/wiki/Temple_of_the_Sun>, quoted in
+[issue #4](https://github.com/bennpham/HammerwatchRogueLikeDungeonGeneratorRemake/issues/4#issuecomment-5140162966):
+Act 1 ticks/bats/maggots/flower towers; Act 2 maggots (first floor only),
+skeletons, slimes, archers, nova towers; Act 3 eyes, wisps, lich, flower
+towers, nova towers; Act 4 no new enemies, a subset of 2 and 3. Nobody has
+walked the campaign with a checklist to confirm it.
+
+Two mappings are ours, not the wiki's, and are the first things to re-check if
+the tagging looks wrong in the GUI:
+
+- **Mini-bosses inherit their base monster's acts** (`mb_tick` → Act 1,
+  `mb_skeleton` → Acts 2/4, and so on). The wiki lists monsters, not the `_mb`
+  variants.
+- **`mb_doomspawn` → Act 4.** Inferred from it being the final encounter's
+  spawn. Not stated by either page.
+- **`mb_mummy` → Temple of the Sun.** It sits in `group: 'Bosses'` rather than
+  `'Desert'`, so it needs an explicit override in `monsterCategories`; the rest
+  of the desert roster falls out of `group === 'Desert'` on its own.
+
+Everything the wiki does not place — `spider`, `floater_fire`, `pillar_fire`,
+`special_beheaded_kamikaze`, the banner/tracking/static-frost/battlement towers
+and `tower_empty` — is deliberately untagged and shows under "Other".
+**Impact:** `MonsterTypeDef.acts` and `monsterCategories()` in
+`src/generator/objects/monsterTypes.ts`; consumed only by
+`MonsterFilterBar.tsx`. Presentation metadata — the generator never reads it,
+no `DungeonParameters` field was added, and no seed changes. Correcting an act
+tag is safe at any time: it moves a checkbox between filter chips and nothing
+else. Not promoted to `ASSET-REGISTRY.md` — that file tracks asset paths and
+editor constraints, and this is campaign lore.
+
 ### 2026-08-01 — an outdoor theme should emit no `Cover` at all
 **Tag:** [VERIFIED] (screenshot of a packed theme `h` level)
 **Context:** Theme `h` borrowed `color_theme_i_16` for `Cover`, since no
