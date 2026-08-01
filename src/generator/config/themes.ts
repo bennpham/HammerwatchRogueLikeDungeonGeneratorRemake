@@ -49,6 +49,16 @@ export interface ThemeDef {
    * this the player walks straight through the stairs and out of the level.
    */
   stairBacking?: DoodadTypeName
+  /**
+   * Skip the `Cover` overlay entirely.
+   *
+   * `Cover` hides the character behind wall *tops*, which assumes walls are
+   * tall solid blocks seen from the front — true indoors, false for an outdoor
+   * set whose "walls" are low cliff edges with open ground behind them. There
+   * the overlay just paints someone else's stone over the terrain, since no
+   * theme outside `a`–`g`/`i` ships a `color_theme_*` of its own.
+   */
+  omitCover?: boolean
 }
 
 /**
@@ -140,9 +150,10 @@ function bonus(n: number, tiles: number, coverLetter: string): ThemeDef {
  *    a `T*` pattern is precisely "wall mass with the opening on one side". So the
  *    tees map onto the faces by direction rather than borrowing junction art —
  *    which matters, because the tees are ~84% of a level's wall doodads.
- * 3. **Missing pieces.** No `x_x`, no `v_cap_*`, no `color_theme_h_16`. Those
- *    borrow theme i, the indoor half of the desert set. An absent wall doodad is
- *    an absent collider, so skipping them is not an option.
+ * 3. **Missing pieces.** No `x_x` and no `v_cap_*`; those borrow theme i, the
+ *    indoor half of the desert set. An absent wall doodad is an absent collider,
+ *    so skipping them is not an option. `Cover` is the exception — see
+ *    `omitCover`, which this theme sets.
  */
 function desertOutdoor(): ThemeDef {
   const doodadOverrides: Partial<Record<DoodadTypeName, DoodadOverride>> = {}
@@ -187,22 +198,18 @@ function desertOutdoor(): ThemeDef {
     doodadOverrides[piece] = { path: `doodads/theme_i/${file}.xml` }
   }
 
-  // theme h ships no stair frames. `h_exit_special` is a hole in the floor and
-  // declares no collision polygon at all; `h_pyramid_exit` has none either;
-  // `h_pyramid` is a 192x192 solid. `h_pyramid_exit_door` is the only exit piece
-  // that is both alcove-sized and solid — a 32x36 sprite at `<origin>16 40</origin>`
-  // with a `-16..16 x -40..0` collider, i.e. a 32x40 slab on its bottom centre.
+  // theme h ships no stair frames, so the alcove borrows the pyramid entrance —
+  // a whole doorway structure rather than `h_pyramid_exit_door`, which is only
+  // the door leaf and reads as a couple of loose planks at this size.
   //
-  // The prefab puts the piece at (x+2, y+3) and the alcove opens on the wall row
-  // y+1 across x+2..x+4. Origin 16 40 is (1, 2.5) tiles, so this offset lands the
-  // sprite's top-left on (x+2, y+1) and the collider on x+2..x+4 by y+1..y+3.5 —
-  // solid right across the opening, which is why there is no `stairBacking`.
-  const door = { path: 'doodads/theme_h/h_pyramid_exit_door.xml', xOffset: 1, yOffset: 0.5 }
-  doodadOverrides.ExitUp = door
-  doodadOverrides.ExitDn = door
-
-  // path only — the occlusion overlay's 0.5/0.5 centring is not theme-specific
-  doodadOverrides.Cover = { path: 'doodads/special/color_theme_i_16.xml' }
+  // It is a 55x59 sprite at <origin>31 59</origin>, so 3.44 x 3.69 tiles against
+  // a 2-tile alcove: wider than the opening on purpose, the way a doorway is
+  // wider than its door. The prefab places the piece at (x+2, y+3) and the alcove
+  // opens on wall row y+1 across x+2..x+4, so these offsets centre the structure
+  // on x+3 and rest its base on y+3.25 — the same base the door sat on.
+  const entrance = { path: 'doodads/theme_h/h_pyramid_exit.xml', xOffset: 1.21875, yOffset: 0.25 }
+  doodadOverrides.ExitUp = entrance
+  doodadOverrides.ExitDn = entrance
 
   return {
     id: 'h',
@@ -213,7 +220,13 @@ function desertOutdoor(): ThemeDef {
     // inside <borders> and are picked by the engine, not by `data-t`
     tiles: 2,
     doodadToken: 'h',
-    doodadOverrides
+    doodadOverrides,
+    // h_pyramid_exit declares no collision polygon, so the wall band it sits in
+    // has to be closed behind it — same as the bonus stair art
+    stairBacking: 'Horizontal',
+    // low cliff edges with open desert behind them: there is no wall top for an
+    // occlusion overlay to sit on, and theme i's stone reads as grey slabs on sand
+    omitCover: true
   }
 }
 

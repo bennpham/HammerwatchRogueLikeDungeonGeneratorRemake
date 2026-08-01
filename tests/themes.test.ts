@@ -53,8 +53,8 @@ describe('theme registry', () => {
     }
   })
 
-  it('gives every theme a Cover — the character-occlusion overlay over wall tops', () => {
-    for (const def of THEME_DEFS) {
+  it('gives every theme that uses one a Cover — the overlay over wall tops', () => {
+    for (const def of THEME_DEFS.filter((t) => t.omitCover !== true)) {
       expect(doodadPath('Cover', def.id)).toMatch(/^doodads\/special\/color_theme_[a-gi]_16\.xml$/)
     }
   })
@@ -174,8 +174,9 @@ describe('generating with a bonus theme', () => {
   })
 
   it('declares stair backing only for themes whose stair art lacks a collider', () => {
+    // bonus_entrance/bonus_exit and h_pyramid_exit all declare no collision polygon
     for (const def of THEME_DEFS) {
-      if (def.id.startsWith('bonus')) expect(def.stairBacking).toBe('Horizontal')
+      if (def.id.startsWith('bonus') || def.id === 'h') expect(def.stairBacking).toBe('Horizontal')
       else expect(def.stairBacking).toBeUndefined()
     }
   })
@@ -228,14 +229,23 @@ describe('theme h — desert outdoors', () => {
     expect(doodadPath('CrossWall', 'h')).toBe('doodads/theme_i/i_x_x.xml')
     expect(doodadPath('VCapUp', 'h')).toBe('doodads/theme_i/i_v_cap_up.xml')
     expect(doodadPath('VCapDown', 'h')).toBe('doodads/theme_i/i_v_cap_dn.xml')
-    expect(doodadPath('Cover', 'h')).toBe('doodads/special/color_theme_i_16.xml')
   })
 
-  it('uses the pyramid door for both stair ends', () => {
-    expect(doodadPath('ExitUp', 'h')).toBe('doodads/theme_h/h_pyramid_exit_door.xml')
-    expect(doodadPath('ExitDn', 'h')).toBe('doodads/theme_h/h_pyramid_exit_door.xml')
-    // its collider spans the whole alcove opening, so no backing segment
-    expect(getTheme('h')!.stairBacking).toBeUndefined()
+  it('uses the pyramid entrance for both stair ends, and backs it', () => {
+    // the whole doorway structure, not h_pyramid_exit_door — that is just the
+    // door leaf, which reads as a pair of loose planks at alcove size
+    expect(doodadPath('ExitUp', 'h')).toBe('doodads/theme_h/h_pyramid_exit.xml')
+    expect(doodadPath('ExitDn', 'h')).toBe('doodads/theme_h/h_pyramid_exit.xml')
+    // it declares no collision polygon, so the wall band behind it must close
+    expect(getTheme('h')!.stairBacking).toBe('Horizontal')
+  })
+
+  it('emits no occlusion overlay — there are no wall tops to hide behind', () => {
+    expect(getTheme('h')!.omitCover).toBe(true)
+    const result = generateWithTheme('h', 6420)
+    for (const file of result.files.filter((f) => f.path.startsWith('levels/level'))) {
+      expect(file.content).not.toContain('color_theme_')
+    }
   })
 
   it('flattens its own art to origin 0 0 but keeps theme i’s classic anchors', () => {
@@ -260,7 +270,7 @@ describe('theme h — desert outdoors', () => {
     expect(level).toContain('<string name="tileset">tilemaps/h_default.xml</string>')
     expect(level).toContain('doodads/theme_h/h_')
     expect(level).toContain('doodads/theme_i/i_x_x.xml')
-    expect(level).toContain('doodads/theme_h/h_pyramid_exit_door.xml')
+    expect(level).toContain('doodads/theme_h/h_pyramid_exit.xml')
 
     // all four cliff faces are in play — a regression that collapsed the tee map
     // back onto a single face would still pass every path assertion above
@@ -285,16 +295,21 @@ describe('theme h — desert outdoors', () => {
     }
   })
 
-  it('places the same walls as any other theme, only with different art', () => {
-    // same seed => identical layout, so the doodad count must match a lettered
-    // theme exactly: h adds no backing and skips no piece
-    const countDoodads = (theme: string): number => {
+  it('places the same wall pieces as any other theme, minus the covers', () => {
+    // same seed => identical layout, so every difference in the doodad list is
+    // accounted for: h drops every Cover and adds 2 backing pieces per stair set
+    const doodads = (theme: string): string[] => {
       const level = generateWithTheme(theme, 777).files.find(
         (f) => f.path === 'levels/level3.xml'
       )!.content
-      return [...level.matchAll(/<bool name="need-sync">/g)].length
+      return [...level.matchAll(/<string name="type">([^<]+)<\/string>/g)].map((m) => m[1])
     }
-    expect(countDoodads('h')).toBe(countDoodads('a'))
+    const a = doodads('a')
+    const h = doodads('h')
+    const covers = a.filter((p) => p.startsWith('doodads/special/color_theme_')).length
+    expect(covers).toBeGreaterThan(0)
+    // a middle level carries both an entrance and an exit set
+    expect(h.length).toBe(a.length - covers + 4)
   })
 })
 

@@ -91,6 +91,37 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-08-01 — an outdoor theme should emit no `Cover` at all
+**Tag:** [VERIFIED] (screenshot of a packed theme `h` level)
+**Context:** Theme `h` borrowed `color_theme_i_16` for `Cover`, since no
+`color_theme_h_16` exists.
+**Evidence:** In game the overlays render as grey stone slabs lying flat on the
+desert sand — one under the player, more along the wall band — and break up the
+cliff silhouette. `Cover` exists to hide the character behind wall *tops*, which
+presumes a tall solid wall seen from the front. Theme `h`'s "walls" are low cliff
+edges with open ground behind them, so there is no wall top and nothing to hide.
+**Impact:** New `ThemeDef.omitCover`. It has to be honoured in **both** emission
+sites — `buildWalls` in `map/level.ts` (the `wall: false` pattern pass) and the
+two the stair prefabs place in `objects/objectSet.ts`; skipping only one leaves
+covers on the alcoves. Sets the precedent for any future outdoor theme. Note this
+is not the same as "no collider lost": the 2026-07-30 `[RETRACTED]` entry already
+established `Cover` carries no collision.
+
+### 2026-08-01 — `h_pyramid_exit_door` is the door leaf, not the doorway
+**Tag:** [VERIFIED] (screenshot of a packed theme `h` level)
+**Context:** Theme `h` ships no stair frames; `h_pyramid_exit_door` was chosen
+for both ends because it was the only alcove-sized piece with a collider.
+**Evidence:** At alcove size it reads as two loose planks rather than a door —
+it is only the leaf. `h_pyramid_exit` (55×59, `<origin>31 59</origin>`) is the
+full doorway structure and is what the alcove should show, at the cost of
+declaring no collision polygon of its own.
+**Impact:** Both stair ends now use `h_pyramid_exit` at `{1.21875, 0.25}`,
+centring its 3.44-tile width on the 2-tile alcove and resting its base where the
+door's was, and theme `h` declares `stairBacking: 'Horizontal'` again. Lesson:
+"has a collider" is not sufficient grounds to pick an exit piece — check what the
+sprite actually depicts at the size it will be drawn, and reach for `stairBacking`
+rather than letting the collider choose the art.
+
 ### 2026-08-01 — theme `h` is a usable outdoor desert set; the "only four corners" finding was a false negative
 **Tag:** [VERIFIED] (read from `doodads/theme_h/` and `tilemaps/h_default.xml`
 supplied from a real install)

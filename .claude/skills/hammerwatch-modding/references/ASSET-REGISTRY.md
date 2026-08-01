@@ -336,8 +336,8 @@ the classic vocabulary.
 | `TRight` | `h_v_8_r` | 16×16 |
 | `HCapLeft` / `HCapRight` | `h_h_cap_up_l` / `h_h_cap_up_r` | 16×32 |
 | `CrossWall`, `VCapUp`, `VCapDown` | — | borrowed from `theme_i` |
-| `ExitUp` / `ExitDn` | `h_pyramid_exit_door` | both ends |
-| `Cover` | — | borrowed: `color_theme_i_16` |
+| `ExitUp` / `ExitDn` | `h_pyramid_exit` | both ends; needs `stairBacking` |
+| `Cover` | — | **not emitted** — `omitCover` |
 
 Three things make it different from every lettered theme `[VERIFIED]`:
 
@@ -350,15 +350,28 @@ Three things make it different from every lettered theme `[VERIFIED]`:
    which is what a directional cliff edge is. This matters because the tees are
    ~84% of a level's wall doodads and the cross another 6.5% — mapping the tees to
    borrowed art would make an `h` level render as theme `i`.
-3. **Its exit pieces are mostly not solid.** `h_exit_special` (a hole in the
-   floor) and `h_pyramid_exit` declare **no** collision polygon; `h_pyramid`
-   is 192×192 solid, far too large for a 2-tile alcove. `h_pyramid_exit_door` is
-   the only alcove-sized solid piece — 32×36, `<origin>16 40</origin>`, collider
-   `-16..16 × -40..0` — so it carries both stair ends.
+3. **None of its exit pieces are both solid and the right shape.**
+   `h_exit_special` (a hole in the floor), `h_pyramid_exit` and
+   `h_pyramid_shadow` declare **no** collision polygon; `h_pyramid` is 192×192
+   solid, far too large for a 2-tile alcove. `h_pyramid_exit_door` has a collider
+   but is only the door leaf — 32×36 — and reads in game as a couple of loose
+   planks `[VERIFIED]` in a screenshot. Both stair ends therefore use
+   `h_pyramid_exit` (55×59, `<origin>31 59</origin>`), the whole doorway
+   structure, with `stairBacking: 'Horizontal'` closing the wall band behind it.
+   It is deliberately wider than the 2-tile alcove, the way a doorway is wider
+   than its door.
 
-`[UNVERIFIED]` until someone loads a packed `h` level: the `h_pyramid_exit_door`
-offsets (`{1, 0.5}`), the `h_h_8_up` anchor (`yOffset: -1`), and whether each
-cliff face points out of the wall mass rather than into it.
+**Theme `h` emits no `Cover` at all** (`ThemeDef.omitCover`) `[VERIFIED]` in a
+screenshot: the overlay hides the character behind wall *tops*, which assumes
+tall solid walls seen from the front. An outdoor set's "walls" are low cliff
+edges with open ground behind them, so there is nothing to hide behind, and
+theme `i`'s stone renders as grey slabs lying on the sand. `omitCover` skips it
+in both emission sites — the matcher in `map/level.ts` and the pair the stair
+prefabs place in `objects/objectSet.ts`.
+
+`[UNVERIFIED]` until someone loads a packed `h` level: the `h_pyramid_exit`
+offsets (`{1.21875, 0.25}`), the `h_h_8_up` anchor (`yOffset: -1`), and whether
+each cliff face points out of the wall mass rather than into it.
 
 Unused by the matcher, present in the folder: `h_deco_rock`, `h_h_16_dn/up`,
 `h_v_16_l/r`, `h_pyramid`, `h_pyramid_exit`, `h_pyramid_shadow`, `h_exit_special`,

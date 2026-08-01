@@ -63,6 +63,14 @@ export class ObjectSet {
     }
   }
 
+  /** The pair of occlusion overlays over the alcove, for themes that use them. */
+  private addStairCover(ctx: GenerationContext, x: number, y: number, theme: string): void {
+    if (getTheme(theme)?.omitCover === true) return
+
+    this.doodads.push(Doodad.create(ctx, x + 1.5, y + 0.25, 'Cover', theme))
+    this.doodads.push(Doodad.create(ctx, x + 2.5, y + 0.25, 'Cover', theme))
+  }
+
   constructor(
     ctx: GenerationContext,
     public x: number,
@@ -79,8 +87,7 @@ export class ObjectSet {
         this.doodads.push(Doodad.create(ctx, x + 1, y + 3, 'TorchOff', theme))
         this.doodads.push(Doodad.create(ctx, x + 2, y + 3, 'ExitUp', theme))
         this.doodads.push(Doodad.create(ctx, x + 4, y + 3, 'TorchOff', theme))
-        this.doodads.push(Doodad.create(ctx, x + 1.5, y + 0.25, 'Cover', theme))
-        this.doodads.push(Doodad.create(ctx, x + 2.5, y + 0.25, 'Cover', theme))
+        this.addStairCover(ctx, x, y, theme)
         this.doodads.push(Doodad.create(ctx, x + 2, y + 4, 'ExitMarker', theme))
         this.scriptNodes.push(new NodeLevelStart(ctx, x + 3, y + 5))
 
@@ -123,8 +130,7 @@ export class ObjectSet {
         this.doodads.push(Doodad.create(ctx, x + 1, y + 3, 'Torch', theme))
         this.doodads.push(Doodad.create(ctx, x + 2, y + 3, 'ExitDn', theme))
         this.doodads.push(Doodad.create(ctx, x + 4, y + 3, 'Torch', theme))
-        this.doodads.push(Doodad.create(ctx, x + 1.5, y + 0.25, 'Cover', theme))
-        this.doodads.push(Doodad.create(ctx, x + 2.5, y + 0.25, 'Cover', theme))
+        this.addStairCover(ctx, x, y, theme)
         this.doodads.push(Doodad.create(ctx, x + 2, y + 4, 'ExitMarker', theme))
 
         const shape = new NodeRectangleShape(ctx, x + 3, y + 4)
