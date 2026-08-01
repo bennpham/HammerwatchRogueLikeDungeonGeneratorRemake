@@ -49,6 +49,16 @@ export interface ThemeDef {
    * this the player walks straight through the stairs and out of the level.
    */
   stairBacking?: DoodadTypeName
+  /**
+   * Skip the `Cover` overlay entirely.
+   *
+   * `Cover` hides the character behind wall *tops*, which assumes walls are
+   * tall solid blocks seen from the front — true indoors, false for an outdoor
+   * set whose "walls" are low cliff edges with open ground behind them. There
+   * the overlay just paints someone else's stone over the terrain, since no
+   * theme outside `a`–`g`/`i` ships a `color_theme_*` of its own.
+   */
+  omitCover?: boolean
 }
 
 /**
@@ -126,12 +136,103 @@ function bonus(n: number, tiles: number, coverLetter: string): ThemeDef {
 }
 
 /**
+ * Theme "h" — the desert *outdoors* set, where "i" is desert indoors.
+ *
+ * It is a cliff/ledge set rather than a wall set, so it deviates from the
+ * lettered themes in three ways, all read out of the supplied asset XML:
+ *
+ * 1. **Anchoring.** Every piece in `doodads/theme_h/` is `<origin>0 0</origin>`,
+ *    like the bonus art and unlike the lettered art — so every themed wall piece
+ *    needs `yOffset: 0`. That flattening is the only reason the four corners need
+ *    no path override: `h_crn_l_dn.xml` and friends already match the template.
+ * 2. **Facing instead of junctions.** It ships no tees or cross, but it does ship
+ *    a cliff face per direction (`h_h_8_dn`/`h_h_8_up`, `h_v_8_l`/`h_v_8_r`), and
+ *    a `T*` pattern is precisely "wall mass with the opening on one side". So the
+ *    tees map onto the faces by direction rather than borrowing junction art —
+ *    which matters, because the tees are ~84% of a level's wall doodads.
+ * 3. **Missing pieces.** No `x_x` and no `v_cap_*`; those borrow theme i, the
+ *    indoor half of the desert set. An absent wall doodad is an absent collider,
+ *    so skipping them is not an option. `Cover` is the exception — see
+ *    `omitCover`, which this theme sets.
+ */
+function desertOutdoor(): ThemeDef {
+  const doodadOverrides: Partial<Record<DoodadTypeName, DoodadOverride>> = {}
+  for (const piece of THEMED_WALL_PIECES) {
+    doodadOverrides[piece] = { yOffset: 0 }
+  }
+
+  // The tees are ~84% of every level's wall doodads, and theme h ships none —
+  // but it does not need them. A `T*` pattern is a wall mass with the opening on
+  // exactly one side, which is what a directional cliff edge *is*, and the piece
+  // names line up with the pattern names one for one. That is almost certainly
+  // why this folder has facing variants and no junctions at all.
+  //
+  // The straights ride along: a one-tile-thick wall and the bottom edge of a
+  // thick mass are the same cliff face, so they share a piece with their tee.
+  doodadOverrides.TDown = { path: 'doodads/theme_h/h_h_8_dn.xml', yOffset: 0 } // open below
+  doodadOverrides.TLeft = { path: 'doodads/theme_h/h_v_8_l.xml', yOffset: 0 } // open left
+  doodadOverrides.TRight = { path: 'doodads/theme_h/h_v_8_r.xml', yOffset: 0 } // open right
+  doodadOverrides.Horizontal = { path: 'doodads/theme_h/h_h_8_dn.xml', yOffset: 0 }
+  doodadOverrides.Vertical = { path: 'doodads/theme_h/h_v_8_l.xml', yOffset: 0 }
+  doodadOverrides.HCapLeft = { path: 'doodads/theme_h/h_h_cap_up_l.xml', yOffset: 0 }
+  doodadOverrides.HCapRight = { path: 'doodads/theme_h/h_h_cap_up_r.xml', yOffset: 0 }
+
+  // open above — and the one piece whose anchor is not simply 0. The other three
+  // faces are 16x16 and sit inside their own tile; h_h_8_up is 16x32 with its
+  // collider in the lower half (y 13..32), so at yOffset 0 the barrier would land
+  // a tile inside the wall mass instead of on its edge. -1 puts the collider back
+  // on the wall tile with the cliff face rising into the tile above.
+  doodadOverrides.TUp = { path: 'doodads/theme_h/h_h_8_up.xml', yOffset: -1 }
+
+  // Borrowed from theme i, the indoor half of the desert set: there is no 4-way
+  // cliff piece and no vertical cap. These *replace* the flattened override
+  // rather than extending it — theme i's art carries the classic `0 32` / `0 16`
+  // anchors, so it needs the DoodadType defaults back. Leaving `yOffset: 0` on
+  // one of these would slide its collision polygon a tile or two off its sprite
+  // and the player would walk through the junction.
+  for (const [piece, file] of [
+    ['CrossWall', 'i_x_x'],
+    ['VCapUp', 'i_v_cap_up'],
+    ['VCapDown', 'i_v_cap_dn']
+  ] as const) {
+    doodadOverrides[piece] = { path: `doodads/theme_i/${file}.xml` }
+  }
+
+  // theme h ships no stair frames, so the alcove borrows the pyramid entrance —
+  // a whole doorway structure rather than `h_pyramid_exit_door`, which is only
+  // the door leaf and reads as a couple of loose planks at this size.
+  //
+  // It is a 55x59 sprite at <origin>31 59</origin>, so 3.44 x 3.69 tiles against
+  // a 2-tile alcove: wider than the opening on purpose, the way a doorway is
+  // wider than its door. The prefab places the piece at (x+2, y+3) and the alcove
+  // opens on wall row y+1 across x+2..x+4, so these offsets centre the structure
+  // on x+3 and rest its base on y+3.25 — the same base the door sat on.
+  const entrance = { path: 'doodads/theme_h/h_pyramid_exit.xml', xOffset: 1.21875, yOffset: 0.25 }
+  doodadOverrides.ExitUp = entrance
+  doodadOverrides.ExitDn = entrance
+
+  return {
+    id: 'h',
+    label: 'h',
+    group: 'Desert',
+    tilemap: 'tilemaps/h_default.xml',
+    // h_default.xml declares 2 floor sprites; its other 12 <sprite> tags live
+    // inside <borders> and are picked by the engine, not by `data-t`
+    tiles: 2,
+    doodadToken: 'h',
+    doodadOverrides,
+    // h_pyramid_exit declares no collision polygon, so the wall band it sits in
+    // has to be closed behind it — same as the bonus stair art
+    stairBacking: 'Horizontal',
+    // low cliff edges with open desert behind them: there is no wall top for an
+    // occlusion overlay to sit on, and theme i's stone reads as grey slabs on sand
+    omitCover: true
+  }
+}
+
+/**
  * Every theme the generator can emit. `tiles` is the sprite count declared by the
  * tileset XML; emitting a `data-t` index above it is a load-time error.
- *
- * There is no usable theme "h": `tilemaps/h_default.xml` exists, but
- * `doodads/theme_h/` ships only the four corner pieces — no `h_8`, `v_8`, `x_x`,
- * caps or tees — so the matcher could not build a wall out of it.
  */
 export const THEME_DEFS: readonly ThemeDef[] = [
   classic('a', 2, 'Classic dungeon'),
@@ -141,6 +242,7 @@ export const THEME_DEFS: readonly ThemeDef[] = [
   classic('e', 2, 'Castle'),
   classic('f', 2, 'Castle'),
   classic('g', 2, 'Castle'),
+  desertOutdoor(),
   classic('i', 8, 'Desert'),
   bonus(1, 2, 'a'),
   bonus(2, 1, 'a'),

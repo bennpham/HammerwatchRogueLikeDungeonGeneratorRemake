@@ -359,6 +359,7 @@ export class Level {
       }
 
       // non-wall decorations (cover)
+      if (getTheme(this.theme)?.omitCover === true) continue
       type = searchPatterns(x, y, this.tileArray, this.width, false)
       if (type !== null) {
         Doodad.create(this.ctx, x, y, type, this.theme)

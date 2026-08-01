@@ -306,12 +306,13 @@ The full inventory of paths this generator emits is in
   a letter for the classic themes and `bonus1`…`bonus5` for the bonus sets).
 - **Items** — `items/*.xml`: valuables 1–9, breakables, health/mana, powerup
   potions and chests, bronze/silver/gold keys and doors, three crystal orbs.
-- **Tilemaps** — `tilemaps/{a,b,c,d,e,f,g,i}_default.xml` plus
-  `tilemaps/bonus_{1..5}.xml`. **There is no usable theme `h`** — the tileset
-  exists but `doodads/theme_h/` ships only corner pieces. Variant counts differ
-  per theme (a: 2, b: 4, c: 4, d: 8, e–g: 2, i: 8, bonus1: 2, bonus2–5: 1) and
-  must match the `tiles` field in `config/themes.ts` or `data-t` will index a
-  variant the tileset doesn't have.
+- **Tilemaps** — `tilemaps/{a,b,c,d,e,f,g,h,i}_default.xml` plus
+  `tilemaps/bonus_{1..5}.xml`. Variant counts differ per theme (a: 2, b: 4,
+  c: 4, d: 8, e–g: 2, h: 2, i: 8, bonus1: 2, bonus2–5: 1) and must match the
+  `tiles` field in `config/themes.ts` or `data-t` will index a variant the
+  tileset doesn't have. **Count top-level `<sprite>` only** — sprites inside a
+  `<borders>` block are engine-selected, and counting them is what once recorded
+  theme `h` as having 14 variants when it has 2.
 
 ## Adding custom content
 
@@ -391,10 +392,21 @@ game does not name them consistently (`tilemaps/bonus_3.xml` pairs with
 `doodads/theme_bonus3/bonus3_*.xml`). Do not try to derive one from the other.
 
 Confirm the matching `doodads/theme_<token>/` wall set exists — a theme without
-wall doodads produces a level with no visible walls. If it is missing individual
+wall doodads produces a level with no visible walls. **List the folder; do not
+search it for the names another theme uses** — that is how theme `h` was written
+off for months as shipping "only corner pieces". If it is missing individual
 pieces, use `doodadOverrides[piece].path` to point them at a complete replacement
 (used verbatim, no `%s`). **Never just skip a missing piece**: wall doodads carry
 the collision, so a gap in the set is a gap the player walks through.
+
+**Spend the effort on the tees.** The piece mix is roughly 84% `T*`, 6.5%
+`CrossWall`, 6% corners, 1.7% straights and ~0% caps, so whatever art the tees
+resolve to is what the theme looks like. A set with no tees may still have its
+own answer: theme `h` is an outdoor cliff set with a face per direction and no
+junctions, and each `T*` — a wall mass open on exactly one side — maps onto the
+face pointing that way (`TDown`→`h_h_8_dn`, `TUp`→`h_h_8_up`, `TLeft`→`h_v_8_l`,
+`TRight`→`h_v_8_r`). Borrowing another theme's tees instead would have made an
+`h` level render as theme `i`.
 
 **Then read the new art's `<origin>`, and do not assume the classic offsets
 apply.** `DoodadType`'s offsets exist purely to compensate for the classic
