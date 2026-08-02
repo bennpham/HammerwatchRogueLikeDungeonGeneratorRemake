@@ -107,14 +107,14 @@ User-data folder: `%APPDATA%/hammerwatch-roguelike-dungeon-generator` (Windows),
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
-| `levels` | 8 | Number of floors |
+| `levels` | 7 | Number of floors |
 | `mapWidth`, `mapHeight` | 80 × 60 | Map size in tiles (multiples of 20 recommended) |
 | `minRoomSize`, `maxRoomSize` | 6–20 | Room width range in tiles (heights roll size+2); max must be ≥ 7 so stairs fit |
 | `minRoomCount`, `maxRoomCount` | 12–15 | Rooms per floor |
 | `minPassageWidth`, `maxPassageWidth` | 3–6 | Corridor width range; max must be ≤ `minRoomSize` |
 | `edgePadding` | 2 | Empty border around the map |
 | `roomPadding` | 2 | Minimum gap between rooms |
-| `themes` | `a,a,b,b,c,c,d,d` | Tileset per level: `a`–`d` classic, `e`–`g` castle, `h`–`i` desert (`h` outdoors, `i` indoors), plus `bonus1`–`bonus5` |
+| `themes` | `a,b,c,d,e,f,g` | Tileset per level: `a`–`d` classic, `e`–`g` castle, `h`–`i` desert (`h` outdoors, `i` indoors), plus `bonus1`–`bonus5` |
 | `shopChance` | 1.0 | Chance per floor of a shop |
 | `vaultChance` | 0.3 | Chance per floor of a locked treasure vault |
 | `lockChance` | 0.8 | Chance per floor of an extra locked room (with a powerup) |

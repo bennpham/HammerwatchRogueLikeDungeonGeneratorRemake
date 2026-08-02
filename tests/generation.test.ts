@@ -13,7 +13,8 @@ describe('generateDungeon', () => {
   it('produces one XML per level plus info.xml and levels.xml', () => {
     const result = generateOk(12345)
     const paths = result.files.map((f) => f.path)
-    for (let i = 0; i < 8; i++) {
+    expect(result.levels).toHaveLength(defaultParameters().levels)
+    for (let i = 0; i < result.levels.length; i++) {
       expect(paths).toContain(`levels/level${i}.xml`)
     }
     expect(paths).toContain('info.xml')
@@ -194,7 +195,7 @@ describe('generateDungeon', () => {
   it('links levels in levels.xml in order', () => {
     const result = generateOk(9)
     const levelsXml = result.files.find((f) => f.path === 'levels.xml')!.content
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < result.levels.length; i++) {
       expect(levelsXml).toContain(`<level id="${i}" res="levels/level${i}.xml"`)
     }
   })

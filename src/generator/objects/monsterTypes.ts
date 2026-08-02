@@ -91,7 +91,9 @@ export const MONSTER_TYPES: MonsterTypeDef[] = [
   { id: 'tower_banner3', configKey: 'maxTowers_Banner3', upgradeChance: 1.0, defaultMax: 4, group: 'Towers', tiers: ['actors/tower_banner_3.xml'] },
   { id: 'tower_archer1', configKey: 'maxTowers_Archer1', upgradeChance: 1.0, defaultMax: 6, group: 'Towers', tiers: ['actors/tower_battlement_archer_1.xml'] },
   { id: 'tower_archer3', configKey: 'maxTowers_Archer3', upgradeChance: 1.0, defaultMax: 6, group: 'Towers', tiers: ['actors/tower_battlement_archer_3.xml'] },
-  // 450 HP, no skills, full 32x32 blocking collision. An obstacle, not an attacker; off by default because it can wall off a passage.
+  // 450 HP, no skills, full 32x32 blocking collision. An obstacle, not an
+  // attacker. The cap is only a ceiling — it is in no default pool, so raising
+  // it to 24 arms it for a pool that opts in without touching any saved seed.
   { id: 'tower_empty', configKey: 'maxTowers_Empty', upgradeChance: 1.0, defaultMax: 24, group: 'Towers', tiers: ['actors/tower_battlement_empty.xml'] },
   { id: 'tower_flower1', configKey: 'maxTowers_Flower1', upgradeChance: 1.0, defaultMax: 0, group: 'Towers', acts: [1, 3], tiers: ['actors/tower_flower_1.xml'] },
   { id: 'tower_flower1_small', configKey: 'maxTowers_Flower1_Small', upgradeChance: 1.0, defaultMax: 12, group: 'Towers', acts: [1, 3], tiers: ['actors/tower_flower_1_small.xml'] },
