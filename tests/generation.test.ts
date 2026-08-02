@@ -79,13 +79,21 @@ describe('generateDungeon', () => {
     const lastLevelXML = (result: DungeonResult) =>
       result.files.find((f) => f.path === `levels/level${result.levels.length - 1}.xml`)!.content
 
-    it('leaves every seed untouched while it is off', () => {
-      // the toggle must draw no random values in the off path, or every saved
-      // seed changes — defaultParameters() has it off
-      const off = generateOk(4242)
-      const explicitlyOff = generateOk(4242, (p) => (p.lockFinalRoom = false))
-      expect(explicitlyOff.files).toEqual(off.files)
-      expect(explicitlyOff.levels).toEqual(off.levels)
+    it('touches nothing before the final floor', () => {
+      // the toggle must draw no random values until the last level, or every
+      // saved seed shifts — defaultParameters() has it on
+      const on = generateOk(4242)
+      const off = generateOk(4242, (p) => (p.lockFinalRoom = false))
+      expect(off.levels.slice(0, -1)).toEqual(on.levels.slice(0, -1))
+      for (let i = 0; i < off.levels.length - 1; i++) {
+        const path = `levels/level${i}.xml`
+        expect(off.files.find((f) => f.path === path)).toEqual(
+          on.files.find((f) => f.path === path)
+        )
+      }
+      // and with it off the orb is open again
+      const lastOff = off.levels[off.levels.length - 1]
+      expect(lastOff.rooms.find((r) => r.type === 'Orb')?.locked).toBeFalsy()
     })
 
     it('locks the orb into a dead-end room on the final floor only', () => {

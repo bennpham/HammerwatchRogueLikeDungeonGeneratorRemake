@@ -26,7 +26,7 @@ keyChance=1.000000
 # Final floor only: 1 = the victory orb sits in a dead-end room behind a gold
 # door, with one gold key hidden on that floor per gold door that exists
 # (a vault may also roll gold), 0 = orb is open.
-lockFinalRoom=0
+lockFinalRoom=1
 # Prebuilt starting level: 1 = the party spawns in a lobby with the upgrade
 # vendors and walks a teleport into the dungeon, 0 = straight into level 1.
 # lobbyGold is a multiple of 500 (one red diamond each), capped at 12000.

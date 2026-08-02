@@ -65,14 +65,15 @@ describe('parameters.txt parsing', () => {
 
   it('round-trips lockFinalRoom as 1/0', () => {
     const original = defaultParameters()
-    expect(serializeParametersTxt(original)).toContain('lockFinalRoom=0')
+    expect(serializeParametersTxt(original)).toContain('lockFinalRoom=1')
 
-    original.lockFinalRoom = true
+    original.lockFinalRoom = false
     const text = serializeParametersTxt(original)
-    expect(text).toContain('lockFinalRoom=1')
+    expect(text).toContain('lockFinalRoom=0')
 
     const parsed = parseParametersTxt(text)
-    expect(parsed.params.lockFinalRoom).toBe(true)
+    expect(parsed.params.lockFinalRoom).toBe(false)
+    expect(parseParametersTxt('lockfinalroom=1').params.lockFinalRoom).toBe(true)
     expect(parsed.unknownKeys).toEqual([])
     expect(parseParametersTxt('lockfinalroom=0').params.lockFinalRoom).toBe(false)
   })

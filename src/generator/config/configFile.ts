@@ -61,7 +61,8 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   // a base object round-tripped from an older settings file may predate these
   if (params.playerTweaks === undefined) params.playerTweaks = {}
   if (params.lobby === undefined) params.lobby = defaultParameters().lobby
-  if (params.lockFinalRoom === undefined) params.lockFinalRoom = false
+  if (params.lockFinalRoom === undefined)
+    params.lockFinalRoom = defaultParameters().lockFinalRoom
   const result: ParsedConfig = { params, unknownKeys: [] }
 
   const intKeys: Record<string, (v: number) => void> = {

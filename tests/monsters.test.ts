@@ -221,7 +221,11 @@ describe('skeleton3 and tower_empty', () => {
       987654: '4c17825da8a43a2dc8de7fee67cd01de62a95ac3bf0e074df383956d59bc1949'
     }
     for (const [seed, hash] of Object.entries(expected)) {
-      const result = generateDungeon(defaultParameters(), Number(seed))
+      // the baseline predates lockFinalRoom, which now defaults on and reshapes
+      // the last floor — hash the same open-orb dungeon it was measured over
+      const params = defaultParameters()
+      params.lockFinalRoom = false
+      const result = generateDungeon(params, Number(seed))
       expect(result.ok).toBe(true)
       const digest = createHash('sha256')
       for (const file of (result as DungeonResult).files) {

@@ -88,7 +88,7 @@ export function defaultParameters(): DungeonParameters {
     vaultChance: 0.3,
     lockChance: 0.8,
     keyChance: 1.0,
-    lockFinalRoom: false,
+    lockFinalRoom: true,
     levelMonsters: [
       ['bat1', 'tick1', 'maggot'],
       ['bat1', 'tick1', 'slime', 'maggot'],
