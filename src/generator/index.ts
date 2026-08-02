@@ -10,6 +10,8 @@ export { THEMES } from './config/parameters'
 export { THEME_DEFS, getTheme } from './config/themes'
 export type { ThemeDef } from './config/themes'
 export { defaultParameters }
+export { CAMPAIGN_PRESETS, DEFAULT_PRESET_ID, campaignPresetById } from './config/presets'
+export type { CampaignPreset } from './config/presets'
 export { validateParameters } from './config/validation'
 export type { ValidationResult, ValidationIssue } from './config/validation'
 export { parseParametersTxt, serializeParametersTxt } from './config/configFile'
