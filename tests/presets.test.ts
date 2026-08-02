@@ -5,6 +5,8 @@ import {
   campaignPresetById,
   defaultParameters,
   generateDungeon,
+  parseParametersTxt,
+  serializeParametersTxt,
   validateParameters,
   THEMES
 } from '../src/generator'
@@ -91,6 +93,16 @@ describe('campaign presets', () => {
         if (!a.ok || !b.ok) return
         expect(a.files).toEqual(b.files)
         expect(a.levels).toEqual(b.levels)
+      })
+
+      // The presets are shorter than the built-in default, and parsing starts
+      // from that default — so a re-import must not leave the default's extra
+      // floors attached behind the preset's own.
+      it('round-trips through parameters.txt unchanged', () => {
+        const reparsed = parseParametersTxt(serializeParametersTxt(params))
+        expect(reparsed.unknownKeys).toEqual([])
+        expect(reparsed.params.levelMonsters).toEqual(params.levelMonsters)
+        expect(reparsed.params).toEqual(params)
       })
     })
   }
