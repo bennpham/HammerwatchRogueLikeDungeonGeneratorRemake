@@ -33,7 +33,7 @@ lockFinalRoom=1
 # lobbyShops is the space-separated list of shop columns the stalls sell; a
 # stall with none of its columns listed is left out of the level.
 lobby=1
-lobbyGold=0
+lobbyGold=10000
 lobbyShops=combo1 combo2 combo3 combo4 combo5 def1 def2 def3 def4 def5 misc1 misc2 misc3 misc4 misc5 off1 off2 off3 off4 off5 power
 monsters0=bat1,tick1,maggot
 monsters1=bat1,tick1,slime,maggot
