@@ -105,13 +105,13 @@ export const MONSTER_TYPES: MonsterTypeDef[] = [
   { id: 'tower_tracking3', configKey: 'maxTowers_Tracking3', upgradeChance: 1.0, defaultMax: 0, group: 'Towers', tiers: ['actors/tower_tracking_3.xml'] },
   { id: 'wisp1', configKey: 'maxWisps1', upgradeChance: 1.0, defaultMax: 25, group: 'Classic', acts: [3, 4], tiers: ['actors/spawners/wisp_1.xml', 'actors/wisp_1_small.xml', 'actors/wisp_1.xml'] },
   { id: 'wisp2', configKey: 'maxWisps2', upgradeChance: 1.0, defaultMax: 20, group: 'Classic', acts: [3, 4], tiers: ['actors/wisp_2.xml'] },
-  { id: 'mb_doomspawn', configKey: 'maxMB_Doomspawns', upgradeChance: 1.0, defaultMax: 0, group: 'Bosses', acts: [4], tiers: ['actors/spawners/doomspawn_1.xml'] },
-  { id: 'mb_eye', configKey: 'maxMB_Eyes', upgradeChance: 1.0, defaultMax: 0, group: 'Bosses', acts: [3, 4], tiers: ['actors/eye_1_mb.xml'] },
-  { id: 'mb_lich', configKey: 'maxMB_Liches', upgradeChance: 1.0, defaultMax: 0, group: 'Bosses', acts: [3, 4], tiers: ['actors/lich_1_mb.xml'] },
-  { id: 'mb_maggot', configKey: 'maxMB_Maggots', upgradeChance: 1.0, defaultMax: 0, group: 'Bosses', acts: [1, 2], tiers: ['actors/maggot_1_mb.xml'] },
-  { id: 'mb_mummy', configKey: 'maxMB_Mummies', upgradeChance: 1.0, defaultMax: 0, group: 'Bosses', tiers: ['actors/mummy_1_mb.xml'] },
-  { id: 'mb_skeleton', configKey: 'maxMB_Skeletons', upgradeChance: 1.0, defaultMax: 0, group: 'Bosses', acts: [2, 4], tiers: ['actors/skeleton_1_mb.xml'] },
-  { id: 'mb_tick', configKey: 'maxMB_Ticks', upgradeChance: 1.0, defaultMax: 0, group: 'Bosses', acts: [1], tiers: ['actors/tick_1_mb.xml'] },
+  { id: 'mb_doomspawn', configKey: 'maxMB_Doomspawns', upgradeChance: 1.0, defaultMax: 2, group: 'Bosses', acts: [4], tiers: ['actors/spawners/doomspawn_1.xml'] },
+  { id: 'mb_eye', configKey: 'maxMB_Eyes', upgradeChance: 1.0, defaultMax: 4, group: 'Bosses', acts: [3, 4], tiers: ['actors/eye_1_mb.xml'] },
+  { id: 'mb_lich', configKey: 'maxMB_Liches', upgradeChance: 1.0, defaultMax: 2, group: 'Bosses', acts: [3, 4], tiers: ['actors/lich_1_mb.xml'] },
+  { id: 'mb_maggot', configKey: 'maxMB_Maggots', upgradeChance: 1.0, defaultMax: 4, group: 'Bosses', acts: [1, 2], tiers: ['actors/maggot_1_mb.xml'] },
+  { id: 'mb_mummy', configKey: 'maxMB_Mummies', upgradeChance: 1.0, defaultMax: 8, group: 'Bosses', tiers: ['actors/mummy_1_mb.xml'] },
+  { id: 'mb_skeleton', configKey: 'maxMB_Skeletons', upgradeChance: 1.0, defaultMax: 12, group: 'Bosses', acts: [2, 4], tiers: ['actors/skeleton_1_mb.xml'] },
+  { id: 'mb_tick', configKey: 'maxMB_Ticks', upgradeChance: 1.0, defaultMax: 16, group: 'Bosses', acts: [1], tiers: ['actors/tick_1_mb.xml'] },
 
   // Bonus-campaign actors. Weaker than their vanilla counterparts (archer 15 HP
   // vs 20, skeleton 10 HP vs 40), so the maxes are the vanilla defaults scaled up
