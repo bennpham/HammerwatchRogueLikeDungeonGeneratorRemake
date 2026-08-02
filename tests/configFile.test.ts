@@ -63,6 +63,21 @@ describe('parameters.txt parsing', () => {
     expect(parsed.unknownKeys).toEqual([])
   })
 
+  it('round-trips lockFinalRoom as 1/0', () => {
+    const original = defaultParameters()
+    expect(serializeParametersTxt(original)).toContain('lockFinalRoom=1')
+
+    original.lockFinalRoom = false
+    const text = serializeParametersTxt(original)
+    expect(text).toContain('lockFinalRoom=0')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.params.lockFinalRoom).toBe(false)
+    expect(parseParametersTxt('lockfinalroom=1').params.lockFinalRoom).toBe(true)
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parseParametersTxt('lockfinalroom=0').params.lockFinalRoom).toBe(false)
+  })
+
   it('writes no player.* lines when nothing was tweaked', () => {
     const text = serializeParametersTxt(defaultParameters())
     expect(text).not.toContain('player.')

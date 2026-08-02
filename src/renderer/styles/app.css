@@ -689,6 +689,12 @@ button.primary:hover:not(:disabled) {
   cursor: pointer;
 }
 
+/* a toggle sitting under a .field-grid needs the grid's own row spacing */
+.bool-field.field-grid-footer {
+  margin-top: 10px;
+  padding-bottom: 2px;
+}
+
 .bool-field input {
   width: auto;
   margin: 0;

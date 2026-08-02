@@ -3,6 +3,7 @@ import { Passage } from './passage'
 import { Tile } from './tile'
 import { searchPatterns } from './wallPattern'
 import { Doodad } from '../objects/doodad'
+import { GOLD_LOCK_TIER } from '../objects/item'
 import { getTheme, THEME_DEFS } from '../config/themes'
 import { XMLArray, XMLDictionary, XMLInt, XMLIntArray, XMLString } from '../xml'
 import type { GenerationContext } from '../core/context'
@@ -167,6 +168,51 @@ export class Level {
     if (rand.fRand(0, 1) < params.keyChance) {
       for (const r of this.rooms) {
         if (r.spawnKey()) break
+      }
+    }
+
+    // gold-lock the victory orb (final floor only, opt in)
+    //
+    // Runs last on purpose: the chance-gated lock above already refuses an Orb
+    // room so it can never steal this one, and writing ctx.lastLockType here at
+    // the very end of the final level cannot leak into a later level.
+    if (params.lockFinalRoom && level === params.levels - 1) {
+      // transform('Orb') already refused every room with more than one
+      // passage, so the orb room is a dead end and lockRoom accepts it
+      const orbRoom = this.rooms.find((r) => r.type === 'Orb')
+      if (orbRoom === undefined || !orbRoom.lockRoom({ tier: GOLD_LOCK_TIER, allowOrb: true })) {
+        this.levelValid = false
+      } else {
+        // One gold key per gold door, whatever the chance rolls did.
+        //
+        // The vault and the chance-gated lock both draw a random tier but only
+        // ever produce a single key between them, so a floor can hold two gold
+        // doors and one gold key. That was survivable while the orb was open;
+        // now that the orb is behind gold too, spending the only key on the
+        // wrong door locks the player out of finishing. So count the gold doors
+        // actually placed and top the keys up to match.
+        const goldDoors = this.rooms.filter((r) => r.lockTier === GOLD_LOCK_TIER).length
+        const goldKeys = () =>
+          ctx.items.filter((i) => i.type === 'Key' && i.index === GOLD_LOCK_TIER).length
+
+        // spawnKey refuses locked rooms, so every key lands somewhere the
+        // player can reach without a key — any of them opens any gold door
+        while (goldKeys() < goldDoors) {
+          success = false
+          for (let attempt = 0; attempt < 2000; attempt++) {
+            const r = this.rooms[rand.iRand(0, this.rooms.length)]
+            if (r.spawnKey(GOLD_LOCK_TIER)) {
+              success = true
+              break
+            }
+          }
+          if (!success) {
+            // nowhere unlocked to hide it — re-roll rather than ship a floor
+            // the player cannot finish
+            this.levelValid = false
+            break
+          }
+        }
       }
     }
 

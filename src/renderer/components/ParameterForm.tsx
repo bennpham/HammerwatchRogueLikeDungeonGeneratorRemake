@@ -1,7 +1,7 @@
 import React from 'react'
 import { THEME_DEFS } from '../../generator'
 import type { DungeonParameters, ValidationIssue } from '../../generator'
-import { NumberField, Section } from './fields'
+import { BoolField, NumberField, Section } from './fields'
 import { MonsterPoolsEditor } from './MonsterPoolsEditor'
 import { MonsterMaxTable } from './MonsterMaxTable'
 
@@ -78,6 +78,13 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
           <NumberField label="Gold ×" field="goldMultiplier" value={params.goldMultiplier} onChange={(v) => set('goldMultiplier', v)} issues={issues} min={0} step={0.1} title="Scales treasure amounts" />
           <NumberField label="Food ×" field="foodMultiplier" value={params.foodMultiplier} onChange={(v) => set('foodMultiplier', v)} issues={issues} min={0} step={0.1} title="Scales health/mana drops" />
         </div>
+        <BoolField
+          className="field-grid-footer"
+          label="Lock final room"
+          checked={params.lockFinalRoom}
+          onChange={(v) => set('lockFinalRoom', v)}
+          title="Final floor only: the victory orb sits in a dead-end room behind a gold door, and a gold key is hidden elsewhere on that floor"
+        />
       </Section>
 
       <Section title="Themes" badge={params.themes.slice(0, params.levels).join(', ')}>

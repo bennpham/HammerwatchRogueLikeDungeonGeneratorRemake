@@ -31,6 +31,12 @@ export interface DungeonParameters {
   vaultChance: number
   lockChance: number
   keyChance: number
+  /**
+   * Final floor only: force the victory Orb into a dead-end room, bar its
+   * corridor with a gold door and hide the matching gold key elsewhere on that
+   * floor. Off reproduces the pre-feature campaign exactly — same seeds.
+   */
+  lockFinalRoom: boolean
   /** monster pool (plain ids) per level */
   levelMonsters: string[][]
   /** max horde size per monster id */
@@ -82,6 +88,7 @@ export function defaultParameters(): DungeonParameters {
     vaultChance: 0.3,
     lockChance: 0.8,
     keyChance: 1.0,
+    lockFinalRoom: true,
     levelMonsters: [
       ['bat1', 'tick1', 'maggot'],
       ['bat1', 'tick1', 'slime', 'maggot'],

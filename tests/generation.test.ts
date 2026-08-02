@@ -62,6 +62,114 @@ describe('generateDungeon', () => {
     })
   })
 
+  describe('lockFinalRoom', () => {
+    /** index of the gold tier in ItemType.Key / ItemType.Door */
+    const GOLD = 2
+
+    /** Every item of `path`, as {x, y}, in emission order. */
+    const itemsOfType = (xml: string, path: string): Array<{ x: number; y: number }> => {
+      const re = new RegExp(
+        `<string name="type">${path.replace(/\./g, '\\.')}</string>\\s*` +
+          '<float name="x">(-?[\\d.]+)</float>\\s*<float name="y">(-?[\\d.]+)</float>',
+        'g'
+      )
+      return [...xml.matchAll(re)].map((m) => ({ x: parseFloat(m[1]), y: parseFloat(m[2]) }))
+    }
+
+    const lastLevelXML = (result: DungeonResult) =>
+      result.files.find((f) => f.path === `levels/level${result.levels.length - 1}.xml`)!.content
+
+    it('touches nothing before the final floor', () => {
+      // the toggle must draw no random values until the last level, or every
+      // saved seed shifts — defaultParameters() has it on
+      const on = generateOk(4242)
+      const off = generateOk(4242, (p) => (p.lockFinalRoom = false))
+      expect(off.levels.slice(0, -1)).toEqual(on.levels.slice(0, -1))
+      for (let i = 0; i < off.levels.length - 1; i++) {
+        const path = `levels/level${i}.xml`
+        expect(off.files.find((f) => f.path === path)).toEqual(
+          on.files.find((f) => f.path === path)
+        )
+      }
+      // and with it off the orb is open again
+      const lastOff = off.levels[off.levels.length - 1]
+      expect(lastOff.rooms.find((r) => r.type === 'Orb')?.locked).toBeFalsy()
+    })
+
+    it('locks the orb into a dead-end room on the final floor only', () => {
+      for (const seed of [3, 555, 90210]) {
+        const result = generateOk(seed, (p) => (p.lockFinalRoom = true))
+        const last = result.levels[result.levels.length - 1]
+        const orbRooms = last.rooms.filter((r) => r.type === 'Orb')
+        expect(orbRooms).toHaveLength(1)
+        expect(orbRooms[0].locked).toBe(true)
+
+        // earlier floors have no orb at all, so nothing there changed shape
+        for (const level of result.levels.slice(0, -1)) {
+          expect(level.rooms.map((r) => r.type)).not.toContain('Orb')
+        }
+      }
+    })
+
+    it('bars the orb with a gold door and hides a gold key outside it', () => {
+      for (const seed of [3, 555, 90210]) {
+        const result = generateOk(seed, (p) => (p.lockFinalRoom = true))
+        const xml = lastLevelXML(result)
+        const goldDoors = [
+          ...itemsOfType(xml, 'items/door_a_gold_h_v2.xml'),
+          ...itemsOfType(xml, 'items/door_a_gold_v.xml')
+        ]
+        expect(goldDoors.length).toBeGreaterThan(0)
+
+        const goldKeys = itemsOfType(xml, 'items/key_gold.xml')
+        expect(goldKeys.length).toBeGreaterThan(0)
+
+        // the key must never sit inside the room its door seals
+        const last = result.levels[result.levels.length - 1]
+        const orb = last.rooms.find((r) => r.type === 'Orb')!
+        for (const key of goldKeys) {
+          const inside =
+            key.x >= orb.x && key.x <= orb.x + orb.width && key.y >= orb.y && key.y <= orb.y + orb.height
+          expect(inside).toBe(false)
+        }
+      }
+    })
+
+    it('never ships more gold doors than gold keys on the final floor', () => {
+      // the vault and the chance-gated lock each roll their own tier but share
+      // a single key, so a floor can carry a second gold door the orb key would
+      // be wasted on — sweep enough seeds to hit those rolls
+      let sawSecondGoldDoor = false
+      for (let seed = 1; seed <= 40; seed++) {
+        const result = generateOk(seed, (p) => (p.lockFinalRoom = true))
+        const last = result.levels[result.levels.length - 1]
+
+        // a door is emitted once per corridor tile, so count sealed rooms
+        const goldSealed = last.rooms.filter((r) => r.lockTier === GOLD).length
+        const goldKeys = itemsOfType(lastLevelXML(result), 'items/key_gold.xml').length
+
+        expect(goldSealed, `seed ${seed}`).toBeGreaterThanOrEqual(1) // the orb's own
+        expect(goldKeys, `seed ${seed}`).toBe(goldSealed)
+        if (goldSealed > 1) sawSecondGoldDoor = true
+      }
+      // the sweep is worthless if it never hit a vault/lock that rolled gold
+      expect(sawSecondGoldDoor).toBe(true)
+    }, 30_000)
+
+    it('still generates on a single-level campaign', () => {
+      const result = generateOk(8, (p) => {
+        p.lockFinalRoom = true
+        p.levels = 1
+        p.themes = ['a']
+        p.levelMonsters = [['bat1']]
+      })
+      const types = result.levels[0].rooms.map((r) => r.type)
+      expect(types).toContain('Entrance')
+      expect(types).toContain('Orb')
+      expect(types).not.toContain('None')
+    })
+  })
+
   it('emits the Hammerwatch XML sections in each level file', () => {
     const result = generateOk(31337)
     const level0 = result.files.find((f) => f.path === 'levels/level0.xml')!.content

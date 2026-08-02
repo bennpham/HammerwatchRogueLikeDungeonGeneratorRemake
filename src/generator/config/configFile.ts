@@ -41,6 +41,7 @@ export const PARAMETER_ORDER = [
   'vaultChance',
   'lockChance',
   'keyChance',
+  'lockFinalRoom',
   'monster', // placeholder: expanded to monsters0...monstersN
   'monsterMax', // placeholder: expanded per MONSTER_TYPES order
   'playerTweaks', // placeholder: sorted by key
@@ -60,6 +61,8 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   // a base object round-tripped from an older settings file may predate these
   if (params.playerTweaks === undefined) params.playerTweaks = {}
   if (params.lobby === undefined) params.lobby = defaultParameters().lobby
+  if (params.lockFinalRoom === undefined)
+    params.lockFinalRoom = defaultParameters().lockFinalRoom
   const result: ParsedConfig = { params, unknownKeys: [] }
 
   const intKeys: Record<string, (v: number) => void> = {
@@ -102,6 +105,10 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     }
     if (keyLower === 'cleanupfiles') {
       result.cleanupFiles = value === '1'
+      continue
+    }
+    if (keyLower === 'lockfinalroom') {
+      params.lockFinalRoom = value === '1'
       continue
     }
     if (keyLower === 'themes') {
@@ -223,6 +230,8 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
       lines.push(`lockChance=${params.lockChance.toFixed(6)}`)
     } else if (key === 'keyChance') {
       lines.push(`keyChance=${params.keyChance.toFixed(6)}`)
+    } else if (key === 'lockFinalRoom') {
+      lines.push(`lockFinalRoom=${params.lockFinalRoom ? 1 : 0}`)
     } else if (key === 'monster') {
       params.levelMonsters.forEach((pool, i) => {
         lines.push(`monsters${i}=${pool.join(',')}`)

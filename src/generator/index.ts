@@ -131,6 +131,8 @@ export interface PreviewRoom {
   height: number
   type: string
   locked: boolean
+  /** door tier sealing the room (0 bronze, 1 silver, 2 gold), null when open */
+  lockTier: number | null
 }
 
 export interface LevelPreview {
@@ -270,7 +272,8 @@ function buildPreview(ctx: GenerationContext, level: Level): LevelPreview {
       width: r.width,
       height: r.height,
       type: r.type,
-      locked: r.locked
+      locked: r.locked,
+      lockTier: r.lockTier
     })),
     passages: level.passageList.map((p) => ({
       width: p.width,

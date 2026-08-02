@@ -24,6 +24,8 @@ export class Room {
   level: number
   monsterType: MonsterTypeDef | null = null
   locked = false
+  /** tier of the door sealing this room (index into ItemType.Door), null when open */
+  lockTier: number | null = null
 
   private ctx: GenerationContext
 
@@ -200,6 +202,9 @@ export class Room {
 
       case 'Orb': {
         if (this.locked) return false
+        // the orb can only be locked behind a single door if exactly one
+        // corridor reaches it — same condition lockRoom() enforces
+        if (params.lockFinalRoom && this.passages.length !== 1) return false
         ObjectSet.create(
           ctx,
           this.x + Math.trunc(this.width / 2),
@@ -293,21 +298,29 @@ export class Room {
     })
   }
 
-  /** Put locked doors across this room's single passage and a powerup inside. */
-  lockRoom(): boolean {
+  /**
+   * Put locked doors across this room's single passage and a powerup inside.
+   *
+   * With no options this is the chance-gated lock of the original: a random
+   * tier, and orb/stair rooms refuse outright. `lockFinalRoom` passes a fixed
+   * tier and `allowOrb` so the victory orb can be gated by a gold door — a
+   * fixed tier draws no random value, so the two paths are not interchangeable.
+   */
+  lockRoom(opts?: { tier?: number; allowOrb?: boolean }): boolean {
     const ctx = this.ctx
     if (
       this.passages.length !== 1 ||
       this.locked ||
       this.type === 'Entrance' ||
       this.type === 'Exit' ||
-      this.type === 'Orb'
+      (this.type === 'Orb' && opts?.allowOrb !== true)
     ) {
       return false
     }
 
     this.locked = true
-    const lockTier = ctx.rand.iRand(0, 3)
+    const lockTier = opts?.tier ?? ctx.rand.iRand(0, 3)
+    this.lockTier = lockTier
     const p = this.passages[0]
 
     const pathPos = p.path[0]
@@ -347,8 +360,12 @@ export class Room {
     return true
   }
 
-  /** Drop the key matching the last placed lock somewhere in this room. */
-  spawnKey(): boolean {
+  /**
+   * Drop a key somewhere in this room — the last placed lock's tier by
+   * default. Locked rooms refuse, which is what keeps a key from being sealed
+   * behind the very door it opens.
+   */
+  spawnKey(tier?: number): boolean {
     const ctx = this.ctx
     if (this.locked) return false
     Item.create(
@@ -356,7 +373,7 @@ export class Room {
       ctx.rand.fRand(this.x, this.x + this.width),
       ctx.rand.fRand(this.y + 2, this.y + this.height),
       'Key',
-      ctx.lastLockType
+      tier ?? ctx.lastLockType
     )
     return true
   }

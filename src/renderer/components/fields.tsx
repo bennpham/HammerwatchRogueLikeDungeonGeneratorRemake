@@ -117,12 +117,14 @@ interface BoolFieldProps {
   checked: boolean
   onChange: (checked: boolean) => void
   title?: string
+  /** extra class, e.g. field-grid-footer to sit a toggle below a field grid */
+  className?: string
 }
 
 /** On/off switch for a `bool` tweak param, which is stored as 0/1. */
-export function BoolField({ label, checked, onChange, title }: BoolFieldProps) {
+export function BoolField({ label, checked, onChange, title, className }: BoolFieldProps) {
   return (
-    <label className="bool-field" title={title}>
+    <label className={className ? `bool-field ${className}` : 'bool-field'} title={title}>
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
       <span>{label}</span>
     </label>

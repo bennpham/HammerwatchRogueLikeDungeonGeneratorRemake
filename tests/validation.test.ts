@@ -23,6 +23,17 @@ describe('parameter validation', () => {
     expect(fieldsOf(result.errors)).toContain('minRoomCount')
   })
 
+  it('warns about tiny floors when the final room is locked, but never blocks', () => {
+    const p = defaultParameters()
+    p.lockFinalRoom = true
+    expect(validateParameters(p).errors).toEqual([])
+
+    p.minRoomCount = 2
+    const result = validateParameters(p)
+    expect(result.errors).toEqual([])
+    expect(fieldsOf(result.warnings)).toContain('minRoomCount')
+  })
+
   it('rejects rooms that cannot fit on the map (the original crashed here)', () => {
     const p = defaultParameters()
     p.maxRoomSize = 80

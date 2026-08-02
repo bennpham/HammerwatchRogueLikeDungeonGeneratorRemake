@@ -119,6 +119,7 @@ User-data folder: `%APPDATA%/hammerwatch-roguelike-dungeon-generator` (Windows),
 | `vaultChance` | 0.3 | Chance per floor of a locked treasure vault |
 | `lockChance` | 0.8 | Chance per floor of an extra locked room (with a powerup) |
 | `keyChance` | 1.0 | Chance per floor that a key spawns for the last lock |
+| `lockFinalRoom` | 1 | Final floor only: `1` puts the victory orb in a dead-end room behind a gold door. That floor then gets one gold key per gold door — including a vault or locked room that rolled gold — so the orb key can never be spent on the wrong door |
 | `monsterMultiplier` | 1.0 | Scales horde sizes |
 | `goldMultiplier` | 1.1 | Scales treasure amounts |
 | `foodMultiplier` | 1.2 | Scales health/mana drops |
