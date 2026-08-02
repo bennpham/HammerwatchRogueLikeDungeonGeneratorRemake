@@ -62,6 +62,82 @@ describe('generateDungeon', () => {
     })
   })
 
+  describe('lockFinalRoom', () => {
+    /** Every item of `path`, as {x, y}, in emission order. */
+    const itemsOfType = (xml: string, path: string): Array<{ x: number; y: number }> => {
+      const re = new RegExp(
+        `<string name="type">${path.replace(/\./g, '\\.')}</string>\\s*` +
+          '<float name="x">(-?[\\d.]+)</float>\\s*<float name="y">(-?[\\d.]+)</float>',
+        'g'
+      )
+      return [...xml.matchAll(re)].map((m) => ({ x: parseFloat(m[1]), y: parseFloat(m[2]) }))
+    }
+
+    const lastLevelXML = (result: DungeonResult) =>
+      result.files.find((f) => f.path === `levels/level${result.levels.length - 1}.xml`)!.content
+
+    it('leaves every seed untouched while it is off', () => {
+      // the toggle must draw no random values in the off path, or every saved
+      // seed changes — defaultParameters() has it off
+      const off = generateOk(4242)
+      const explicitlyOff = generateOk(4242, (p) => (p.lockFinalRoom = false))
+      expect(explicitlyOff.files).toEqual(off.files)
+      expect(explicitlyOff.levels).toEqual(off.levels)
+    })
+
+    it('locks the orb into a dead-end room on the final floor only', () => {
+      for (const seed of [3, 555, 90210]) {
+        const result = generateOk(seed, (p) => (p.lockFinalRoom = true))
+        const last = result.levels[result.levels.length - 1]
+        const orbRooms = last.rooms.filter((r) => r.type === 'Orb')
+        expect(orbRooms).toHaveLength(1)
+        expect(orbRooms[0].locked).toBe(true)
+
+        // earlier floors have no orb at all, so nothing there changed shape
+        for (const level of result.levels.slice(0, -1)) {
+          expect(level.rooms.map((r) => r.type)).not.toContain('Orb')
+        }
+      }
+    })
+
+    it('bars the orb with a gold door and hides a gold key outside it', () => {
+      for (const seed of [3, 555, 90210]) {
+        const result = generateOk(seed, (p) => (p.lockFinalRoom = true))
+        const xml = lastLevelXML(result)
+        const goldDoors = [
+          ...itemsOfType(xml, 'items/door_a_gold_h_v2.xml'),
+          ...itemsOfType(xml, 'items/door_a_gold_v.xml')
+        ]
+        expect(goldDoors.length).toBeGreaterThan(0)
+
+        const goldKeys = itemsOfType(xml, 'items/key_gold.xml')
+        expect(goldKeys.length).toBeGreaterThan(0)
+
+        // the key must never sit inside the room its door seals
+        const last = result.levels[result.levels.length - 1]
+        const orb = last.rooms.find((r) => r.type === 'Orb')!
+        for (const key of goldKeys) {
+          const inside =
+            key.x >= orb.x && key.x <= orb.x + orb.width && key.y >= orb.y && key.y <= orb.y + orb.height
+          expect(inside).toBe(false)
+        }
+      }
+    })
+
+    it('still generates on a single-level campaign', () => {
+      const result = generateOk(8, (p) => {
+        p.lockFinalRoom = true
+        p.levels = 1
+        p.themes = ['a']
+        p.levelMonsters = [['bat1']]
+      })
+      const types = result.levels[0].rooms.map((r) => r.type)
+      expect(types).toContain('Entrance')
+      expect(types).toContain('Orb')
+      expect(types).not.toContain('None')
+    })
+  })
+
   it('emits the Hammerwatch XML sections in each level file', () => {
     const result = generateOk(31337)
     const level0 = result.files.find((f) => f.path === 'levels/level0.xml')!.content

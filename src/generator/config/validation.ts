@@ -88,6 +88,15 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
     })
   }
 
+  // the locked orb needs a dead-end room of its own, plus somewhere else to
+  // hide the key — on a two-room floor the entrance is the only other room
+  if (p.lockFinalRoom && p.minRoomCount < 3) {
+    warnings.push({
+      field: 'minRoomCount',
+      message: 'With "Lock final room" on, floors with fewer than 3 rooms leave almost nowhere to hide the gold key.'
+    })
+  }
+
   // the entrance/exit stair prefab is 6 tiles wide and needs room to spare
   if (p.maxRoomSize < 7) {
     errors.push({

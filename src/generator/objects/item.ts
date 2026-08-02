@@ -50,6 +50,9 @@ const DOORS = [
   'items/door_a_gold_v.xml'
 ]
 
+/** Index into KEYS/DOORS for the gold tier — the highest of the three. */
+export const GOLD_LOCK_TIER = 2
+
 const ORBS = ['items/crystal_purple.xml', 'items/crystal_green.xml', 'items/crystal_red.xml']
 
 export const ItemType = {
