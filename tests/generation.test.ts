@@ -63,6 +63,9 @@ describe('generateDungeon', () => {
   })
 
   describe('lockFinalRoom', () => {
+    /** index of the gold tier in ItemType.Key / ItemType.Door */
+    const GOLD = 2
+
     /** Every item of `path`, as {x, y}, in emission order. */
     const itemsOfType = (xml: string, path: string): Array<{ x: number; y: number }> => {
       const re = new RegExp(
@@ -123,6 +126,27 @@ describe('generateDungeon', () => {
         }
       }
     })
+
+    it('never ships more gold doors than gold keys on the final floor', () => {
+      // the vault and the chance-gated lock each roll their own tier but share
+      // a single key, so a floor can carry a second gold door the orb key would
+      // be wasted on — sweep enough seeds to hit those rolls
+      let sawSecondGoldDoor = false
+      for (let seed = 1; seed <= 40; seed++) {
+        const result = generateOk(seed, (p) => (p.lockFinalRoom = true))
+        const last = result.levels[result.levels.length - 1]
+
+        // a door is emitted once per corridor tile, so count sealed rooms
+        const goldSealed = last.rooms.filter((r) => r.lockTier === GOLD).length
+        const goldKeys = itemsOfType(lastLevelXML(result), 'items/key_gold.xml').length
+
+        expect(goldSealed, `seed ${seed}`).toBeGreaterThanOrEqual(1) // the orb's own
+        expect(goldKeys, `seed ${seed}`).toBe(goldSealed)
+        if (goldSealed > 1) sawSecondGoldDoor = true
+      }
+      // the sweep is worthless if it never hit a vault/lock that rolled gold
+      expect(sawSecondGoldDoor).toBe(true)
+    }, 30_000)
 
     it('still generates on a single-level campaign', () => {
       const result = generateOk(8, (p) => {

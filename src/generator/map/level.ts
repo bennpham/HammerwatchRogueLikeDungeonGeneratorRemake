@@ -183,20 +183,35 @@ export class Level {
       if (orbRoom === undefined || !orbRoom.lockRoom({ tier: GOLD_LOCK_TIER, allowOrb: true })) {
         this.levelValid = false
       } else {
-        // spawnKey refuses locked rooms, which rules out both the orb room
-        // itself and the chance-gated locked room above
-        success = false
-        for (let attempt = 0; attempt < 2000; attempt++) {
-          const r = this.rooms[rand.iRand(0, this.rooms.length)]
-          if (r.spawnKey(GOLD_LOCK_TIER)) {
-            success = true
+        // One gold key per gold door, whatever the chance rolls did.
+        //
+        // The vault and the chance-gated lock both draw a random tier but only
+        // ever produce a single key between them, so a floor can hold two gold
+        // doors and one gold key. That was survivable while the orb was open;
+        // now that the orb is behind gold too, spending the only key on the
+        // wrong door locks the player out of finishing. So count the gold doors
+        // actually placed and top the keys up to match.
+        const goldDoors = this.rooms.filter((r) => r.lockTier === GOLD_LOCK_TIER).length
+        const goldKeys = () =>
+          ctx.items.filter((i) => i.type === 'Key' && i.index === GOLD_LOCK_TIER).length
+
+        // spawnKey refuses locked rooms, so every key lands somewhere the
+        // player can reach without a key — any of them opens any gold door
+        while (goldKeys() < goldDoors) {
+          success = false
+          for (let attempt = 0; attempt < 2000; attempt++) {
+            const r = this.rooms[rand.iRand(0, this.rooms.length)]
+            if (r.spawnKey(GOLD_LOCK_TIER)) {
+              success = true
+              break
+            }
+          }
+          if (!success) {
+            // nowhere unlocked to hide it — re-roll rather than ship a floor
+            // the player cannot finish
+            this.levelValid = false
             break
           }
-        }
-        if (!success) {
-          // no reachable room to hide the key in — re-roll rather than ship a
-          // floor the player cannot finish
-          this.levelValid = false
         }
       }
     }

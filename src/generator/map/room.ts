@@ -24,6 +24,8 @@ export class Room {
   level: number
   monsterType: MonsterTypeDef | null = null
   locked = false
+  /** tier of the door sealing this room (index into ItemType.Door), null when open */
+  lockTier: number | null = null
 
   private ctx: GenerationContext
 
@@ -318,6 +320,7 @@ export class Room {
 
     this.locked = true
     const lockTier = opts?.tier ?? ctx.rand.iRand(0, 3)
+    this.lockTier = lockTier
     const p = this.passages[0]
 
     const pathPos = p.path[0]

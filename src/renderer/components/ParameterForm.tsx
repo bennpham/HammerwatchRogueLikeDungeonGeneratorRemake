@@ -79,6 +79,7 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
           <NumberField label="Food ×" field="foodMultiplier" value={params.foodMultiplier} onChange={(v) => set('foodMultiplier', v)} issues={issues} min={0} step={0.1} title="Scales health/mana drops" />
         </div>
         <BoolField
+          className="field-grid-footer"
           label="Lock final room"
           checked={params.lockFinalRoom}
           onChange={(v) => set('lockFinalRoom', v)}
