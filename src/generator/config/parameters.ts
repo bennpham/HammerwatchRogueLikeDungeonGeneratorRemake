@@ -69,7 +69,7 @@ export interface LobbyOptions {
 
 export function defaultParameters(): DungeonParameters {
   return {
-    levels: 8,
+    levels: 13,
     minRoomSize: 6,
     maxRoomSize: 20,
     minPassageWidth: 3,
@@ -80,7 +80,7 @@ export function defaultParameters(): DungeonParameters {
     mapHeight: 60,
     edgePadding: 2,
     roomPadding: 2,
-    themes: ['a', 'a', 'b', 'b', 'c', 'c', 'd', 'd'],
+    themes: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'i', 'bonus1', 'bonus2', 'bonus3', 'bonus4', 'bonus5'],
     monsterMultiplier: 1.0,
     goldMultiplier: 1.1,
     foodMultiplier: 1.2,
