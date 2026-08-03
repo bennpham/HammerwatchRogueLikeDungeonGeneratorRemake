@@ -5,15 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0]
 
 ### Added
 
-- **`skeleton3`** — a fast melee swarm skeleton (20 HP, 8 damage, speed 1.1) from stock levels 10 and 11, and what `lich_3` summons. Versus the vanilla `skeleton1` (40 HP, 20 damage, speed 0.4), it trades survivability for speed and crowd potential. Capped at 100: playtested at double that they swarm and overrun a party long before frame rate becomes a concern. Opt-in from the monster pool editor or `monstersN=` parameter; existing seeds are unaffected.
+- **Campaign presets** — three curated starting templates simplify setup for new players:
+  - **Castle** (7 floors, default) — the classic balanced layout with four thematic dungeon tiers and mixed monster types that ramp smoothly. Intended as the reference difficulty; tuned for parties playing cautiously through all upgrades.
+  - **Desert** (5 floors) — daytime ruins with a guard-heavy palette from the desert theme. Rebalanced for tougher early combat with adjusted spawn limits reflecting that theme's monster pool.
+  - **Bonus Gauntlet** (5 floors) — a compact gauntlet run skipping the default's extra floors, good for speedrun or high-difficulty testing.
+  - All three are selectable from a new dropdown in the header and can be imported via `campaignPreset=` parameter. Existing seeds preserve their custom settings unchanged.
 
-- **`tower_empty`** — the empty battlement, a 450-HP obstacle with no attack skills and full 32×32 blocking collision. Suitable for walling off passages. Defaults to 0 pool weight since it does not attack.
+- **Monster filtering by Hammerwatch act** — the monster pool editor now groups monsters by the acts they appear in (Act 1, Act 2, etc.), making it clearer which types are thematically appropriate for each difficulty tier. The full roster remains available; filtering is purely organizational in the UI.
 
-- **Monster roster audit** — introduced a guard test that validates every actor path in `MONSTER_TYPES` against `tests/fixtures/actor-paths.txt`, a committed snapshot of the game's actor folder. Previously nothing verified that an enabled monster type pointed to a file the game actually has.
+- **Lock final room option** — new `lockFinalRoom` parameter gates the victory orb behind a gold door at the end of a dead-end corridor, forcing players to choose between safety and treasure. Enabled by default for added challenge. When locked:
+  - A gold door replaces the final room's front passage
+  - Gold keys are matched to the generated doors so players can actually reach the orb
+  - The victory condition and level flow remain intact; you're just adding a small detour
+
+- **New monster types:**
+  - **`skeleton3`** — a fast melee swarm skeleton (20 HP, 8 damage, speed 1.1) from stock levels 10 and 11, and what `lich_3` summons. Versus the vanilla `skeleton1` (40 HP, 20 damage, speed 0.4), it trades survivability for speed and crowd potential. Capped at 100; playtested at double that they swarm and overrun a party long before frame rate becomes a concern. Opt-in from the monster pool editor or `monstersN=` parameter.
+  - **`tower_empty`** — the empty battlement, a 450-HP obstacle with no attack skills and full 32×32 blocking collision. Suitable for walling off passages and creating terrain features. Defaults to 0 pool weight since it does not attack.
+
+- **New theme: Desert outdoors (theme_h)** — a daytime ruins aesthetic expanding the desert campaign tier. Includes custom wall tilemaps and doodad placement that fit a sun-baked exterior. Visual overlap tuned so corner artifacts from adjacent themes don't leak through.
+
+- **Bonus themes (bonus1–5)** — five extra theme variants with corrected wall collision behavior and fixed stair alcove placement, allowing more terrain variety within a campaign.
+
+- **Monster roster audit** — introduced a guard test that validates every actor path in `MONSTER_TYPES` against `tests/fixtures/actor-paths.txt`, a committed snapshot of the game's actor folder. Previously nothing verified that an enabled monster type pointed to a file the game actually has. This catches actor path typos and vanished actors immediately.
 
 - **Lobby tab** — a prebuilt starting level where the party spawns into a safe room with five upgrade vendors arranged in a row, optional starting gold on the floor, and a teleport portal down to the dungeon. Enabled by default with no gold, so new users see a shop and spawn room rather than jumping straight into configuration. Features:
   - **Per-column shop control:** each vendor stall can independently show any subset of its columns (21 total across five shops), with all/none toggles. Vendors with no columns selected are removed from the level entirely.
@@ -29,13 +46,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`levels.xml` start point moves with the lobby** — when enabled, the lobby ships as level `"lobby"` and becomes the start; dungeon levels keep their numbered ids. This ensures that existing seeds produce byte-identical output whether the lobby is on or off (verified by test).
 
+- **Default starting gold raised to 10,000** — campaigns now start with 10k gold on the ground instead of the original lower amount, giving players more flexibility in their opening upgrade choices.
+
+- **Tileset definitions refined** — wall and floor tilesets are now more clearly defined per theme, reducing visual ambiguity and improving consistency across the desert and bonus theme variants.
+
 ### Fixed
 
 - **`tower_archer2` emitted a non-existent actor path.** The type pointed at `actors/tower_battlement_archer_2.xml`, which the game never shipped — Hammerwatch only has battlement archer variants 1 and 3. Enabling it wrote an unresolvable path into the level. Now repointed to `tower_battlement_empty` and hidden from the GUI in favour of `tower_empty`, but the id deliberately survives so existing `parameters.txt` files with `maxTowers_Archer2` keep loading.
 
+- **Theme_h (desert outdoors) corner artifacts removed** — adjusted visual overlap so corner tilemaps from adjacent themes no longer leak through during level generation.
+
 ### Notes
 
-- The committed lobby template is a stock-asset fallback authored by `scripts/import-lobby-assets.mjs`, not the Dreadmann Mansion `test_lobby.xml` referenced in the plan — that file was unavailable in the dev environment. Run the script with `--from <campaign dir>` to import a real template. Nothing about the lobby has been tested in-game yet; see the 2026-07-31 entry in the modding skill's discovery log for exactly what remains unverified.
+- **The lobby is verified in game** (Hammerwatch 1.41, Windows, real Steam install). Walls enclose the room — the full perimeter was walked and there is no way out; torches and lighting render; every stall and vendor doodad renders; diamond pickups pay out at 0, 1500 and 12,000 gold; deselecting a vendor's every column removes it cleanly; and the exit teleport lands the party in dungeon level 0. The committed template is the Dreadmann Mansion `levels/test_lobby.xml` imported verbatim by `scripts/import-lobby-assets.mjs`, and the 10 campaign-local files it needs ride along in `LOBBY_ASSETS` — which also confirms that a campaign can ship its own doodads and textures and have them render. Note that starting gold is a per-player figure: each player keeps their own purse, and one player walking over the diamonds credits the full amount to everyone, so the configured number is what *every* player starts with regardless of party size.
+- Campaign presets can be reconfigured from the preset dropdown after selection, so they serve as starting points rather than locked-in templates.
 
 ## [0.2.0] - 2026-07-30
 

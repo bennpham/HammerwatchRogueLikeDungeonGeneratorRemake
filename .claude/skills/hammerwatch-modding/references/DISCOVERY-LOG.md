@@ -39,10 +39,12 @@ until then, treat them as unknown in anything shown to the user.
    `tilemaps/` XML be placed inside the campaign folder and referenced by
    relative path, or does `LevelPacker.exe` only resolve against the game's
    asset root? Split in two, because the answers are worth different things:
-   **1a — doodads and textures.** What the Lobby tab needs. Partially answered:
-   the 2026-07-30 shipped-assets entry shows a published third-party campaign
-   doing exactly this, but nobody here has packed one and watched a custom asset
-   render. The Lobby tab's in-game run closes this one.
+   ~~**1a — doodads and textures.**~~ Answered — **yes**, see the 2026-07-31
+   lobby-renders entry. The lobby's 10 campaign-local files in `LOBBY_ASSETS`
+   (`doodads/level1/*` + `c_blood.png`, `lamp_torch_post_spor.xml` +
+   `lamp_torch_post.png`) were packed inside *our* campaign folder and rendered
+   in game, so a campaign may ship its own doodad XML and textures and reference
+   them by relative path.
    **1b — actors.** Whether "custom monsters" can mean *new actor files* rather
    than only *unused stock actors*. **Deferred to post-1.0** and deliberately not
    being worked on now; it drags in spawner variants, `MONSTER_TYPES` wiring, and
@@ -83,13 +85,28 @@ until then, treat them as unknown in anything shown to the user.
     ceiling may be the shop's column set rather than the chain. Test: add a 6th
     tier reusing `cat="misc5"`. If it appears, extra tiers are possible after
     all and the app could offer to lengthen a ladder.
-12. **Is a money pickup shared or per-player?** Stacked diamonds pay out in full
-    (2026-07-30), but only tested solo. Does a 12000 drop give the party 12000 or
-    each player 12000? The Lobby tab's "starting gold" label cannot promise
-    either until someone runs it with two players. Same question applies to the
-    dungeon's `goldMultiplier`.
+12. ~~**Is a money pickup shared or per-player?**~~ Answered — **per-player**,
+    see the 2026-08-02 entry. A 12000 drop gives *each* player 12000, so the
+    lobby's "starting gold" and the dungeon's `goldMultiplier` both describe a
+    per-player amount, not a party pot.
 
 ## Entries
+
+### 2026-08-02 — one player picking up gold credits the full amount to every player
+**Tag:** [VERIFIED] — established Hammerwatch behaviour, stated by the project
+owner. Closes open question 12.
+**Context:** The 2026-07-31 lobby run confirmed stacked diamonds pay out in full,
+but was solo, so it could not distinguish "the party gets 12000" from "each
+player gets 12000".
+**Evidence:** Every player has their own separate purse, and a money pickup is
+credited to all of them at once. One player walking over a 12000 stack leaves
+*every* player 12000 richer. Gold is never split, never a shared pot, and never
+something each player has to collect for themselves.
+**Impact:** Every gold figure in this app is a per-player amount. The Lobby tab's
+starting gold is what each player begins with, so `LOBBY_GOLD_MAX` (12000) is a
+per-player ceiling; the dungeon's `goldMultiplier` scales a drop that then goes to
+everyone. Nothing in the generator changes — the emitted diamonds are the same
+either way. This is a labelling and balance-advice fact only.
 
 ### 2026-08-01 — `theme_h`'s colliders are edge fences, and a `CrossWall` tile is the joint that must be solid
 **Tag:** [VERIFIED] (root cause read from the install; fix played in game on
