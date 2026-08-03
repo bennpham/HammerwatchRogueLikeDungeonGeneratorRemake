@@ -37,13 +37,17 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
     id: 'desert',
     label: 'Desert',
     description: '5 floors of Temple of the Sun mobs, ending on a mummy mini-boss rush.',
+    // The two outdoor floors are guards only: they mob the party in numbers but
+    // barely scratch it, so the opening reads as busy rather than dangerous. The
+    // mummies arrive with the indoor themes on floor 3, which is where the
+    // preset starts actually hurting.
     build: () => ({
       ...defaultParameters(),
       levels: 5,
       themes: ['h', 'h', 'i', 'i', 'i'],
       levelMonsters: [
-        ['mummy_desert', 'mummy_ranged'],
-        ['mummy_desert', 'mummy_ranged', 'tower_archer1', 'tower_archer3'],
+        ['guard_desert', 'guard_desert_range'],
+        ['guard_desert', 'guard_desert_range', 'tower_archer1', 'tower_archer3'],
         [
           'mummy_desert',
           'mummy_ranged',

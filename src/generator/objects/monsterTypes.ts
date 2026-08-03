@@ -70,10 +70,13 @@ export const MONSTER_TYPES: MonsterTypeDef[] = [
   { id: 'bat2', configKey: 'maxBats2', upgradeChance: 1.0, defaultMax: 100, group: 'Classic', acts: [1], tiers: ['actors/spawners/bats.xml', 'actors/bat_2.xml', 'actors/bat_3.xml'] },
   { id: 'eye', configKey: 'maxEyes', upgradeChance: 1.0, defaultMax: 50, group: 'Classic', acts: [3, 4], tiers: ['actors/spawners/eye_1.xml', 'actors/eye_1_small.xml', 'actors/eye_1.xml'] },
   { id: 'floater_fire', configKey: 'maxFloater_Fires', upgradeChance: 1.0, defaultMax: 40, group: 'Special', tiers: ['actors/floater_fire.xml'] },
-  { id: 'guard_desert', configKey: 'maxGuards_Desert', upgradeChance: 1.0, defaultMax: 25, group: 'Desert', tiers: ['actors/npc_guard_desert_1.xml'] },
-  { id: 'guard_desert_range', configKey: 'maxGuards_Desert_Range', upgradeChance: 1.0, defaultMax: 20, group: 'Desert', tiers: ['actors/guard_desert_1.xml'] },
+  // The desert guards swarm without really threatening the party, so they carry
+  // much larger caps than their damage would suggest — they are the opening
+  // floors' crowd, where the mummies are the opening floors' threat.
+  { id: 'guard_desert', configKey: 'maxGuards_Desert', upgradeChance: 1.0, defaultMax: 60, group: 'Desert', tiers: ['actors/npc_guard_desert_1.xml'] },
+  { id: 'guard_desert_range', configKey: 'maxGuards_Desert_Range', upgradeChance: 1.0, defaultMax: 40, group: 'Desert', tiers: ['actors/guard_desert_1.xml'] },
   { id: 'lich', configKey: 'maxLiches', upgradeChance: 1.0, defaultMax: 30, group: 'Classic', acts: [3, 4], tiers: ['actors/lich_1.xml', 'actors/lich_1_elite.xml', 'actors/lich_2.xml', 'actors/lich_3.xml'] },
-  { id: 'lich_desert', configKey: 'maxLiches_Desert', upgradeChance: 1.0, defaultMax: 10, group: 'Desert', tiers: ['actors/lich_desert_1.xml', 'actors/lich_desert_2.xml', 'actors/lich_desert_3.xml'] },
+  { id: 'lich_desert', configKey: 'maxLiches_Desert', upgradeChance: 1.0, defaultMax: 20, group: 'Desert', tiers: ['actors/lich_desert_1.xml', 'actors/lich_desert_2.xml', 'actors/lich_desert_3.xml'] },
   { id: 'maggot', configKey: 'maxMaggots', upgradeChance: 1.0, defaultMax: 80, group: 'Classic', acts: [1, 2], tiers: ['actors/spawners/maggot_1.xml', 'actors/maggot_1_small.xml', 'actors/maggot_1.xml', 'actors/maggot_1_elite.xml'] },
   { id: 'mummy_desert', configKey: 'maxMummies', upgradeChance: 1.0, defaultMax: 80, group: 'Desert', tiers: ['actors/spawners/mummy_1.xml', 'actors/mummy_1.xml', 'actors/mummy_1_small.xml', 'actors/mummy_1_elite.xml'] },
   { id: 'mummy_ranged', configKey: 'maxMummies_Ranged', upgradeChance: 1.0, defaultMax: 20, group: 'Desert', tiers: ['actors/spawners/mummy_ranged_1.xml', 'actors/mummy_ranged_1.xml', 'actors/mummy_ranged_2.xml'] },
