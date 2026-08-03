@@ -64,6 +64,8 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   if (params.lockFinalRoom === undefined)
     params.lockFinalRoom = defaultParameters().lockFinalRoom
   const result: ParsedConfig = { params, unknownKeys: [] }
+  /** highest N seen in a `monstersN=` key, or -1 if the file declared no pools */
+  let highestPoolIndex = -1
 
   const intKeys: Record<string, (v: number) => void> = {
     levels: (v) => (params.levels = v),
@@ -144,6 +146,7 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
         params.levelMonsters.push([])
       }
       params.levelMonsters[levelIndex] = value.split(',').map((m) => m.trim())
+      highestPoolIndex = Math.max(highestPoolIndex, levelIndex)
       continue
     }
 
@@ -178,6 +181,14 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     }
 
     result.unknownKeys.push(key)
+  }
+
+  // A file that declares any pool declares all of them: drop whatever the base
+  // defaults had beyond its last `monstersN=`. Without this, importing a short
+  // campaign leaves the tail of the longer default campaign attached — invisible
+  // while `levels` stays short, then silently appended if the user raises it.
+  if (highestPoolIndex >= 0) {
+    params.levelMonsters.length = highestPoolIndex + 1
   }
 
   return result

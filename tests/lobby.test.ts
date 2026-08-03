@@ -74,7 +74,7 @@ describe('lobby — disabled', () => {
     const off = generateOk(withLobby({ enabled: false }), 555)
 
     expect(off.files.map((f) => f.path)).toEqual([
-      ...Array.from({ length: 8 }, (_, i) => `levels/level${i}.xml`),
+      ...Array.from({ length: defaultParameters().levels }, (_, i) => `levels/level${i}.xml`),
       'info.xml',
       'levels.xml'
     ])
@@ -107,8 +107,9 @@ describe('lobby — campaign wiring', () => {
 
   it('is not added to the preview, which only describes generated geometry', () => {
     const on = generateOk(withLobby({ enabled: true }), 555)
-    expect(on.levels).toHaveLength(8)
-    expect(on.levels.map((l) => l.level)).toEqual([0, 1, 2, 3, 4, 5, 6, 7])
+    const levels = defaultParameters().levels
+    expect(on.levels).toHaveLength(levels)
+    expect(on.levels.map((l) => l.level)).toEqual(Array.from({ length: levels }, (_, i) => i))
   })
 
   // LevelPacker.exe parses every <int-arr> body with Int32.Parse and dies on an

@@ -67,9 +67,17 @@ export interface LobbyOptions {
   shopCategories: string[]
 }
 
+/**
+ * The built-in default is the "Castle" campaign preset — 7 floors of castle
+ * themes a..g. See config/presets.ts for the other two presets, which override
+ * only `levels`, `themes` and `levelMonsters` on top of this.
+ *
+ * Floors 1-4 are ordinary act mobs; 5-7 are boss rushes, which is why every
+ * mini-boss (`mb_*`) lives there and nowhere earlier.
+ */
 export function defaultParameters(): DungeonParameters {
   return {
-    levels: 8,
+    levels: 7,
     minRoomSize: 6,
     maxRoomSize: 20,
     minPassageWidth: 3,
@@ -80,7 +88,7 @@ export function defaultParameters(): DungeonParameters {
     mapHeight: 60,
     edgePadding: 2,
     roomPadding: 2,
-    themes: ['a', 'a', 'b', 'b', 'c', 'c', 'd', 'd'],
+    themes: ['a', 'b', 'c', 'd', 'e', 'f', 'g'],
     monsterMultiplier: 1.0,
     goldMultiplier: 1.1,
     foodMultiplier: 1.2,
@@ -90,20 +98,19 @@ export function defaultParameters(): DungeonParameters {
     keyChance: 1.0,
     lockFinalRoom: true,
     levelMonsters: [
-      ['bat1', 'tick1', 'maggot'],
-      ['bat1', 'tick1', 'slime', 'maggot'],
-      ['slime', 'skeleton1', 'maggot'],
-      ['eye', 'skeleton1', 'archer1', 'archer2'],
-      ['wisp1', 'skeleton1', 'archer2', 'eye'],
-      ['skeleton1', 'archer2', 'skeleton2', 'wisp1'],
-      ['skeleton2', 'archer2', 'lich'],
-      ['skeleton2', 'lich']
+      ['bat1', 'tick1', 'maggot', 'tower_flower1_small'],
+      ['maggot', 'slime', 'skeleton1', 'archer1'],
+      ['eye', 'wisp1', 'lich', 'tower_nova1'],
+      ['skeleton2', 'archer2', 'archer3', 'lich', 'wisp2'],
+      ['mb_tick', 'mb_maggot', 'bat2', 'tick2', 'maggot'],
+      ['mb_skeleton', 'mb_eye', 'archer2', 'skeleton2', 'tower_nova1'],
+      ['mb_lich', 'mb_doomspawn', 'lich', 'wisp2', 'tower_nova2']
     ],
     monsterMax: Object.fromEntries(MONSTER_TYPES.map((t) => [t.id, t.defaultMax])),
     playerTweaks: {},
     // lobby on, but no gold on the floor: the point of the default is to show
     // the vendors exist, not to hand the party a head start they didn't ask for.
     // power is off by default — potions/life/rejuv are a nice-to-have, not a must-have
-    lobby: { enabled: true, startingGold: 0, shopCategories: ALL_LOBBY_CATEGORIES.filter((c) => c !== 'power') }
+    lobby: { enabled: true, startingGold: 10000, shopCategories: ALL_LOBBY_CATEGORIES.filter((c) => c !== 'power') }
   }
 }

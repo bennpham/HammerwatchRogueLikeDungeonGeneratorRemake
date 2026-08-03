@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { defaultParameters, pruneTweaks, validateParameters } from '../generator'
+import { CAMPAIGN_PRESETS, campaignPresetById, defaultParameters, pruneTweaks, validateParameters } from '../generator'
 import type { DungeonParameters, PlayerTweaks } from '../generator'
 import type { AppSettings, GenerateResponse } from '../shared/ipc'
 import { ParameterForm } from './components/ParameterForm'
@@ -107,6 +107,21 @@ export function App() {
     showToast('info', 'Dungeon parameters reset to defaults.')
   }
 
+  /**
+   * Presets are a full parameter baseline, not a patch: picking one replaces
+   * everything on the Dungeon, Player and Lobby tabs. The dropdown snaps back to
+   * its placeholder rather than showing the chosen preset, because the very next
+   * edit to any field would make that label a lie.
+   */
+  const applyPreset = (id: string) => {
+    const preset = campaignPresetById(id)
+    if (preset === undefined) return
+    const next = preset.build()
+    setParams(next)
+    const lost = tweakCount > 0 ? ' Player tweaks were cleared.' : ''
+    showToast('ok', `Loaded the ${preset.label} preset — ${next.levels} floors.${lost}`)
+  }
+
   const importParams = async () => {
     const imported = await window.api.importParametersTxt()
     if (imported === null) return
@@ -151,6 +166,24 @@ export function App() {
           <p className="subtitle">Rogue-like campaign generator — remake of the classic forum tool</p>
         </div>
         <div className="header-actions">
+          <label className="preset-picker">
+            <span className="field-label">Preset</span>
+            <select
+              value=""
+              disabled={busy}
+              onChange={(e) => {
+                applyPreset(e.target.value)
+                e.target.value = ''
+              }}
+            >
+              <option value="">Load a preset…</option>
+              {CAMPAIGN_PRESETS.map((preset) => (
+                <option key={preset.id} value={preset.id} title={preset.description}>
+                  {preset.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <button onClick={importParams} disabled={busy}>Import parameters.txt</button>
           <button onClick={exportParams} disabled={busy}>Export parameters.txt</button>
           <button onClick={resetDefaults} disabled={busy}>

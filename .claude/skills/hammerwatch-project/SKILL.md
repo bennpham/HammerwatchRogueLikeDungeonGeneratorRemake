@@ -34,6 +34,8 @@ src/
 │   │   └── context.ts    GenerationContext — replaces the Java statics
 │   ├── config/
 │   │   ├── parameters.ts DungeonParameters + defaultParameters() + THEMES
+│   │   ├── presets.ts    CAMPAIGN_PRESETS — castle (== the default) / desert /
+│   │   │                 bonus. Each build() returns a full fresh parameter set
 │   │   ├── themes.ts     THEME_DEFS — tileset path, tile count, doodad token
 │   │   ├── configFile.ts parameters.txt parse/serialize (original format)
 │   │   └── validation.ts every crash path of the original, as a rule
@@ -116,19 +118,31 @@ reference/hammerwatch-tweak-stats.md
 
 | Field | Default | Notes / hard constraints |
 | --- | --- | --- |
-| `levels` | 8 | needs one theme AND one monster pool per level |
+| `levels` | 7 | needs one theme AND one monster pool per level |
 | `mapWidth` × `mapHeight` | 80 × 60 | ≥ 20; multiples of 20 align with tilemap blocks (warning otherwise) |
 | `minRoomSize`–`maxRoomSize` | 6–20 | ≥ 3; **`maxRoomSize` ≥ 7** (stair prefab is 6 wide); height rolls up to `maxRoomSize + 2` |
 | `minRoomCount`–`maxRoomCount` | 12–15 | ≥ 2 |
 | `minPassageWidth`–`maxPassageWidth` | 3–6 | **`maxPassageWidth` ≤ `minRoomSize`** or doors land outside rooms |
 | `edgePadding` / `roomPadding` | 2 / 2 | ≥ 0 |
-| `themes` | `a,a,b,b,c,c,d,d` | one per level, from `a b c d e f g h i` or `bonus1`–`bonus5`; registry in `config/themes.ts` |
+| `themes` | `a,b,c,d,e,f,g` | one per level, from `a b c d e f g h i` or `bonus1`–`bonus5`; registry in `config/themes.ts` |
 | `shopChance` / `vaultChance` / `lockChance` / `keyChance` | 1.0 / 0.3 / 0.8 / 1.0 | 0–1 inclusive |
 | `monsterMultiplier` / `goldMultiplier` / `foodMultiplier` | 1.0 / 1.1 / 1.2 | ≥ 0 |
 | `levelMonsters[i]` | see defaults | non-empty; ids must exist in `MONSTER_TYPES`; repeat an id to weight it |
 | `monsterMax[id]` | per-type | integer ≥ 0; **0 disables the type entirely** |
 | `playerTweaks` | `{}` | sparse `Record<lowercase key, number>` of player-balance overrides; empty = no `tweak/` folder. See below |
-| `lobby` | on, 0 gold, all 21 columns | prebuilt starting level: `enabled`, `startingGold` (multiple of 500, ≤ 12000), `shopCategories`. `enabled: false` reproduces the pre-lobby campaign exactly |
+| `lobby` | on, 10000 gold, all columns but `power` | prebuilt starting level: `enabled`, `startingGold` (multiple of 500, ≤ 12000), `shopCategories`. `enabled: false` reproduces the pre-lobby campaign exactly |
+
+### Campaign presets
+
+`config/presets.ts` holds `CAMPAIGN_PRESETS` — `castle` (7 floors, `a`–`g`;
+identical to `defaultParameters()`), `desert` (5 floors, `h,h,i,i,i`) and
+`bonus` (5 floors, `bonus1`–`bonus5`). A preset overrides only `levels`,
+`themes` and `levelMonsters`; `monsterMax` and everything else stay at the
+global defaults, so the caps keep bounding horde sizes. `build()` must return a
+fresh object every call and draw no random values — the header dropdown in
+`App.tsx` calls it to replace the whole parameter set. Changing a preset's pools
+is a content change, not an RNG change: it does not move any seed generated with
+explicitly-supplied parameters, but it does change what the *default* produces.
 
 Plus two app settings that are *not* generator parameters:
 `hammerwatchPath` and `cleanupFiles` (persisted in Electron userData via

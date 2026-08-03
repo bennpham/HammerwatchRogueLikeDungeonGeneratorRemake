@@ -202,7 +202,9 @@ describe('skeleton3 and tower_empty', () => {
       expect(pool).not.toContain('tower_empty')
     }
     expect(params.monsterMax.skeleton3).toBe(100)
-    expect(params.monsterMax.tower_empty).toBe(0)
+    // a ceiling, not a spawn: tower_empty is in no default pool, so its cap can
+    // be armed without any seed moving
+    expect(params.monsterMax.tower_empty).toBe(24)
   })
 
   it('leaves every existing seed byte-identical', () => {
@@ -216,6 +218,13 @@ describe('skeleton3 and tower_empty', () => {
     // `levels.xml`, neither of which draws a random value. These hashes are the
     // same ones c494670 produces over the same subset, re-measured against that
     // commit rather than re-baselined against current output.
+    //
+    // The floor plan is c494670's defaultParameters() frozen as a literal, not
+    // today's default. `defaultParameters()` is now the Castle preset (7 floors,
+    // themes a..g) — a deliberate content change, and reading it here would turn
+    // this RNG-stability check into a test of whatever the shipped default
+    // happens to be. Everything the RNG consumes is spelled out below; the rest
+    // (monsterMax ceilings, lobby, tweaks) does not reach the layout stream.
     const expected: Record<number, string> = {
       1234: 'c445b4fb607fd0da97765021e313f15289dcb34545a5bb0dc4975a7b92ba3d38',
       987654: '4c17825da8a43a2dc8de7fee67cd01de62a95ac3bf0e074df383956d59bc1949'
@@ -225,6 +234,18 @@ describe('skeleton3 and tower_empty', () => {
       // the last floor — hash the same open-orb dungeon it was measured over
       const params = defaultParameters()
       params.lockFinalRoom = false
+      params.levels = 8
+      params.themes = ['a', 'a', 'b', 'b', 'c', 'c', 'd', 'd']
+      params.levelMonsters = [
+        ['bat1', 'tick1', 'maggot'],
+        ['bat1', 'tick1', 'slime', 'maggot'],
+        ['slime', 'skeleton1', 'maggot'],
+        ['eye', 'skeleton1', 'archer1', 'archer2'],
+        ['wisp1', 'skeleton1', 'archer2', 'eye'],
+        ['skeleton1', 'archer2', 'skeleton2', 'wisp1'],
+        ['skeleton2', 'archer2', 'lich'],
+        ['skeleton2', 'lich']
+      ]
       const result = generateDungeon(params, Number(seed))
       expect(result.ok).toBe(true)
       const digest = createHash('sha256')

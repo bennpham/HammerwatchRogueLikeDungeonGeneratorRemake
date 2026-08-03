@@ -60,6 +60,14 @@ body {
   flex-wrap: wrap;
 }
 
+/* sits in the header button row, so it lines up with the buttons rather than
+   stacking label-over-control like the form fields do */
+.preset-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .app-body {
   display: flex;
   flex: 1;
