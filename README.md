@@ -1,5 +1,7 @@
 # Hammerwatch Rogue-like Dungeon Generator
 
+[![CI](https://github.com/bennpham/HammerwatchRogueLikeDungeonGeneratorRemake/actions/workflows/ci.yml/badge.svg)](https://github.com/bennpham/HammerwatchRogueLikeDungeonGeneratorRemake/actions/workflows/ci.yml)
+
 A cross-platform desktop app (Windows / Linux / macOS) that generates random
 rogue-like campaigns for [Hammerwatch](https://store.steampowered.com/app/239070/Hammerwatch/).
 It is a remake of the terminal-only Java tool posted on the Hammerwatch forums
