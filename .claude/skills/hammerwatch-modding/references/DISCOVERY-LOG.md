@@ -92,6 +92,97 @@ until then, treat them as unknown in anything shown to the user.
 
 ## Entries
 
+### 2026-08-08 — the engine emits named boss-health global events, and `SpawnObject` needs no actor placement
+**Tag:** [VERIFIED] (read from a real Windows install's shipped campaigns) for
+the strings and the node schemas; the *behaviour* of both in a campaign of our
+own is `[UNVERIFIED]` — see R2/R3 in `docs/plans/boss-tab.md`.
+**Context:** Designing the Boss tab (issue #6) — a hand-authored pre-fight shop
+room plus a generated boss arena with monster waves keyed to boss health.
+**Evidence:** Read from
+`<Steam>/steamapps/common/Hammerwatch/editor/`.
+
+1. `GlobalEventTrigger` nodes in `campaign/levels/level_boss_1..4.xml` and
+   `campaign2/levels/level_boss_1..3.xml` carry these engine event strings
+   verbatim as their `parameters`:
+   `Activate Boss`, `Boss 75%`, `Boss 50%`, `Boss 25%`, `Boss Died`, `LevelLoaded`.
+   The node's `parameters` is a **bare `<string>`**, not a dictionary:
+   ```xml
+   <dictionary>
+   	<int name="id">317</int>
+   	<string name="type">GlobalEventTrigger</string>
+   	<bool name="enabled">True</bool>
+   	<int name="trigger-times">-1</int>
+   	<vec2 name="pos">-30 -14</vec2>
+   	<string name="parameters">Boss 75%</string>
+   	<int-arr name="connections">309</int-arr>
+   	<int-arr name="connection-delays">0</int-arr>
+   </dictionary>
+   ```
+2. `SpawnObject` likewise has **no `parameters` dictionary** — `parameters` is a
+   bare `<string>` holding the asset path, the spawn position **is** the node's
+   own `pos`, and the spawn count **is** its `trigger-times`. There is no count
+   attribute, no name reference and no explicit coordinate. 1462 such nodes in
+   `pht6_quiky_dreadmann_mansion/levels/test_yard2.xml`; `trigger-times` values
+   observed are `1` (×1393), `2` (×54), `5` (×15). It spawns items and doodads
+   too, not just actors (`items/health_1.xml`, `doodads/theme_b/b_h_16_fence.xml`
+   all appear as `SpawnObject` payloads).
+3. Boss-to-shipped-level map, for anyone needing a reference wiring:
+   queen→`campaign/level_boss_1`, knight→`_2`, lich→`_3`, dragon→`_4`;
+   worm→`campaign2/level_boss_1`, krilith→`_2`, anubis→`_3`.
+4. `DestroyObject` is the one node that puts `<int-arr name="static">`
+   **directly** under `parameters` with no wrapper dict, and it tolerates
+   duplicate ids in that list.
+5. Script-node types available in shipped boss levels, beyond the ten this repo
+   emits: `CircleShape`, `AllPlayersAreaTrigger`, `ScriptLink`,
+   `GlobalEventTrigger`, `TimerTrigger`, `Counter`, `Random`, `Variable`,
+   `CheckVariable`, `SetGlobalFlag`, `DifficultyFilter`, `SpawnObject`,
+   `DestroyObject`, `HideObject`, `ToggleImmortality`, `TogglePhysics`,
+   `ChangeDoodadState`, `ShowSpeechBubble`, `HideSpeechBubble`, `PlaySound`,
+   `PlayMusic`, `PlayEffect`, `CameraShake`, `DangerArea`, `ProjectileShooter`,
+   `PathNode`. There is no Lua anywhere — all wiring is the XML script graph.
+**Impact:** `docs/plans/boss-tab.md` is the design that rests on this. When it
+is implemented, `src/generator/objects/scriptNode.ts` needs an overridable
+`getParametersXML()` because `ScriptNode.getXML()` currently always emits a
+`parameters` **dictionary** and cannot express the bare-scalar form these two
+nodes require. Promote to `ASSET-REGISTRY.md` once a generated campaign has been
+observed firing one of these events in game.
+
+### 2026-08-08 — boss actors: two of the seven cannot move, and only `*_special_pillar` doodads are solid cover
+**Tag:** [VERIFIED] for the file contents (read from a real install);
+`[UNVERIFIED]` for minimum arena sizes and in-game collision — see R4/R8 in
+`docs/plans/boss-tab.md`.
+**Context:** Same Boss-tab design pass. Needed to know where each boss can be
+placed and which doodads work as arena cover.
+**Evidence:** From `editor/assetsExtract/actors/` and `.../doodads/`.
+
+| Boss | Path | hp | Movement | Footprint |
+| --- | --- | --- | --- | --- |
+| anubis | `actors/boss_anubis/boss_anubis.xml` | 10000 | `composite`, `ranged` speed 0.6 + teleport | `collision="7"` ≈ 0.9 tile |
+| dragon | `actors/boss_dragon/boss_dragon.xml` | 15000 | `boss-dragon`, `<collision static="true">` — **stationary** | circle r=34 @ scale 16 ≈ **4.25 tiles across** |
+| knight | `actors/boss_knight/boss_knight.xml` | 2500 | `boss-knight` speed 0.55, `static="false"` | circle r=10 ≈ 1.25 tiles |
+| krilith | `actors/boss_krilith/boss_krilith.xml` | 850 | `composite`, `ranged` speed 0.6 | `collision="3.5"` ≈ 0.44 tile |
+| lich | `actors/boss_lich/boss_lich.xml` | 3500 | `boss-lich` speed 0.55, `static="false"` | circle r=8 ≈ 1 tile |
+| queen | `actors/boss_queen/boss_queen.xml` | 2500 | `boss-maggot`, **no `speed`, no `movement` dict**, `static="true"` — **stationary** | polygons spanning ≈ **5.1 × 5.2 tiles** |
+| worm | `actors/boss_worm/boss_worm.xml` | 500 | `boss-worm` speed 0.3, `static="true"` (burrows) | circle r=19 ≈ 2.4 tiles |
+
+`boss_dragon` **has no upward-facing art at all**: its aim sprites are a 9-slot
+arc named `"4" "3" "2" "1" "0" "-1" "-2" "-3" "-4"` plus `default`,
+`stomp-left`, `stomp-right` — every frame in `dragon.png` faces down or
+down-diagonal. The shipped `campaign/levels/level_boss_4.xml` places it at the
+top of the arena (`<array><int>264</int><vec2>-5 -26.5</vec2></array>`). Any
+generated arena must put the dragon in the top wall; every other boss can go
+centre.
+
+Cover doodads: `*_special_pillar.xml` (themes a–g, i) carry a
+`<polygon collision="true">` and are **solid**; `theme_h` has exactly one cover
+asset, `doodads/theme_h/h_deco_rock.xml`, with `<circle offset="-1 0" radius="18"/>`
+(≈2.25 tiles); `theme_bonusN/bonusN_pillar.xml` are solid 1×1. **Most
+`*_deco_pillar_*.xml` have no `<collision>` element at all and are pure art** —
+e.g. `theme_i/i_deco_pillar_large.xml` is sprite-only. Do not use them as cover.
+**Impact:** Feeds the `Pillar` doodad type and the boss-placement rules in
+`docs/plans/boss-tab.md` §4–5. Note the 30× HP spread (worm 500 → dragon 15000),
+which is why that doc's R9 asks whether an HP scaler is wanted.
+
 ### 2026-08-02 — one player picking up gold credits the full amount to every player
 **Tag:** [VERIFIED] — established Hammerwatch behaviour, stated by the project
 owner. Closes open question 12.
