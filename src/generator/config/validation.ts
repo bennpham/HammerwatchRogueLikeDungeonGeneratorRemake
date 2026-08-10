@@ -1,4 +1,4 @@
-import { DungeonParameters, THEMES } from './parameters'
+import { BOSS_IDS, DungeonParameters, THEMES } from './parameters'
 import { getTheme } from './themes'
 import { isKnownMonsterId } from '../objects/monsterTypes'
 import { LOBBY_DIAMOND_VALUE, LOBBY_GOLD_MAX } from '../lobby/build'
@@ -202,6 +202,7 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
 
   validatePlayerTweaks(p, errors, warnings)
   validateLobby(p, errors, warnings)
+  validateBoss(p, errors, warnings)
 
   return { errors, warnings, valid: errors.length === 0 }
 }
@@ -269,6 +270,114 @@ function validateLobby(
         'Those stalls will stand in the lobby with nothing to sell.'
     })
   }
+}
+
+/**
+ * The boss arena is generated geometry with its own validation rules — sizes,
+ * pool completeness and interval bounds. Absent boss object means "off", not
+ * "invalid", mirroring how validateLobby handles the lobby.
+ */
+function validateBoss(
+  p: DungeonParameters,
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[]
+): void {
+  const boss = p.boss
+  if (boss === undefined) return
+
+  const arena = boss.arena
+
+  // min ≤ max on both axes
+  if (arena.minWidth > arena.maxWidth) {
+    errors.push({ field: 'boss.arena.minWidth', message: 'Min width must be ≤ max width.' })
+  }
+  if (arena.minHeight > arena.maxHeight) {
+    errors.push({ field: 'boss.arena.minHeight', message: 'Min height must be ≤ max height.' })
+  }
+
+  // arena large enough for the biggest boss + 3×3 alcove + anchor insets
+  if (arena.minWidth < 14) {
+    errors.push({ field: 'boss.arena.minWidth', message: 'Arena width needs room for the boss, the alcove and the spawn anchors — minimum 14 tiles.' })
+  }
+  if (arena.minHeight < 18) {
+    errors.push({ field: 'boss.arena.minHeight', message: 'Arena height needs room for the boss, the alcove and the spawn anchors — minimum 18 tiles.' })
+  }
+
+  // bossPool must not be empty
+  if (arena.bossPool.length === 0) {
+    errors.push({ field: 'boss.arena.bossPool', message: 'At least one boss must be in the pool.' })
+  }
+  for (const id of arena.bossPool) {
+    if (!BOSS_IDS.includes(id as typeof BOSS_IDS[number])) {
+      errors.push({ field: 'boss.arena.bossPool', message: `Unknown boss "${id}".` })
+    }
+  }
+
+  // exactly 4 waves
+  if (arena.waves.length !== 4) {
+    errors.push({ field: 'boss.arena.waves', message: 'Exactly 4 waves are required (100/75/50/25).' })
+  }
+
+  // interval bounds
+  const intervalFields: Array<{ field: string; ms: number }> = [
+    { field: 'boss.arena.waves', ms: arena.waves[0]?.defaultIntervalMs },
+    { field: 'boss.arena.waves', ms: arena.waves[1]?.defaultIntervalMs },
+    { field: 'boss.arena.waves', ms: arena.waves[2]?.defaultIntervalMs },
+    { field: 'boss.arena.waves', ms: arena.waves[3]?.defaultIntervalMs }
+  ]
+  for (const entry of intervalFields) {
+    if (entry.ms !== undefined && (!Number.isInteger(entry.ms) || entry.ms < 100 || entry.ms > 60000)) {
+      errors.push({ field: 'boss.arena.waves', message: 'Spawn interval must be between 100 and 60000 ms.' })
+      break
+    }
+  }
+
+  // per-wave monster pools checked
+  for (let i = 0; i < arena.waves.length; i++) {
+    const wave = arena.waves[i]
+    if (wave.monsters.length === 0) {
+      warnings.push({ field: `boss.arena.waves`, message: `Wave ${i + 1} has an empty monster pool — nothing will spawn at this tier.` })
+    }
+    for (const id of wave.monsters) {
+      if (!isKnownMonsterId(id)) {
+        errors.push({ field: `boss.arena.waves`, message: `Wave ${i + 1} pool contains unknown monster "${id}".` })
+      }
+    }
+    // per-monster intervals checked
+    if (wave.intervalMs) {
+      for (const [id, ms] of Object.entries(wave.intervalMs)) {
+        if (!Number.isInteger(ms) || ms < 100 || ms > 60000) {
+          errors.push({ field: `boss.arena.waves`, message: `Monster "${id}" in wave ${i + 1} has interval ${ms} — must be 100..60000.` })
+        }
+      }
+    }
+  }
+
+  // theme valid
+  if (!THEMES.includes(arena.theme)) {
+    errors.push({ field: 'boss.arena.theme', message: `"${arena.theme}" is not one of: ${THEMES.join(', ')}.` })
+  }
+
+  // starting gold
+  const gold = boss.prep.startingGold
+  if (!Number.isInteger(gold) || gold < 0) {
+    errors.push({ field: 'boss.prep.startingGold', message: 'Starting gold must be a whole number ≥ 0.' })
+  } else if (gold % LOBBY_DIAMOND_VALUE !== 0) {
+    errors.push({
+      field: 'boss.prep.startingGold',
+      message: `Starting gold must be a multiple of ${LOBBY_DIAMOND_VALUE}.`
+    })
+  }
+
+  // cover density warning: past the free floor area
+  if (arena.cover.density > 0.8) {
+    warnings.push({
+      field: 'boss.arena.cover',
+      message: 'Cover density above 80 percent may fill most of the arena floor, leaving little room to fight.'
+    })
+  }
+
+  if (!boss.enabled || errors.length === 0) return
 }
 
 /**

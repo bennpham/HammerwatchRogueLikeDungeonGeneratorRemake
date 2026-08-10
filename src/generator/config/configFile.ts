@@ -1,4 +1,5 @@
-import { DungeonParameters, defaultParameters } from './parameters'
+import { BOSS_IDS, DungeonParameters, defaultParameters } from './parameters'
+import type { BossOptions } from './parameters'
 import { MONSTER_TYPES } from '../objects/monsterTypes'
 import { isLobbyCategory } from '../lobby/shops'
 import { TWEAK_FIELD_MAP, pruneTweaks } from '../tweak/overrides'
@@ -61,6 +62,7 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   // a base object round-tripped from an older settings file may predate these
   if (params.playerTweaks === undefined) params.playerTweaks = {}
   if (params.lobby === undefined) params.lobby = defaultParameters().lobby
+  if (params.boss === undefined) params.boss = defaultParameters().boss
   if (params.lockFinalRoom === undefined)
     params.lockFinalRoom = defaultParameters().lockFinalRoom
   const result: ParsedConfig = { params, unknownKeys: [] }
@@ -135,6 +137,73 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       params.lobby.shopCategories = wanted.filter(isLobbyCategory)
       for (const bad of wanted.filter((c) => !isLobbyCategory(c))) {
         result.unknownKeys.push(`${key} value "${bad}"`)
+      }
+      continue
+    }
+
+    if (keyLower === 'boss') {
+      params.boss.enabled = value === '1'
+      continue
+    }
+    if (keyLower === 'bossgold') {
+      const n = parseInt(value, 10)
+      if (Number.isNaN(n)) result.unknownKeys.push(key)
+      else params.boss.prep.startingGold = n
+      continue
+    }
+    if (keyLower === 'bossshops') {
+      const wanted = value.split(/\s+/).filter((c) => c !== '')
+      params.boss.prep.shopCategories = wanted.filter(isLobbyCategory)
+      for (const bad of wanted.filter((c) => !isLobbyCategory(c))) {
+        result.unknownKeys.push(`${key} value "${bad}"`)
+      }
+      continue
+    }
+    if (keyLower === 'bosstheme') {
+      params.boss.arena.theme = value
+      continue
+    }
+    if (keyLower === 'bosswidth') {
+      const parts = value.split(',').map((s) => parseInt(s.trim(), 10))
+      if (parts.length === 2 && !parts.some(Number.isNaN)) {
+        params.boss.arena.minWidth = parts[0]
+        params.boss.arena.maxWidth = parts[1]
+      } else {
+        result.unknownKeys.push(key)
+      }
+      continue
+    }
+    if (keyLower === 'bossheight') {
+      const parts = value.split(',').map((s) => parseInt(s.trim(), 10))
+      if (parts.length === 2 && !parts.some(Number.isNaN)) {
+        params.boss.arena.minHeight = parts[0]
+        params.boss.arena.maxHeight = parts[1]
+      } else {
+        result.unknownKeys.push(key)
+      }
+      continue
+    }
+    if (keyLower === 'bosspool') {
+      params.boss.arena.bossPool = value.split(',').map((s) => s.trim()).filter((s) => s !== '')
+      continue
+    }
+    if (keyLower === 'bosscover') {
+      const parts = value.split(',').map((s) => s.trim())
+      if (parts.length >= 1) params.boss.arena.cover.pattern = parts[0] as BossOptions['arena']['cover']['pattern']
+      if (parts.length >= 2) params.boss.arena.cover.density = parseFloat(parts[1])
+      if (parts.length >= 3) params.boss.arena.cover.ringSpacing = parseInt(parts[2], 10)
+      if (parts.length >= 4) params.boss.arena.cover.clusters = parseInt(parts[3], 10)
+      continue
+    }
+    const waveMatch = keyLower.match(/^bosswave(\d)$/)
+    if (waveMatch) {
+      const idx = parseInt(waveMatch[1], 10) - 1
+      if (idx >= 0 && idx < 4) {
+        const parts = value.split('|').map((s) => s.trim())
+        if (parts.length >= 1) params.boss.arena.waves[idx].monsters = parts[0].split(',').map((s) => s.trim()).filter((s) => s !== '')
+        if (parts.length >= 2) params.boss.arena.waves[idx].defaultIntervalMs = parseInt(parts[1], 10)
+      } else {
+        result.unknownKeys.push(key)
       }
       continue
     }
@@ -265,6 +334,22 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
   lines.push(`lobby=${params.lobby.enabled ? 1 : 0}`)
   lines.push(`lobbyGold=${params.lobby.startingGold}`)
   lines.push(`lobbyShops=${params.lobby.shopCategories.join(' ')}`)
+
+  // Add boss params after the lobby params
+  lines.push(`boss=${params.boss.enabled ? 1 : 0}`)
+  lines.push(`bossgold=${params.boss.prep.startingGold}`)
+  lines.push(`bossshops=${params.boss.prep.shopCategories.join(' ')}`)
+  lines.push(`bosstheme=${params.boss.arena.theme}`)
+  lines.push(`bosswidth=${params.boss.arena.minWidth},${params.boss.arena.maxWidth}`)
+  lines.push(`bossheight=${params.boss.arena.minHeight},${params.boss.arena.maxHeight}`)
+  lines.push(`bosspool=${params.boss.arena.bossPool.join(',')}`)
+  lines.push(
+    `bosscover=${params.boss.arena.cover.pattern},${params.boss.arena.cover.density},${params.boss.arena.cover.ringSpacing},${params.boss.arena.cover.clusters}`
+  )
+  for (let i = 0; i < params.boss.arena.waves.length; i++) {
+    const wave = params.boss.arena.waves[i]
+    lines.push(`bosswave${i + 1}=${wave.monsters.join(',')}|${wave.defaultIntervalMs}`)
+  }
 
   return lines.join('\r\n') + '\r\n'
 }

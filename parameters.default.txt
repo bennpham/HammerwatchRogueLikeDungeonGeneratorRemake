@@ -35,6 +35,26 @@ lockFinalRoom=1
 lobby=1
 lobbyGold=10000
 lobbyShops=combo1 combo2 combo3 combo4 combo5 def1 def2 def3 def4 def5 misc1 misc2 misc3 misc4 misc5 off1 off2 off3 off4 off5
+# Boss fight after the last dungeon floor: 1 = a shop room (prep) then a
+# generated arena with a boss, 0 = campaign ends on the final floor as before.
+# bossgold is a multiple of 500 (one red diamond each). bossshops is the
+# space-separated shop columns the prep stalls sell. bosswidth/bossheight are
+# the arena's min,max in tiles. bosspool is the comma-separated boss ids from
+# the seven (boss_anubis boss_dragon boss_knight boss_krilith boss_lich
+# boss_queen boss_worm). bosscover is pattern,density,ringSpacing,clusters.
+# bosswave1..4 is monsters|intervalMs per tier (100/75/50/25).
+# boss=1
+# bossgold=0
+# bossshops=combo1 combo2 combo3 combo4 combo5 def1 def2 def3 def4 def5 misc1 misc2 misc3 misc4 misc5 off1 off2 off3 off4 off5 power
+# bosstheme=g
+# bosswidth=24,32
+# bossheight=32,44
+# bosspool=boss_anubis,boss_dragon,boss_knight,boss_krilith,boss_lich,boss_queen,boss_worm
+# bosscover=random,0.5,4,3
+# bosswave1=bat1,tick1,maggot|4000
+# bosswave2=skeleton1,archer1,slime|3000
+# bosswave3=eye,wisp1,lich|2000
+# bosswave4=skeleton2,archer2,wisp2|1000
 monsters0=bat1,tick1,maggot,tower_flower1_small
 monsters1=maggot,slime,skeleton1,archer1
 monsters2=eye,wisp1,lich,tower_nova1

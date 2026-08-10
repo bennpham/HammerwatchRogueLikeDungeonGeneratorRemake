@@ -1,6 +1,6 @@
 import { XMLDictionary, XMLFloat, XMLInt, XMLIntArray, XMLString } from '../xml'
 import { ScriptNode } from './scriptNode'
-import { DoodadTypeName } from './doodad'
+import { Doodad, DoodadTypeName } from './doodad'
 import type { GenerationContext } from '../core/context'
 import type { Item } from './item'
 
@@ -207,6 +207,50 @@ export class NodeRectangleShape extends ScriptNode {
     d.addData(new XMLFloat('w', this.width))
     d.addData(new XMLFloat('h', this.height))
     d.addData(new XMLInt('types', this.types))
+    return d
+  }
+}
+
+/** Spawns one actor per incoming trigger at its own position. */
+export class NodeSpawnObject extends ScriptNode {
+  constructor(ctx: GenerationContext, x: number, y: number, public actorPath: string) {
+    super(ctx, x, y, 'SpawnObject')
+  }
+  protected getParametersXML(): string {
+    return new XMLString('parameters', this.actorPath).getXML()
+  }
+}
+
+/** Listens for an engine-wide event, e.g. "Boss 50%" or "Boss Died". */
+export class NodeGlobalEventTrigger extends ScriptNode {
+  constructor(ctx: GenerationContext, x: number, y: number, public eventName: string) {
+    super(ctx, x, y, 'GlobalEventTrigger')
+  }
+  protected getParametersXML(): string {
+    return new XMLString('parameters', this.eventName).getXML()
+  }
+}
+
+/** Fires every `intervalMs`. Ships disabled; a ToggleElement{state:0} starts it. */
+export class NodeTimerTrigger extends ScriptNode {
+  constructor(ctx: GenerationContext, x: number, y: number, public intervalMs: number) {
+    super(ctx, x, y, 'TimerTrigger')
+    this.enabled = false
+  }
+  protected getParametersXML(): string {
+    return new XMLInt('parameters', this.intervalMs).getXML()
+  }
+}
+
+/** Destroys doodads by id. Note: the id array sits DIRECTLY under
+ *  `parameters`, with no `object`/`element` wrapper dict — unlike
+ *  ObjectEventTrigger and ToggleElement. [VERIFIED] 2026-08-10 */
+export class NodeDestroyObject extends ScriptNode {
+  targets: Doodad[] = []
+  connectDoodad(d: Doodad): void { this.targets.push(d) }
+  protected getParametersDict(): XMLDictionary {
+    const d = new XMLDictionary('parameters')
+    d.addData(new XMLIntArray('static', this.targets.map((t) => t.id)))
     return d
   }
 }
