@@ -1,4 +1,4 @@
-import { BOSS_IDS, DungeonParameters, defaultParameters } from './parameters'
+import { DungeonParameters, defaultParameters } from './parameters'
 import type { BossOptions } from './parameters'
 import { MONSTER_TYPES } from '../objects/monsterTypes'
 import { isLobbyCategory } from '../lobby/shops'

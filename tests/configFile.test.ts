@@ -78,6 +78,51 @@ describe('parameters.txt parsing', () => {
     expect(parseParametersTxt('lockfinalroom=0').params.lockFinalRoom).toBe(false)
   })
 
+  it('round-trips the boss options', () => {
+    const original = defaultParameters()
+    original.boss.enabled = true
+    original.boss.prep.startingGold = 2500
+    original.boss.prep.shopCategories = ['misc1', 'power']
+    original.boss.arena.theme = 'h'
+    original.boss.arena.minWidth = 20
+    original.boss.arena.maxWidth = 40
+    original.boss.arena.minHeight = 24
+    original.boss.arena.maxHeight = 48
+    original.boss.arena.bossPool = ['boss_dragon', 'boss_queen']
+    original.boss.arena.cover = { pattern: 'ring', density: 0.6, ringSpacing: 5, clusters: 2 }
+    original.boss.arena.waves[0].defaultIntervalMs = 3500
+    original.boss.arena.waves[1].monsters = ['skeleton1', 'archer1']
+    original.boss.arena.waves[1].defaultIntervalMs = 2500
+
+    const text = serializeParametersTxt(original)
+    expect(text).toContain('boss=1')
+    expect(text).toContain('bossgold=2500')
+    expect(text).toContain('bossshops=misc1 power')
+    expect(text).toContain('bosstheme=h')
+    expect(text).toContain('bosswidth=20,40')
+    expect(text).toContain('bossheight=24,48')
+    expect(text).toContain('bosspool=boss_dragon,boss_queen')
+    expect(text).toContain('bosscover=ring,0.6,5,2')
+    expect(text).toContain('bosswave1=bat1,tick1,maggot|3500')
+    expect(text).toContain('bosswave2=skeleton1,archer1|2500')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.params.boss.enabled).toBe(true)
+    expect(parsed.params.boss.prep.startingGold).toBe(2500)
+    expect(parsed.params.boss.prep.shopCategories).toEqual(['misc1', 'power'])
+    expect(parsed.params.boss.arena.theme).toBe('h')
+    expect(parsed.params.boss.arena.minWidth).toBe(20)
+    expect(parsed.params.boss.arena.maxWidth).toBe(40)
+    expect(parsed.params.boss.arena.minHeight).toBe(24)
+    expect(parsed.params.boss.arena.maxHeight).toBe(48)
+    expect(parsed.params.boss.arena.bossPool).toEqual(['boss_dragon', 'boss_queen'])
+    expect(parsed.params.boss.arena.cover).toEqual({ pattern: 'ring', density: 0.6, ringSpacing: 5, clusters: 2 })
+    expect(parsed.params.boss.arena.waves[0].defaultIntervalMs).toBe(3500)
+    expect(parsed.params.boss.arena.waves[1].monsters).toEqual(['skeleton1', 'archer1'])
+    expect(parsed.params.boss.arena.waves[1].defaultIntervalMs).toBe(2500)
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
   it('writes no player.* lines when nothing was tweaked', () => {
     const text = serializeParametersTxt(defaultParameters())
     expect(text).not.toContain('player.')

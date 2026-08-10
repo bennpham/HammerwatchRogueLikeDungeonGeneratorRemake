@@ -270,3 +270,100 @@ describe('lobby validation', () => {
     expect(lobbyWarnings[0].message).toContain('Power')
   })
 })
+
+describe('boss validation', () => {
+  const withBoss = (patch: Partial<ReturnType<typeof defaultParameters>['boss']>) => {
+    const p = defaultParameters()
+    p.boss = { ...p.boss, ...patch }
+    return validateParameters(p)
+  }
+
+  it('accepts the default boss options', () => {
+    const result = withBoss({})
+    expect(result.errors).toEqual([])
+    expect(result.valid).toBe(true)
+  })
+
+  it('rejects min > max on either axis', () => {
+    const result = withBoss({
+      arena: { ...defaultParameters().boss.arena, minWidth: 40, maxWidth: 20 }
+    })
+    expect(fieldsOf(result.errors)).toContain('boss.arena.minWidth')
+  })
+
+  it('rejects arenas too small for the biggest boss + alcove + anchors', () => {
+    const tooNarrow = withBoss({
+      arena: { ...defaultParameters().boss.arena, minWidth: 10, maxWidth: 12 }
+    })
+    expect(fieldsOf(tooNarrow.errors)).toContain('boss.arena.minWidth')
+
+    const tooShort = withBoss({
+      arena: { ...defaultParameters().boss.arena, minHeight: 10, maxHeight: 12 }
+    })
+    expect(fieldsOf(tooShort.errors)).toContain('boss.arena.minHeight')
+  })
+
+  it('rejects an empty boss pool', () => {
+    const result = withBoss({
+      arena: { ...defaultParameters().boss.arena, bossPool: [] }
+    })
+    expect(fieldsOf(result.errors)).toContain('boss.arena.bossPool')
+  })
+
+  it('rejects an unknown boss id in the pool', () => {
+    const result = withBoss({
+      arena: { ...defaultParameters().boss.arena, bossPool: ['boss_dragon', 'boss_bogus'] }
+    })
+    expect(fieldsOf(result.errors)).toContain('boss.arena.bossPool')
+  })
+
+  it('rejects a wave count other than 4', () => {
+    const result = withBoss({
+      arena: { ...defaultParameters().boss.arena, waves: defaultParameters().boss.arena.waves.slice(0, 3) }
+    })
+    expect(fieldsOf(result.errors)).toContain('boss.arena.waves')
+  })
+
+  it('rejects spawn intervals outside 100..60000', () => {
+    const waves = defaultParameters().boss.arena.waves
+    waves[0].defaultIntervalMs = 50
+    const result = withBoss({ arena: { ...defaultParameters().boss.arena, waves } })
+    expect(fieldsOf(result.errors)).toContain('boss.arena.waves')
+  })
+
+  it('rejects an unknown monster in a wave pool', () => {
+    const waves = defaultParameters().boss.arena.waves
+    waves[1].monsters = ['skeleton1', 'dragon']
+    const result = withBoss({ arena: { ...defaultParameters().boss.arena, waves } })
+    expect(fieldsOf(result.errors)).toContain('boss.arena.waves')
+  })
+
+  it('warns (without blocking) on an empty wave monster pool', () => {
+    const waves = defaultParameters().boss.arena.waves
+    waves[2].monsters = []
+    const result = withBoss({ arena: { ...defaultParameters().boss.arena, waves } })
+    expect(result.valid).toBe(true)
+    expect(fieldsOf(result.warnings)).toContain('boss.arena.waves')
+  })
+
+  it('rejects an unknown arena theme', () => {
+    const result = withBoss({
+      arena: { ...defaultParameters().boss.arena, theme: 'z' }
+    })
+    expect(fieldsOf(result.errors)).toContain('boss.arena.theme')
+  })
+
+  it('rejects starting gold that is not a multiple of 500', () => {
+    const result = withBoss({ prep: { ...defaultParameters().boss.prep, startingGold: 750 } })
+    expect(result.valid).toBe(false)
+    expect(fieldsOf(result.errors)).toContain('boss.prep.startingGold')
+  })
+
+  it('warns (without blocking) when cover density is too high', () => {
+    const result = withBoss({
+      arena: { ...defaultParameters().boss.arena, cover: { ...defaultParameters().boss.arena.cover, density: 0.95 } }
+    })
+    expect(result.valid).toBe(true)
+    expect(fieldsOf(result.warnings)).toContain('boss.arena.cover')
+  })
+})
