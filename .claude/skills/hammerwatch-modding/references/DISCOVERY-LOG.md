@@ -8,6 +8,97 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-10 — boss global events fire for a bare boss actor in any level
+**Tag:** [VERIFIED] (Windows install, scratch level authored in the editor)
+**Context:** `docs/plans/boss-tab.md` research item R2 — the single biggest risk
+in the boss-arena design was that `Boss 75%` / `Boss Died` might be emitted by
+the shipped boss levels' own scripts rather than by the boss actor.
+**Evidence:** `editor/pht6_quiky_dreadmann_mansion/levels/test_non_related_to_map/test_break_alcove_finish.xml`
+places `actors/boss_queen/boss_queen.xml` in `<actors>` with no rig of its own,
+plus one node:
+```xml
+<int name="id">84</int>
+<string name="type">GlobalEventTrigger</string>
+<int name="trigger-times">-1</int>
+<string name="parameters">Boss Died</string>
+<int-arr name="connections">85</int-arr>
+```
+Killing the queen fired the trigger. Note `parameters` is a **bare
+`<string>` scalar**, not a dictionary.
+**Impact:** No `ObjectEventTrigger`+`Counter` fallback is needed. Boss health
+events are usable as generic level scripting. `src/generator/objects/scriptNode.ts`
+needs an overridable `getParametersXML()` so a node can emit a scalar instead of
+a `<dictionary name="parameters">`.
+
+### 2026-08-10 — `DestroyObject` on wall doodads opens a genuinely walkable hole
+**Tag:** [VERIFIED] (same scratch level, walked through in game)
+**Context:** `boss-tab.md` R1 — the boss arena's win condition seals the orb in
+an alcove and opens it on `Boss Died`, deliberately avoiding a gold door (a key
+carried out of the last dungeon floor would open it early).
+**Evidence:** In `test_break_alcove_finish.xml`, node 85:
+```xml
+<string name="type">DestroyObject</string>
+<dictionary name="parameters">
+  <int-arr name="static">1 54 2</int-arr>
+</dictionary>
+```
+The id array sits **directly** under `parameters` — no `object`/`element`
+wrapper dict, unlike `ObjectEventTrigger` and `ToggleElement`. Ids 1/54/2 are
+`doodads/theme_a/a_h_16.xml` wall segments at `(-4,-9)`, `(-2,-9)`, `(0,-9)`.
+After the queen died they vanished and the gap was walkable.
+Two constraints the same file reveals:
+- Those three doodads are the **only** ones in the file carrying
+  `<bool name="need-sync">True</bool>`; all 50-odd others are `False`. Emit
+  `need-sync=True` for anything a `DestroyObject` targets.
+- The alcove interior is authored as **real floor tiles** in the `<tilemap>`.
+  Collision came from the doodads alone, but the floor had to be there already —
+  destroying doodads does not create ground.
+**Impact:** Design confirmed; `HideObject`/`ToggleElement` were not needed. The
+arena generator must carve alcove floor tiles up front and seal the mouth with
+`need-sync=True` wall doodads.
+
+### 2026-08-10 — `SpawnObject` fires once per trigger; endless spawning needs `TimerTrigger`
+**Tag:** [VERIFIED] (scratch level `test_spawner_spam.xml`, same install)
+**Context:** `boss-tab.md` R3. The design assumed `trigger-times: -1` on a
+`SpawnObject` meant "spawn endlessly". It does not.
+**Evidence:** A bare `SpawnObject` spawns exactly one actor per incoming trigger
+signal. `test_spawner_spam.xml` gets a continuous stream by putting a
+`TimerTrigger` in front:
+```xml
+<string name="type">TimerTrigger</string>
+<bool name="enabled">False</bool>
+<int name="trigger-times">-1</int>
+<int name="parameters">1000</int>        <!-- bare int, milliseconds -->
+<int-arr name="connections">96 97 98</int-arr>
+```
+turned on by `GlobalEventTrigger "Boss 50%"` → `ToggleElement{state: 0}` →
+timer. `state: 0` = enable, consistent with `NodeToggleElement.state = 1 //
+disable` in `src/generator/objects/nodes.ts`. `SpawnObject` itself:
+```xml
+<string name="type">SpawnObject</string>
+<int name="trigger-times">-1</int>
+<vec2 name="pos">-3 -7</vec2>
+<string name="parameters">actors/bat_2.xml</string>
+```
+— no placement dict; the spawn position **is** the node position and
+`trigger-times` is a **lifetime budget** (how many spawns remain), not a rate.
+**Impact:** `TimerTrigger` is a required new node type (bare-int parameters).
+The `boss-tab.md` wave rig was redesigned around
+`trigger → ToggleElement(state 0) → TimerTrigger(intervalMs) → SpawnObject×N`,
+and the Boss tab gained a per-monster spawn-interval parameter.
+
+### 2026-08-10 — solid pillar doodads confirmed blocking
+**Tag:** [VERIFIED] (`test_break_alcove_finish.xml`)
+**Context:** `boss-tab.md` R8 — arena cover must actually block, and most
+`*_deco_pillar_*.xml` files carry no collider.
+**Evidence:** `doodads/theme_a/a_special_pillar.xml`,
+`doodads/theme_c/c_special_pillar.xml`, `doodads/theme_h/h_deco_rock.xml` and
+`doodads/theme_bonus1/bonus1_pillar.xml` were all placed and all blocked both
+movement and projectiles.
+**Impact:** The `Pillar` `DoodadType` mapping in the boss plan stands:
+`*_special_pillar` for themes a–g/i, `h_deco_rock` for theme h,
+`bonusN_pillar` for the bonus themes. Promote to `ASSET-REGISTRY.md`.
+
 ## Entry format
 
 ```

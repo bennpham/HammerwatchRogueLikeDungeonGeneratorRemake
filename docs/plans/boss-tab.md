@@ -1,9 +1,9 @@
 # Boss tab — a pre-fight prep room and a generated boss arena
 
-> **Status: design only.** Nothing here is implemented yet. Nine facts the
-> design rests on are still unverified — see "Research needed" at the end.
-> R1 and R2 are load-bearing: if either comes back negative the win condition
-> and the wave wiring both need redesigning.
+> **Status: design complete, not implemented.** The nine open research items
+> this document shipped with have all been answered on a real install
+> (2026-08-10). Every mechanic below is verified in game except where the text
+> says otherwise. See "Verified mechanics" for the evidence.
 
 ## Context
 
@@ -18,16 +18,57 @@ hand-authored. **Answer: both, split by role.** The prep room is hand-authored
 geometry); the arena is generated (one big themed rectangle with seeded cover),
 because that is what makes it replayable.
 
-Two things confirmed during research make the design possible:
+## Verified mechanics
 
-- The engine emits global events `Activate Boss`, `Boss 75%`, `Boss 50%`,
-  `Boss 25%` and `Boss Died`, verified in `editor/campaign/levels/level_boss_1..4.xml`
-  and `editor/campaign2/levels/level_boss_1..3.xml`. A `GlobalEventTrigger` node
-  whose `parameters` is the bare string `Boss 50%` listens for them.
-- `SpawnObject` needs no actor placement at all: `parameters` is a bare
-  `<string>` holding the actor path, the spawn position **is** the node's own
-  position, and the spawn count **is** its `trigger-times` (`-1` = endless).
-  Verified across 1462 such nodes in `test_yard2.xml`.
+Three scratch levels authored in the editor under
+`<Steam>/…/Hammerwatch/editor/pht6_quiky_dreadmann_mansion/levels/test_non_related_to_map/`
+settle everything the design rests on. Recorded in full in
+`.claude/skills/hammerwatch-modding/references/DISCOVERY-LOG.md` (2026-08-10).
+
+**`test_break_alcove_finish.xml`**
+
+- **Boss global events fire for a bare boss actor.** A plain
+  `actors/boss_queen/boss_queen.xml` in `<actors>`, with no rig of its own, plus
+  a single `GlobalEventTrigger` whose `parameters` is the bare string
+  `Boss Died`, is enough. The engine also emits `Activate Boss`, `Boss 75%`,
+  `Boss 50%`, `Boss 25%` (seen in `editor/campaign/levels/level_boss_1..4.xml`).
+  No `ObjectEventTrigger` + `Counter` fallback is needed.
+- **`DestroyObject` on wall doodads opens a walkable hole.** Its parameters are
+  `<dictionary name="parameters"><int-arr name="static">…</int-arr></dictionary>`
+  — the id array sits *directly* under `parameters`, with no `object`/`element`
+  wrapper dict, unlike `ObjectEventTrigger` and `ToggleElement`.
+- **Two constraints that fall out of it:** the destroyed doodads are the only
+  ones in the file carrying `<bool name="need-sync">True</bool>`, so anything a
+  `DestroyObject` targets must be emitted that way; and the alcove interior is
+  authored as **real floor tiles**. Collision comes from the doodads alone, but
+  destroying a doodad does not create ground — the floor has to be there first.
+- **Pillars block.** `a_special_pillar`, `c_special_pillar`, `h_deco_rock` and
+  `bonus1_pillar` all stop movement and projectiles.
+
+**`test_spawner_spam.xml`**
+
+- **`SpawnObject` needs no actor placement:** `parameters` is a bare `<string>`
+  holding the actor path and the spawn position **is** the node's own position.
+- **But it fires once per incoming trigger, not endlessly.** `trigger-times` is
+  a *lifetime budget* — how many spawns remain — not a rate. Continuous
+  spawning needs a `TimerTrigger` upstream, whose `parameters` is a **bare
+  `<int>`** of milliseconds and whose own `trigger-times: -1` means "repeat
+  forever". The timer ships `enabled=False` and is switched on by
+  `ToggleElement{state: 0}` (`0` = enable, matching
+  `NodeToggleElement.state = 1 // disable` in `src/generator/objects/nodes.ts`).
+
+**`test_boss_prep_room.xml`**
+
+- 42 `items/valuable_diamond_red.xml` slots authored (ids 3472–3513) — plenty
+  for the starting-gold scheme, read straight out by the importer.
+- Five `ShopArea` nodes at ids 3295 / 3297 / 3305 / 3307 / 3310 with the
+  identical `cats` strings and `CircleShape` ids the lobby uses.
+- `LevelExitArea` id 232 points `<string name="level">1</string>`; surgery
+  repoints it at `boss`.
+- Stock assets only — no campaign-local asset array is needed.
+
+The one thing still unverified is item 14 in "Verification": the new node types
+have only been observed in the *editor's* XML dialect. See §2.
 
 ## Decisions taken
 
@@ -41,7 +82,9 @@ Two things confirmed during research make the design possible:
 | Boss choice | Multi-select pool of all seven bosses; the seed picks one. |
 | Boss state | Live from level load. No dormancy, no `ToggleImmortality`. |
 | First wave | An `AreaTrigger` (`trigger-times -1`) over the entrance. Waves 2–4 use `GlobalEventTrigger` on `Boss 75%` / `Boss 50%` / `Boss 25%`. |
-| Wave config | Four tiers (100/75/50/25), each with **its own monster pool and its own per-monster max-count table**. A max count of `-1` means endless. |
+| Wave config | Four tiers (100/75/50/25), each with **its own monster pool, its own per-monster max-count table and its own spawn intervals**. A max count of `-1` means endless. |
+| Wave escalation | **Stacking.** Each tier switches its own spawner on and never switches the previous one off, so by 25% all four are running. A tier still burns out on its own once its `SpawnObject` budgets are spent. |
+| Spawn rate | **Per monster.** Each wave has a default interval; individual monsters can override it, because a miniboss wants a long interval where trash wants a short one. The override table lives behind an "Advanced" disclosure. |
 | Arena theme | One dropdown over the existing `THEME_DEFS` registry, independent of the dungeon's per-floor themes. |
 | Prep coins | Authored diamond slots reusing the lobby's 500-gold-per-diamond scheme, **default 0**. |
 | Cover patterns | All four ship: random scatter, border ring, gaussian clusters, symmetric/grid. |
@@ -71,26 +114,32 @@ lobby's is `lobby`: numeric floor ids `0..N-1` must not move.
 
 `src/generator/objects/scriptNode.ts` + `nodes.ts` gain these to `NodeTypeName`:
 
-| Node | Parameters shape | Notes |
+| Class | Node | Parameters shape |
 | --- | --- | --- |
-| `SpawnObject` | bare `<string>` = actor/item path | no `parameters` dict; count = `trigger-times`; position = node position |
-| `GlobalEventTrigger` | bare `<string>` = event name | `Boss 75%` / `Boss 50%` / `Boss 25%` / `Boss Died` |
-| `CircleShape` | `diameter` float, `types` int | for round trigger areas |
-| `AllPlayersAreaTrigger` | `shape` dict + `msg` string | used by the prep-room exit |
-| `PlaySound` | `sound`, `loop`, `play3d`, `range3d` | teleport feedback |
-| `DestroyObject` | `<int-arr name="static">` **directly** under `parameters`, no wrapper dict | punches the hole in the alcove wall |
+| `NodeSpawnObject` | `SpawnObject` | bare `<string>` = actor path; budget = `trigger-times`; position = node position |
+| `NodeGlobalEventTrigger` | `GlobalEventTrigger` | bare `<string>` = event name (`Boss 75%` / `Boss 50%` / `Boss 25%` / `Boss Died`) |
+| `NodeTimerTrigger` | `TimerTrigger` | bare `<int>` = interval in ms; ships `enabled=False` |
+| `NodeDestroyObject` | `DestroyObject` | `<int-arr name="static">` **directly** under `parameters`, no wrapper dict; `connectDoodad(d: Doodad)` collects ids |
 
-Two nodes carry a bare scalar instead of a `parameters` dictionary, which the
-current `ScriptNode.getXML()` cannot express — it always calls
-`getParametersDict()`. Add an overridable `getParametersXML(): string` that the
-default implementation delegates to `getParametersDict().getXML()`, so
-`SpawnObject` and `GlobalEventTrigger` can return `<string name="parameters">…</string>`.
+`CircleShape`, `AllPlayersAreaTrigger` and `PlaySound` are **not** needed. They
+only appear in the prep room, which is imported as a verbatim template string
+and edited by text surgery — it never instantiates node classes.
+
+Three of the four carry a bare scalar instead of a `parameters` dictionary,
+which the current `ScriptNode.getXML()` cannot express — it always calls
+`getParametersDict()` at
+[`scriptNode.ts:53`](../../src/generator/objects/scriptNode.ts). Add an
+overridable `getParametersXML(): string` whose default delegates to
+`getParametersDict().getXML()`, and call *that* from `getXML()`.
 
 **Format note:** the repo's `ScriptNode` emits `<float name="x">`/`<float name="y">`
 and `<int-arr name="delays">`, whereas the editor writes `<vec2 name="pos">` and
-`<int-arr name="connection-delays">`. The repo's dialect ships and works today, so
-new nodes follow the repo's dialect — not the editor's. (Confirm once in game for
-the new types; research item R7.)
+`<int-arr name="connection-delays">`. Generated campaigns shipping the repo's
+dialect are playable, so the engine's node reader clearly accepts it and new
+nodes inherit `getXML()` unchanged. This is the one assumption left unverified
+*for the new node types specifically*; if a generated `SpawnObject` or
+`TimerTrigger` turns out not to fire, overriding those four classes to
+`<vec2 name="pos">` is a contained fix that leaves existing seeds alone.
 
 ### 3. Prep room — `src/generator/bossprep/`
 
@@ -111,14 +160,17 @@ A direct clone of the `src/generator/lobby/` module shape:
   `CircleShape` ids (3294/3296/3304/3306/3309)** — only the positions differ.
   So `LOBBY_VENDORS` / `categoriesFor()` / `ALL_LOBBY_CATEGORIES` from
   `src/generator/lobby/shops.ts` are reused unchanged.
-- The prep room references `doodads/special/vendor_speech_level5.xml`, which the
-  lobby import already ships in `LOBBY_ASSETS`. Verify no *other* referenced
-  asset is missing (research item R6) before deciding whether a
-  `BOSSPREP_ASSETS` array is needed at all.
-- The exit rig at ids 228/231/232/229 is edited to point
-  `<string name="level">` at `boss`.
-- Its `<items>` section is empty in the source, so the diamond slots must be
-  authored by hand (research item R5).
+- The prep room references only stock assets, so **there is no `BOSSPREP_ASSETS`
+  array** — the generated `assets.ts` is empty and the importer's `--asset`
+  mode is unused.
+- The exit rig at ids 228 (`RectangleShape`) / 231 (`AllPlayersAreaTrigger`) /
+  232 (`LevelExitArea`) / 229 (`PlaySound`) is edited to point
+  `<string name="level">` at `boss` — id 232 currently reads `1`.
+- `<items>` now holds **42 authored `items/valuable_diamond_red.xml` slots**
+  (ids 3472–3513): flanking rows at `y = -13` and `y = -11`, a diagonal apron
+  either side of the walkway, and two columns at `x = ±3`. `deriveMeta()` reads
+  them in the same reading order it uses for the lobby, so `BOSSPREP_DIAMOND_SLOTS`
+  needs no hand-authoring.
 
 ### 4. Boss arena — `src/generator/boss/`
 
@@ -143,30 +195,52 @@ the same section order as `Level.getXML()`.
 - **Geometry**: one solid wall band around a rectangle sized
   `rand(minWidth..maxWidth) × rand(minHeight..maxHeight)`. Walls use the same
   `THEMED_WALL_PIECES` doodad set as the dungeon via `wallPattern.searchPatterns`,
-  which already handles theme H's edge-fence weirdness.
+  which already handles theme H's edge-fence weirdness. **The alcove interior is
+  laid as ordinary floor tiles in the tilemap from the start** — the three
+  doodads across its mouth are the only thing sealing it, and destroying a
+  doodad does not create ground. Those three are emitted with
+  `need-sync="True"`; every other doodad in the arena stays `False`.
 - **Boss placement**: `boss_dragon` goes in the top wall (it has no upward-facing
   art and `collision static="true"`; the shipped `level_boss_4.xml` places it at
   `-5 -26.5`). Every other boss goes dead-centre. `boss_queen` is also
   `static="true"` and has no movement dict at all, but attacks in all directions,
   so centre is correct for it.
 - **Spawn anchors**: 9 positions (N/S/E/W + 4 corners + centre), each inset from
-  the wall by the arena's padding. For a wave of total count `C` across monster
-  types, each `(monster, anchor)` pair gets one `SpawnObject` node with
-  `trigger-times` set to that monster's per-tier max, dispersed round-robin
-  across the anchors. `-1` passes straight through as endless.
-- **Wave wiring**:
-  - 100%: `RectangleShape` over the entrance → `AreaTrigger` (`event 0`,
-    `types 1`, `trigger-times -1`) → all of that tier's `SpawnObject` nodes.
-  - 75/50/25%: `GlobalEventTrigger` with `parameters` = `Boss 75%` etc. → that
-    tier's `SpawnObject` nodes.
+  the wall by the arena's padding.
+
+- **Wave wiring** (`src/generator/boss/waves.ts`). A `SpawnObject` emits one
+  actor per signal it receives, so every tier is driven by a timer:
+
+  ```
+  tier 100%  AreaTrigger(entrance RectangleShape, event 0, types 1) ─┐
+  tier  75%  GlobalEventTrigger "Boss 75%" ─────────────────────────┤
+  tier  50%  GlobalEventTrigger "Boss 50%" ─────────────────────────┼─> ToggleElement{state: 0}
+  tier  25%  GlobalEventTrigger "Boss 25%" ─────────────────────────┘            │
+                                                                                 v
+                       TimerTrigger(intervalMs, enabled=False, trigger-times -1)
+                                     — one per DISTINCT interval within the tier
+                                                                                 │
+                                                                                 v
+                       SpawnObject × (monster, anchor)
+                         parameters   = actor path
+                         trigger-times = that monster's budget share
+                         position      = the anchor
+  ```
+
+  - Monsters in a tier are **grouped by interval**, one `TimerTrigger` per
+    distinct value — so the common case, where every monster uses the wave
+    default, emits exactly one timer per tier.
+  - A monster's `monsterMax` is split round-robin across the 9 anchors;
+    `-1` passes through to every anchor unchanged as "endless".
+  - **Nothing ever disables a timer.** Waves stack: at 25% health all four
+    tiers are spawning, and a tier stops only when its `SpawnObject` budgets
+    are exhausted.
 - **Win**: `GlobalEventTrigger "Boss Died"` → `DestroyObject` listing the ids of
   the wall doodads sealing the alcove mouth → the wall opens → players collect
   the orb → the existing `Orb` `ObjectSet` fires `ObjectEventTrigger → GameEnd`.
   Reuse `ObjectSet.create(ctx, x, y, 'Orb', theme)` as-is; only the wall seal is
   new. **No lock, no key, no door** — the campaign hands out gold keys on the
   final dungeon floor and a carried-over key must not be able to open this.
-  This assumes wall collision in a packed level comes from the wall *doodads*
-  and not from the tilemap; that assumption is research item R1.
 - **Preview**: emit a `LevelPreview` with a single `PreviewRoom` so the canvas
   preview shows the arena alongside the dungeon floors with no renderer change.
 
@@ -213,8 +287,8 @@ export interface BossOptions {
   }
   arena: {
     theme: string              // default 'g'
-    minWidth: number; maxWidth: number
-    minHeight: number; maxHeight: number
+    minWidth: number; maxWidth: number    // default 24 / 32
+    minHeight: number; maxHeight: number  // default 32 / 44
     bossPool: string[]         // default all 7
     waves: BossWave[]          // exactly 4, in order 100 / 75 / 50 / 25
     cover: {
@@ -229,10 +303,19 @@ export interface BossOptions {
   }
 }
 export interface BossWave {
-  monsters: string[]                  // ids from MONSTER_TYPES
-  monsterMax: Record<string, number>  // -1 = endless
+  monsters: string[]                    // ids from MONSTER_TYPES
+  monsterMax: Record<string, number>    // -1 = endless
+  defaultIntervalMs: number             // 4000 / 3000 / 2000 / 1000 by tier
+  intervalMs?: Record<string, number>   // per-monster override ("Advanced")
 }
 ```
+
+Arena size defaults are deliberately generous — 24–32 × 32–44, against a hard
+floor of 14 × 18 (largest boss footprint + the 3×3 alcove + anchor insets).
+The real per-boss minimum is unknown; the author's own test arena is ~16 × 15
+and wanted roughly 1.5–2× on the Y axis. Validation only rejects genuinely
+broken input, so the numbers can be tuned in the UI after playtesting rather
+than guessed at in a table now.
 
 Note the Player-tab default divergence the user asked for: unlike the lobby,
 **`power` is on by default in the prep room's shop** — extra lives matter more
@@ -272,9 +355,12 @@ for, using the existing `Section` / `Subsection` / `NumberField` / `BoolField` /
 - *Chances & multipliers* — monster / gold / food only
 - *Theme* — one `<select>` over `THEME_DEFS` grouped by `ThemeDef.group`
 - *Boss* — checkbox grid of the 7 bosses (reuse the `MonsterFilterBar` idiom)
-- *Waves* — four `Subsection`s (100% / 75% / 50% / 25%), each a
-  `MonsterPoolsEditor`-style pool plus a `MonsterMaxTable`-style count table
-  accepting `-1`
+- *Waves* — four `Subsection`s (100% / 75% / 50% / 25%). Each has a monster
+  pool (`MonsterPoolsEditor` idiom), a max-count table accepting `-1`
+  (`MonsterMaxTable` idiom), and a single "spawn every N ms" field. An
+  **Advanced** disclosure inside the subsection reveals a per-monster interval
+  column that overrides the wave default — collapsed by default so the simple
+  case stays one field
 - *Cover* — pattern `ToggleGroup`, density slider, plus `ringSpacing` /
   `clusters` shown only for the patterns that use them
 
@@ -287,7 +373,7 @@ Add CSS alongside the existing `.lobby-*` block in
 - `docs/plans/boss-tab.md` *(this document — the deliverable of this task)*
 - `src/generator/levelTemplate/surgery.ts` — helpers lifted out of `lobby/build.ts`
 - `src/generator/bossprep/{template,build,index}.ts`
-- `src/generator/boss/{arena,cover,anchors,bosses,index}.ts`
+- `src/generator/boss/{arena,cover,anchors,bosses,waves,index}.ts`
 - `scripts/import-bossprep-assets.mjs`
 - `src/renderer/components/BossForm.tsx`
 - `tests/boss.test.ts`
@@ -300,7 +386,7 @@ Add CSS alongside the existing `.lobby-*` block in
 - `src/generator/lobby/build.ts` — re-export from the shared surgery module
 - `src/renderer/App.tsx`, `src/renderer/styles/app.css`
 - `parameters.default.txt`, `README.md`, `CHANGELOG.md`
-- `.claude/skills/hammerwatch-modding/references/DISCOVERY-LOG.md` — every fact confirmed by the research below
+- `.claude/skills/hammerwatch-modding/references/DISCOVERY-LOG.md` — done 2026-08-10; promote the pillar paths into `ASSET-REGISTRY.md` next
 
 ## Verification
 
@@ -313,101 +399,47 @@ Offline (`npm run typecheck && npm test`):
    floor identical.
 3. Determinism: same params + same seed ⇒ `expect(a.files).toEqual(b.files)`.
 4. Arena invariants: exactly one boss actor; boss inside the walls; 9 anchors on
-   walkable floor; alcove never on the N wall when the boss is the dragon; no
-   pillar overlaps an anchor, the boss, the entrance or the alcove.
-5. Script graph: every `connections` id resolves to a real node; all ids unique
+   walkable floor; alcove never on the N wall when the boss is the dragon;
+   alcove interior is floor tiles; its three sealing doodads are `need-sync=True`
+   and their ids are exactly the `DestroyObject` array; no pillar overlaps an
+   anchor, the boss, the entrance or the alcove.
+5. Wave graph: each tier has ≥1 `TimerTrigger` shipping `enabled=False`, reached
+   from exactly one `ToggleElement{state: 0}`, itself reached from that tier's
+   trigger; every `SpawnObject` is downstream of some timer; a tier whose
+   monsters all use the wave default emits exactly one timer.
+6. Id integrity: every `connections` id resolves to a real node; all ids unique
    across doodads/actors/items/scripting (reuse `allIds(xml)` from
-   `tests/lobby.test.ts`); one `GlobalEventTrigger` per health tier.
-6. Validation matrix in `tests/validation.test.ts` for each new rule.
-7. `parameters.txt` round-trip in `tests/configFile.test.ts`.
+   `tests/lobby.test.ts`); one `GlobalEventTrigger` per health tier. Run
+   `badIntArray` over the arena too — it guards the LevelPacker empty-`int-arr`
+   crash.
+7. Validation matrix in `tests/validation.test.ts` for each new rule.
+8. `parameters.txt` round-trip in `tests/configFile.test.ts`.
 
 In game (required before merge):
 
-8. Pack and install; confirm both levels appear and the campaign is playable end
+9. Pack and install; confirm both levels appear and the campaign is playable end
    to end for at least two different bosses.
-9. Final dungeon floor: gold key still gates the room, the portal teleports to
-   the prep room.
-10. Prep room: all five stalls sell, `power` sells extra lives, exit teleports to
+10. Final dungeon floor: gold key still gates the room, the portal teleports to
+    the prep room.
+11. Prep room: all five stalls sell, `power` sells extra lives, exit teleports to
     the arena.
-11. Arena: entry fires wave 1; each health threshold fires its wave; killing the
-    boss punches the hole in the alcove wall; the orb ends the game. Also carry
-    a gold key in from the last floor and confirm it does **not** open the
-    alcove early.
-12. Run each of the four cover patterns once and eyeball that pillars are solid
+12. Arena: entry starts wave 1; each health threshold adds its wave *on top of*
+    the running ones; killing the boss punches the hole in the alcove wall; the
+    orb ends the game. Also carry a gold key in from the last floor and confirm
+    it does **not** open the alcove early.
+13. Run each of the four cover patterns once and eyeball that pillars are solid
     and the arena is navigable.
+14. **The one open assumption:** confirm a *generated* `SpawnObject` and
+    `TimerTrigger` — emitted in the repo's `<float name="x">` / `delays` dialect
+    rather than the editor's `<vec2 name="pos">` — actually fire. If they do
+    not, override those four node classes to the editor's dialect; existing
+    seeds are unaffected either way.
 
----
+## Deferred to post-1.0
 
-## Research needed from you before implementation
-
-These are the facts the design rests on that I could not confirm from files
-alone. Ordered by how much they'd cost to get wrong.
-
-**R1 — Does destroying wall doodads actually open a walkable hole?** *(blocks the win condition)*
-Build a scratch level with a sealed 3×3 alcove behind a normal themed wall, wire
-an `AreaTrigger` → `DestroyObject` listing those wall doodads' ids, and walk into
-it. Two things to report: (a) do the doodads disappear, and (b) **can you walk
-through the gap** — i.e. is collision coming from the doodads alone, or does the
-tilemap underneath still block? If the tilemap blocks too, the alcove floor has
-to be authored as floor tiles from the start with only the doodads sealing it,
-and I need to know that before writing the geometry code. Also worth comparing
-`DestroyObject` against `HideObject{state:1}` and `ToggleElement` in the same
-test — whichever leaves the cleanest hole wins.
-
-**R2 — Do the boss global events fire for a boss placed in an arbitrary level?**
-*(blocks waves 2–4 and the win condition)*
-This is the single biggest risk: the `Boss 75%` / `Boss Died` events may be
-emitted by the boss actor itself, or they may be authored by the shipped boss
-levels' own scripts. Blank level, one `boss_queen` in `<actors>`, plus four
-`GlobalEventTrigger` nodes (`Boss 75%`, `Boss 50%`, `Boss 25%`, `Boss Died`) each
-→ an `AnnounceText`. Damage it down and report which announcements appear.
-Repeat for `boss_dragon`. If they don't fire, the fallback is
-`ObjectEventTrigger{event:"Destroyed", object:<boss id>}` for death plus
-`{event:"Hit"}` + a `Counter` for thresholds — tell me and I'll redesign.
-
-**R3 — Does `SpawnObject` with `trigger-times: -1` spawn endlessly, and how fast?**
-One `AreaTrigger` → one `SpawnObject actors/bat_2.xml` with `trigger-times -1`.
-Does it spawn once per trigger fire, or continuously? At what rate? This decides
-whether `-1` in the UI means "endless" or has to mean something else.
-
-**R4 — Minimum arena size per boss.**
-Place each of the seven bosses in an empty square room and note the smallest
-room in which it behaves correctly (doesn't clip walls, can attack, players can
-kite). Also: for `boss_dragon`, open
-`editor/campaign/levels/level_boss_4.xml`, find the arena's top wall row, and
-tell me the dragon's y-offset from it — it sits at `-5 -26.5` and I need the
-delta, not the absolute.
-
-**R5 — Prep-room walkable floor, for the diamond slots.**
-Open `test_boss_prep_room.xml` in the editor and either (a) give me a rectangle
-of walkable floor tiles clear of the vendors at `y = 7` and the exit at
-`y = -13`, or (b) just place 12 `items/valuable_diamond_red.xml` where you'd want
-starting coins to lie and send me the saved file — I'll read the slots straight
-out of it, exactly as the lobby importer does.
-
-**R6 — Does the prep room reference any asset the lobby import didn't already ship?**
-It uses `doodads/special/vendor_speech_level5.xml` (already in `LOBBY_ASSETS`),
-`doodads/generic/exit_teleport_boss.xml`, `exit_teleport_boss_desert.xml`,
-`actors/boss_knight/statue_1..8.xml` and `doodads/theme_bonus4/*`. Pack a
-campaign containing only the prep room and confirm `LevelPacker.exe` resolves
-all of them from stock assets.
-
-**R7 — Do the new node types accept the repo's XML dialect?**
-The repo writes `<float name="x">` / `<float name="y">` / `<int-arr name="delays">`
-where the editor writes `<vec2 name="pos">` / `<int-arr name="connection-delays">`.
-That works today for the node types already shipping. Hand-edit one packed level
-so a `SpawnObject` and a `GlobalEventTrigger` use the repo's dialect and confirm
-they still fire — if not, all new nodes must override to the editor's dialect.
-
-**R8 — Which pillar doodads are solid, per theme.** *(nice to have — mostly
-readable from the asset files)*
-Drop `a_special_pillar`, `h_deco_rock` and `bonus1_pillar` into a test level and
-confirm they block movement and projectiles. I have the collision geometry from
-the XML but haven't watched anything walk into one.
-
-**R9 — Boss HP and pacing.** Recorded HP: dragon 15000, anubis 10000, lich 3500,
-knight 2500, queen 2500, worm 850/500. That is a 30× spread. Should the Boss tab
-expose an HP scaler (which would mean a new `tweak/` file or an actor override,
-i.e. custom assets — currently out of scope per `docs/plans/lobby-tab.md`), or do
-we accept that picking `worm` is a much shorter fight than picking `dragon`?
-Your call; it doesn't block anything else.
+Boss HP is not scaled or exposed. The recorded spread is 30× (dragon 15000,
+anubis 10000, lich 3500, knight 2500, queen 2500, worm 850/500), so picking the
+worm is a much shorter fight than picking the dragon — accepted. Rebalancing a
+boss would mean a custom actor, and custom actors, monsters and themes are all
+deliberately out of scope until after 1.0 (see `DISCOVERY-LOG.md` open question
+1b).
