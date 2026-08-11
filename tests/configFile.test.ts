@@ -92,34 +92,74 @@ describe('parameters.txt parsing', () => {
     original.boss.arena.cover = { pattern: 'ring', density: 0.6, ringSpacing: 5, clusters: 2 }
     original.boss.arena.waves[0].defaultIntervalMs = 3500
     original.boss.arena.waves[1].monsters = ['skeleton1', 'archer1']
+    original.boss.arena.waves[1].monsterMax = { skeleton1: 10, archer1: 10 }
     original.boss.arena.waves[1].defaultIntervalMs = 2500
 
     const text = serializeParametersTxt(original)
-    expect(text).toContain('boss=1')
-    expect(text).toContain('bossgold=2500')
-    expect(text).toContain('bossshops=misc1 power')
-    expect(text).toContain('bosstheme=h')
-    expect(text).toContain('bosswidth=20,40')
-    expect(text).toContain('bossheight=24,48')
-    expect(text).toContain('bosspool=boss_dragon,boss_queen')
-    expect(text).toContain('bosscover=ring,0.6,5,2')
-    expect(text).toContain('bosswave1=bat1,tick1,maggot|3500')
-    expect(text).toContain('bosswave2=skeleton1,archer1|2500')
+    // the wire contract: fixed camelCase keys, and the four-field wave encoding
+    expect(text).toContain('bossGold=2500')
+    expect(text).toContain('bossCover=ring,0.6,5,2')
+    expect(text).toContain('bossWave1=bat1,tick1,maggot|3500|bat1:10,tick1:10,maggot:10|')
 
     const parsed = parseParametersTxt(text)
-    expect(parsed.params.boss.enabled).toBe(true)
-    expect(parsed.params.boss.prep.startingGold).toBe(2500)
-    expect(parsed.params.boss.prep.shopCategories).toEqual(['misc1', 'power'])
-    expect(parsed.params.boss.arena.theme).toBe('h')
-    expect(parsed.params.boss.arena.minWidth).toBe(20)
-    expect(parsed.params.boss.arena.maxWidth).toBe(40)
-    expect(parsed.params.boss.arena.minHeight).toBe(24)
-    expect(parsed.params.boss.arena.maxHeight).toBe(48)
-    expect(parsed.params.boss.arena.bossPool).toEqual(['boss_dragon', 'boss_queen'])
-    expect(parsed.params.boss.arena.cover).toEqual({ pattern: 'ring', density: 0.6, ringSpacing: 5, clusters: 2 })
-    expect(parsed.params.boss.arena.waves[0].defaultIntervalMs).toBe(3500)
-    expect(parsed.params.boss.arena.waves[1].monsters).toEqual(['skeleton1', 'archer1'])
-    expect(parsed.params.boss.arena.waves[1].defaultIntervalMs).toBe(2500)
+    // whole-struct comparison, not a dozen field asserts — this is what
+    // actually catches a lossy field, since the two-field encoding could
+    // round-trip the individually-checked fields while silently dropping
+    // monsterMax and intervalMs
+    expect(parsed.params.boss).toEqual(original.boss)
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('round-trips per-monster interval overrides and a -1 (endless) monsterMax', () => {
+    const original = defaultParameters()
+    original.boss.arena.waves[2].monsters = ['eye', 'wisp1']
+    original.boss.arena.waves[2].monsterMax = { eye: -1, wisp1: 5 }
+    original.boss.arena.waves[2].intervalMs = { eye: 8000 }
+
+    const parsed = parseParametersTxt(serializeParametersTxt(original))
+    expect(parsed.params.boss).toEqual(original.boss)
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('rebuilds monsterMax from a user-chosen pool, leaving no undefined entries', () => {
+    const original = defaultParameters()
+    original.boss.arena.waves[0].monsters = ['bat1', 'tick1', 'maggot', 'slime']
+    original.boss.arena.waves[0].monsterMax = { bat1: 20, tick1: 5, maggot: 5, slime: 5 }
+
+    const parsed = parseParametersTxt(serializeParametersTxt(original))
+    for (const id of original.boss.arena.waves[0].monsters) {
+      expect(parsed.params.boss.arena.waves[0].monsterMax[id]).not.toBeUndefined()
+    }
+    expect(parsed.params.boss.arena.waves[0].monsterMax).toEqual(original.boss.arena.waves[0].monsterMax)
+  })
+
+  it('still parses the legacy two-field bosswave form', () => {
+    const parsed = parseParametersTxt('bosswave1=bat1|4000\n')
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.boss.arena.waves[0].monsters).toEqual(['bat1'])
+    expect(parsed.params.boss.arena.waves[0].defaultIntervalMs).toBe(4000)
+    // rebuilt from the pool, not left stale or undefined
+    expect(parsed.params.boss.arena.waves[0].monsterMax).toEqual({ bat1: 10 })
+    expect(parsed.params.boss.arena.waves[0].intervalMs).toBeUndefined()
+  })
+
+  it('reports a malformed bosscover line without corrupting the defaults', () => {
+    const parsed = parseParametersTxt('bosscover=nonsense,abc,x,y\n')
+    expect(parsed.unknownKeys).toHaveLength(4)
+    expect(parsed.params.boss.arena.cover).toEqual(defaultParameters().boss.arena.cover)
+  })
+
+  it('reports an unrecognised boss key without throwing', () => {
+    const parsed = parseParametersTxt('bossNonsense=1\nlevels=4')
+    expect(parsed.params.levels).toBe(4)
+    expect(parsed.unknownKeys).toEqual(['bossNonsense'])
+  })
+
+  it('back-fills a default boss block when the base object predates the feature', () => {
+    const legacyBase = defaultParameters() as Partial<ReturnType<typeof defaultParameters>>
+    delete legacyBase.boss
+    const parsed = parseParametersTxt('levels=3\n', legacyBase as ReturnType<typeof defaultParameters>)
+    expect(parsed.params.boss).toEqual(defaultParameters().boss)
     expect(parsed.unknownKeys).toEqual([])
   })
 

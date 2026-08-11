@@ -18,8 +18,10 @@ export type NodeTypeName =
   | 'DestroyObject'
 
 /**
- * Base scripting node (ported from ScriptNode.java). Subclasses override
- * getParametersDict() to emit their type-specific parameters block.
+ * Base scripting node (ported from ScriptNode.java). Most subclasses override
+ * getParametersDict() to emit their type-specific `<dictionary name="parameters">`
+ * block; a few (SpawnObject, GlobalEventTrigger, TimerTrigger) carry a bare
+ * scalar instead and override getParametersXML() directly — see the seam below.
  */
 export class ScriptNode extends XMLObject {
   id: number

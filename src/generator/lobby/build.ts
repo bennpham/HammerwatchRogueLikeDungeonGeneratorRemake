@@ -8,7 +8,7 @@ import {
 import { LOBBY_VENDORS, categoriesFor } from './shops'
 import type { LobbyOptions } from '../config/parameters'
 import {
-  LOBBY_DIAMOND_VALUE,
+  DIAMOND_VALUE,
   diamondCount,
   removeElement,
   replaceInElement,
@@ -18,7 +18,10 @@ import {
 // re-exported so the lobby's public surface (and src/generator/index.ts, which
 // re-exports it) keeps importing them from ./lobby exactly as before the shared
 // surgery module existed
-export { LOBBY_DIAMOND_VALUE, diamondCount }
+export { diamondCount }
+
+/** The lobby's own name for the shared per-diamond value (see DIAMOND_VALUE). */
+export const LOBBY_DIAMOND_VALUE = DIAMOND_VALUE
 
 /**
  * The deepest stack of diamonds anyone has actually watched pay out: two per

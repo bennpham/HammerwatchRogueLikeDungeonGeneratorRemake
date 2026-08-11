@@ -6,6 +6,9 @@ import type { PlayerTweaks } from '../tweak/types'
 /** Ids of every theme the generator can emit — see themes.ts for the registry. */
 export const THEMES: readonly string[] = THEME_DEFS.map((t) => t.id)
 
+/** The four cover-placement patterns the arena's Boss tab offers. */
+export const BOSS_COVER_PATTERNS = ['random', 'ring', 'gaussian', 'symmetric'] as const
+
 /**
  * All knobs of the generator, ported from the modified Parameters.java.
  * Sizes are in tiles. `monsterMax` is keyed by monster id (see monsterTypes.ts).
@@ -102,7 +105,7 @@ export interface BossOptions {
     /** exactly 4 waves, in order 100 / 75 / 50 / 25 */
     waves: BossWave[]
     cover: {
-      pattern: 'random' | 'ring' | 'gaussian' | 'symmetric'
+      pattern: (typeof BOSS_COVER_PATTERNS)[number]
       density: number
       ringSpacing: number
       clusters: number
@@ -185,11 +188,14 @@ export function defaultBossOptions(): BossOptions {
   }
 }
 
+/** The stock per-monster max horde size a fresh wave starts every id at. */
+export const DEFAULT_WAVE_MONSTER_MAX = 10
+
 /** One wave whose monsters all use the shared interval, in nominal order. */
 function defaultWave(monsters: string[], defaultIntervalMs: number): BossWave {
   return {
     monsters,
-    monsterMax: Object.fromEntries(monsters.map((id) => [id, 10])),
+    monsterMax: Object.fromEntries(monsters.map((id) => [id, DEFAULT_WAVE_MONSTER_MAX])),
     defaultIntervalMs
   }
 }

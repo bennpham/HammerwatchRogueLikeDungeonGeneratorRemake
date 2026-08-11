@@ -8,8 +8,12 @@
  * failures name the level they came from.
  */
 
-/** Each red diamond is worth exactly this much (items/valuable_diamond_red.xml). */
-export const LOBBY_DIAMOND_VALUE = 500
+/**
+ * Each red diamond is worth exactly this much (items/valuable_diamond_red.xml).
+ * A property of the item, not of any one level — the lobby and the boss prep
+ * room both use it, under their own `*_DIAMOND_VALUE` names.
+ */
+export const DIAMOND_VALUE = 500
 
 /**
  * The span of the element whose id is `id`.
@@ -105,5 +109,5 @@ export function setItems(xml: string, body: string, label: string): string {
 
 /** How many diamonds a given amount of starting gold is worth. */
 export function diamondCount(startingGold: number): number {
-  return Math.max(0, Math.floor(startingGold / LOBBY_DIAMOND_VALUE))
+  return Math.max(0, Math.floor(startingGold / DIAMOND_VALUE))
 }

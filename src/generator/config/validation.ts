@@ -1,9 +1,11 @@
-import { BOSS_IDS, DungeonParameters, THEMES } from './parameters'
+import { BOSS_COVER_PATTERNS, BOSS_IDS, DungeonParameters, THEMES } from './parameters'
 import { getTheme } from './themes'
 import { isKnownMonsterId } from '../objects/monsterTypes'
 import { LOBBY_DIAMOND_VALUE, LOBBY_GOLD_MAX } from '../lobby/build'
 import { ALL_LOBBY_CATEGORIES, isLobbyCategory, lobbyCategoryCounts, vendorOfCategory } from '../lobby/shops'
 import { LOBBY_DIAMOND_SLOTS } from '../lobby/template'
+import { DIAMOND_VALUE } from '../levelTemplate/surgery'
+import { ARENA_MIN_HEIGHT, ARENA_MIN_WIDTH, freeFloorArea } from '../boss/geometry'
 import { TWEAK_BASELINE } from '../tweak/baseline'
 import { SHOP_PRICE_MAX } from '../tweak/bulk'
 import { SENTINELS, isDowngrade, improvesBy, paramKey } from '../tweak/chains'
@@ -273,9 +275,20 @@ function validateLobby(
 }
 
 /**
+ * The 42 authored prep-room diamond slots, two deep — same reasoning as
+ * LOBBY_GOLD_MAX (see BOSSPREP_DIAMOND_SLOTS.length in boss-tab.md §3, which
+ * Phase 4 pins this against once the template import lands).
+ */
+export const BOSS_GOLD_MAX = DIAMOND_VALUE * 42 * 2
+
+/**
  * The boss arena is generated geometry with its own validation rules — sizes,
  * pool completeness and interval bounds. Absent boss object means "off", not
  * "invalid", mirroring how validateLobby handles the lobby.
+ *
+ * Structured like validateLobby: a `before` snapshot, every error rule, a
+ * guard, then warnings — so a disabled boss or one with existing errors never
+ * accumulates warnings on top.
  */
 function validateBoss(
   p: DungeonParameters,
@@ -284,6 +297,7 @@ function validateBoss(
 ): void {
   const boss = p.boss
   if (boss === undefined) return
+  const before = errors.length
 
   const arena = boss.arena
 
@@ -296,11 +310,17 @@ function validateBoss(
   }
 
   // arena large enough for the biggest boss + 3×3 alcove + anchor insets
-  if (arena.minWidth < 14) {
-    errors.push({ field: 'boss.arena.minWidth', message: 'Arena width needs room for the boss, the alcove and the spawn anchors — minimum 14 tiles.' })
+  if (arena.minWidth < ARENA_MIN_WIDTH) {
+    errors.push({
+      field: 'boss.arena.minWidth',
+      message: `Arena width needs room for the boss, the alcove and the spawn anchors — minimum ${ARENA_MIN_WIDTH} tiles.`
+    })
   }
-  if (arena.minHeight < 18) {
-    errors.push({ field: 'boss.arena.minHeight', message: 'Arena height needs room for the boss, the alcove and the spawn anchors — minimum 18 tiles.' })
+  if (arena.minHeight < ARENA_MIN_HEIGHT) {
+    errors.push({
+      field: 'boss.arena.minHeight',
+      message: `Arena height needs room for the boss, the alcove and the spawn anchors — minimum ${ARENA_MIN_HEIGHT} tiles.`
+    })
   }
 
   // bossPool must not be empty
@@ -318,36 +338,43 @@ function validateBoss(
     errors.push({ field: 'boss.arena.waves', message: 'Exactly 4 waves are required (100/75/50/25).' })
   }
 
-  // interval bounds
-  const intervalFields: Array<{ field: string; ms: number }> = [
-    { field: 'boss.arena.waves', ms: arena.waves[0]?.defaultIntervalMs },
-    { field: 'boss.arena.waves', ms: arena.waves[1]?.defaultIntervalMs },
-    { field: 'boss.arena.waves', ms: arena.waves[2]?.defaultIntervalMs },
-    { field: 'boss.arena.waves', ms: arena.waves[3]?.defaultIntervalMs }
-  ]
-  for (const entry of intervalFields) {
-    if (entry.ms !== undefined && (!Number.isInteger(entry.ms) || entry.ms < 100 || entry.ms > 60000)) {
-      errors.push({ field: 'boss.arena.waves', message: 'Spawn interval must be between 100 and 60000 ms.' })
-      break
-    }
-  }
-
-  // per-wave monster pools checked
+  // per-wave errors, indexed by wave so a NumberField can anchor to the tier
+  // that is actually wrong — every wave is reported, not just the first
   for (let i = 0; i < arena.waves.length; i++) {
     const wave = arena.waves[i]
-    if (wave.monsters.length === 0) {
-      warnings.push({ field: `boss.arena.waves`, message: `Wave ${i + 1} has an empty monster pool — nothing will spawn at this tier.` })
+    const ms = wave.defaultIntervalMs
+    if (!Number.isInteger(ms) || ms < 100 || ms > 60000) {
+      errors.push({
+        field: `boss.arena.waves.${i}.defaultIntervalMs`,
+        message: 'Spawn interval must be between 100 and 60000 ms.'
+      })
     }
+
     for (const id of wave.monsters) {
       if (!isKnownMonsterId(id)) {
-        errors.push({ field: `boss.arena.waves`, message: `Wave ${i + 1} pool contains unknown monster "${id}".` })
+        errors.push({
+          field: `boss.arena.waves.${i}.monsters`,
+          message: `Wave ${i + 1} pool contains unknown monster "${id}".`
+        })
       }
     }
-    // per-monster intervals checked
+
+    for (const [id, max] of Object.entries(wave.monsterMax ?? {})) {
+      if (!Number.isInteger(max) || max < -1) {
+        errors.push({
+          field: `boss.arena.waves.${i}.monsterMax.${id}`,
+          message: `Max count for "${id}" in wave ${i + 1} must be a whole number ≥ -1 (-1 = endless).`
+        })
+      }
+    }
+
     if (wave.intervalMs) {
-      for (const [id, ms] of Object.entries(wave.intervalMs)) {
-        if (!Number.isInteger(ms) || ms < 100 || ms > 60000) {
-          errors.push({ field: `boss.arena.waves`, message: `Monster "${id}" in wave ${i + 1} has interval ${ms} — must be 100..60000.` })
+      for (const [id, overrideMs] of Object.entries(wave.intervalMs)) {
+        if (!Number.isInteger(overrideMs) || overrideMs < 100 || overrideMs > 60000) {
+          errors.push({
+            field: `boss.arena.waves.${i}.intervalMs.${id}`,
+            message: `Monster "${id}" in wave ${i + 1} has interval ${overrideMs} — must be 100..60000.`
+          })
         }
       }
     }
@@ -362,22 +389,73 @@ function validateBoss(
   const gold = boss.prep.startingGold
   if (!Number.isInteger(gold) || gold < 0) {
     errors.push({ field: 'boss.prep.startingGold', message: 'Starting gold must be a whole number ≥ 0.' })
-  } else if (gold % LOBBY_DIAMOND_VALUE !== 0) {
+  } else if (gold % DIAMOND_VALUE !== 0) {
     errors.push({
       field: 'boss.prep.startingGold',
-      message: `Starting gold must be a multiple of ${LOBBY_DIAMOND_VALUE}.`
+      message: `Starting gold must be a multiple of ${DIAMOND_VALUE} — each ${DIAMOND_VALUE} is one red diamond.`
+    })
+  } else if (gold > BOSS_GOLD_MAX) {
+    errors.push({
+      field: 'boss.prep.startingGold',
+      message: `Starting gold cannot exceed ${BOSS_GOLD_MAX} — that is 42 diamonds, two deep, mirroring LOBBY_GOLD_MAX.`
     })
   }
 
-  // cover density warning: past the free floor area
-  if (arena.cover.density > 0.8) {
+  // every prep shop column must be a real one
+  const unknownShop = boss.prep.shopCategories.filter((c) => !isLobbyCategory(c))
+  for (const id of [...new Set(unknownShop)].sort()) {
+    errors.push({
+      field: 'boss.prep.shopCategories',
+      message: `"${id}" is not a shop column. Valid columns: ${ALL_LOBBY_CATEGORIES.join(', ')}.`
+    })
+  }
+
+  // cover pattern and its numeric knobs
+  if (!(BOSS_COVER_PATTERNS as readonly string[]).includes(arena.cover.pattern)) {
+    errors.push({
+      field: 'boss.arena.cover.pattern',
+      message: `"${arena.cover.pattern}" is not one of: ${BOSS_COVER_PATTERNS.join(', ')}.`
+    })
+  }
+  if (!Number.isFinite(arena.cover.density) || arena.cover.density < 0 || arena.cover.density > 1) {
+    errors.push({ field: 'boss.arena.cover.density', message: 'Cover density must be between 0 and 1.' })
+  }
+  if (!Number.isInteger(arena.cover.ringSpacing) || arena.cover.ringSpacing < 1) {
+    errors.push({ field: 'boss.arena.cover.ringSpacing', message: 'Ring spacing must be a whole number ≥ 1.' })
+  }
+  if (!Number.isInteger(arena.cover.clusters) || arena.cover.clusters < 1) {
+    errors.push({ field: 'boss.arena.cover.clusters', message: 'Cluster count must be a whole number ≥ 1.' })
+  }
+
+  if (!boss.enabled || errors.length > before) return
+
+  // per-wave warnings, same indexing as the errors above
+  for (let i = 0; i < arena.waves.length; i++) {
+    if (arena.waves[i].monsters.length === 0) {
+      warnings.push({
+        field: `boss.arena.waves.${i}.monsters`,
+        message: `Wave ${i + 1} has an empty monster pool — nothing will spawn at this tier.`
+      })
+    }
+  }
+
+  // cover density warning, area-aware rather than a flat percentage: density
+  // scales coverPillarCount against the interior the same way it will once
+  // cover.ts exists, so warn only once that requested coverage would exceed
+  // the floor that is actually free at the arena's smallest allowed
+  // footprint, once the boss, the 9 anchors, the alcove and the entrance are
+  // excluded. Defaults (density 0.5 against a mostly-free arena) stay quiet;
+  // a density asking for more tiles than physically remain does not.
+  const interior = arena.minWidth * arena.minHeight
+  const free = freeFloorArea(arena.minWidth, arena.minHeight)
+  if (arena.cover.density * interior > free) {
     warnings.push({
-      field: 'boss.arena.cover',
-      message: 'Cover density above 80 percent may fill most of the arena floor, leaving little room to fight.'
+      field: 'boss.arena.cover.density',
+      message:
+        'This cover density may fill most or all of the arena floor that is actually free once the boss, ' +
+        'spawn anchors, alcove and entrance are excluded — consider lowering it or enlarging the arena.'
     })
   }
-
-  if (!boss.enabled || errors.length === 0) return
 }
 
 /**
