@@ -18,6 +18,7 @@ import {
 } from '../src/generator'
 import type { DungeonParameters, DungeonResult, LobbyOptions } from '../src/generator'
 import { LOBBY_ASSETS } from '../src/generator/lobby/assets'
+import { allIds, badIntArray } from './xmlHelpers'
 
 function generateOk(params: DungeonParameters, seed: number): DungeonResult {
   const result = generateDungeon(params, seed)
@@ -35,10 +36,6 @@ function lobbyXML(patch: Partial<LobbyOptions>): string {
   return buildLobby({ ...defaultParameters().lobby, ...patch })
 }
 
-/** Every `<int name="id">` in the file, element ids and nested params alike. */
-function allIds(xml: string): number[] {
-  return [...xml.matchAll(/<int name="id">(-?\d+)<\/int>/g)].map((m) => Number(m[1]))
-}
 
 describe('lobby — determinism', () => {
   // The single most important test in this file: the lobby must not touch
@@ -119,18 +116,6 @@ describe('lobby — campaign wiring', () => {
   // ([VERIFIED] 2026-07-31). This is the general form: any empty or
   // non-integer int-arr, in any emitted file, in any stall configuration.
   it('never emits an empty or non-integer int-arr, which LevelPacker cannot parse', () => {
-    // The first bad int-arr in `xml`, or null. Hand-rolled rather than one
-    // expect() per token: the tilemap arrays run to hundreds of thousands of
-    // integers apiece and the assertion overhead alone times the test out.
-    const badIntArray = (xml: string): string | null => {
-      for (const [, name, body] of xml.matchAll(/<int-arr name="([^"]*)">([^<]*)<\/int-arr>/g)) {
-        if (body === '') return `<int-arr name="${name}"> is empty`
-        const bad = body.split(' ').find((token) => !/^-?\d+$/.test(token))
-        if (bad !== undefined) return `<int-arr name="${name}"> holds "${bad}"`
-      }
-      return null
-    }
-
     // one full campaign covers the dungeon levels and the default lobby
     for (const file of generateOk(withLobby({ enabled: true, startingGold: LOBBY_GOLD_MAX }), 555).files) {
       if (file.encoding === 'base64') continue

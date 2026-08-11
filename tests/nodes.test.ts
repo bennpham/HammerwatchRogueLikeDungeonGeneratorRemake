@@ -3,20 +3,7 @@ import { GenerationContext } from '../src/generator/core/context'
 import { defaultParameters } from '../src/generator/config/parameters'
 import { Doodad } from '../src/generator/objects/doodad'
 import { NodeDestroyObject } from '../src/generator/objects/nodes'
-
-/**
- * The same hand-rolled scanner tests/lobby.test.ts uses to guard the
- * LevelPacker.exe empty-<int-arr> crash — reused rather than reinvented, per
- * the DestroyObject fix's own test list.
- */
-function badIntArray(xml: string): string | null {
-  for (const [, name, body] of xml.matchAll(/<int-arr name="([^"]*)">([^<]*)<\/int-arr>/g)) {
-    if (body === '') return `<int-arr name="${name}"> is empty`
-    const bad = body.split(' ').find((token) => !/^-?\d+$/.test(token))
-    if (bad !== undefined) return `<int-arr name="${name}"> holds "${bad}"`
-  }
-  return null
-}
+import { badIntArray } from './xmlHelpers'
 
 function newContext(): GenerationContext {
   return new GenerationContext(defaultParameters(), 1)

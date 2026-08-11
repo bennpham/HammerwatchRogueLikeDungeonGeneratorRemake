@@ -9,6 +9,7 @@ import { LOBBY_VENDORS, categoriesFor } from './shops'
 import type { LobbyOptions } from '../config/parameters'
 import {
   DIAMOND_VALUE,
+  diamondArray,
   diamondCount,
   removeElement,
   replaceInElement,
@@ -29,8 +30,6 @@ export const LOBBY_DIAMOND_VALUE = DIAMOND_VALUE
  * `startingGold` here rather than at a number nobody has stood on.
  */
 export const LOBBY_GOLD_MAX = LOBBY_DIAMOND_VALUE * LOBBY_DIAMOND_SLOTS.length * 2
-
-const DIAMOND_ITEM = 'items/valuable_diamond_red.xml'
 
 /**
  * The dungeon floor the lobby's teleport lands on.
@@ -89,29 +88,9 @@ export function buildLobby(options: LobbyOptions): string {
     'lobby'
   )
 
-  return setItems(xml, diamonds(options.startingGold), 'lobby')
-}
-
-/**
- * The diamonds, walking the authored slots round-robin so the 13th lands back
- * on slot 0 rather than somewhere outside the room. Ids come from a base above
- * anything the template uses, so they cannot collide with it.
- *
- * This is the level editor's own items dialect — one array per item type, each
- * entry an `<array>` of id and position — not the dictionary-per-element form
- * the rest of the file uses. At zero gold the whole array is left out rather
- * than emitted empty, for the same reason `<int-arr>`s are never left empty:
- * LevelPacker.exe parses what is inside them and throws on nothing
- * ([VERIFIED] 2026-07-31).
- */
-function diamonds(startingGold: number): string {
-  const count = diamondCount(startingGold)
-  if (count === 0) return '\n\t'
-
-  let entries = ''
-  for (let i = 0; i < count; i++) {
-    const [x, y] = LOBBY_DIAMOND_SLOTS[i % LOBBY_DIAMOND_SLOTS.length]
-    entries += `\t\t\t<array><int>${LOBBY_ITEM_ID_BASE + i}</int><vec2>${x} ${y}</vec2></array>\n`
-  }
-  return `\n\t\t<array name="${DIAMOND_ITEM}">\n${entries}\t\t</array>\n\t`
+  return setItems(
+    xml,
+    diamondArray(options.startingGold, LOBBY_DIAMOND_SLOTS, LOBBY_ITEM_ID_BASE),
+    'lobby'
+  )
 }

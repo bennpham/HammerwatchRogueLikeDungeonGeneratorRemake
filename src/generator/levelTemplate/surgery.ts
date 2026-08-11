@@ -111,3 +111,35 @@ export function setItems(xml: string, body: string, label: string): string {
 export function diamondCount(startingGold: number): number {
   return Math.max(0, Math.floor(startingGold / DIAMOND_VALUE))
 }
+
+/** The stock red diamond every template's starting gold is paid out in. */
+const DIAMOND_ITEM = 'items/valuable_diamond_red.xml'
+
+/**
+ * The `<items>` body paying `startingGold` out as diamonds, walking `slots`
+ * round-robin so gold past the authored slot count lands back on slot 0 rather
+ * than somewhere outside the room. Ids start at `itemIdBase`, which each
+ * template puts above anything it already uses so they cannot collide.
+ *
+ * This is the level editor's own items dialect — one array per item type, each
+ * entry an `<array>` of id and position — not the dictionary-per-element form
+ * the rest of the file uses. At zero gold the whole array is left out rather
+ * than emitted empty, for the same reason `<int-arr>`s are never left empty:
+ * LevelPacker.exe parses what is inside them and throws on nothing
+ * ([VERIFIED] 2026-07-31).
+ */
+export function diamondArray(
+  startingGold: number,
+  slots: readonly (readonly [number, number])[],
+  itemIdBase: number
+): string {
+  const count = diamondCount(startingGold)
+  if (count === 0) return '\n\t'
+
+  let entries = ''
+  for (let i = 0; i < count; i++) {
+    const [x, y] = slots[i % slots.length]
+    entries += `\t\t\t<array><int>${itemIdBase + i}</int><vec2>${x} ${y}</vec2></array>\n`
+  }
+  return `\n\t\t<array name="${DIAMOND_ITEM}">\n${entries}\t\t</array>\n\t`
+}
