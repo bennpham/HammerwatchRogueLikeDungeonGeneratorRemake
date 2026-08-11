@@ -8,6 +8,82 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-10 — exact boss footprints, read from each actor's own `<collision>` shape
+**Tag:** [VERIFIED] (real Steam install, `editor/assetsExtract/actors/boss_<name>/boss_<name>.xml`,
+boss-tab-handoff.md Phase 5b). Sharpens the 2026-08-08 entry below, which
+rounded to one decimal; this one records the exact source geometry.
+**Context:** `src/generator/boss/bosses.ts` needs a footprint per boss to
+reserve arena floor against (`geometry.ts`'s `BOSS_FOOTPRINT_AREA`) and to
+decide dragon-vs-everyone-else placement. Read all seven actor files directly
+rather than trusting the earlier rounded figures.
+**Evidence:** Two shapes appear across the seven files:
+- **Explicit `<collision>` child** (dragon, knight, lich, queen, worm) — a
+  `<circle radius="R" .../>` for four of them (dragon 34px, knight 10px, lich
+  8px, worm 19px; footprint = 2R/16 tiles, a circle so width == height), and
+  for queen two `<polygon>` blocks with no circle — footprint is the
+  axis-aligned bounding box of every `<point>` in both: x spans -43..38
+  (81px), y spans -33..50 (83px), i.e. **5.0625 x 5.1875 tiles**, the largest
+  of the seven (confirms/refines the "~5.1 x 5.2" figure already in
+  `boss-tab.md`).
+- **No `<collision>` child at all** (anubis, krilith) — the actor falls back
+  to the radius on the `<actor collision="N">` attribute itself: anubis
+  `collision="7"`, krilith `collision="3.5"`, both in px, so footprint =
+  2N/16 tiles (0.875 and 0.4375 tiles respectively). This is the same
+  attribute every ordinary monster and player actor also carries (e.g.
+  `bat_1.xml` is `collision="5"`, every player class is `collision="3.5"`),
+  so it reads as the engine's generic fallback hit-circle radius when an
+  actor doesn't author an explicit shape — not a boss-specific mechanism.
+- Confirmed placement data already in the 2026-08-08 entry against the actual
+  shipped level: `editor/campaign/levels/level_boss_4.xml` places
+  `actors/boss_dragon/boss_dragon.xml` at exactly `<vec2>-5 -26.5</vec2>`.
+**Impact:** `src/generator/boss/bosses.ts`'s `BOSS_DEFS` uses these exact
+px-derived fractions (not rounded) for `footprintWidth`/`footprintHeight`;
+`geometry.ts`'s `BOSS_FOOTPRINT_AREA` now reads `largestBossFootprintArea()`
+from that file instead of a hardcoded `5.1 * 5.2`, so the two can't drift.
+Promote to `ASSET-REGISTRY.md` once the arena phase (5c+) has placed a boss in
+a generated level and it renders/collides as expected in game.
+
+### 2026-08-10 — the boss prep room importer derives the handoff's known values exactly
+**Tag:** [VERIFIED] (real Steam install, `scripts/import-bossprep-assets.mjs --from
+"<HW>/editor/pht6_quiky_dreadmann_mansion" --level
+levels/test_non_related_to_map/test_boss_prep_room.xml`, boss-tab-handoff.md Phase 4)
+**Context:** Phase 4 asked for an importer that *derives*
+`BOSSPREP_TEMPLATE_IDS`, `BOSSPREP_EXIT_NODE_ID`, `BOSSPREP_DIAMOND_SLOTS` and
+`BOSSPREP_ITEM_ID_BASE` from the authored file rather than hardcoding the
+handoff's "known values", as a check on the derivation logic (cloned from
+`scripts/import-lobby-assets.mjs`'s `deriveMeta`).
+**Evidence:** Running the importer against the real file on disk produced,
+byte for byte:
+- `BOSSPREP_EXIT_NODE_ID = 232`, a `LevelExitArea` whose `<string
+  name="level">` read `1` before surgery.
+- Five `ShopArea` ids `3295`/`3297`/`3305`/`3307`/`3310` sitting on
+  `CircleShape` ids `3294`/`3296`/`3304`/`3306`/`3309` — same `cats` strings
+  and same shape id scheme the lobby's real template uses (see the
+  2026-07-31 lobby entries below), confirming `LOBBY_VENDORS` /
+  `categoriesFor()` reuse unchanged across both hand-authored rooms.
+- Exactly 42 distinct diamond slots, item ids `3472`–`3513`.
+- One extra top-level section, `<dictionary name="prefabs"></dictionary>`,
+  empty and otherwise unremarked — the editor writes it even when unused;
+  carried through verbatim since the template is opaque text.
+- Root section order in this file is tilemap → doodads → actors → items →
+  scripting → lighting, **not** `Level.getXML()`'s
+  tilemap/doodads/actors/scripting/items/lighting order. Harmless: nothing
+  reads the template as anything but opaque text located by element id.
+**Impact:** No hand-tuning was needed anywhere in the importer or in
+`src/generator/bossprep/build.ts` — the shared `cats`-prefix / vendor-doodad
+derivation, item-slot reading order and id-base allocation logic port from the
+lobby's importer unchanged. No `--asset` files were needed: every `type` /
+`tileset` / `sound` path the file references resolves under a stock prefix —
+`actors/boss_knight/`, `doodads/generic/`, `doodads/special/`,
+`doodads/theme_{bonus4,c,d,f}/`, `tilemaps/{bonus_5,f_default,f_frozen,
+g_default,water}.xml`, `sound/misc.xml`. The file is an editor scratch level
+that samples several themes' decoration at once (it is not what the shipped
+prep room looks like — `buildBossPrep` never touches decoration, only the
+four surgical edits), which is why the asset list is wider than the shop rig
+alone would suggest. None of these paths are re-verified against the game
+here — only that they are stock-looking paths, same evidence tier as every
+other `[EMITTED]` path in `ASSET-REGISTRY.md`.
+
 ### 2026-08-10 — boss global events fire for a bare boss actor in any level
 **Tag:** [VERIFIED] (Windows install, scratch level authored in the editor)
 **Context:** `docs/plans/boss-tab.md` research item R2 — the single biggest risk
