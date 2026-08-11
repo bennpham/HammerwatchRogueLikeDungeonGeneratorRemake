@@ -92,9 +92,16 @@ export class NodeLevelStart extends ScriptNode {
   }
 }
 
-/** Ported from NodeLevelExit.java — points at the next level's index. */
+/**
+ * Ported from NodeLevelExit.java — points at the next level's index.
+ *
+ * `level` defaults to the next numeric floor, matching the original, but also
+ * accepts the string ids the boss feature's extra levels use (`bossprep`,
+ * `boss`) — set it after construction, same shape as `NodeGlobalEventTrigger`'s
+ * bare-string parameter.
+ */
 export class NodeLevelExit extends ScriptNode {
-  level: number
+  level: number | string
   startId = 0
   shapeId = 0
 

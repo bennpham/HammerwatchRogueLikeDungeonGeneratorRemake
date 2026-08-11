@@ -15,7 +15,7 @@ import {
 } from './nodes'
 import type { GenerationContext } from '../core/context'
 
-export type SetTypeName = 'ExitUp' | 'ExitDn' | 'Shop' | 'Orb' | 'RestoreOrb'
+export type SetTypeName = 'ExitUp' | 'ExitDn' | 'Shop' | 'Orb' | 'RestoreOrb' | 'BossPortal'
 
 /**
  * A prefab group of doodads, items and script nodes — stair entrances/exits,
@@ -175,6 +175,31 @@ export class ObjectSet {
 
         this.scriptNodes.push(trigger)
         this.scriptNodes.push(textScript)
+
+        this.width = 1
+        this.height = 1
+        this.replaceWalls = false
+        break
+      }
+
+      case 'BossPortal': {
+        // Replaces 'Orb' at the same coordinates on the final dungeon floor
+        // when the boss feature is on, so it must match Orb's contract
+        // exactly: register exactly 3 ctx ids and draw nothing from either
+        // RNG stream. Room transforms run before wall rasterization and
+        // ctx.idCounter is one monotonic counter per level, so a mismatch
+        // here would shift every wall doodad id placed after it.
+        const shape = new NodeRectangleShape(ctx, x, y)
+        this.scriptNodes.push(shape)
+
+        // points at the prep room, not the next numeric floor — the boss
+        // fight sits between the last dungeon floor and the arena itself
+        const exit = new NodeLevelExit(ctx, x, y + 2)
+        exit.level = 'bossprep'
+        exit.connectToShape(shape)
+        this.scriptNodes.push(exit)
+
+        this.doodads.push(Doodad.create(ctx, x, y, 'ExitMarker', theme))
 
         this.width = 1
         this.height = 1

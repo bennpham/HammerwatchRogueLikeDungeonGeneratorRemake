@@ -38,7 +38,12 @@ export const DoodadType = {
   TDown: { path: 'doodads/theme_%s/%s_x_t_dn.xml', xOffset: 0, yOffset: 2, themeSubs: 2 },
   TUp: { path: 'doodads/theme_%s/%s_x_t_up.xml', xOffset: 0, yOffset: 1, themeSubs: 2 },
   TLeft: { path: 'doodads/theme_%s/%s_x_t_l.xml', xOffset: 0, yOffset: 1, themeSubs: 2 },
-  TRight: { path: 'doodads/theme_%s/%s_x_t_r.xml', xOffset: 0, yOffset: 1, themeSubs: 2 }
+  TRight: { path: 'doodads/theme_%s/%s_x_t_r.xml', xOffset: 0, yOffset: 1, themeSubs: 2 },
+  // free-standing arena cover, not a wall-band piece — the pattern matcher
+  // never places it. Default resolves correctly for the classic lettered
+  // themes (doodadToken === the theme id); theme h and the bonus themes
+  // override it in themes.ts because their filenames don't fit this template.
+  Pillar: { path: 'doodads/theme_%s/%s_special_pillar.xml', xOffset: 0, yOffset: 0, themeSubs: 2 }
 } as const satisfies Record<string, DoodadTypeDef>
 
 export type DoodadTypeName = keyof typeof DoodadType
@@ -82,6 +87,18 @@ export function doodadOffset(type: DoodadTypeName, theme: string): { x: number; 
 
 export class Doodad extends XMLObject {
   id: number
+  /**
+   * Whether this doodad must be network-synced. Stock doodads never need it
+   * (`false`), but a doodad that a `DestroyObject` node can later remove —
+   * the boss arena's alcove seals are the only current case — must be
+   * syncable so its destruction replicates ([VERIFIED] see boss-tab.md).
+   *
+   * A mutable field with a default, not a constructor parameter: `create` is
+   * called positionally from ~15 sites, and inserting a param there would
+   * silently mis-bind one of the existing arguments at every call site. A
+   * caller that needs `true` sets `seal.needSync = true` after construction.
+   */
+  needSync = false
 
   constructor(
     ctx: GenerationContext,
@@ -107,7 +124,7 @@ export class Doodad extends XMLObject {
     dict.addData(new XMLString('type', doodadPath(this.type, this.theme)))
     dict.addData(new XMLFloat('x', this.x + offset.x))
     dict.addData(new XMLFloat('y', this.y + offset.y))
-    dict.addData(new XMLBool('need-sync', false))
+    dict.addData(new XMLBool('need-sync', this.needSync))
     return dict.getXML()
   }
 }

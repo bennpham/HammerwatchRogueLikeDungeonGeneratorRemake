@@ -70,10 +70,12 @@ export interface ThemeDef {
 }
 
 /**
- * The wall pieces the pattern matcher places, i.e. every `themeSubs: 2` entry in
- * `DoodadType`. Listed literally rather than filtered off `DoodadType` to avoid a
- * runtime import cycle with doodad.ts; `themes.test.ts` asserts the two stay in
- * sync, so adding a themed piece without listing it here fails the suite.
+ * Every `themeSubs: 2` entry in `DoodadType` — the wall band pieces the pattern
+ * matcher places, plus `Pillar`, a free-standing arena cover piece that merely
+ * *shares* the two-substitution path template (`doodads/theme_<t>/<t>_*.xml`).
+ * Listed literally rather than filtered off `DoodadType` to avoid a runtime
+ * import cycle with doodad.ts; `themes.test.ts` asserts the two stay in sync,
+ * so adding a themeSubs:2 piece without listing it here fails the suite.
  */
 const THEMED_WALL_PIECES: readonly DoodadTypeName[] = [
   'CornerLD',
@@ -92,7 +94,8 @@ const THEMED_WALL_PIECES: readonly DoodadTypeName[] = [
   'TDown',
   'TUp',
   'TLeft',
-  'TRight'
+  'TRight',
+  'Pillar'
 ]
 
 function classic(id: string, tiles: number, group: string): ThemeDef {
@@ -128,6 +131,9 @@ function bonus(n: number, tiles: number, coverLetter: string): ThemeDef {
   doodadOverrides.ExitUp = { path: 'doodads/special/bonus_entrance.xml', xOffset: 0.25, yOffset: -1.25 }
   doodadOverrides.ExitDn = { path: 'doodads/special/bonus_exit.xml', xOffset: 0.25, yOffset: -1.25 }
   doodadOverrides.Cover = { path: `doodads/special/color_theme_${coverLetter}_16.xml` }
+  // the folder's pillar is `<t>_pillar.xml`, not `<t>_special_pillar.xml` — the
+  // classic themes' suffix, which the default DoodadType.Pillar template assumes
+  doodadOverrides.Pillar = { path: `doodads/theme_bonus${n}/bonus${n}_pillar.xml`, yOffset: 0 }
 
   return {
     id: `bonus${n}`,
@@ -258,6 +264,10 @@ function desertOutdoor(): ThemeDef {
   const entrance = { path: 'doodads/theme_h/h_pyramid_exit.xml', xOffset: 1.21875, yOffset: 0.25 }
   doodadOverrides.ExitUp = entrance
   doodadOverrides.ExitDn = entrance
+
+  // theme h ships no `h_special_pillar` — the only solid free-standing prop in
+  // the folder is this boulder, confirmed to carry a `<circle radius="18"/>`
+  doodadOverrides.Pillar = { path: 'doodads/theme_h/h_deco_rock.xml', yOffset: 0 }
 
   return {
     id: 'h',

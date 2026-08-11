@@ -67,6 +67,42 @@ describe('theme registry', () => {
   })
 })
 
+describe('doodad resolution matrix — regression guard for the Pillar addition', () => {
+  // Pillar is the highest-risk-of-silent-breakage change here: doodadPath and
+  // doodadOffset resolve every override by DoodadTypeName, so a mistyped key
+  // in themes.ts would repath an existing wall doodad across every level of
+  // that theme, and it would read as a diff-noise-free one-liner. Snapshotting
+  // every pre-existing (theme x DoodadTypeName) pair in the same commit that
+  // adds Pillar means any future edit that perturbs one of them — including
+  // this one, if it had been wrong — fails loudly instead of shipping quietly.
+  it('leaves every pre-existing DoodadTypeName unchanged for every theme', () => {
+    const matrix: Record<string, { path: string; offset: { x: number; y: number } }> = {}
+    for (const def of THEME_DEFS) {
+      for (const type of Object.keys(DoodadType) as DoodadTypeName[]) {
+        if (type === 'Pillar') continue // new in this change, not part of the "unchanged" guarantee
+        matrix[`${def.id}:${type}`] = {
+          path: doodadPath(type, def.id),
+          offset: doodadOffset(type, def.id)
+        }
+      }
+    }
+    expect(matrix).toMatchSnapshot()
+  })
+
+  it('resolves Pillar for every theme to a path that exists in the confirmed set', () => {
+    for (const def of THEME_DEFS) {
+      const path = doodadPath('Pillar', def.id)
+      if (def.id === 'h') {
+        expect(path).toBe('doodads/theme_h/h_deco_rock.xml')
+      } else if (def.id.startsWith('bonus')) {
+        expect(path).toBe(`doodads/theme_${def.id}/${def.id}_pillar.xml`)
+      } else {
+        expect(path).toBe(`doodads/theme_${def.id}/${def.id}_special_pillar.xml`)
+      }
+    }
+  })
+})
+
 describe('doodadOffset — the anchor compensation', () => {
   // DoodadType's offsets encode the classic art's <origin> y / 16. The bonus art
   // is anchored at 0 0, so reusing the classic offsets displaces the collision
