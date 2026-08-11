@@ -8,6 +8,36 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-11 — exact cover-pillar footprints, read from each pillar doodad's own collision shape
+**Tag:** [VERIFIED] (real Steam install,
+`editor/assetsExtract/doodads/theme_<t>/<t>_special_pillar.xml`,
+`doodads/theme_h/h_deco_rock.xml`, `doodads/theme_bonusN/bonusN_pillar.xml`;
+boss-tab-handoff.md Phase 5c). Sharpens the 2026-08-08 entry below, which only
+recorded "solid" for the classic pillars without a width/height; this one
+records the exact source geometry cover.ts's rejection filter uses.
+**Context:** `src/generator/boss/cover.ts`'s shared rejection filter needs a
+real per-theme pillar bounding box, not the `2x2` placeholder `geometry.ts`
+shipped with Phase 5a's `PILLAR_FOOTPRINT_AREA`.
+**Evidence:**
+- classic themes a,b,c,d,e,f,g,i — `<t>_special_pillar.xml`, one
+  `<polygon collision="true">` spanning x 0..16, y -24..16 (px). All eight are
+  byte-identical here. At 16px/tile that is **1.0 tile wide × 2.5 tiles tall**
+  — markedly taller than it is wide, unlike the other two shapes below.
+- theme h — `h_deco_rock.xml` (theme H's only cover asset),
+  `<collision><circle offset="-1 0" radius="18"/></collision>` => **2.25 ×
+  2.25 tiles**.
+- bonus1–5 — `bonusN_pillar.xml`, polygon x 0..16, y 0..16 => **1.0 × 1.0
+  tiles**, confirming the earlier "solid 1×1" note exactly.
+**Impact:** `geometry.ts` exports `pillarFootprint(theme)` returning these
+three shapes; `cover.ts` uses it for every placement's exact overlap test.
+`coverPillarCount`'s `PILLAR_FOOTPRINT_AREA` (which has no theme parameter —
+`validation.ts` and all four cover patterns share its signature) is now the
+*average* of the three real areas across all 14 themes (≈2.15 tiles²) rather
+than the placeholder `2×2`. Promote into `ASSET-REGISTRY.md` alongside the
+2026-08-10 pillar entry once a run confirms the asymmetric classic footprint
+in game (the width/height split hasn't been eyeballed in-engine yet, only read
+from the XML).
+
 ### 2026-08-10 — exact boss footprints, read from each actor's own `<collision>` shape
 **Tag:** [VERIFIED] (real Steam install, `editor/assetsExtract/actors/boss_<name>/boss_<name>.xml`,
 boss-tab-handoff.md Phase 5b). Sharpens the 2026-08-08 entry below, which

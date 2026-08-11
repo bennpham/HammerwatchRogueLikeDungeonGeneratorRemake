@@ -41,18 +41,40 @@ const ANCHOR_COUNT = 9
 const ENTRANCE_AREA = ENTRANCE_WIDTH * ENTRANCE_DEPTH
 
 /**
- * Tiles reserved per placed cover pillar, so pillars don't crowd each other.
- * The confirmed-solid pillar doodads (DISCOVERY-LOG.md, 2026-08-08) range
- * from a 1x1 bounding box (`bonusN_pillar.xml`) up to `*_special_pillar.xml`'s
- * collision polygon, which is 1 tile wide but ~2.5 tiles tall in its own
- * coordinate frame (a perspective artifact of its art, not a true 2.5-tile
- * ground footprint). This budget is a placement-spacing reservation for
- * cover.ts's attempt loop, not a hitbox — cover.ts still does exact overlap
- * checks against the real doodad polygon — so 2x2 stays a reasonable, slightly
- * generous estimate pending that phase. Not sourced from doodad.ts: that file
- * is out of this unit's scope (Pillar DoodadType lands in a sibling change).
+ * Real per-theme pillar footprint, in tiles, measured off the actual doodad
+ * collision shapes in `editor/assetsExtract/doodads/` on a real Hammerwatch
+ * install (verified 2026-08-11, DISCOVERY-LOG.md):
+ *
+ * - classic themes a,b,c,d,e,f,g,i — `<t>_special_pillar.xml`, a single
+ *   `<polygon collision="true">` spanning x 0..16, y -24..16 (px). All eight
+ *   are byte-identical here. 16px/tile => 1.0 wide x 2.5 tall in tiles: 1
+ *   tile wide but noticeably taller than it is wide (a perspective artifact
+ *   of the art, not a 2.5-tile ground footprint).
+ * - theme h — `h_deco_rock.xml` (the only cover asset theme H ships),
+ *   `<collision><circle offset="-1 0" radius="18"/></collision>` => a 2.25 x
+ *   2.25 tile square (36px / 16).
+ * - bonus1-5 — `bonusN_pillar.xml`, polygon x 0..16, y 0..16 => 1.0 x 1.0.
+ *
+ * cover.ts's rejection filter uses this directly, per placement, for exact
+ * overlap tests against the arena's actual theme.
  */
-const PILLAR_FOOTPRINT_AREA = 2 * 2
+export function pillarFootprint(theme: string): { width: number; height: number } {
+  if (theme === 'h') return { width: 2.25, height: 2.25 }
+  if (theme.startsWith('bonus')) return { width: 1, height: 1 }
+  return { width: 1, height: 2.5 }
+}
+
+/**
+ * Tiles reserved per placed cover pillar, so pillars do not crowd each other.
+ * Theme-dependent, because the three pillar shapes differ by a factor of five
+ * in area: a theme-averaged constant would make `density` mean something
+ * different in every theme, asking for ~5x too much cover in theme h and far
+ * too little in the bonus themes.
+ */
+function pillarFootprintArea(theme: string): number {
+  const { width, height } = pillarFootprint(theme)
+  return width * height
+}
 
 /**
  * Floor area actually free for cover once the boss, the 9 spawn anchors, the
@@ -72,7 +94,7 @@ export function freeFloorArea(width: number, height: number): number {
  * what Phase 5's cover.ts needs to know how many placement attempts to budget
  * before the overlap-rejection filter runs (bounded, never a `while (true)`).
  */
-export function coverPillarCount(density: number, width: number, height: number): number {
+export function coverPillarCount(density: number, width: number, height: number, theme: string): number {
   const free = freeFloorArea(width, height)
-  return Math.max(0, Math.floor((free * density) / PILLAR_FOOTPRINT_AREA))
+  return Math.max(0, Math.floor((free * density) / pillarFootprintArea(theme)))
 }
