@@ -163,9 +163,12 @@ describe('parameters.txt parsing', () => {
     expect(parsed.unknownKeys).toEqual([])
   })
 
-  it('writes no player.* lines when nothing was tweaked', () => {
-    const text = serializeParametersTxt(defaultParameters())
-    expect(text).not.toContain('player.')
+  it('writes no player.* lines when every tweak is cleared', () => {
+    // defaultParameters() now ships the extra-life removal, so "nothing
+    // tweaked" has to be stated explicitly rather than assumed
+    const params = defaultParameters()
+    params.playerTweaks = {}
+    expect(serializeParametersTxt(params)).not.toContain('player.')
   })
 
   it('round-trips player tweaks', () => {
@@ -222,12 +225,27 @@ describe('parameters.txt parsing', () => {
 
     const parsed = parseParametersTxt(serializeParametersTxt(original))
     expect(parsed.unknownKeys).toEqual([])
-    expect(pruneTweaks(parsed.params.playerTweaks)).toEqual(pruneTweaks(original.playerTweaks))
+
+    // Every roster key survives the trip unchanged.
+    const round = pruneTweaks(parsed.params.playerTweaks)
+    for (const [key, value] of Object.entries(pruneTweaks(original.playerTweaks))) {
+      expect(round[key], key).toBe(value)
+    }
+
+    // The one asymmetry, called out rather than hidden: applyCostPolicy clears
+    // every remove.* flag for any policy but 'removed' (bulk.ts), so the
+    // roster above has no remove.life — but absence in parameters.txt means
+    // "keep the default", and the default now sets it. A file therefore
+    // cannot express "extra lives are back on".
+    expect(Object.keys(round).filter((k) => !(k in pruneTweaks(original.playerTweaks)))).toEqual([
+      'player.shared.remove.life'
+    ])
   })
 
   it('drops player values that equal the stock game', () => {
     const parsed = parseParametersTxt('player.knight.param.max-health=75')
-    expect(parsed.params.playerTweaks).toEqual({})
+    // unchanged from the defaults, which ship the extra-life removal
+    expect(parsed.params.playerTweaks).toEqual(defaultParameters().playerTweaks)
     expect(parsed.unknownKeys).toEqual([])
   })
 
@@ -235,6 +253,6 @@ describe('parameters.txt parsing', () => {
     const parsed = parseParametersTxt('player.bogus.param.nope=5\nlevels=4')
     expect(parsed.params.levels).toBe(4)
     expect(parsed.unknownKeys).toEqual(['player.bogus.param.nope'])
-    expect(parsed.params.playerTweaks).toEqual({})
+    expect(parsed.params.playerTweaks).toEqual(defaultParameters().playerTweaks)
   })
 })

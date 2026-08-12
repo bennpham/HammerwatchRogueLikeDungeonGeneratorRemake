@@ -575,3 +575,134 @@ describe('boss campaign — packer safety', () => {
     }
   })
 })
+
+// --- Playtest fixes: tile alignment + water base layer ---------------------
+
+/** One <dictionary> tile block from the `tilemap` section, with each dataset's tileset path and its data-t array, in emitted order. */
+function tileBlocks(xml: string): { x: number; y: number; datasets: { tileset: string; dataT: number[] }[] }[] {
+  const section = /<dictionary name="tilemap">([\s\S]*?)<\/dictionary>\s*<dictionary name="doodads">/.exec(xml)?.[1] ?? ''
+  const blockRe = /<dictionary>\s*<int name="x">(-?\d+)<\/int>\s*<int name="y">(-?\d+)<\/int>\s*<array name="datasets">([\s\S]*?)<\/array>\s*<\/dictionary>/g
+  const blocks: { x: number; y: number; datasets: { tileset: string; dataT: number[] }[] }[] = []
+  for (const m of section.matchAll(blockRe)) {
+    const datasetsXml = m[3]
+    const tilesets = [...datasetsXml.matchAll(/<string name="tileset">([^<]*)<\/string>/g)].map((t) => t[1])
+    const dataTs = [...datasetsXml.matchAll(/<int-arr name="data-t">([^<]*)<\/int-arr>/g)].map((d) =>
+      d[1].trim().split(/\s+/).filter((s) => s !== '').map(Number)
+    )
+    const datasets = tilesets.map((tileset, i) => ({ tileset, dataT: dataTs[i] }))
+    blocks.push({ x: Number(m[1]), y: Number(m[2]), datasets })
+  }
+  return blocks
+}
+
+describe('boss arena — tile alignment (block x/y in the same local space as every doodad)', () => {
+  it('the block covering the interior origin is emitted at -originX/-originY, matching the doodads', () => {
+    for (const seed of [1, 4242, 987654]) {
+      const { xml, preview } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
+      const room = preview.rooms[0] // room.x/room.y ARE originX/originY (buildArenaPreview passes them straight through)
+      const blocks = tileBlocks(xml)
+
+      // The grid-x=0, grid-y=0 block always exists (BLOCK_MARGIN keeps the
+      // loop's lower bound below 0), and — pre-fix — it used to be stamped at
+      // (0, 0) in raw grid space, one (or five, on the W/N alcove) tile away
+      // from local (0,0) where every doodad/actor/item/node actually lives.
+      const originBlock = blocks.find((b) => b.x === -room.x && b.y === -room.y)
+      expect(originBlock, `no block at local (${-room.x},${-room.y}) — block position not in local space`).toBeDefined()
+
+      // That block's data-t cell for local tile (0,0) — the interior's own
+      // top-left floor tile — must be non-zero (real floor, not the wall/void
+      // sentinel), proving the shift didn't just move the *label* but kept
+      // the actual raster content lined up underneath it.
+      const cellIndex = (room.y + 10) * 20 + (room.x + 10)
+      expect(originBlock!.datasets[1].dataT[cellIndex]).toBeGreaterThan(0)
+    }
+  })
+
+  it('a real entity (the boss actor) always falls inside the block its local coordinates should land in', () => {
+    // Independent cross-check using the same "-10 + i%20" block-sampling
+    // offset the modding skill documents for Level.getTiles (arena.ts's
+    // getTiles is the same formula): a block declared at (bx, by) covers
+    // grid tiles [bx+originX-10, bx+originX+9] (recovering grid space via
+    // +originX, since the fix only moves the *declared* position, not the
+    // grid math the sampling itself still runs in). Take the boss actor's
+    // own emitted (local) x/y, find which block that resolves to under this
+    // formula, and confirm a block was actually emitted there. Pre-fix,
+    // blocks were stamped in raw grid space while the boss (like every
+    // entity) is emitted in local space, so this cross-check would land on
+    // a block offset by originX/originY tiles (1, or 5 on a W/N alcove).
+    for (const seed of [1, 4242, 987654, 20260812]) {
+      const { xml, preview } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
+      const room = preview.rooms[0]
+      const boss = actorEntries(xml).find((a) => /^actors\/boss_/.test(a.type))!
+      const blocks = tileBlocks(xml)
+
+      const gridX = boss.x + room.x
+      const gridY = boss.y + room.y
+      const gx = Math.floor((gridX + 10) / 20)
+      const gy = Math.floor((gridY + 10) / 20)
+      const blockX = gx * 20 - room.x
+      const blockY = gy * 20 - room.y
+
+      const block = blocks.find((b) => b.x === blockX && b.y === blockY)
+      expect(block, `seed ${seed}: no block at (${blockX},${blockY}) for boss local (${boss.x},${boss.y})`).toBeDefined()
+
+      // and the boss's own tile within that block is real floor, not void
+      const cellCol = Math.round(gridX) - (gx * 20 - 10)
+      const cellRow = Math.round(gridY) - (gy * 20 - 10)
+      const cellIndex = cellRow * 20 + cellCol
+      expect(block!.datasets[1].dataT[cellIndex], `seed ${seed}: boss tile is void, not floor`).toBeGreaterThan(0)
+    }
+  })
+})
+
+describe('boss arena — water base layer', () => {
+  it('every block carries a water dataset before the theme dataset, with data-t all 1', () => {
+    const { xml } = buildBossArena(freshCtx(4242), arenaOptions(), 0)
+    const blocks = tileBlocks(xml)
+    expect(blocks.length).toBeGreaterThan(0)
+
+    for (const block of blocks) {
+      expect(block.datasets.length, `block (${block.x},${block.y})`).toBe(2)
+      expect(block.datasets[0].tileset, `block (${block.x},${block.y})`).toBe('tilemaps/water.xml')
+      expect(block.datasets[0].dataT.every((t) => t === 1), `block (${block.x},${block.y}) water data-t`).toBe(true)
+      expect(block.datasets[1].tileset, `block (${block.x},${block.y})`).not.toBe('tilemaps/water.xml')
+    }
+  })
+
+  it('water extends past the arena grid — some blocks sit entirely outside the theme tile bounds', () => {
+    const { xml, preview } = buildBossArena(freshCtx(4242), arenaOptions(), 0)
+    const blocks = tileBlocks(xml)
+    // A block whose entire theme dataset is data-t 0 (nothing but void/wall)
+    // still carries a full water dataset — that's the "past the edge" case.
+    const allVoidThemeBlocks = blocks.filter((b) => b.datasets[1].dataT.every((t) => t === 0))
+    expect(allVoidThemeBlocks.length).toBeGreaterThan(0)
+    for (const b of allVoidThemeBlocks) {
+      expect(b.datasets[0].dataT.every((t) => t === 1), `block (${b.x},${b.y})`).toBe(true)
+    }
+    void preview
+  })
+
+  it('data-a is 0 where data-t is 0 and 255 where a tile exists, for the theme dataset', () => {
+    const { xml } = buildBossArena(freshCtx(4242), arenaOptions(), 0)
+    const section = /<dictionary name="tilemap">([\s\S]*?)<\/dictionary>\s*<dictionary name="doodads">/.exec(xml)![1]
+    const blockRe = /<int-arr name="data-t">([^<]*)<\/int-arr>[\s\S]*?<int-arr name="data-a">([^<]*)<\/int-arr>/g
+    let checked = 0
+    for (const m of section.matchAll(blockRe)) {
+      const dataT = m[1].trim().split(/\s+/).filter((s) => s !== '').map(Number)
+      const dataA = m[2].trim().split(/\s+/).filter((s) => s !== '').map(Number)
+      for (let i = 0; i < dataT.length; i++) {
+        expect(dataA[i]).toBe(dataT[i] === 0 ? 0 : 255)
+      }
+      checked++
+    }
+    expect(checked).toBeGreaterThan(0)
+  })
+
+  it('does not remove the Cover doodad overlay', () => {
+    const { xml } = buildBossArena(freshCtx(4242), arenaOptions(), 0)
+    const doodads = doodadEntries(xml)
+    // Cover doodads share the wall-pattern matcher's piece names with the
+    // dungeon (see wallPattern.ts); every theme but h emits some.
+    expect(doodads.length).toBeGreaterThan(0)
+  })
+})

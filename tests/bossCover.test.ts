@@ -147,3 +147,144 @@ describe('boss cover pillar placement', () => {
     }
   })
 })
+
+/**
+ * Playtest fix: the shipped default (density 0.5, no connectivity check)
+ * filled ~46% of the arena and was physically impassable. This suite proves
+ * the headline fix — pillars are rasterized into a tile-grid mask (they are
+ * never written into `tileArray` itself, so nothing else could detect this)
+ * and a 4-way flood fill from the entrance must reach the boss, all 9
+ * anchors and the alcove mouth, at any density including the hostile 1.0
+ * validation forbids. Written independently of cover.ts's own
+ * pruneForConnectivity — same reachability semantics (Manhattan flood fill,
+ * same targets), reimplemented here so a bug in the pass wouldn't also hide
+ * itself from the test that's supposed to catch it.
+ */
+describe('boss cover pillar placement — connectivity guarantee', () => {
+  function rasterize(rect: Rect, width: number, height: number, blocked: boolean[]): void {
+    const x0 = Math.max(0, Math.floor(rect.x))
+    const x1 = Math.min(width - 1, Math.ceil(rect.x + rect.width) - 1)
+    const y0 = Math.max(0, Math.floor(rect.y))
+    const y1 = Math.min(height - 1, Math.ceil(rect.y + rect.height) - 1)
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) blocked[x + y * width] = true
+    }
+  }
+
+  /** 4-way flood fill, bounded by the grid's own cell count — no `while (true)`. */
+  function floodFill(blocked: boolean[], width: number, height: number, start: { x: number; y: number }): boolean[] {
+    const visited = new Array<boolean>(width * height).fill(false)
+    const sx = Math.min(Math.max(Math.round(start.x), 0), width - 1)
+    const sy = Math.min(Math.max(Math.round(start.y), 0), height - 1)
+    const startIdx = sx + sy * width
+    if (blocked[startIdx]) return visited
+
+    const stack: number[] = [startIdx]
+    visited[startIdx] = true
+    const maxSteps = width * height
+    for (let steps = 0; stack.length > 0 && steps < maxSteps; steps++) {
+      const idx = stack.pop() as number
+      const x = idx % width
+      const y = Math.trunc(idx / width)
+      for (const [nx, ny] of [
+        [x - 1, y],
+        [x + 1, y],
+        [x, y - 1],
+        [x, y + 1]
+      ]) {
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue
+        const nIdx = nx + ny * width
+        if (visited[nIdx] || blocked[nIdx]) continue
+        visited[nIdx] = true
+        stack.push(nIdx)
+      }
+    }
+    return visited
+  }
+
+  function clamp(v: number, lo: number, hi: number): number {
+    return Math.min(Math.max(v, lo), hi)
+  }
+
+  /** Fails the test if the entrance cannot reach the boss, every anchor, and the alcove mouth. */
+  function assertConnected(arena: CoverArena, pillarRects: readonly Rect[]): void {
+    const { width, height } = arena
+    const blocked = new Array<boolean>(width * height).fill(false)
+    const bossRect: Rect = {
+      x: arena.boss.x - arena.boss.footprintWidth / 2,
+      y: arena.boss.y - arena.boss.footprintHeight / 2,
+      width: arena.boss.footprintWidth,
+      height: arena.boss.footprintHeight
+    }
+    rasterize(bossRect, width, height, blocked)
+    for (const r of pillarRects) rasterize(r, width, height, blocked)
+
+    const start = {
+      x: clamp(Math.round(arena.entrance.x + arena.entrance.width / 2), 0, width - 1),
+      y: clamp(Math.round(arena.entrance.y + arena.entrance.height / 2), 0, height - 1)
+    }
+    const visited = floodFill(blocked, width, height, start)
+    const reachable = (x: number, y: number): boolean => {
+      const cx = clamp(Math.round(x), 0, width - 1)
+      const cy = clamp(Math.round(y), 0, height - 1)
+      return visited[cx + cy * width]
+    }
+
+    // the boss's own neighbours: whichever cardinal sides fall inside the grid must all be open
+    const bx0 = Math.floor(bossRect.x)
+    const bx1 = Math.ceil(bossRect.x + bossRect.width) - 1
+    const by0 = Math.floor(bossRect.y)
+    const by1 = Math.ceil(bossRect.y + bossRect.height) - 1
+    const bossProbes = [
+      { x: arena.boss.x, y: by0 - 1 },
+      { x: arena.boss.x, y: by1 + 1 },
+      { x: bx0 - 1, y: arena.boss.y },
+      { x: bx1 + 1, y: arena.boss.y }
+    ].filter((p) => p.x >= 0 && p.y >= 0 && p.x < width && p.y < height)
+    expect(bossProbes.length, 'no in-bounds side of the boss to check').toBeGreaterThan(0)
+    for (const p of bossProbes) expect(reachable(p.x, p.y), `boss side (${p.x},${p.y})`).toBe(true)
+
+    // all 9 anchors — except one that legitimately coincides with (or is
+    // swallowed by) the boss's own footprint: arena.ts centres a non-topWall
+    // boss on exactly the 'C' anchor's point, and a topWall boss's footprint
+    // can reach the 'N' anchor for the tallest boss defs. That tile is
+    // permanently blocked by the boss itself regardless of pillars — not
+    // something cover.ts's connectivity pass is responsible for.
+    const insideBoss = (x: number, y: number): boolean => x >= bx0 && x <= bx1 && y >= by0 && y <= by1
+    for (const a of arena.anchors) {
+      if (insideBoss(Math.round(a.x), Math.round(a.y))) continue
+      expect(reachable(a.x, a.y), `anchor ${a.id}`).toBe(true)
+    }
+
+    // the alcove mouth: nearest point of the alcove rect to the arena centre, clamped into the interior
+    const midX = width / 2
+    const midY = height / 2
+    const mouthX = clamp(Math.round(clamp(midX, arena.alcove.x, arena.alcove.x + arena.alcove.width)), 0, width - 1)
+    const mouthY = clamp(Math.round(clamp(midY, arena.alcove.y, arena.alcove.y + arena.alcove.height)), 0, height - 1)
+    expect(reachable(mouthX, mouthY), 'alcove mouth').toBe(true)
+  }
+
+  const SEEDS = [1, 42, 4242, 987654]
+
+  for (const pattern of BOSS_COVER_PATTERNS) {
+    for (const density of [0.25, 1.0]) {
+      it(`${pattern} at density ${density}: entrance reaches the boss, all 9 anchors, and the alcove mouth`, () => {
+        for (const seed of SEEDS) {
+          const ctx = new GenerationContext(defaultParameters(), seed)
+          const arena = buildArena(WIDTH, HEIGHT)
+          const { rects } = placeCoverPillars(ctx, arena, coverOptions({ pattern, density }))
+          assertConnected(arena, rects)
+        }
+      })
+
+      it(`${pattern} at density ${density}: the 14x18 minimum arena stays connected`, () => {
+        for (const seed of SEEDS) {
+          const ctx = new GenerationContext(defaultParameters(), seed)
+          const arena = buildArena(14, 18)
+          const { rects } = placeCoverPillars(ctx, arena, coverOptions({ pattern, density }))
+          assertConnected(arena, rects)
+        }
+      })
+    }
+  }
+})

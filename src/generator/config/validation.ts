@@ -1,4 +1,4 @@
-import { BOSS_COVER_PATTERNS, BOSS_IDS, DungeonParameters, THEMES } from './parameters'
+import { BOSS_COVER_DENSITY_MAX, BOSS_COVER_PATTERNS, BOSS_IDS, DungeonParameters, THEMES } from './parameters'
 import { getTheme } from './themes'
 import { isKnownMonsterId } from '../objects/monsterTypes'
 import { LOBBY_DIAMOND_VALUE, LOBBY_GOLD_MAX } from '../lobby/build'
@@ -417,8 +417,15 @@ function validateBoss(
       message: `"${arena.cover.pattern}" is not one of: ${BOSS_COVER_PATTERNS.join(', ')}.`
     })
   }
-  if (!Number.isFinite(arena.cover.density) || arena.cover.density < 0 || arena.cover.density > 1) {
-    errors.push({ field: 'boss.arena.cover.density', message: 'Cover density must be between 0 and 1.' })
+  // A hard error, not a warning. Density is a fraction of the free floor, so
+  // 0.5 — which shipped once — buries the arena under ~200 pillars and
+  // playtested as impassable in game. Anything past the cap is a broken
+  // campaign rather than an aggressive one.
+  if (!Number.isFinite(arena.cover.density) || arena.cover.density < 0 || arena.cover.density > BOSS_COVER_DENSITY_MAX) {
+    errors.push({
+      field: 'boss.arena.cover.density',
+      message: `Cover density must be between 0 and ${BOSS_COVER_DENSITY_MAX} — it is the fraction of the arena floor filled with pillars, and denser than that leaves nowhere to fight.`
+    })
   }
   if (!Number.isInteger(arena.cover.ringSpacing) || arena.cover.ringSpacing < 1) {
     errors.push({ field: 'boss.arena.cover.ringSpacing', message: 'Ring spacing must be a whole number ≥ 1.' })
@@ -439,23 +446,11 @@ function validateBoss(
     }
   }
 
-  // cover density warning, area-aware rather than a flat percentage: density
-  // scales coverPillarCount against the interior the same way it will once
-  // cover.ts exists, so warn only once that requested coverage would exceed
-  // the floor that is actually free at the arena's smallest allowed
-  // footprint, once the boss, the 9 anchors, the alcove and the entrance are
-  // excluded. Defaults (density 0.5 against a mostly-free arena) stay quiet;
-  // a density asking for more tiles than physically remain does not.
-  const interior = arena.minWidth * arena.minHeight
-  const free = freeFloorArea(arena.minWidth, arena.minHeight)
-  if (arena.cover.density * interior > free) {
-    warnings.push({
-      field: 'boss.arena.cover.density',
-      message:
-        'This cover density may fill most or all of the arena floor that is actually free once the boss, ' +
-        'spawn anchors, alcove and entrance are excluded — consider lowering it or enlarging the arena.'
-    })
-  }
+  // No area-aware density warning lives here any more. It fired only when
+  // `density * interior > free`, i.e. above ~0.69 even on the smallest legal
+  // arena — unreachable now that BOSS_COVER_DENSITY_MAX errors at 0.25, and a
+  // rule that can never fire is worse than no rule. The cap plus cover.ts's
+  // reachability guarantee cover what this was reaching for.
 }
 
 /**

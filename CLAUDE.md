@@ -43,8 +43,11 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    as an import/override. Unknown keys are reported, never fatal.
 6. **Player tweaks stay out of the RNG.** `src/generator/tweak/**` emits the
    game's `tweak/*.xml` balance files and draws no random values; it runs
-   after every level is built. A run with no player edits emits no `tweak/`
-   folder and must stay byte-identical to a pre-tweak run of the same seed.
+   after every level is built. Clearing every tweak emits no `tweak/` folder
+   at all, and turning any tweak on or off must leave a seed's dungeon
+   byte-identical — the balance files are the only thing that may change.
+   Note the defaults are no longer empty: `defaultParameters()` ships
+   `player.shared.remove.life`, so a stock run emits exactly one tweak file.
 
 ## Commands
 

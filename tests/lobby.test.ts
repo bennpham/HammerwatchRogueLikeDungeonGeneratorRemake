@@ -68,10 +68,12 @@ describe('lobby — determinism', () => {
 
 describe('lobby — disabled', () => {
   it('emits exactly the pre-lobby campaign', () => {
-    // boss defaults on and appends its own two levels, which this test isn't
-    // about — turn it off too so the assertion stays about the lobby alone
+    // boss defaults on and appends its own two levels, and the stock player
+    // tweak adds a tweak/ file — neither is what this test is about, so turn
+    // both off and keep the assertion about the lobby alone
     const params = withLobby({ enabled: false })
     params.boss = { ...params.boss, enabled: false }
+    params.playerTweaks = {}
     const off = generateOk(params, 555)
 
     expect(off.files.map((f) => f.path)).toEqual([
@@ -153,13 +155,16 @@ describe('lobby — vendor stalls', () => {
     expect(xml).toContain('doodads/special/vendor_speech_level3.xml')
   })
 
-  it('sells the four main columns by default, power opt-in', () => {
+  it('sells all five columns by default, power included', () => {
     const xml = lobbyXML({})
     expect(xml).toContain('<string name="cats">combo1 combo2 combo3 combo4 combo5</string>')
     expect(xml).toContain('<string name="cats">def1 def2 def3 def4 def5</string>')
     expect(xml).toContain('<string name="cats">misc1 misc2 misc3 misc4 misc5</string>')
     expect(xml).toContain('<string name="cats">off1 off2 off3 off4 off5</string>')
-    expect(xml).not.toContain('<string name="cats">power</string>')
+    // power is on by default now: it sells the potions and rejuv, and the
+    // one thing that made it questionable — buyable extra lives — is stripped
+    // by the default player tweak instead
+    expect(xml).toContain('<string name="cats">power</string>')
   })
 
   it('removes a deselected stall entirely, leaving no dangling shape reference', () => {

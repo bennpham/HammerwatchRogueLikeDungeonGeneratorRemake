@@ -21,6 +21,16 @@
  * created with those raw, possibly-negative local coordinates. A single
  * internal `toGrid`/`toLocal` pair exists purely to index the rasterization
  * array, which cannot hold negative indices; it never leaks into emitted XML.
+ *
+ * Playtest fix: every doodad/actor/item/node above is emitted in *local*
+ * space (`toLocal`), but `getArenaXML`'s tilemap blocks used to be stamped at
+ * `x * TILEMAP_SIZE` in raw *grid* space — off by `originX`/`originY` (1, or
+ * 5 when the alcove sits on the W/N wall), which is exactly the "random black
+ * spots" the floor rendered as. Blocks are now stamped at
+ * `x * TILEMAP_SIZE - originX` / `y * TILEMAP_SIZE - originY`, i.e. local
+ * space, matching every other emitted entity; `getTiles` still indexes
+ * `tileArray` in grid space internally, since that array has no negative
+ * indices to give.
  */
 
 import { Tile } from '../map/tile'
@@ -250,7 +260,7 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   bossDied.connectTo(destroyWalls)
 
   return {
-    xml: getArenaXML(ctx, tileArray, gridWidth, gridHeight, themeDef),
+    xml: getArenaXML(ctx, tileArray, gridWidth, gridHeight, themeDef, originX, originY),
     preview: buildArenaPreview(ctx, tileArray, gridWidth, gridHeight, originX, originY, width, height, arena.theme, levelNumber)
   }
 }
@@ -340,34 +350,81 @@ function defaultIntArray(name: string): XMLIntArray {
   return new XMLIntArray(name, new Array<number>(TILEMAP_SIZE * TILEMAP_SIZE).fill(255))
 }
 
+/**
+ * Shipped convention (Cover/wall doodads paint the rest, but the raw tile
+ * layer itself should read as absent where there's no tile): `data-a` is 0
+ * wherever `data-t` is the wall/void sentinel 0, 255 wherever a real floor
+ * variant is drawn.
+ */
+function dataAFromDataT(dataT: readonly number[]): XMLIntArray {
+  return new XMLIntArray('data-a', dataT.map((t) => (t === 0 ? 0 : 255)))
+}
+
+/**
+ * `tilemaps/water.xml` — a single animated `data-t` value 1 — is the lowest
+ * tileset level in the game (level 1; the next lowest classic tileset is 10).
+ * Stacked as a second dataset under every theme dataset, it is the base
+ * layer the theme's own floor/wall tiles sit on top of; without it, the void
+ * beyond the arena's own tile grid reads as flat, textureless block.
+ * `data-t` is filled with 1 everywhere in this dataset — it is a background,
+ * not a floor mask — so `data-a` is 255 everywhere too (never the 0/255 split
+ * `dataAFromDataT` does for the theme dataset above it).
+ */
+function waterDataset(): XMLDictionary {
+  const dict = new XMLDictionary('')
+  dict.addData(new XMLString('tileset', 'tilemaps/water.xml'))
+  dict.addData(new XMLIntArray('data-t', new Array<number>(TILEMAP_SIZE * TILEMAP_SIZE).fill(1)))
+  dict.addData(defaultIntArray('data-r'))
+  dict.addData(defaultIntArray('data-g'))
+  dict.addData(defaultIntArray('data-b'))
+  dict.addData(defaultIntArray('data-a'))
+  return dict
+}
+
+/**
+ * Extra tile blocks emitted on every side beyond the arena's own grid, so the
+ * water base layer reads as extending past the arena rather than stopping
+ * dead at its edge. These blocks carry no theme floor (out of `tileArray`
+ * bounds, so `getTiles` returns all-0 for them, same as any other void tile)
+ * — only the water dataset gives them content.
+ */
+const BLOCK_MARGIN = 1
+
 /** Serialize the arena to the same section order Level.getXML() emits. */
 function getArenaXML(
   ctx: GenerationContext,
   tileArray: Tile[],
   gridWidth: number,
   gridHeight: number,
-  themeDef: ThemeDef
+  themeDef: ThemeDef,
+  originX: number,
+  originY: number
 ): string {
   const tiledataArray = new XMLArray('tiledata')
   const xTiles = Math.ceil(gridWidth / TILEMAP_SIZE)
   const yTiles = Math.ceil(gridHeight / TILEMAP_SIZE)
 
-  for (let x = 0; x < xTiles + 1; x++) {
-    for (let y = 0; y < yTiles + 1; y++) {
+  for (let x = -BLOCK_MARGIN; x < xTiles + 1 + BLOCK_MARGIN; x++) {
+    for (let y = -BLOCK_MARGIN; y < yTiles + 1 + BLOCK_MARGIN; y++) {
+      const dataT = getTiles(ctx, tileArray, gridWidth, gridHeight, x * TILEMAP_SIZE, y * TILEMAP_SIZE, themeDef.tiles)
+
       const tileSet = new XMLDictionary('')
       tileSet.addData(new XMLString('tileset', themeDef.tilemap))
-      tileSet.addData(new XMLIntArray('data-t', getTiles(ctx, tileArray, gridWidth, gridHeight, x * TILEMAP_SIZE, y * TILEMAP_SIZE, themeDef.tiles)))
+      tileSet.addData(new XMLIntArray('data-t', dataT))
       tileSet.addData(defaultIntArray('data-r'))
       tileSet.addData(defaultIntArray('data-g'))
       tileSet.addData(defaultIntArray('data-b'))
-      tileSet.addData(defaultIntArray('data-a'))
+      tileSet.addData(dataAFromDataT(dataT))
 
+      // Water first, theme second — matches the shipped stacking order (see
+      // bossprep/template.ts and campaign2/levels/level_cave_1.xml).
       const dataSets = new XMLArray('datasets')
+      dataSets.addData(waterDataset())
       dataSets.addData(tileSet)
 
       const tileBlock = new XMLDictionary('')
-      tileBlock.addData(new XMLInt('x', x * TILEMAP_SIZE))
-      tileBlock.addData(new XMLInt('y', y * TILEMAP_SIZE))
+      tileBlock.addData(new XMLInt('x', x * TILEMAP_SIZE - originX))
+      tileBlock.addData(new XMLInt('y', y * TILEMAP_SIZE - originY))
       tileBlock.addData(dataSets)
 
       tiledataArray.addData(tileBlock)

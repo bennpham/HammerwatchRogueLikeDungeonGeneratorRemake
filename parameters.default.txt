@@ -34,7 +34,7 @@ lockFinalRoom=1
 # stall with none of its columns listed is left out of the level.
 lobby=1
 lobbyGold=10000
-lobbyShops=combo1 combo2 combo3 combo4 combo5 def1 def2 def3 def4 def5 misc1 misc2 misc3 misc4 misc5 off1 off2 off3 off4 off5
+lobbyShops=combo1 combo2 combo3 combo4 combo5 def1 def2 def3 def4 def5 misc1 misc2 misc3 misc4 misc5 off1 off2 off3 off4 off5 power
 # Boss fight after the last dungeon floor: 1 = a shop room (prep) then a
 # generated arena with a boss, 0 = campaign ends on the final floor as before.
 # bossGold is a multiple of 500 (one red diamond each). bossShops is the
@@ -53,7 +53,7 @@ lobbyShops=combo1 combo2 combo3 combo4 combo5 def1 def2 def3 def4 def5 misc1 mis
 # bossWidth=24,32
 # bossHeight=32,44
 # bossPool=boss_anubis,boss_dragon,boss_knight,boss_krilith,boss_lich,boss_queen,boss_worm
-# bossCover=random,0.5,4,3
+# bossCover=random,0.08,4,3
 # bossWave1=bat1,tick1,maggot|4000|bat1:10,tick1:10,maggot:10|
 # bossWave2=skeleton1,archer1,slime|3000|skeleton1:10,archer1:10,slime:10|
 # bossWave3=eye,wisp1,lich|2000|eye:10,wisp1:10,lich:10|
@@ -116,3 +116,9 @@ maxMB_Skeletons=12
 maxMB_Ticks=16
 maxBonus_Skeletons1=300
 maxBonus_Archers1=60
+
+# Player tweaks are written as player.<file>.<scope>.<key>=<value>. The one
+# shipped by default removes the repeatable extra-life upgrade from the shop,
+# so a stock run emits exactly one tweak file. Delete the line to sell lives
+# again; rejuvenation is a separate, one-off upgrade and is unaffected.
+player.shared.remove.life=1

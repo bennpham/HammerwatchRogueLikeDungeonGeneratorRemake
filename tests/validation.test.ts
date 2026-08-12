@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultParameters } from '../src/generator/config/parameters'
+import { BOSS_COVER_DENSITY_MAX, defaultParameters } from '../src/generator/config/parameters'
 import { validateParameters } from '../src/generator/config/validation'
 import { LOBBY_GOLD_MAX } from '../src/generator/lobby'
 
@@ -423,18 +423,34 @@ describe('boss validation', () => {
     expect(fieldsOf(result.errors)).toContain('boss.arena.cover.clusters')
   })
 
-  it('warns (without blocking) when cover density would fill more than half the free floor', () => {
+  it('rejects a cover density past the hard cap, as an error not a warning', () => {
+    // 0.5 shipped once and the arena playtested as physically impassable —
+    // ~200 pillars over half the floor. This is a broken campaign, so it
+    // blocks generation rather than merely warning.
     const result = withBoss({
-      arena: { ...defaultParameters().boss.arena, cover: { ...defaultParameters().boss.arena.cover, density: 0.95 } }
+      arena: { ...defaultParameters().boss.arena, cover: { ...defaultParameters().boss.arena.cover, density: 0.5 } }
     })
-    expect(result.valid).toBe(true)
-    expect(fieldsOf(result.warnings)).toContain('boss.arena.cover.density')
+    expect(result.valid).toBe(false)
+    expect(fieldsOf(result.errors)).toContain('boss.arena.cover.density')
   })
 
-  it('never warns about cover density while the boss is disabled (no dead-statement regression)', () => {
+  it('accepts a density at the cap exactly', () => {
+    const result = withBoss({
+      arena: {
+        ...defaultParameters().boss.arena,
+        cover: { ...defaultParameters().boss.arena.cover, density: BOSS_COVER_DENSITY_MAX }
+      }
+    })
+    expect(fieldsOf(result.errors)).not.toContain('boss.arena.cover.density')
+  })
+
+  it('never warns while the boss is disabled (no dead-statement regression)', () => {
+    // an empty wave pool is a warning when the boss is on; with it off the
+    // guard must return before any warning is collected
+    const arena = defaultParameters().boss.arena
     const result = withBoss({
       enabled: false,
-      arena: { ...defaultParameters().boss.arena, cover: { ...defaultParameters().boss.arena.cover, density: 1.0 } }
+      arena: { ...arena, waves: arena.waves.map((w, i) => (i === 0 ? { ...w, monsters: [] } : w)) }
     })
     expect(result.warnings).toEqual([])
   })

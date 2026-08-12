@@ -10,6 +10,14 @@
  * boss's actual placement, the alcove's actual wall and the entrance's actual
  * rectangle, and passes them in as plain geometry so this file stays free of
  * any assumption about how the rest of the arena is laid out.
+ *
+ * Playtest fix (post-Phase 8): the rejection filter alone does not guarantee
+ * the placed pillars leave a *connected* arena — four patterns each place
+ * pillars independently and can wall off the boss, an anchor, or the alcove
+ * mouth from the entrance. `placeCoverPillars` now runs a deterministic
+ * connectivity prune after every pattern (see `pruneForConnectivity` below)
+ * before creating any doodad, so an impassable arena is impossible at any
+ * density.
  */
 
 import type { GenerationContext } from '../core/context'
@@ -139,11 +147,25 @@ export interface PlacedPillars {
   rects: Rect[]
 }
 
-function placeRandom(ctx: GenerationContext, arena: CoverArena, options: CoverOptions): PlacedPillars {
+/**
+ * A pattern's *candidate* output, before the connectivity prune runs and
+ * before any `Doodad` exists. `x`/`y` is the placement centre passed to
+ * `placeAt`; `rect` is that same pillar's footprint, already computed by the
+ * pattern so the prune pass never has to re-derive it (and never needs
+ * `ctx.bossRand` to do so — the prune is fully deterministic given this
+ * list).
+ */
+interface Candidate {
+  x: number
+  y: number
+  rect: Rect
+}
+
+function placeRandom(ctx: GenerationContext, arena: CoverArena, options: CoverOptions): Candidate[] {
   const count = coverPillarCount(options.density, arena.width, arena.height, arena.theme)
   const footprint = pillarFootprint(arena.theme)
   const placed: Rect[] = []
-  const result: Doodad[] = []
+  const result: Candidate[] = []
 
   for (let i = 0; i < count; i++) {
     for (let attempt = 0; attempt < PLACEMENT_ATTEMPTS; attempt++) {
@@ -152,13 +174,13 @@ function placeRandom(ctx: GenerationContext, arena: CoverArena, options: CoverOp
       const rect = footprintRect(x, y, footprint)
       if (isFree(rect, arena, placed)) {
         placed.push(rect)
-        result.push(placeAt(ctx, arena, x, y))
+        result.push({ x, y, rect })
         break
       }
     }
   }
 
-  return { doodads: result, rects: placed }
+  return result
 }
 
 /** A point at `distance` tiles along the perimeter of `rect`, clockwise from its top-left corner. */
@@ -178,8 +200,8 @@ function pointOnPerimeter(rect: { left: number; top: number; right: number; bott
   return { x: rect.left, y: rect.bottom - d }
 }
 
-function placeRing(ctx: GenerationContext, arena: CoverArena, options: CoverOptions): PlacedPillars {
-  const empty: PlacedPillars = { doodads: [], rects: [] }
+function placeRing(ctx: GenerationContext, arena: CoverArena, options: CoverOptions): Candidate[] {
+  const empty: Candidate[] = []
   const target = coverPillarCount(options.density, arena.width, arena.height, arena.theme)
   if (target <= 0) return empty
 
@@ -200,7 +222,7 @@ function placeRing(ctx: GenerationContext, arena: CoverArena, options: CoverOpti
 
   const footprint = pillarFootprint(arena.theme)
   const placed: Rect[] = []
-  const result: Doodad[] = []
+  const result: Candidate[] = []
   const step = perimeter / count
   // A single seeded rotation so the ring's start point varies by seed —
   // otherwise every seed would produce byte-identical ring placements.
@@ -218,24 +240,24 @@ function placeRing(ctx: GenerationContext, arena: CoverArena, options: CoverOpti
       const rect = footprintRect(x, y, footprint)
       if (isFree(rect, arena, placed)) {
         placed.push(rect)
-        result.push(placeAt(ctx, arena, x, y))
+        result.push({ x, y, rect })
         break
       }
     }
   }
 
-  return { doodads: result, rects: placed }
+  return result
 }
 
-function placeGaussian(ctx: GenerationContext, arena: CoverArena, options: CoverOptions): PlacedPillars {
-  const empty: PlacedPillars = { doodads: [], rects: [] }
+function placeGaussian(ctx: GenerationContext, arena: CoverArena, options: CoverOptions): Candidate[] {
+  const empty: Candidate[] = []
   const total = coverPillarCount(options.density, arena.width, arena.height, arena.theme)
   const clusters = Math.max(1, options.clusters)
   if (total <= 0) return empty
 
   const footprint = pillarFootprint(arena.theme)
   const placed: Rect[] = []
-  const result: Doodad[] = []
+  const result: Candidate[] = []
   // Spread proportional to the smaller arena axis: tight enough that clusters
   // read as clusters, loose enough to spread across a large interior.
   const sigma = Math.max(1, Math.min(arena.width, arena.height) / 8)
@@ -260,25 +282,25 @@ function placeGaussian(ctx: GenerationContext, arena: CoverArena, options: Cover
         const rect = footprintRect(x, y, footprint)
         if (isFree(rect, arena, placed)) {
           placed.push(rect)
-          result.push(placeAt(ctx, arena, x, y))
+          result.push({ x, y, rect })
           break
         }
       }
     }
   }
 
-  return { doodads: result, rects: placed }
+  return result
 }
 
-function placeSymmetric(ctx: GenerationContext, arena: CoverArena, options: CoverOptions): PlacedPillars {
-  const empty: PlacedPillars = { doodads: [], rects: [] }
+function placeSymmetric(ctx: GenerationContext, arena: CoverArena, options: CoverOptions): Candidate[] {
+  const empty: Candidate[] = []
   const total = coverPillarCount(options.density, arena.width, arena.height, arena.theme)
   const groups = Math.trunc(total / 4)
   if (groups <= 0) return empty
 
   const footprint = pillarFootprint(arena.theme)
   const placed: Rect[] = []
-  const result: Doodad[] = []
+  const result: Candidate[] = []
   const halfWidth = Math.max(1, Math.trunc(arena.width / 2))
   const halfHeight = Math.max(1, Math.trunc(arena.height / 2))
 
@@ -310,31 +332,293 @@ function placeSymmetric(ctx: GenerationContext, arena: CoverArena, options: Cove
 
       for (let i = 0; i < rects.length; i++) {
         placed.push(rects[i])
-        result.push(placeAt(ctx, arena, candidates[i].x, candidates[i].y))
+        result.push({ x: candidates[i].x, y: candidates[i].y, rect: rects[i] })
       }
       break
     }
   }
 
-  return { doodads: result, rects: placed }
+  return result
+}
+
+// --- Connectivity guarantee -------------------------------------------------
+//
+// A pattern's rejection filter only ever checks a *new* pillar against what's
+// already placed — it has no notion of "does the arena remain traversable as
+// a whole". At high density, four independently-reasonable pillars can still
+// wall the boss, an anchor or the alcove mouth off from the entrance. The
+// pass below rasterizes every placed pillar (and the boss footprint) into a
+// tile-grid blocked mask — pillars are never written into `tileArray`, so a
+// flood fill over the real tile grid would see an empty rectangle and detect
+// nothing — then 4-way floods from the entrance and prunes pillars, one at a
+// time, until every required tile is reachable. Bounded by the candidate
+// count (never `while (true)`): removing every last pillar always succeeds,
+// since a bare rectangle minus the boss's own footprint is trivially
+// connected by construction (arena.ts floors the whole interior before cover
+// ever runs). Draws no RNG — deterministic given the placement.
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.min(Math.max(v, lo), hi)
+}
+
+/** Integer tile bounds a (possibly fractional) rect covers, clamped to the grid. */
+function rectTileBounds(rect: Rect, width: number, height: number): { x0: number; x1: number; y0: number; y1: number } {
+  return {
+    x0: clamp(Math.floor(rect.x), 0, width - 1),
+    x1: clamp(Math.ceil(rect.x + rect.width) - 1, 0, width - 1),
+    y0: clamp(Math.floor(rect.y), 0, height - 1),
+    y1: clamp(Math.ceil(rect.y + rect.height) - 1, 0, height - 1)
+  }
+}
+
+function rasterizeRect(rect: Rect, width: number, height: number, blocked: Uint8Array): void {
+  const { x0, x1, y0, y1 } = rectTileBounds(rect, width, height)
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      blocked[x + y * width] = 1
+    }
+  }
+}
+
+function rectCoversTile(rect: Rect, width: number, height: number, x: number, y: number): boolean {
+  const { x0, x1, y0, y1 } = rectTileBounds(rect, width, height)
+  return x >= x0 && x <= x1 && y >= y0 && y <= y1
+}
+
+function buildBlockedMask(arena: CoverArena, rects: readonly Rect[]): Uint8Array {
+  const { width, height } = arena
+  const blocked = new Uint8Array(width * height)
+  const bossRect = footprintRect(arena.boss.x, arena.boss.y, {
+    width: arena.boss.footprintWidth,
+    height: arena.boss.footprintHeight
+  })
+  rasterizeRect(bossRect, width, height, blocked)
+  for (const r of rects) rasterizeRect(r, width, height, blocked)
+  return blocked
+}
+
+/** 4-way flood fill from `start`, bounded by the grid's own cell count. */
+function floodFill(blocked: Uint8Array, width: number, height: number, start: { x: number; y: number }): Uint8Array {
+  const visited = new Uint8Array(width * height)
+  const sx = clamp(Math.round(start.x), 0, width - 1)
+  const sy = clamp(Math.round(start.y), 0, height - 1)
+  const startIdx = sx + sy * width
+  if (blocked[startIdx]) return visited
+
+  const stack: number[] = [startIdx]
+  visited[startIdx] = 1
+  const maxSteps = width * height // every cell visited at most once
+
+  for (let steps = 0; stack.length > 0 && steps < maxSteps; steps++) {
+    const idx = stack.pop() as number
+    const x = idx % width
+    const y = Math.trunc(idx / width)
+    const neighbours: Array<[number, number]> = [
+      [x - 1, y],
+      [x + 1, y],
+      [x, y - 1],
+      [x, y + 1]
+    ]
+    for (const [nx, ny] of neighbours) {
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue
+      const nIdx = nx + ny * width
+      if (visited[nIdx] || blocked[nIdx]) continue
+      visited[nIdx] = 1
+      stack.push(nIdx)
+    }
+  }
+
+  return visited
+}
+
+/**
+ * Nearest point *inside* `rect` to the arena's own centre, clamped to a valid
+ * interior tile. Used for the alcove mouth: `arena.alcove` is the bounding
+ * box of the sealed pocket, which for the real arena (arena.ts) sits almost
+ * entirely outside the interior's [0,width)x[0,height) range (negative, or
+ * beyond width/height — see arena.ts's file header). The point of that rect
+ * closest to the interior centre is always the mouth tile itself, and
+ * clamping it into the interior is always the floor tile bordering the
+ * mouth — regardless of which wall the alcove is on, so this needs no
+ * explicit direction.
+ */
+function nearestInteriorTile(rect: Rect, arena: CoverArena): { x: number; y: number } {
+  const midX = arena.width / 2
+  const midY = arena.height / 2
+  const nearestX = clamp(midX, rect.x, rect.x + rect.width)
+  const nearestY = clamp(midY, rect.y, rect.y + rect.height)
+  return {
+    x: clamp(Math.round(nearestX), 0, arena.width - 1),
+    y: clamp(Math.round(nearestY), 0, arena.height - 1)
+  }
+}
+
+/**
+ * The reachability targets the connectivity pass must satisfy: the boss's
+ * own neighbours, all 9 anchors, and the alcove mouth.
+ *
+ * `arena.ts` centres non-topWall bosses on exactly the `C` anchor's point
+ * (`bossLocal = { x: midX, y: midY }`, same as `anchors()`'s centre entry),
+ * and a topWall boss's footprint can reach the `N` anchor for the tallest
+ * boss defs — so a target can legitimately sit *inside* the boss's own
+ * footprint, permanently blocked regardless of pillars. That is a fixed fact
+ * about boss/anchor geometry this pass is not responsible for (and no pillar
+ * removal could fix), so such a target is dropped rather than left in the
+ * list — leaving it in would make `findVictim` return -1 on the very first
+ * unreachable target and abort the whole prune before it ever looks at a
+ * pillar-caused blockage elsewhere.
+ */
+function reachabilityTargets(arena: CoverArena): Array<{ x: number; y: number }> {
+  const { width, height, boss } = arena
+  const bossRect = footprintRect(boss.x, boss.y, { width: boss.footprintWidth, height: boss.footprintHeight })
+  const b = rectTileBounds(bossRect, width, height)
+  const bossX = Math.round(boss.x)
+  const bossY = Math.round(boss.y)
+
+  const targets: Array<{ x: number; y: number }> = [
+    { x: bossX, y: b.y0 - 1 },
+    { x: bossX, y: b.y1 + 1 },
+    { x: b.x0 - 1, y: bossY },
+    { x: b.x1 + 1, y: bossY },
+    ...arena.anchors.map((a) => ({ x: Math.round(a.x), y: Math.round(a.y) })),
+    nearestInteriorTile(arena.alcove, arena)
+  ]
+
+  return targets.filter((t) => t.x >= 0 && t.y >= 0 && t.x < width && t.y < height && !rectCoversTile(bossRect, width, height, t.x, t.y))
+}
+
+/**
+ * Where the entrance-side flood starts. The entrance rect is always kept
+ * clear of pillars by `isFree`, so its centre is free in the overwhelming
+ * common case; the small bounded scans below exist only to cover a
+ * degenerate arena where the boss's own footprint happens to reach it.
+ */
+function findEntranceStart(arena: CoverArena, blocked: Uint8Array): { x: number; y: number } {
+  const { width, height, entrance } = arena
+  const cx = clamp(Math.round(entrance.x + entrance.width / 2), 0, width - 1)
+  const cy = clamp(Math.round(entrance.y + entrance.height / 2), 0, height - 1)
+  if (!blocked[cx + cy * width]) return { x: cx, y: cy }
+
+  const b = rectTileBounds(entrance, width, height)
+  for (let y = b.y0; y <= b.y1; y++) {
+    for (let x = b.x0; x <= b.x1; x++) {
+      if (!blocked[x + y * width]) return { x, y }
+    }
+  }
+
+  // Last resort, still bounded (the whole interior): the entrance rect is
+  // fully blocked, which should never happen given the isFree() guarantee,
+  // but a start point must always exist for the flood to run at all.
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (!blocked[x + y * width]) return { x, y }
+    }
+  }
+  return { x: cx, y: cy }
+}
+
+/** The candidate index whose rect exactly covers `x, y`, or -1. */
+function candidateAt(arena: CoverArena, survivors: readonly Candidate[], x: number, y: number): number {
+  for (let i = 0; i < survivors.length; i++) {
+    if (rectCoversTile(survivors[i].rect, arena.width, arena.height, x, y)) return i
+  }
+  return -1
+}
+
+/** The first candidate whose rect is adjacent to (touches, including diagonally) any cell of `island`. */
+function candidateBordering(arena: CoverArena, survivors: readonly Candidate[], island: Uint8Array): number {
+  const { width, height } = arena
+  for (let i = 0; i < survivors.length; i++) {
+    const b = rectTileBounds(survivors[i].rect, width, height)
+    const x0 = Math.max(0, b.x0 - 1)
+    const x1 = Math.min(width - 1, b.x1 + 1)
+    const y0 = Math.max(0, b.y0 - 1)
+    const y1 = Math.min(height - 1, b.y1 + 1)
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        if (island[x + y * width]) return i
+      }
+    }
+  }
+  return -1
+}
+
+/**
+ * The pillar whose removal is most likely to open a path to `target`: if a
+ * pillar sits directly on the target tile, that one; otherwise the target is
+ * enclosed by pillars rather than covered by one, so flood the pocket it sits
+ * in (still using the same blocked mask) and remove whichever surviving
+ * pillar borders that pocket. Returns -1 when neither applies — the target is
+ * blocked by the boss's own footprint, which no pillar removal can fix.
+ */
+function findVictim(arena: CoverArena, survivors: readonly Candidate[], blocked: Uint8Array, target: { x: number; y: number }): number {
+  const idx = target.x + target.y * arena.width
+  if (blocked[idx]) {
+    return candidateAt(arena, survivors, target.x, target.y)
+  }
+  const island = floodFill(blocked, arena.width, arena.height, target)
+  return candidateBordering(arena, survivors, island)
+}
+
+/**
+ * Prune placed pillars until the entrance can reach every reachability
+ * target. Bounded by `candidates.length` — each iteration removes exactly
+ * one candidate, so the loop can run at most once per candidate, and zero
+ * pillars is always connected (the interior is a solid floor rectangle by
+ * construction), which is why this never needs an unbounded retry.
+ */
+function pruneForConnectivity(arena: CoverArena, candidates: Candidate[]): Candidate[] {
+  let survivors = candidates
+  const bound = candidates.length
+
+  for (let iter = 0; iter < bound; iter++) {
+    const blocked = buildBlockedMask(arena, survivors.map((c) => c.rect))
+    const start = findEntranceStart(arena, blocked)
+    const visited = floodFill(blocked, arena.width, arena.height, start)
+
+    const targets = reachabilityTargets(arena)
+    const unreached = targets.find((t) => visited[t.x + t.y * arena.width] !== 1)
+    if (!unreached) return survivors
+
+    const victim = findVictim(arena, survivors, blocked, unreached)
+    if (victim === -1) break // not fixable by removing a pillar; bail rather than loop forever
+
+    survivors = survivors.slice(0, victim).concat(survivors.slice(victim + 1))
+  }
+
+  return survivors
 }
 
 /**
  * Place cover pillars for one arena, per `options.pattern`. Draws only from
- * `ctx.bossRand` and creates real `Doodad`s (pushed onto `ctx.doodads` via
- * `Doodad.create`, same as every other arena entity). Also returns each
- * pillar's placed footprint rect — arena.ts's food pass reuses these so a
- * pickup never lands inside a pillar.
+ * `ctx.bossRand`. Patterns place candidate rects first (no RNG in this
+ * step); `pruneForConnectivity` deterministically drops whichever pillars
+ * block the entrance, the boss, an anchor or the alcove mouth; only the
+ * survivors become real `Doodad`s (`Doodad.create`, same as every other
+ * arena entity — deferred to here so a pruned pillar never gets an id or a
+ * slot in `ctx.doodads`). Also returns each surviving pillar's footprint
+ * rect — arena.ts's food pass reuses these so a pickup never lands inside a
+ * pillar.
  */
 export function placeCoverPillars(ctx: GenerationContext, arena: CoverArena, options: CoverOptions): PlacedPillars {
+  let candidates: Candidate[]
   switch (options.pattern) {
     case 'random':
-      return placeRandom(ctx, arena, options)
+      candidates = placeRandom(ctx, arena, options)
+      break
     case 'ring':
-      return placeRing(ctx, arena, options)
+      candidates = placeRing(ctx, arena, options)
+      break
     case 'gaussian':
-      return placeGaussian(ctx, arena, options)
+      candidates = placeGaussian(ctx, arena, options)
+      break
     case 'symmetric':
-      return placeSymmetric(ctx, arena, options)
+      candidates = placeSymmetric(ctx, arena, options)
+      break
   }
+
+  const survivors = pruneForConnectivity(arena, candidates)
+  const doodads = survivors.map((c) => placeAt(ctx, arena, c.x, c.y))
+  const rects = survivors.map((c) => c.rect)
+  return { doodads, rects }
 }
