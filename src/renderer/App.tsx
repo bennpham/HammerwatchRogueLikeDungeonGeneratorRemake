@@ -5,6 +5,7 @@ import type { AppSettings, GenerateResponse } from '../shared/ipc'
 import { ParameterForm } from './components/ParameterForm'
 import { PlayerForm } from './components/PlayerForm'
 import { LobbyForm } from './components/LobbyForm'
+import { BossForm } from './components/BossForm'
 import { LevelPreview } from './components/LevelPreview'
 import { LoadoutSheet } from './components/LoadoutSheet'
 import { OutputPanel } from './components/OutputPanel'
@@ -23,7 +24,7 @@ export function App() {
   const [toast, setToast] = useState<Toast | null>(null)
   // the lobby is where a run starts, so it is where the app opens; the dungeon
   // and player passes are the optional ones
-  const [leftTab, setLeftTab] = useState<'lobby' | 'dungeon' | 'player'>('lobby')
+  const [leftTab, setLeftTab] = useState<'lobby' | 'dungeon' | 'player' | 'boss'>('lobby')
   const [rightTab, setRightTab] = useState<'preview' | 'loadout'>('preview')
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
@@ -103,7 +104,12 @@ export function App() {
       showToast('info', 'Lobby reset to defaults.')
       return
     }
-    setParams({ ...defaultParameters(), playerTweaks: params.playerTweaks, lobby: params.lobby })
+    if (leftTab === 'boss') {
+      setParams({ ...params, boss: defaultParameters().boss })
+      showToast('info', 'Boss tab reset to defaults.')
+      return
+    }
+    setParams({ ...defaultParameters(), playerTweaks: params.playerTweaks, lobby: params.lobby, boss: params.boss })
     showToast('info', 'Dungeon parameters reset to defaults.')
   }
 
@@ -187,7 +193,13 @@ export function App() {
           <button onClick={importParams} disabled={busy}>Import parameters.txt</button>
           <button onClick={exportParams} disabled={busy}>Export parameters.txt</button>
           <button onClick={resetDefaults} disabled={busy}>
-            {leftTab === 'player' ? 'Reset player tweaks' : leftTab === 'lobby' ? 'Reset lobby' : 'Reset defaults'}
+            {leftTab === 'player'
+              ? 'Reset player tweaks'
+              : leftTab === 'lobby'
+                ? 'Reset lobby'
+                : leftTab === 'boss'
+                  ? 'Reset boss tab'
+                  : 'Reset defaults'}
           </button>
         </div>
       </header>
@@ -215,6 +227,13 @@ export function App() {
               Player
               {tweakCount > 0 && <span className="tab-count">{tweakCount}</span>}
             </button>
+            <button
+              className={leftTab === 'boss' ? 'tab active' : 'tab'}
+              onClick={() => setLeftTab('boss')}
+            >
+              Boss
+              <span className="tab-count">{params.boss.enabled ? 'on' : 'off'}</span>
+            </button>
           </div>
 
           {leftTab === 'dungeon' && (
@@ -229,6 +248,9 @@ export function App() {
           )}
           {leftTab === 'lobby' && (
             <LobbyForm params={params} issues={validation.errors} onChange={setParams} />
+          )}
+          {leftTab === 'boss' && (
+            <BossForm params={params} issues={validation.errors} onChange={setParams} />
           )}
         </aside>
 

@@ -7,8 +7,8 @@ import { LOBBY_ASSETS, LOBBY_LEVEL_ID, LOBBY_LEVEL_PATH, buildLobby } from './lo
 import { BOSSPREP_LEVEL_ID, BOSSPREP_LEVEL_PATH, buildBossPrep } from './bossprep'
 import { buildBossArena } from './boss'
 
-export type { DungeonParameters, LobbyOptions } from './config/parameters'
-export { THEMES } from './config/parameters'
+export type { DungeonParameters, LobbyOptions, BossOptions, BossWave } from './config/parameters'
+export { THEMES, BOSS_IDS, BOSS_COVER_PATTERNS, DEFAULT_WAVE_MONSTER_MAX, defaultBossOptions } from './config/parameters'
 export { THEME_DEFS, getTheme } from './config/themes'
 export type { ThemeDef } from './config/themes'
 export { defaultParameters }
@@ -16,6 +16,9 @@ export { CAMPAIGN_PRESETS, DEFAULT_PRESET_ID, campaignPresetById } from './confi
 export type { CampaignPreset } from './config/presets'
 export { validateParameters } from './config/validation'
 export type { ValidationResult, ValidationIssue } from './config/validation'
+export { BOSS_GOLD_MAX } from './config/validation'
+export type { BossDef, BossId } from './boss'
+export { BOSS_DEF_LIST } from './boss'
 export { parseParametersTxt, serializeParametersTxt } from './config/configFile'
 export type { ParsedConfig } from './config/configFile'
 export {
