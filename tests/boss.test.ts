@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { GenerationContext } from '../src/generator/core/context'
 import { THEMES, defaultParameters } from '../src/generator/config/parameters'
+import { getTheme } from '../src/generator/config/themes'
 import type { BossOptions } from '../src/generator/config/parameters'
 import { buildBossArena } from '../src/generator/boss/arena'
 import { BOSS_DEFS } from '../src/generator/boss/bosses'
+import type { AlcoveWall } from '../src/generator/boss/bosses'
 import { generateDungeon } from '../src/generator'
 import type { DungeonParameters, DungeonResult } from '../src/generator'
 import { allIds, badIntArray } from './xmlHelpers'
@@ -187,34 +189,49 @@ describe('boss arena — geometry', () => {
       }
     })
 
-    it(`seed ${seed}: the alcove interior is real floor tiles`, () => {
+    it(`seed ${seed}: the alcove interior is real floor tiles, reachable one tile behind each seal`, () => {
       const { xml, preview } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
       const seals = destroyObjectTargets(xml)
-      expect(seals.length).toBe(3)
+      // 3 structural wall seals + a Cover over each of the 3 mouth tiles + a
+      // Cover over each of the 9 pocket floor tiles, on a theme (the default,
+      // 'g') that doesn't set omitCover. See "theme h has no Cover doodads at
+      // all" below for the other branch.
+      expect(seals.length).toBe(15)
 
       const doodads = doodadEntries(xml)
       const sealDoodads = doodads.filter((d) => seals.includes(d.id))
-      expect(sealDoodads).toHaveLength(3)
-      // every seal is need-sync=True, and nothing else is
+      expect(sealDoodads).toHaveLength(seals.length)
+      // every seal is need-sync=True, and nothing else is — the DestroyObject
+      // target array and the need-sync set must stay exactly the same set
       for (const d of sealDoodads) expect(d.needSync).toBe(true)
       expect(doodads.filter((d) => d.needSync).map((d) => d.id).sort()).toEqual([...seals].sort())
+
+      // Cover's path is doodads/special/color_theme_*_16.xml (doodad.ts),
+      // distinct from every theme_*/ wall-piece path — split the 3 structural
+      // seals out from the 12 Cover overlays so the geometry probe below only
+      // looks at the pieces that actually have a collision polygon and an
+      // offset convention this test knows how to undo.
+      const wallSealDoodads = sealDoodads.filter((d) => !d.type.includes('/special/color_theme_'))
+      expect(wallSealDoodads).toHaveLength(3)
 
       // A doodad's emitted x/y is its tile position *plus* DoodadType's
       // per-piece render offset (doodad.ts) — Horizontal is yOffset 2,
       // Vertical is yOffset 1, xOffset 0 for both on the default (unoverridden)
       // theme these tests use. Undo that before treating the number as a tile
       // coordinate, or the probe below lands on the wrong tile.
-      const tileOf = (d: (typeof sealDoodads)[number]): { x: number; y: number } => {
+      const tileOf = (d: (typeof wallSealDoodads)[number]): { x: number; y: number } => {
         const isHorizontal = d.type.includes('_h_8')
         const offset = isHorizontal ? { x: 0, y: 2 } : { x: 0, y: 1 }
         return { x: d.x - offset.x, y: d.y - offset.y }
       }
 
       // the alcove interior tile directly behind the mouth (whichever wall it
-      // is) must be floor — walk 2 tiles further past a seal doodad, away
-      // from the interior, and expect open ground
+      // is) must be floor — probe the tile *immediately* behind a seal (+1,
+      // not +2): on the E wall this is exactly the column the §1 off-by-one
+      // used to leave as unopenable wall, and +2 lands one column past it,
+      // which is why the old probe never caught the bug.
       const room = preview.rooms[0]
-      const tiles = sealDoodads.map(tileOf)
+      const tiles = wallSealDoodads.map(tileOf)
       // Determine the seal row/column direction from the three seal tile
       // positions themselves (they are colinear, either same x or same y).
       const sameX = tiles.every((t) => t.x === tiles[0].x)
@@ -227,16 +244,21 @@ describe('boss arena — geometry', () => {
         if (sameY) {
           // N mouth: the alcove interior is further negative in y (away from
           // the main interior, which sits at y >= 0).
-          const probe = { gx: Math.round(room.x + t.x), gy: Math.round(room.y + t.y) - 2 }
+          const probe = { gx: Math.round(room.x + t.x), gy: Math.round(room.y + t.y) - 1 }
           const inBounds = probe.gx >= 0 && probe.gx < preview.mapWidth && probe.gy >= 0 && probe.gy < preview.mapHeight
           expect(inBounds).toBe(true)
+          // floor — and by construction (Doodad.create for wall/cover pieces
+          // only fires where tileArray[idx].wall was true, see arena.ts's
+          // rasterization loop) a floor tile never receives a wall-piece
+          // doodad, so this single check proves both "floor" and "no
+          // collidable doodad blocks it" at once.
           expect(isWall(probe.gx, probe.gy)).toBe(false)
         } else {
           // E or W mouth: the alcove sits on whichever side of the mouth is
           // away from the main interior — negative x for W (mouth x === -1),
           // positive for E (mouth x === width).
           const dir = t.x < 0 ? -1 : 1
-          const probe = { gx: Math.round(room.x + t.x) + 2 * dir, gy: Math.round(room.y + t.y) }
+          const probe = { gx: Math.round(room.x + t.x) + dir, gy: Math.round(room.y + t.y) }
           const inBounds = probe.gx >= 0 && probe.gx < preview.mapWidth && probe.gy >= 0 && probe.gy < preview.mapHeight
           expect(inBounds).toBe(true)
           expect(isWall(probe.gx, probe.gy)).toBe(false)
@@ -312,7 +334,10 @@ describe('boss arena — id integrity', () => {
 
   it('never emits an empty DestroyObject array', () => {
     const { xml } = buildBossArena(freshCtx(4242), arenaOptions(), 0)
-    expect(destroyObjectTargets(xml)).toHaveLength(3)
+    // 3 wall seals + 3 mouth Covers + 9 pocket Covers on a theme with Cover
+    // enabled (the default, 'g') — see the all-themes test below for theme h,
+    // which omits Cover and keeps this at 3.
+    expect(destroyObjectTargets(xml)).toHaveLength(15)
   })
 })
 
@@ -435,20 +460,30 @@ describe('boss arena — food placement', () => {
 
 describe('boss arena — every theme, not just the default', () => {
   // The seal doodads are whatever the shared wall-pattern matcher returned for
-  // the 3 mouth tiles. Theme h uses directional cliff pieces and omits Cover
-  // entirely, and the bonus themes re-anchor every piece, so "3 seals" is a
-  // property worth proving across the whole registry rather than on theme g
-  // alone — a theme that returned null for a mouth tile would ship an alcove
-  // that never fully opens.
-  it('seals the alcove with exactly 3 need-sync doodads in every theme', () => {
+  // the 3 mouth tiles, plus (except on theme h) a Cover over every mouth and
+  // pocket floor tile. Theme h uses directional cliff pieces and omits Cover
+  // entirely (its own omitCover flag) — see baseline.ts's ThemeDef — so it
+  // stays at the 3 structural wall seals with no Cover overlay at all, while
+  // every other theme, including the bonus ones which re-anchor every piece,
+  // gets 3 wall seals + 3 mouth Covers + 9 pocket Covers = 15. A theme that
+  // returned null for a mouth tile would ship an alcove that never fully
+  // opens, which is why the structural-seal count is still checked directly.
+  it('seals the alcove with exactly 3 wall seals, plus every Cover over the alcove, in every theme', () => {
     for (const theme of THEMES) {
+      const omitsCover = getTheme(theme)?.omitCover === true
       for (const seed of [1, 4242]) {
         const { xml } = buildBossArena(freshCtx(seed), arenaOptions({ theme }), 0)
 
         const seals = destroyObjectTargets(xml)
-        expect(seals, `${theme} seed ${seed}`).toHaveLength(3)
+        expect(seals, `${theme} seed ${seed}`).toHaveLength(omitsCover ? 3 : 15)
 
-        const syncing = doodadEntries(xml).filter((d) => d.needSync).map((d) => d.id)
+        const doodads = doodadEntries(xml)
+        const wallSeals = doodads.filter((d) => seals.includes(d.id) && !d.type.includes('/special/color_theme_'))
+        expect(wallSeals, `${theme} seed ${seed}`).toHaveLength(3)
+
+        // the DestroyObject target array and the need-sync doodad set must
+        // stay exactly the same set, in every theme
+        const syncing = doodads.filter((d) => d.needSync).map((d) => d.id)
         expect(syncing.sort(), `${theme} seed ${seed}`).toEqual([...seals].sort())
 
         expect(badIntArray(xml), `${theme} seed ${seed}`).toBeNull()
@@ -652,6 +687,85 @@ describe('boss arena — tile alignment (block x/y in the same local space as ev
       const cellIndex = cellRow * 20 + cellCol
       expect(block!.datasets[1].dataT[cellIndex], `seed ${seed}: boss tile is void, not floor`).toBeGreaterThan(0)
     }
+  })
+})
+
+describe('boss arena — playtest round 2: world-extent alignment per alcove wall', () => {
+  // The §3 diagnostic the plan asked for, made permanent: compare, in the
+  // same *local* coordinate space every doodad/actor/item/node is emitted in
+  // (not raw grid space, not the preview's row-major bitmap), the min/max
+  // extent of real floor tiles against the min/max extent of the wall-piece
+  // doodads that bound the interior — for one seed per alcove wall (N, E, W),
+  // found by generating seeds in order and classifying which wall each one
+  // picked, bounded per invariant #5 rather than hardcoding seed numbers that
+  // would go stale the moment boss-selection or alcove-veto logic changes.
+  //
+  // Floor extent comes from the emitted tilemap blocks (declared block x/y
+  // plus the "-10 + i%20" per-cell offset getTiles/Level.getTiles uses — see
+  // the modding skill). Wall extent comes from `ctx.doodads` directly rather
+  // than the emitted XML, because a doodad's *emitted* x/y already has
+  // doodad.ts's per-piece render offset baked in (Horizontal is yOffset 2,
+  // corners are 1 or 2, etc.) — reading `ctx.doodads[i].x/.y` before
+  // `getXML()` runs gives the doodad's true tile position, the only way to
+  // compare apples to apples against the floor's tile positions.
+  function floorExtent(xml: string): { minX: number; maxX: number; minY: number; maxY: number } {
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+    for (const b of tileBlocks(xml)) {
+      const dataT = b.datasets[1].dataT
+      for (let i = 0; i < dataT.length; i++) {
+        if (dataT[i] === 0) continue // void/wall sentinel, not real floor
+        const tileX = b.x - 10 + (i % 20)
+        const tileY = b.y - 10 + Math.trunc(i / 20)
+        if (tileX < minX) minX = tileX
+        if (tileX > maxX) maxX = tileX
+        if (tileY < minY) minY = tileY
+        if (tileY > maxY) maxY = tileY
+      }
+    }
+    return { minX, maxX, minY, maxY }
+  }
+
+  function wallDoodadExtent(ctx: GenerationContext): { minX: number; maxX: number; minY: number; maxY: number } {
+    // exclude Cover — a free-standing visual overlay with no collider (see
+    // ASSET-REGISTRY.md), it is not part of the collision boundary this test
+    // is checking, and (post-§2) it also covers ground well inside the wall
+    // ring, which would corrupt the bracket this test is proving.
+    const wallDoodads = ctx.doodads.filter((d) => d.type !== 'Cover')
+    const xs = wallDoodads.map((d) => d.x)
+    const ys = wallDoodads.map((d) => d.y)
+    return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) }
+  }
+
+  it('floor and wall-doodad world extents bracket identically on X and Y, for each of N/E/W', () => {
+    const foundWalls = new Map<AlcoveWall, number>()
+    for (let seed = 1; foundWalls.size < 3 && seed <= 200; seed++) {
+      const ctx = freshCtx(seed)
+      const { xml } = buildBossArena(ctx, arenaOptions(), 0)
+      const wallSeals = ctx.doodads.filter((d) => d.needSync && d.type !== 'Cover')
+      // classify which wall this seed's alcove landed on from the 3 sealed
+      // wall pieces' own raw tile coordinates: same y on all three means a
+      // horizontal mouth row (N); otherwise same x means a vertical mouth
+      // column, negative for W (mouth x === -1) and positive for E (mouth
+      // x === width)
+      const ys = wallSeals.map((d) => Math.round(d.y))
+      const xs = wallSeals.map((d) => Math.round(d.x))
+      const wall: AlcoveWall = new Set(ys).size === 1 ? 'N' : xs[0] < 0 ? 'W' : 'E'
+      if (foundWalls.has(wall)) continue
+      foundWalls.set(wall, seed)
+
+      const floor = floorExtent(xml)
+      const walls = wallDoodadExtent(ctx)
+
+      // the wall ring sits exactly 1 tile outside the floor it encloses, on
+      // every side, on every axis — a constant offset here on one axis and
+      // not the other is exactly what an emitter-level X (or Y) drift would
+      // look like
+      expect(walls.minX, `wall ${wall} seed ${seed} minX`).toBe(floor.minX - 1)
+      expect(walls.maxX, `wall ${wall} seed ${seed} maxX`).toBe(floor.maxX + 1)
+      expect(walls.minY, `wall ${wall} seed ${seed} minY`).toBe(floor.minY - 1)
+      expect(walls.maxY, `wall ${wall} seed ${seed} maxY`).toBe(floor.maxY + 1)
+    }
+    expect(foundWalls.size, 'expected to find a seed for all of N, E and W within 200 seeds').toBe(3)
   })
 })
 

@@ -291,7 +291,22 @@ export const SHOP_PRICE_MAX = 999999
 
 const COST_FIELDS: TweakFieldDef[] = TWEAK_FIELDS.filter((field) => field.group === 'cost')
 
-const REMOVE_FIELDS: TweakFieldDef[] = TWEAK_FIELDS.filter((field) => field.group === 'remove')
+/** The one removal the cost policy does not own — see REMOVE_FIELDS below. */
+const EXTRA_LIFE_KEY = removeKey('shared', 'life')
+
+/**
+ * Every remove flag *except* the extra-life one, which the targeted Quick Setup
+ * checkbox owns outright.
+ *
+ * The coarse cost policy used to clear all of them, which quietly re-enabled
+ * buyable extra lives whenever anyone picked a shop-price preset — and since
+ * `defaultParameters()` now ships that removal, it undid a default nobody
+ * touched. Excluding it here is what the "the per-upgrade flags stay available
+ * for the targeted case (extra lives)" comment below always claimed was true.
+ */
+const REMOVE_FIELDS: TweakFieldDef[] = TWEAK_FIELDS.filter(
+  (field) => field.group === 'remove' && field.key !== EXTRA_LIFE_KEY
+)
 
 /**
  * Prices are integers and the shop pays the difference on a negative one — a
@@ -317,8 +332,10 @@ export function applyCostPolicy(
     else withOverride(next, field.key, target, field.stock)
   }
 
-  // removal is all-or-nothing here; the per-upgrade flags stay available for the
-  // targeted case (extra lives), which is why this clears rather than merges
+  // Removal is all-or-nothing here, which is why this clears rather than
+  // merges. REMOVE_FIELDS deliberately excludes the extra-life flag, so the
+  // targeted control keeps owning that one and a price preset can no longer
+  // put buyable lives back on behind the user's back.
   for (const field of REMOVE_FIELDS) {
     if (policy === 'removed') next[field.key] = 1
     else delete next[field.key]

@@ -123,9 +123,15 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
     for (let dx = -1; dx <= 1; dx++) for (let row = 2; row <= 4; row++) alcoveFloor.push({ x: midX + dx, y: -row })
     orbLocal = { x: midX, y: -3 }
   } else if (alcoveWall === 'E') {
+    // East is not the mirror of N/W: the interior's own wall band already
+    // sits at x === width (there is no symmetric "-1" margin on this side —
+    // see the file header), so the mouth (x === width) is column 0 of the
+    // pocket and the 3 floored interior columns are 1..3, not 2..4. Using
+    // 2..4 here left width+1 as wall (unreachable pocket, see arena.ts's
+    // §1 fix note) and ate the reserved outer-wall column at width+4 instead.
     for (let dy = -1; dy <= 1; dy++) mouth.push({ x: width, y: midY + dy })
-    for (let dy = -1; dy <= 1; dy++) for (let col = 2; col <= 4; col++) alcoveFloor.push({ x: width + col, y: midY + dy })
-    orbLocal = { x: width + 3, y: midY }
+    for (let dy = -1; dy <= 1; dy++) for (let col = 1; col <= 3; col++) alcoveFloor.push({ x: width + col, y: midY + dy })
+    orbLocal = { x: width + 2, y: midY }
   } else {
     for (let dy = -1; dy <= 1; dy++) mouth.push({ x: -1, y: midY + dy })
     for (let dy = -1; dy <= 1; dy++) for (let col = 2; col <= 4; col++) alcoveFloor.push({ x: -col, y: midY + dy })
@@ -154,13 +160,18 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   for (let x = 0; x < width; x++) for (let y = 0; y < height; y++) setFloor(x, y)
   for (const c of alcoveFloor) setFloor(c.x, c.y)
 
-  // --- wall + cover doodads: the exact pattern matcher the dungeon uses,
-  // scanned over the whole grid. The mouth tiles fall out of this the same as
-  // any other wall tile (a floor-floor boundary one tile thick matches
+  // --- wall doodads: the exact pattern matcher the dungeon uses, scanned
+  // over the whole grid. The mouth tiles fall out of this the same as any
+  // other wall tile (a floor-floor boundary one tile thick matches
   // Horizontal/Vertical, same as any straight wall segment) — they are only
-  // special in that we tag the resulting doodad need-sync and remember it. ---
+  // special in that we tag the resulting doodad need-sync and remember it.
+  // Cover is deliberately *not* drawn from this same scan (see below): now
+  // that §1's off-by-one is fixed, real floor sits immediately behind every
+  // mouth tile, so the matcher's own 2x2-wall Cover pattern correctly no
+  // longer fires there — it would take an explicit, not incidental, pass to
+  // blanket the mouth the way the plan calls for. ---
   const mouthKeys = new Set(mouth.map((m) => `${m.x},${m.y}`))
-  const seals: Doodad[] = []
+  const wallSeals: Doodad[] = []
 
   for (let gy = 0; gy < gridHeight; gy++) {
     for (let gx = 0; gx < gridWidth; gx++) {
@@ -168,17 +179,21 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
       if (!tileArray[idx].wall) continue // every pattern requires a wall centre; skip the lookup on floor
 
       const local = toLocal(gx, gy)
+      const isMouth = mouthKeys.has(`${local.x},${local.y}`)
 
       const wallType = searchPatterns(gx, gy, tileArray, gridWidth, true)
       if (wallType !== null) {
         const d = Doodad.create(ctx, local.x, local.y, wallType, arena.theme)
-        if (mouthKeys.has(`${local.x},${local.y}`)) {
+        if (isMouth) {
           d.needSync = true
-          seals.push(d)
+          wallSeals.push(d)
         }
       }
 
-      if (themeDef.omitCover !== true) {
+      // Ordinary (non-alcove) Cover overlay, same as before this playtest fix
+      // — everywhere except the mouth, which gets its own explicit Cover pass
+      // below instead of whatever this scan would incidentally produce.
+      if (themeDef.omitCover !== true && !isMouth) {
         const coverType = searchPatterns(gx, gy, tileArray, gridWidth, false)
         if (coverType !== null) {
           Doodad.create(ctx, local.x, local.y, coverType, arena.theme)
@@ -188,15 +203,39 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   }
 
   // The alcove mouth is exactly 3 tiles wide, so the pattern matcher must have
-  // produced exactly 3 doodads for it. Verified across all 14 themes, but the
-  // matcher is shared with the dungeon and a future piece change could silently
-  // return null for a mouth tile — which would ship an alcove that never fully
-  // opens, a bug no XML check would catch. Fail loudly instead.
-  if (seals.length !== mouth.length) {
+  // produced exactly 3 wall seal doodads for it. Verified across all 14 themes,
+  // but the matcher is shared with the dungeon and a future piece change could
+  // silently return null for a mouth tile — which would ship an alcove that
+  // never fully opens, a bug no XML check would catch. Fail loudly instead.
+  if (wallSeals.length !== mouth.length) {
     throw new Error(
-      `boss arena: alcove mouth produced ${seals.length} seal doodads, expected ${mouth.length}`
+      `boss arena: alcove mouth produced ${wallSeals.length} seal doodads, expected ${mouth.length}`
     )
   }
+
+  // --- alcove Cover: blanket every mouth and pocket floor tile explicitly,
+  // so the whole alcove reads as solid rock from every angle until "Boss
+  // Died" opens it. Explicit, not incidental — the mouth no longer matches
+  // the shared pattern's own Cover shape (see above), and the pocket floor
+  // tiles were already carved to floor by `setFloor` earlier, so the wall
+  // scan's `!tileArray[idx].wall` guard would skip them regardless. Theme h
+  // sets omitCover, so it gets none of this either (its hidden-wall trick is
+  // directional cliff pieces, not overpainting). Doodad.create draws no RNG,
+  // so adding these does not touch ctx.bossRand's draw order. ---
+  const alcoveCovers: Doodad[] = []
+  if (themeDef.omitCover !== true) {
+    for (const c of [...mouth, ...alcoveFloor]) {
+      const d = Doodad.create(ctx, c.x, c.y, 'Cover', arena.theme)
+      d.needSync = true
+      alcoveCovers.push(d)
+    }
+  }
+
+  // Everything the "Boss Died" chain must destroy to fully open and reveal the
+  // alcove: the 3 structural wall seals, plus every Cover painted over the
+  // mouth and the pocket. This set and the doodads carrying `need-sync: true`
+  // must stay exactly identical — see the wiring below.
+  const alcoveSeals = [...wallSeals, ...alcoveCovers]
 
   // --- boss actor: a bare actor placement, no rig of its own — the engine
   // fires the "Boss ..." global events for any actor under actors/boss_*/. A
@@ -256,7 +295,7 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
 
   const bossDied = new NodeGlobalEventTrigger(ctx, midX, midY, 'Boss Died')
   const destroyWalls = new NodeDestroyObject(ctx, midX, midY)
-  for (const seal of seals) destroyWalls.connectDoodad(seal)
+  for (const seal of alcoveSeals) destroyWalls.connectDoodad(seal)
   bossDied.connectTo(destroyWalls)
 
   return {
