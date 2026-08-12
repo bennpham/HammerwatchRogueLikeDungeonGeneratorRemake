@@ -4,6 +4,8 @@ import { THEMES, defaultParameters } from '../src/generator/config/parameters'
 import type { BossOptions } from '../src/generator/config/parameters'
 import { buildBossArena } from '../src/generator/boss/arena'
 import { BOSS_DEFS } from '../src/generator/boss/bosses'
+import { generateDungeon } from '../src/generator'
+import type { DungeonParameters, DungeonResult } from '../src/generator'
 import { allIds, badIntArray } from './xmlHelpers'
 
 function freshCtx(seed: number): GenerationContext {
@@ -12,6 +14,59 @@ function freshCtx(seed: number): GenerationContext {
 
 function arenaOptions(overrides: Partial<BossOptions['arena']> = {}): BossOptions['arena'] {
   return { ...defaultParameters().boss.arena, ...overrides }
+}
+
+function generateOk(params: DungeonParameters, seed: number): DungeonResult {
+  const result = generateDungeon(params, seed)
+  expect(result.ok, `generation failed: ${result.ok ? '' : result.errors.join(' ')}`).toBe(true)
+  return result as DungeonResult
+}
+
+function withBoss(patch: Partial<BossOptions>): DungeonParameters {
+  const params = defaultParameters()
+  params.boss = { ...params.boss, ...patch }
+  return params
+}
+
+/**
+ * A campaign predating the boss feature: no `boss` key at all, the shape a
+ * parameters.txt from before this feature (or a hand-built test params
+ * object) would produce. `generateDungeon`'s own `params.boss?.enabled ===
+ * true` check and room.ts's matching guard exist specifically so this is not
+ * a crash — it is "off", the same as an explicit `enabled: false`.
+ */
+function withoutBossField(): DungeonParameters {
+  const params = defaultParameters()
+  const { boss: _boss, ...rest } = params
+  return rest as DungeonParameters
+}
+
+/**
+ * The full `<dictionary>...</dictionary>` block for the element whose bare
+ * (unnamed) dictionary carries `<int name="id">ID</int>` as its first child —
+ * depth-tracked because a node's own `parameters` sub-dictionary nests inside
+ * it. Used to prove a diff between two level files is confined to a handful
+ * of known ids and touches nothing else.
+ */
+function dictBlockById(xml: string, id: number): string {
+  const re = new RegExp(`<dictionary>\\s*<int name="id">${id}</int>`)
+  const m = re.exec(xml)
+  if (m === null) return ''
+  let pos = m.index + '<dictionary>'.length
+  let depth = 1
+  while (depth > 0) {
+    const nextOpen = xml.indexOf('<dictionary', pos)
+    const nextClose = xml.indexOf('</dictionary>', pos)
+    if (nextClose === -1) break
+    if (nextOpen !== -1 && nextOpen < nextClose) {
+      depth++
+      pos = nextOpen + '<dictionary'.length
+    } else {
+      depth--
+      pos = nextClose + '</dictionary>'.length
+    }
+  }
+  return xml.slice(m.index, pos)
 }
 
 /** Every `<int name="id">...` plus each node's own `x`/`y`, for geometry checks against the XML directly. */
@@ -397,6 +452,125 @@ describe('boss arena — every theme, not just the default', () => {
         expect(syncing.sort(), `${theme} seed ${seed}`).toEqual([...seals].sort())
 
         expect(badIntArray(xml), `${theme} seed ${seed}`).toBeNull()
+      }
+    }
+  })
+})
+
+// --- Phase 7: whole-campaign integration -----------------------------------
+// The arena-level suites above prove buildBossArena() in isolation; these
+// prove generateDungeon() wires it in without disturbing anything else.
+
+describe('boss campaign — off means off', () => {
+  // The single most important test in this suite: if this fails, something in
+  // the boss wiring is drawing from ctx.rand (or touching layout) when it
+  // should be reachable only through ctx.bossRand behind `boss.enabled`.
+  it('boss.enabled: false matches a campaign with no boss field at all, across seeds', () => {
+    for (const seed of [1, 4242, 987654]) {
+      const off = generateOk(withBoss({ enabled: false }), seed)
+      const legacy = generateOk(withoutBossField(), seed)
+      expect(off.files).toEqual(legacy.files)
+      expect(off.levels).toEqual(legacy.levels)
+    }
+    // six full campaigns; the 5s default times this one out whenever the
+    // suite runs its files in parallel, which is every time (see lobby.test.ts)
+  }, 60_000)
+})
+
+describe('boss campaign — on touches only the final floor’s orb room', () => {
+  it('boss on vs boss off: every floor but the last is byte-identical; the last differs only in its 3 swapped ids', () => {
+    for (const seed of [1, 4242, 987654]) {
+      const on = generateOk(withBoss({ enabled: true }), seed)
+      const off = generateOk(withBoss({ enabled: false }), seed)
+      const floors = defaultParameters().levels
+
+      // wall bitmap and room geometry/lock state identical on every floor,
+      // including the last — the swap changes which prefab occupies the orb
+      // room, never the room itself or the rasterized walls around it
+      for (let i = 0; i < floors; i++) {
+        expect(on.levels[i].walls, `seed ${seed} floor ${i} walls`).toBe(off.levels[i].walls)
+        expect(on.levels[i].rooms, `seed ${seed} floor ${i} rooms`).toEqual(off.levels[i].rooms)
+      }
+
+      for (let i = 0; i < floors - 1; i++) {
+        const path = `levels/level${i}.xml`
+        expect(on.files.find((f) => f.path === path)!.content, `seed ${seed} floor ${i}`).toBe(
+          off.files.find((f) => f.path === path)!.content
+        )
+      }
+
+      const path = `levels/level${floors - 1}.xml`
+      const onXml = on.files.find((f) => f.path === path)!.content
+      const offXml = off.files.find((f) => f.path === path)!.content
+      expect(onXml, `seed ${seed} final floor should differ`).not.toBe(offXml)
+
+      // the tilemap is the wall/floor raster alone — must be untouched
+      const tilemapOf = (xml: string) =>
+        /<dictionary name="tilemap">[\s\S]*?<\/dictionary>\s*<dictionary name="doodads">/.exec(xml)?.[0]
+      expect(tilemapOf(onXml), `seed ${seed} tilemap`).toBe(tilemapOf(offXml))
+
+      // neither prefab draws RNG or shifts idCounter, so both variants
+      // consume exactly the same 3 ids at exactly the same position
+      const onIds = allIds(onXml).sort((a, b) => a - b)
+      const offIds = allIds(offXml).sort((a, b) => a - b)
+      expect(onIds, `seed ${seed} id sets`).toEqual(offIds)
+
+      const changedIds = onIds.filter((id) => dictBlockById(onXml, id) !== dictBlockById(offXml, id))
+      expect(changedIds, `seed ${seed} changed ids`).toHaveLength(3)
+    }
+  }, 60_000)
+})
+
+describe('boss campaign — determinism', () => {
+  it('same params and seed produce byte-identical files, boss on or off', () => {
+    for (const bossEnabled of [true, false]) {
+      const params = withBoss({ enabled: bossEnabled })
+      const a = generateOk(params, 2024)
+      const b = generateOk(params, 2024)
+      expect(a.files).toEqual(b.files)
+      expect(a.levels).toEqual(b.levels)
+    }
+  })
+})
+
+describe('boss campaign — wiring', () => {
+  it('lists lobby, 0..N-1, bossprep, boss in order; wires the prep/portal targets; leaves start alone', () => {
+    const seed = 4242
+    const floors = defaultParameters().levels
+    const on = generateOk(defaultParameters(), seed) // lobby and boss both default on
+
+    const levelsXml = on.files.find((f) => f.path === 'levels.xml')!.content
+    const order = ['lobby', ...Array.from({ length: floors }, (_, i) => String(i)), 'bossprep', 'boss']
+    let lastIdx = -1
+    for (const id of order) {
+      const idx = levelsXml.indexOf(`<level id="${id}"`)
+      expect(idx, `level id "${id}" missing or out of order`).toBeGreaterThan(lastIdx)
+      lastIdx = idx
+    }
+
+    // start is the lobby's concern, not the boss's — unaffected by boss on/off
+    const bossOff = generateOk(withBoss({ enabled: false }), seed)
+    const startOf = (r: DungeonResult) => /<levels start="([^"]*)">/.exec(r.files.find((f) => f.path === 'levels.xml')!.content)?.[1]
+    expect(startOf(on)).toBe(startOf(bossOff))
+    expect(startOf(on)).toBe('lobby')
+
+    // the prep room's exit targets the arena
+    const prep = on.files.find((f) => f.path === 'levels/bossprep.xml')!.content
+    expect(prep).toContain('<string name="level">boss</string>')
+
+    // the final dungeon floor's portal targets the prep room
+    const finalFloor = on.files.find((f) => f.path === `levels/level${floors - 1}.xml`)!.content
+    expect(finalFloor).toContain('<string name="level">bossprep</string>')
+  })
+})
+
+describe('boss campaign — packer safety', () => {
+  it('badIntArray finds nothing in any generated file, boss on or off', () => {
+    for (const bossEnabled of [true, false]) {
+      const result = generateOk(withBoss({ enabled: bossEnabled }), 4242)
+      for (const file of result.files) {
+        if (!file.path.endsWith('.xml')) continue
+        expect(badIntArray(file.content), `${file.path} boss=${bossEnabled}`).toBeNull()
       }
     }
   })
