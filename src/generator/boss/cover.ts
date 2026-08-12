@@ -87,7 +87,7 @@ function footprintRect(cx: number, cy: number, footprint: { width: number; heigh
  * alcove, or an already-placed pillar, or that would poke outside the
  * interior.
  */
-function isFree(candidate: Rect, arena: CoverArena, placed: readonly Rect[]): boolean {
+export function isFree(candidate: Rect, arena: CoverArena, placed: readonly Rect[]): boolean {
   if (candidate.x < 0 || candidate.y < 0 || candidate.x + candidate.width > arena.width || candidate.y + candidate.height > arena.height) {
     return false
   }
@@ -133,7 +133,13 @@ function placeAt(ctx: GenerationContext, arena: CoverArena, x: number, y: number
   return Doodad.create(ctx, x, y, 'Pillar', arena.theme)
 }
 
-function placeRandom(ctx: GenerationContext, arena: CoverArena, options: CoverOptions): Doodad[] {
+/** A pattern's output: the doodads it created, plus the footprint rects it placed them at (for the caller's own rejection filters, e.g. food placement). */
+export interface PlacedPillars {
+  doodads: Doodad[]
+  rects: Rect[]
+}
+
+function placeRandom(ctx: GenerationContext, arena: CoverArena, options: CoverOptions): PlacedPillars {
   const count = coverPillarCount(options.density, arena.width, arena.height, arena.theme)
   const footprint = pillarFootprint(arena.theme)
   const placed: Rect[] = []
@@ -152,7 +158,7 @@ function placeRandom(ctx: GenerationContext, arena: CoverArena, options: CoverOp
     }
   }
 
-  return result
+  return { doodads: result, rects: placed }
 }
 
 /** A point at `distance` tiles along the perimeter of `rect`, clockwise from its top-left corner. */
@@ -172,9 +178,10 @@ function pointOnPerimeter(rect: { left: number; top: number; right: number; bott
   return { x: rect.left, y: rect.bottom - d }
 }
 
-function placeRing(ctx: GenerationContext, arena: CoverArena, options: CoverOptions): Doodad[] {
+function placeRing(ctx: GenerationContext, arena: CoverArena, options: CoverOptions): PlacedPillars {
+  const empty: PlacedPillars = { doodads: [], rects: [] }
   const target = coverPillarCount(options.density, arena.width, arena.height, arena.theme)
-  if (target <= 0) return []
+  if (target <= 0) return empty
 
   // Inset one tile further in than the spawn anchors, so the ring reads as
   // its own band rather than sitting on top of the anchor points.
@@ -182,14 +189,14 @@ function placeRing(ctx: GenerationContext, arena: CoverArena, options: CoverOpti
   const bounds = { left: inset, top: inset, right: arena.width - 1 - inset, bottom: arena.height - 1 - inset }
   const w = bounds.right - bounds.left
   const h = bounds.bottom - bounds.top
-  if (w <= 0 || h <= 0) return []
+  if (w <= 0 || h <= 0) return empty
   const perimeter = 2 * (w + h)
 
   // ringSpacing is a minimum gap between adjacent pillars, not an inset —
   // it's what keeps the ring walkable instead of a second solid wall.
   const maxBySpacing = Math.floor(perimeter / Math.max(1, options.ringSpacing))
   const count = Math.max(0, Math.min(target, maxBySpacing))
-  if (count === 0) return []
+  if (count === 0) return empty
 
   const footprint = pillarFootprint(arena.theme)
   const placed: Rect[] = []
@@ -217,13 +224,14 @@ function placeRing(ctx: GenerationContext, arena: CoverArena, options: CoverOpti
     }
   }
 
-  return result
+  return { doodads: result, rects: placed }
 }
 
-function placeGaussian(ctx: GenerationContext, arena: CoverArena, options: CoverOptions): Doodad[] {
+function placeGaussian(ctx: GenerationContext, arena: CoverArena, options: CoverOptions): PlacedPillars {
+  const empty: PlacedPillars = { doodads: [], rects: [] }
   const total = coverPillarCount(options.density, arena.width, arena.height, arena.theme)
   const clusters = Math.max(1, options.clusters)
-  if (total <= 0) return []
+  if (total <= 0) return empty
 
   const footprint = pillarFootprint(arena.theme)
   const placed: Rect[] = []
@@ -259,13 +267,14 @@ function placeGaussian(ctx: GenerationContext, arena: CoverArena, options: Cover
     }
   }
 
-  return result
+  return { doodads: result, rects: placed }
 }
 
-function placeSymmetric(ctx: GenerationContext, arena: CoverArena, options: CoverOptions): Doodad[] {
+function placeSymmetric(ctx: GenerationContext, arena: CoverArena, options: CoverOptions): PlacedPillars {
+  const empty: PlacedPillars = { doodads: [], rects: [] }
   const total = coverPillarCount(options.density, arena.width, arena.height, arena.theme)
   const groups = Math.trunc(total / 4)
-  if (groups <= 0) return []
+  if (groups <= 0) return empty
 
   const footprint = pillarFootprint(arena.theme)
   const placed: Rect[] = []
@@ -307,16 +316,17 @@ function placeSymmetric(ctx: GenerationContext, arena: CoverArena, options: Cove
     }
   }
 
-  return result
+  return { doodads: result, rects: placed }
 }
 
 /**
  * Place cover pillars for one arena, per `options.pattern`. Draws only from
  * `ctx.bossRand` and creates real `Doodad`s (pushed onto `ctx.doodads` via
- * `Doodad.create`, same as every other arena entity) — the caller (arena.ts,
- * Phase 5e) just needs the returned list for bookkeeping, e.g. ids.
+ * `Doodad.create`, same as every other arena entity). Also returns each
+ * pillar's placed footprint rect — arena.ts's food pass reuses these so a
+ * pickup never lands inside a pillar.
  */
-export function placeCoverPillars(ctx: GenerationContext, arena: CoverArena, options: CoverOptions): Doodad[] {
+export function placeCoverPillars(ctx: GenerationContext, arena: CoverArena, options: CoverOptions): PlacedPillars {
   switch (options.pattern) {
     case 'random':
       return placeRandom(ctx, arena, options)

@@ -8,7 +8,10 @@
  * Everything here draws only from `ctx.bossRand` — see context.ts's comment
  * on why that third stream exists. Draw order (fixed, so the same seed always
  * produces the same arena): width, height, boss pick, alcove wall, then
- * whatever `placeCoverPillars` itself draws.
+ * whatever `placeCoverPillars` draws, then `placeFood`'s own clusters (see
+ * its header). `Item.create` rolls a variant from `ctx.rand` when `index` is
+ * omitted — every arena Item.create call passes one explicitly, from
+ * `ctx.bossRand`, so the layout stream is never touched.
  *
  * Coordinate convention: interior tiles are `x` in `[0, width)`, `y` in
  * `[0, height)`, matching anchors.ts/cover.ts/geometry.ts. The alcove pocket
@@ -23,6 +26,7 @@
 import { Tile } from '../map/tile'
 import { searchPatterns } from '../map/wallPattern'
 import { Doodad } from '../objects/doodad'
+import { Item, ItemType } from '../objects/item'
 import { Monster } from '../objects/monster'
 import { ObjectSet } from '../objects/objectSet'
 import { NodeDestroyObject, NodeGlobalEventTrigger, NodeLevelStart, NodeRectangleShape } from '../objects/nodes'
@@ -35,9 +39,20 @@ import type { LevelPreview, PreviewRoom } from '../index'
 import { ENTRANCE_DEPTH, ENTRANCE_WIDTH, anchors } from './anchors'
 import { BOSS_DEFS } from './bosses'
 import type { AlcoveWall, BossId } from './bosses'
-import { placeCoverPillars } from './cover'
+import { isFree, placeCoverPillars } from './cover'
 import type { CoverArena, Rect } from './cover'
 import { buildWaveRig } from './waves'
+
+/**
+ * Placement attempts per food pickup before giving up on that one slot —
+ * same shape and cap as cover.ts's own PLACEMENT_ATTEMPTS, bounded per
+ * invariant #3 (never a `while (true)`). A slot that fails this many random
+ * draws is simply skipped, not retried forever.
+ */
+const FOOD_PLACEMENT_ATTEMPTS = 40
+
+/** Half-extent of a food pickup's own footprint, for the shared isFree() rejection filter. */
+const FOOD_FOOTPRINT = { width: 1, height: 1 }
 
 const TILEMAP_SIZE = 20
 
@@ -206,7 +221,13 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
     entrance: entranceRect,
     alcove: alcoveRect
   }
-  placeCoverPillars(ctx, coverArena, arena.cover)
+  const { rects: pillarRects } = placeCoverPillars(ctx, coverArena, arena.cover)
+
+  // --- food: sparse health/mana pickup clusters on free floor, drawn only
+  // from ctx.bossRand. See placeFood's own header for the density shape and
+  // the ctx.rand trap (Item.create rolls a variant from ctx.rand unless one
+  // is passed explicitly). ---
+  placeFood(ctx, coverArena, pillarRects, arena.foodMultiplier)
 
   // --- entrance rig: LevelStart for the teleport-in, plus the shape
   // buildWaveRig's tier-0 AreaTrigger attaches to. ---
@@ -216,7 +237,7 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   entranceShape.width = ENTRANCE_WIDTH
   entranceShape.height = ENTRANCE_DEPTH
 
-  buildWaveRig(ctx, arena.waves, anchorList, entranceShape)
+  buildWaveRig(ctx, arena.waves, arena.monsterMultiplier, anchorList, entranceShape)
 
   // --- win chain: Boss Died -> DestroyObject(seals) -> the wall opens ->
   // the existing Orb prefab's own ObjectEventTrigger -> GameEnd fires when the
@@ -231,6 +252,59 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   return {
     xml: getArenaXML(ctx, tileArray, gridWidth, gridHeight, themeDef),
     preview: buildArenaPreview(ctx, tileArray, gridWidth, gridHeight, originX, originY, width, height, arena.theme, levelNumber)
+  }
+}
+
+/**
+ * Radius, in tiles, food pickups scatter around a cluster centre. Small
+ * enough that a cluster reads as a pocket rather than being spread evenly
+ * across the arena.
+ */
+const FOOD_CLUSTER_RADIUS = 3
+
+/** Margin kept between a cluster centre and the interior wall band. */
+const FOOD_CLUSTER_MARGIN = 2
+
+function foodFootprintRect(x: number, y: number): Rect {
+  return { x: x - FOOD_FOOTPRINT.width / 2, y: y - FOOD_FOOTPRINT.height / 2, width: FOOD_FOOTPRINT.width, height: FOOD_FOOTPRINT.height }
+}
+
+/**
+ * Scatter health/mana pickups in a few loose clusters across free arena
+ * floor. Draws only from `ctx.bossRand` — see the file header's warning
+ * about `Item.create` rolling its variant from `ctx.rand` when `index` is
+ * omitted; every call below passes an explicit `index` to avoid that trap.
+ *
+ * Draw order per cluster (fixed): cluster count once up front, then per
+ * cluster a centre (x, y) and a count, then per pickup an x/y offset pair
+ * and (only once a free slot is actually found) a variant roll. This runs
+ * unconditionally on `foodMultiplier` — including when it is 0, which drives
+ * every cluster's count to 0 via the `Math.trunc(... * foodMultiplier)` below
+ * — so the draw order never depends on the multiplier's value, only the
+ * resulting counts do.
+ */
+function placeFood(ctx: GenerationContext, arena: CoverArena, placedPillars: readonly Rect[], foodMultiplier: number): void {
+  const clusters = ctx.bossRand.iRand(2, 5) // 2..4
+  const placed: Rect[] = [...placedPillars]
+
+  for (let c = 0; c < clusters; c++) {
+    const centreX = ctx.bossRand.iRand(FOOD_CLUSTER_MARGIN, Math.max(FOOD_CLUSTER_MARGIN + 1, arena.width - FOOD_CLUSTER_MARGIN))
+    const centreY = ctx.bossRand.iRand(FOOD_CLUSTER_MARGIN, Math.max(FOOD_CLUSTER_MARGIN + 1, arena.height - FOOD_CLUSTER_MARGIN))
+    const count = Math.max(0, Math.trunc(ctx.bossRand.fRand(2, 5) * foodMultiplier))
+
+    for (let i = 0; i < count; i++) {
+      for (let attempt = 0; attempt < FOOD_PLACEMENT_ATTEMPTS; attempt++) {
+        const x = centreX + ctx.bossRand.iRand(-FOOD_CLUSTER_RADIUS, FOOD_CLUSTER_RADIUS + 1)
+        const y = centreY + ctx.bossRand.iRand(-FOOD_CLUSTER_RADIUS, FOOD_CLUSTER_RADIUS + 1)
+        const rect = foodFootprintRect(x, y)
+        if (isFree(rect, arena, placed)) {
+          placed.push(rect)
+          const index = ctx.bossRand.iRand(0, ItemType.Food.length)
+          Item.create(ctx, x, y, 'Food', index)
+          break
+        }
+      }
+    }
   }
 }
 

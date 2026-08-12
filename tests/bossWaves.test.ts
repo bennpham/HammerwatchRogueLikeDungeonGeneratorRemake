@@ -11,10 +11,10 @@ function freshCtx(seed = 12345): GenerationContext {
   return new GenerationContext(defaultParameters(), seed)
 }
 
-function buildRig(ctx: GenerationContext, waves: BossWave[]) {
+function buildRig(ctx: GenerationContext, waves: BossWave[], monsterMultiplier = 1.0) {
   const anchorList = anchors(30, 40)
   const entranceShape = new NodeRectangleShape(ctx, 15, 38)
-  buildWaveRig(ctx, waves, anchorList, entranceShape)
+  buildWaveRig(ctx, waves, monsterMultiplier, anchorList, entranceShape)
   return { anchorList, entranceShape }
 }
 
@@ -180,6 +180,45 @@ describe('boss wave rig — round-robin budget split', () => {
     const spawns = nodesOfType(ctx, 'SpawnObject') as unknown as { triggerTimes: number }[]
     expect(spawns).toHaveLength(9)
     for (const s of spawns) expect(s.triggerTimes).toBe(-1)
+  })
+})
+
+describe('boss wave rig — monsterMultiplier scales the spawn budget', () => {
+  it('scales a finite monsterMax before the round-robin split', () => {
+    const ctx = freshCtx()
+    const waves: BossWave[] = [wave(['bat1'], { bat1: 10 })]
+    buildRig(ctx, waves, 2.0)
+
+    const spawns = nodesOfType(ctx, 'SpawnObject') as unknown as { triggerTimes: number }[]
+    const total = spawns.reduce((sum, s) => sum + s.triggerTimes, 0)
+    expect(total).toBe(20) // trunc(10 * 2.0)
+  })
+
+  it('a multiplier of 0 yields no spawns', () => {
+    const ctx = freshCtx()
+    const waves: BossWave[] = [wave(['bat1'], { bat1: 10 })]
+    buildRig(ctx, waves, 0)
+    expect(nodesOfType(ctx, 'SpawnObject')).toHaveLength(0)
+  })
+
+  it('-1 (endless) stays -1 regardless of the multiplier', () => {
+    const ctx = freshCtx()
+    const waves: BossWave[] = [wave(['bat1'], { bat1: -1 })]
+    buildRig(ctx, waves, 3.5)
+
+    const spawns = nodesOfType(ctx, 'SpawnObject') as unknown as { triggerTimes: number }[]
+    expect(spawns).toHaveLength(9)
+    for (const s of spawns) expect(s.triggerTimes).toBe(-1)
+  })
+
+  it('truncates rather than rounds, and never goes negative', () => {
+    const ctx = freshCtx()
+    const waves: BossWave[] = [wave(['bat1'], { bat1: 3 })]
+    buildRig(ctx, waves, 0.4) // trunc(3 * 0.4) = 1
+
+    const spawns = nodesOfType(ctx, 'SpawnObject') as unknown as { triggerTimes: number }[]
+    const total = spawns.reduce((sum, s) => sum + s.triggerTimes, 0)
+    expect(total).toBe(1)
   })
 })
 

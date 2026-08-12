@@ -6,8 +6,8 @@ export { ANCHOR_INSET, ENTRANCE_DEPTH, ENTRANCE_WIDTH, anchors } from './anchors
 export type { AlcoveWall, BossDef, BossId } from './bosses'
 export { BOSS_DEFS, BOSS_DEF_LIST, largestBossFootprintArea } from './bosses'
 
-export type { CoverArena, CoverBoss, CoverOptions, Rect } from './cover'
-export { placeCoverPillars } from './cover'
+export type { CoverArena, CoverBoss, CoverOptions, PlacedPillars, Rect } from './cover'
+export { isFree, placeCoverPillars } from './cover'
 
 export { ARENA_MIN_HEIGHT, ARENA_MIN_WIDTH, coverPillarCount, freeFloorArea, pillarFootprint } from './geometry'
 

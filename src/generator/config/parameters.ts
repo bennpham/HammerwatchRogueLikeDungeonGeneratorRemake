@@ -110,8 +110,9 @@ export interface BossOptions {
       ringSpacing: number
       clusters: number
     }
+    /** scales each wave tier's monsterMax (except -1/endless, which stays endless) */
     monsterMultiplier: number
-    goldMultiplier: number
+    /** scales the sparse health/mana pickup clusters scattered around the arena */
     foodMultiplier: number
   }
 }
@@ -182,7 +183,6 @@ export function defaultBossOptions(): BossOptions {
         clusters: 3
       },
       monsterMultiplier: 1.0,
-      goldMultiplier: 1.1,
       foodMultiplier: 1.2
     }
   }

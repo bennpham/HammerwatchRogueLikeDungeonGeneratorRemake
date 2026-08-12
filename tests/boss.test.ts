@@ -31,6 +31,15 @@ function doodadEntries(xml: string): { id: number; type: string; x: number; y: n
   ].map((m) => ({ id: Number(m[1]), type: m[2], x: Number(m[3]), y: Number(m[4]), needSync: m[5] === 'True' }))
 }
 
+function itemEntries(xml: string): { id: number; type: string; x: number; y: number }[] {
+  const section = /<dictionary name="items">([\s\S]*?)<\/dictionary>\s*<dictionary name="lighting">/.exec(xml)?.[1] ?? ''
+  return [
+    ...section.matchAll(
+      /<dictionary>\s*<int name="id">(-?\d+)<\/int>\s*<string name="type">([^<]*)<\/string>\s*<float name="x">(-?[\d.]+)<\/float>\s*<float name="y">(-?[\d.]+)<\/float>/g
+    )
+  ].map((m) => ({ id: Number(m[1]), type: m[2], x: Number(m[3]), y: Number(m[4]) }))
+}
+
 function destroyObjectTargets(xml: string): number[] {
   const match = /<string name="type">DestroyObject<\/string>[\s\S]*?<int-arr name="static">([^<]*)<\/int-arr>/.exec(xml)
   if (match === null) return []
@@ -276,6 +285,96 @@ describe('boss arena — the wall bitmap stays free of unaddressed voids', () =>
       expect(d.y).toBeGreaterThan(-10)
       expect(d.y).toBeLessThan(preview.mapHeight + 10)
     }
+  })
+})
+
+describe('boss arena — food placement', () => {
+  function foodItems(xml: string): { id: number; type: string; x: number; y: number }[] {
+    return itemEntries(xml).filter((i) => i.type === 'items/health_1.xml' || i.type === 'items/mana_1.xml')
+  }
+
+  it('places health/mana pickups at the default foodMultiplier', () => {
+    const { xml } = buildBossArena(freshCtx(4242), arenaOptions(), 0)
+    const food = foodItems(xml)
+    expect(food.length).toBeGreaterThan(0)
+  })
+
+  it('foodMultiplier: 0 places zero food', () => {
+    const { xml } = buildBossArena(freshCtx(4242), arenaOptions({ foodMultiplier: 0 }), 0)
+    expect(foodItems(xml)).toHaveLength(0)
+  })
+
+  it('every food pickup sits on walkable floor, inside the interior', () => {
+    for (const seed of [1, 4242, 987654]) {
+      const { xml, preview } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
+      const room = preview.rooms[0]
+      const isWall = (gx: number, gy: number): boolean => preview.walls[gy * preview.mapWidth + gx] === '1'
+
+      for (const item of foodItems(xml)) {
+        expect(item.x, `seed ${seed} food x`).toBeGreaterThanOrEqual(-0.001)
+        expect(item.x, `seed ${seed} food x`).toBeLessThan(room.width)
+        expect(item.y, `seed ${seed} food y`).toBeGreaterThanOrEqual(-0.001)
+        expect(item.y, `seed ${seed} food y`).toBeLessThan(room.height)
+
+        const gx = room.x + Math.round(item.x)
+        const gy = room.y + Math.round(item.y)
+        expect(isWall(gx, gy), `seed ${seed} food at (${item.x},${item.y}) sits on a wall tile`).toBe(false)
+      }
+    }
+  })
+
+  it('no food pickup overlaps a pillar, the boss, an anchor, the entrance or the alcove', () => {
+    // Dense cover, same adversarial shape as the pillar rejection test above:
+    // if food's isFree() check were ever bypassed, a dense pillar field is
+    // where a collision would show up.
+    const options = arenaOptions({ cover: { pattern: 'random', density: 1, ringSpacing: 4, clusters: 3 } })
+    for (const seed of [1, 4242, 987654]) {
+      const { xml } = buildBossArena(freshCtx(seed), options, 0)
+      const doodads = doodadEntries(xml)
+      const actors = actorEntries(xml)
+      const boss = actors.find((a) => /^actors\/boss_/.test(a.type))!
+      const pillars = doodads.filter((d) => /special_pillar|deco_rock|_pillar\.xml/.test(d.type))
+
+      for (const item of foodItems(xml)) {
+        const distToBoss = Math.hypot(item.x - boss.x, item.y - boss.y)
+        expect(distToBoss, `seed ${seed} food on top of the boss`).toBeGreaterThan(0.01)
+        for (const p of pillars) {
+          const distToPillar = Math.hypot(item.x - p.x, item.y - p.y)
+          expect(distToPillar, `seed ${seed} food on top of a pillar`).toBeGreaterThan(0.01)
+        }
+      }
+    }
+  })
+
+  it('draws only from ctx.bossRand — ctx.rand and ctx.cosmeticRand are untouched by food placement', () => {
+    // Same trap the arena-wide isolation test guards against, but specific to
+    // food: Item.create rolls its variant from ctx.rand when index is
+    // omitted, and this is the one call site that could forget to pass one.
+    const ctx = freshCtx(777)
+    const control = freshCtx(777)
+
+    for (let i = 0; i < 5; i++) {
+      ctx.rand.iRand(0, 1_000_000)
+      control.rand.iRand(0, 1_000_000)
+      ctx.cosmeticRand.iRand(0, 1_000_000)
+      control.cosmeticRand.iRand(0, 1_000_000)
+    }
+
+    buildBossArena(ctx, arenaOptions({ foodMultiplier: 5 }), 0)
+
+    const nextRand = Array.from({ length: 5 }, () => ctx.rand.iRand(0, 1_000_000))
+    const nextRandControl = Array.from({ length: 5 }, () => control.rand.iRand(0, 1_000_000))
+    expect(nextRand).toEqual(nextRandControl)
+
+    const nextCosmetic = Array.from({ length: 5 }, () => ctx.cosmeticRand.iRand(0, 1_000_000))
+    const nextCosmeticControl = Array.from({ length: 5 }, () => control.cosmeticRand.iRand(0, 1_000_000))
+    expect(nextCosmetic).toEqual(nextCosmeticControl)
+  })
+
+  it('is deterministic: same seed twice gives identical food positions and variants', () => {
+    const a = buildBossArena(freshCtx(2024), arenaOptions(), 0)
+    const b = buildBossArena(freshCtx(2024), arenaOptions(), 0)
+    expect(foodItems(a.xml)).toEqual(foodItems(b.xml))
   })
 })
 

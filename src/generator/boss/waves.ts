@@ -95,6 +95,7 @@ function splitRoundRobin(total: number, anchorCount: number): number[] {
 export function buildWaveRig(
   ctx: GenerationContext,
   waves: readonly BossWave[],
+  monsterMultiplier: number,
   anchorList: readonly Anchor[],
   entranceShape: NodeRectangleShape
 ): void {
@@ -136,7 +137,11 @@ export function buildWaveRig(
       triggerNode.connectTo(toggle)
 
       for (const id of ids) {
-        const max = wave.monsterMax[id]
+        const rawMax = wave.monsterMax[id]
+        // -1 is the endless sentinel, not a quantity — it must never be scaled.
+        // Otherwise match room.ts's own multiplier application: trunc after
+        // scaling, floored at 0 so a multiplier < 1 can't go negative.
+        const max = rawMax === -1 ? -1 : Math.max(0, Math.trunc(rawMax * monsterMultiplier))
         const actorPath = spawnActorPath(id)
 
         if (max === -1) {

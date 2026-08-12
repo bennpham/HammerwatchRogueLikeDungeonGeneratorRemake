@@ -34,16 +34,6 @@ function overlaps(a: Rect, b: Rect): boolean {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
 }
 
-function footprintRectOf(theme: string, x: number, y: number): Rect {
-  const f = pillarFootprint(theme)
-  return { x: x - f.width / 2, y: y - f.height / 2, width: f.width, height: f.height }
-}
-
-/** Pull the placed pillars' rects back out of the doodads cover.ts created. */
-function pillarRects(arena: CoverArena, doodads: { x: number; y: number; type: string }[]): Rect[] {
-  return doodads.filter((d) => d.type === 'Pillar').map((d) => footprintRectOf(arena.theme, d.x, d.y))
-}
-
 const WIDTH = 30
 const HEIGHT = 36
 
@@ -53,15 +43,15 @@ describe('boss cover pillar placement', () => {
       const ctx = new GenerationContext(defaultParameters(), 42)
       const arena = buildArena(WIDTH, HEIGHT)
       const result = placeCoverPillars(ctx, arena, coverOptions({ pattern }))
-      expect(result.length).toBeGreaterThan(0)
-      expect(result.every((d) => d.type === 'Pillar')).toBe(true)
+      expect(result.doodads.length).toBeGreaterThan(0)
+      expect(result.doodads.every((d) => d.type === 'Pillar')).toBe(true)
+      expect(result.rects.length).toBe(result.doodads.length)
     })
 
     it(`${pattern} respects the rejection filter (boss, anchors, entrance, alcove, other pillars)`, () => {
       const ctx = new GenerationContext(defaultParameters(), 7)
       const arena = buildArena(WIDTH, HEIGHT)
-      const result = placeCoverPillars(ctx, arena, coverOptions({ pattern }))
-      const rects = pillarRects(arena, result)
+      const { rects } = placeCoverPillars(ctx, arena, coverOptions({ pattern }))
 
       const bossRect: Rect = {
         x: arena.boss.x - arena.boss.footprintWidth / 2,
@@ -95,15 +85,15 @@ describe('boss cover pillar placement', () => {
       // still bring this back — no `while (true)` anywhere in cover.ts.
       const arena = buildArena(14, 18)
       const result = placeCoverPillars(ctx, arena, coverOptions({ pattern, density: 1 }))
-      expect(Array.isArray(result)).toBe(true)
+      expect(Array.isArray(result.doodads)).toBe(true)
     })
 
     it(`${pattern} is deterministic: same seed twice gives identical placements`, () => {
       const arena = buildArena(WIDTH, HEIGHT)
       const ctxA = new GenerationContext(defaultParameters(), 2024)
       const ctxB = new GenerationContext(defaultParameters(), 2024)
-      const a = placeCoverPillars(ctxA, arena, coverOptions({ pattern })).map((d) => [d.x, d.y])
-      const b = placeCoverPillars(ctxB, arena, coverOptions({ pattern })).map((d) => [d.x, d.y])
+      const a = placeCoverPillars(ctxA, arena, coverOptions({ pattern })).doodads.map((d) => [d.x, d.y])
+      const b = placeCoverPillars(ctxB, arena, coverOptions({ pattern })).doodads.map((d) => [d.x, d.y])
       expect(a).toEqual(b)
     })
 
@@ -111,8 +101,8 @@ describe('boss cover pillar placement', () => {
       const arena = buildArena(WIDTH, HEIGHT)
       const ctxA = new GenerationContext(defaultParameters(), 1)
       const ctxB = new GenerationContext(defaultParameters(), 999999)
-      const a = placeCoverPillars(ctxA, arena, coverOptions({ pattern })).map((d) => [d.x, d.y])
-      const b = placeCoverPillars(ctxB, arena, coverOptions({ pattern })).map((d) => [d.x, d.y])
+      const a = placeCoverPillars(ctxA, arena, coverOptions({ pattern })).doodads.map((d) => [d.x, d.y])
+      const b = placeCoverPillars(ctxB, arena, coverOptions({ pattern })).doodads.map((d) => [d.x, d.y])
       expect(a).not.toEqual(b)
     })
   }
@@ -146,7 +136,7 @@ describe('boss cover pillar placement', () => {
     const ctx = new GenerationContext(defaultParameters(), 321)
     const arena = buildArena(WIDTH, HEIGHT)
     const result = placeCoverPillars(ctx, arena, coverOptions({ pattern: 'ring', ringSpacing: 5 }))
-    expect(result.length).toBeGreaterThan(0)
+    expect(result.doodads.length).toBeGreaterThan(0)
   })
 
   it('every theme footprint used by pillarFootprint is a positive rectangle', () => {
