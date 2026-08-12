@@ -68,7 +68,11 @@ describe('lobby — determinism', () => {
 
 describe('lobby — disabled', () => {
   it('emits exactly the pre-lobby campaign', () => {
-    const off = generateOk(withLobby({ enabled: false }), 555)
+    // boss defaults on and appends its own two levels, which this test isn't
+    // about — turn it off too so the assertion stays about the lobby alone
+    const params = withLobby({ enabled: false })
+    params.boss = { ...params.boss, enabled: false }
+    const off = generateOk(params, 555)
 
     expect(off.files.map((f) => f.path)).toEqual([
       ...Array.from({ length: defaultParameters().levels }, (_, i) => `levels/level${i}.xml`),
@@ -103,7 +107,11 @@ describe('lobby — campaign wiring', () => {
   })
 
   it('is not added to the preview, which only describes generated geometry', () => {
-    const on = generateOk(withLobby({ enabled: true }), 555)
+    // boss defaults on and pushes its own arena preview — turn it off so this
+    // stays a test of the lobby's own effect on `previews`, not the boss's
+    const params = withLobby({ enabled: true })
+    params.boss = { ...params.boss, enabled: false }
+    const on = generateOk(params, 555)
     const levels = defaultParameters().levels
     expect(on.levels).toHaveLength(levels)
     expect(on.levels.map((l) => l.level)).toEqual(Array.from({ length: levels }, (_, i) => i))

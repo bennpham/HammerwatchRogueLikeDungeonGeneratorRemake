@@ -189,7 +189,11 @@ export class ObjectSet {
         // RNG stream. Room transforms run before wall rasterization and
         // ctx.idCounter is one monotonic counter per level, so a mismatch
         // here would shift every wall doodad id placed after it.
+        // 3x3 trigger area, matching the authored portal in
+        // test_boss_prep_room.xml — a 1x1 is easy to step over at a run
         const shape = new NodeRectangleShape(ctx, x, y)
+        shape.width = 3
+        shape.height = 3
         this.scriptNodes.push(shape)
 
         // points at the prep room, not the next numeric floor — the boss
@@ -199,7 +203,10 @@ export class ObjectSet {
         exit.connectToShape(shape)
         this.scriptNodes.push(exit)
 
-        this.doodads.push(Doodad.create(ctx, x, y, 'ExitMarker', theme))
+        // the portal art itself, NOT ExitMarker: that is a flat editor decal
+        // which ExitDn only uses *under* its stair sprite, so using it alone
+        // would render a floor marker where the portal should be
+        this.doodads.push(Doodad.create(ctx, x, y, 'BossPortal', theme))
 
         this.width = 1
         this.height = 1

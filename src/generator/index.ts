@@ -4,6 +4,8 @@ import { DungeonParameters, defaultParameters } from './config/parameters'
 import { validateParameters, ValidationResult } from './config/validation'
 import { emitTweakFiles } from './tweak/overrides'
 import { LOBBY_ASSETS, LOBBY_LEVEL_ID, LOBBY_LEVEL_PATH, buildLobby } from './lobby'
+import { BOSSPREP_LEVEL_ID, BOSSPREP_LEVEL_PATH, buildBossPrep } from './bossprep'
+import { buildBossArena } from './boss'
 
 export type { DungeonParameters, LobbyOptions } from './config/parameters'
 export { THEMES } from './config/parameters'
@@ -169,6 +171,14 @@ export interface DungeonError {
 const MAX_LEVEL_ATTEMPTS = 60
 
 /**
+ * The generated boss arena's level id and path. Like `BOSSPREP_LEVEL_ID`,
+ * a string — numeric floor ids `0..N-1` must not move, so this can never
+ * collide with them.
+ */
+const BOSS_LEVEL_ID = 'boss'
+const BOSS_LEVEL_PATH = 'levels/boss.xml'
+
+/**
  * Generate a complete campaign in memory: one XML file per level plus
  * info.xml and levels.xml, exactly the folder LevelPacker.exe expects
  * (ported from HammerwatchGen.main).
@@ -228,6 +238,23 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
     files.push(...LOBBY_ASSETS)
     levelString =
       `<level id="${LOBBY_LEVEL_ID}" res="${LOBBY_LEVEL_PATH}" name="lvl.floor?floor=0" />\n` + levelString
+  }
+
+  // The boss fight is a hand-authored prep room plus a generated arena,
+  // appended after every numeric dungeon floor — same shape as the lobby
+  // above: emitted after the level loop, draws nothing from ctx.rand or
+  // ctx.cosmeticRand (the arena has its own ctx.bossRand stream), so the
+  // same seed produces the same dungeon whether the boss is on or off. It
+  // only appends two level entries; `start` is untouched.
+  const bossEnabled = params.boss?.enabled === true
+  if (bossEnabled) {
+    files.push({ path: BOSSPREP_LEVEL_PATH, content: buildBossPrep(params.boss.prep) })
+    const { xml, preview } = buildBossArena(ctx, params.boss.arena, params.levels)
+    files.push({ path: BOSS_LEVEL_PATH, content: xml })
+    previews.push(preview)
+    levelString +=
+      `<level id="${BOSSPREP_LEVEL_ID}" res="${BOSSPREP_LEVEL_PATH}" name="lvl.floor?floor=${params.levels}" />\n` +
+      `<level id="${BOSS_LEVEL_ID}" res="${BOSS_LEVEL_PATH}" name="lvl.floor?floor=${params.levels + 1}" />\n`
   }
 
   files.push({

@@ -2,6 +2,13 @@
 
 exports[`doodad resolution matrix — regression guard for the Pillar addition > leaves every pre-existing DoodadTypeName unchanged for every theme 1`] = `
 {
+  "a:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
+  },
   "a:CornerLD": {
     "offset": {
       "x": 0,
@@ -183,6 +190,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 1,
     },
     "path": "doodads/theme_a/a_v_8.xml",
+  },
+  "b:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
   },
   "b:CornerLD": {
     "offset": {
@@ -366,6 +380,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_b/b_v_8.xml",
   },
+  "bonus1:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
+  },
   "bonus1:CornerLD": {
     "offset": {
       "x": 0,
@@ -547,6 +568,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 0,
     },
     "path": "doodads/theme_bonus1/bonus1_v_8.xml",
+  },
+  "bonus2:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
   },
   "bonus2:CornerLD": {
     "offset": {
@@ -730,6 +758,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_bonus2/bonus2_v_8.xml",
   },
+  "bonus3:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
+  },
   "bonus3:CornerLD": {
     "offset": {
       "x": 0,
@@ -911,6 +946,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 0,
     },
     "path": "doodads/theme_bonus3/bonus3_v_8.xml",
+  },
+  "bonus4:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
   },
   "bonus4:CornerLD": {
     "offset": {
@@ -1094,6 +1136,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_bonus4/bonus4_v_8.xml",
   },
+  "bonus5:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
+  },
   "bonus5:CornerLD": {
     "offset": {
       "x": 0,
@@ -1275,6 +1324,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 0,
     },
     "path": "doodads/theme_bonus5/bonus5_v_8.xml",
+  },
+  "c:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
   },
   "c:CornerLD": {
     "offset": {
@@ -1458,6 +1514,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_c/c_v_8.xml",
   },
+  "d:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
+  },
   "d:CornerLD": {
     "offset": {
       "x": 0,
@@ -1639,6 +1702,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 1,
     },
     "path": "doodads/theme_d/d_v_8.xml",
+  },
+  "e:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
   },
   "e:CornerLD": {
     "offset": {
@@ -1822,6 +1892,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_e/e_v_8.xml",
   },
+  "f:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
+  },
   "f:CornerLD": {
     "offset": {
       "x": 0,
@@ -2003,6 +2080,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 1,
     },
     "path": "doodads/theme_f/f_v_8.xml",
+  },
+  "g:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
   },
   "g:CornerLD": {
     "offset": {
@@ -2186,6 +2270,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_g/g_v_8.xml",
   },
+  "h:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
+  },
   "h:CornerLD": {
     "offset": {
       "x": 0,
@@ -2367,6 +2458,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 0,
     },
     "path": "doodads/theme_h/h_v_8_l.xml",
+  },
+  "i:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
   },
   "i:CornerLD": {
     "offset": {

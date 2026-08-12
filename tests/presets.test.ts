@@ -80,7 +80,10 @@ describe('campaign presets', () => {
         const result = generateDungeon(preset.build(), 4242)
         expect(result.ok, result.ok ? '' : result.errors.join(' ')).toBe(true)
         if (!result.ok) return
-        expect(result.levels).toHaveLength(params.levels)
+        // boss defaults on; none of the presets touch it, so its arena preview
+        // is appended after the preset's own dungeon floors — same +1 as
+        // generation.test.ts's equivalent assertion
+        expect(result.levels).toHaveLength(params.levels + 1)
         for (let i = 0; i < params.levels; i++) {
           expect(result.files.map((f) => f.path)).toContain(`levels/level${i}.xml`)
         }

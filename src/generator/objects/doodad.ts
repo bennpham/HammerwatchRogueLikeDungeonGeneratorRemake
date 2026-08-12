@@ -19,6 +19,12 @@ export const DoodadType = {
   VendorDefense: { path: 'doodads/special/vendor_defense.xml', xOffset: 0, yOffset: 0, themeSubs: 0 },
   Spawn: { path: 'doodads/generic/marker_spawn.xml', xOffset: 1, yOffset: 1, themeSubs: 0 },
   ExitMarker: { path: 'doodads/generic/marker_exit.xml', xOffset: 0, yOffset: 0, themeSubs: 0 },
+  // The animated portal to the boss prep room, as used by the authored
+  // test_boss_prep_room.xml and the shipped campaign's level_11. Ships its own
+  // open/closed states (defaulting to open) and two collision posts the player
+  // walks between — unlike ExitMarker above, which is a flat editor decal on
+  // layer -5 and is only ever laid *under* real art. [VERIFIED] 2026-08-11
+  BossPortal: { path: 'doodads/generic/exit_teleport_boss.xml', xOffset: 0, yOffset: 0, themeSubs: 0 },
   CornerLD: { path: 'doodads/theme_%s/%s_crn_l_dn.xml', xOffset: 0, yOffset: 2, themeSubs: 2 },
   CornerLU: { path: 'doodads/theme_%s/%s_crn_l_up.xml', xOffset: 0, yOffset: 1, themeSubs: 2 },
   CornerRD: { path: 'doodads/theme_%s/%s_crn_r_dn.xml', xOffset: 0, yOffset: 2, themeSubs: 2 },

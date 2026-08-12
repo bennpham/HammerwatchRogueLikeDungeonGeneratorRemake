@@ -8,6 +8,47 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-11 — the boss portal is `exit_teleport_boss.xml`; `marker_exit.xml` is an editor decal, not portal art
+**Tag:** [VERIFIED]
+**Context:** Phase 5a invented the `BossPortal` `ObjectSet` to match `Orb`'s id
+count, guessing at the visual. Two authored levels were then supplied for
+comparison: `test_boss_portal.xml` and the portal inside
+`test_boss_prep_room.xml`.
+**Evidence:** Both use `doodads/generic/exit_teleport_boss.xml`, as does the
+shipped `campaign/levels/level_11.xml` and `campaign2/levels/level_boss_3.xml`.
+The asset is a 4-frame animated sprite with a glow layer, `open`/`closed`
+states defaulting to `open`, and two collision polygons at x −10..−8 and 8..10
+px — side posts the player walks *between*, not a solid block. It carries **no
+behaviour**: no teleport logic and no destination, so `test_boss_portal.xml`
+(empty tilemap, zero script nodes) is an art probe, not a working rig.
+What 5a had used, `doodads/generic/marker_exit.xml`, is a flat 32×16 sprite
+from `markers.png` on `defaultlayer="-5"` with no collision and no animation.
+The repo's own `ExitDn` set lays it *under* the stair sprite as a floor decal —
+it is an editor marker, never the visual itself.
+**Impact:** Added a `BossPortal` `DoodadType` and swapped the `ObjectSet` case
+onto it. Replacing rather than adding the doodad keeps `BossPortal` at exactly
+3 ctx ids, so it still swaps 1:1 with `Orb` and no wall doodad id on the final
+floor shifts.
+
+### 2026-08-11 — the authored portal rig gates on all players; the generator ships the 2-node variant
+**Tag:** [VERIFIED]
+**Context:** Deciding how the generated boss portal should be wired.
+**Evidence:** The prep room's authored rig is four nodes —
+`RectangleShape(w 3, h 3, types 15)` → `AllPlayersAreaTrigger`
+(msg `"Waiting all players..."`) → `{PlaySound sound/misc.xml:info_teleport_activate,
+LevelExitArea}`. Note the shape id sits in the **trigger's** `shape` dict and
+the `LevelExitArea`'s own `shape` dict is left **empty** — the inverse of how
+this repo's `NodeLevelExit.connectToShape` wires it. `AllPlayersAreaTrigger`
+and `PlaySound` have no node class in this repo.
+**Impact:** The generator deliberately ships the 2-node
+`RectangleShape` + `LevelExitArea` pattern instead, because that is what every
+already-playable floor exit (`ExitDn`) in this port uses, and because the
+4-node rig would cost 2 new node classes and break the 3-id parity with `Orb`.
+The trigger area was widened to 3×3 to match the authored one. **Open:** the
+all-players gating is real co-op behaviour we are not reproducing — a lone
+player can take the portal and split the party. Revisit after co-op
+playtesting.
+
 ### 2026-08-11 — exact cover-pillar footprints, read from each pillar doodad's own collision shape
 **Tag:** [VERIFIED] (real Steam install,
 `editor/assetsExtract/doodads/theme_<t>/<t>_special_pillar.xml`,

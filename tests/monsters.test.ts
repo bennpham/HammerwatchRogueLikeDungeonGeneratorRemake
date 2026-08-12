@@ -231,9 +231,13 @@ describe('skeleton3 and tower_empty', () => {
     }
     for (const [seed, hash] of Object.entries(expected)) {
       // the baseline predates lockFinalRoom, which now defaults on and reshapes
-      // the last floor — hash the same open-orb dungeon it was measured over
+      // the last floor — hash the same open-orb dungeon it was measured over.
+      // It also predates the boss feature, which — also on by default — would
+      // otherwise swap the final floor's Orb prefab for a BossPortal; turn it
+      // off so this stays a test of the RNG layout stream, not the boss's.
       const params = defaultParameters()
       params.lockFinalRoom = false
+      params.boss.enabled = false
       params.levels = 8
       params.themes = ['a', 'a', 'b', 'b', 'c', 'c', 'd', 'd']
       params.levelMonsters = [
