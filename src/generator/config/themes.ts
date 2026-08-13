@@ -60,6 +60,19 @@ export interface ThemeDef {
    */
   omitCover?: boolean
   /**
+   * This theme's wall pieces barricade a single *edge* of their tile rather
+   * than filling it, so a piece only blocks one direction.
+   *
+   * `searchPatterns` chooses a piece from the wall's *shape*, which is fine
+   * when any piece fills its tile — but where a wall turns, the shape-derived
+   * choice can face perpendicular to the direction that actually needs
+   * blocking, leaving a one-tile door. Rooms still seal because the fences
+   * join into a closed loop; it is the *junctions* that need a whole-tile
+   * piece. See `CrossWallSolid` and the boss arena's junction pass, which is
+   * gated on this flag rather than on a theme id.
+   */
+  directionalFences?: boolean
+  /**
    * Advisory note surfaced once by `validateParameters` when the theme is used.
    *
    * For cosmetic quirks a theme cannot avoid — not for anything that blocks
@@ -297,6 +310,8 @@ function desertOutdoor(): ThemeDef {
     // low cliff edges with open desert behind them: there is no wall top for an
     // occlusion overlay to sit on, and theme i's stone reads as grey slabs on sand
     omitCover: true,
+    // every piece here fences one edge of its tile — see the flag's own note
+    directionalFences: true,
     // Verified in game: the level is sealed and reads correctly, but the folder
     // has no 4-way junction art, so corners borrow the 16x32 `h_h_8_up` face —
     // which is the only piece that seals a whole tile. Being a tile taller than

@@ -916,3 +916,56 @@ describe('boss arena — theme h wall joints are solid, not fences', () => {
     }
   })
 })
+
+describe('boss arena — a fence theme leaves no door in the band', () => {
+  // Theme h's pieces barricade one edge of their tile, and searchPatterns picks
+  // by wall *shape* — so where the wall turns, the shape-derived piece can face
+  // perpendicular to the direction that needs blocking. In a one-tile band that
+  // is a door out of the level: seen in game as a gap flanking the sealed
+  // alcove, where the pocket's top and bottom walls met the band and got
+  // horizontal faces that block nothing east-west ([VERIFIED] 2026-08-12).
+  //
+  // The property, asserted directly rather than by counting pieces: no wall
+  // tile bordering floor on two or more sides may carry a directional fence.
+  const WHOLE_TILE = 'doodads/theme_h/h_crn_l_up_v2.xml'
+
+  it('gives every junction a whole-tile piece on theme h', () => {
+    for (const seed of [1, 2, 4, 7, 11, 4242]) {
+      const { xml, preview } = buildBossArena(freshCtx(seed), arenaOptions({ theme: 'h' }), 0)
+      const room = preview.rooms[0]
+      const W = preview.mapWidth
+      const H = preview.mapHeight
+      const isWall = (gx: number, gy: number) =>
+        gx < 0 || gy < 0 || gx >= W || gy >= H || preview.walls[gy * W + gx] === '1'
+
+      const pieceAt = new Map<string, string>()
+      for (const d of doodadEntries(xml)) {
+        const t = tileOfDoodad('h', d.type, d.x, d.y)
+        pieceAt.set(`${t.x},${t.y}`, d.type)
+      }
+
+      for (let gy = 0; gy < H; gy++) {
+        for (let gx = 0; gx < W; gx++) {
+          if (!isWall(gx, gy)) continue
+          let floors = 0
+          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            if (!isWall(gx + dx, gy + dy)) floors++
+          }
+          if (floors < 2) continue // a straight run's fence faces its one floor side
+          const local = `${gx - room.x},${gy - room.y}`
+          expect(pieceAt.get(local), `seed ${seed}: junction at ${local} is a fence, not a whole tile`).toBe(WHOLE_TILE)
+        }
+      }
+    }
+  })
+
+  it('leaves straight runs as ordinary cliff faces, so the band still reads as cliffs', () => {
+    const { xml } = buildBossArena(freshCtx(1), arenaOptions({ theme: 'h' }), 0)
+    const types = doodadEntries(xml).map((d) => d.type)
+    // the directional faces must still dominate — a band made entirely of the
+    // whole-tile piece would pass the junction test but look nothing like h
+    expect(types.filter((t) => t.includes('h_v_8_') || t.includes('h_h_8_')).length).toBeGreaterThan(
+      types.filter((t) => t === WHOLE_TILE).length
+    )
+  })
+})

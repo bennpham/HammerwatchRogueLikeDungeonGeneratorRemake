@@ -206,6 +206,19 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   // considered and rejected: with the rest of the wall bare, the blanket is
   // itself a signpost for where the alcove is, so it hides nothing. The water
   // base layer means there is no void left to paint over either. ---
+  // How many of a tile's four orthogonal neighbours are floor. Out of bounds
+  // counts as wall, matching how searchPatterns treats the grid edge.
+  const floorNeighbours = (gx: number, gy: number): number => {
+    let n = 0
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = gx + dx
+      const ny = gy + dy
+      if (nx < 0 || ny < 0 || nx >= gridWidth || ny >= gridHeight) continue
+      if (!tileArray[nx + ny * gridWidth].wall) n++
+    }
+    return n
+  }
+
   for (let gy = 0; gy < gridHeight; gy++) {
     for (let gx = 0; gx < gridWidth; gx++) {
       const idx = gx + gy * gridWidth
@@ -213,7 +226,23 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
 
       const local = toLocal(gx, gy)
       const wallType = searchPatterns(gx, gy, tileArray, gridWidth, true)
-      if (wallType !== null) Doodad.create(ctx, local.x, local.y, solidJoint(wallType), arena.theme)
+      if (wallType === null) continue
+
+      // On a theme whose pieces fence a single edge (theme h), searchPatterns
+      // picks by the wall's *shape*, which at a junction can face perpendicular
+      // to the direction that actually needs blocking — the arena's band is one
+      // tile thick, so that is a door out of the level. Seen in game as a gap
+      // beside the sealed alcove: the tiles where the pocket's top and bottom
+      // walls met the band got horizontal faces, which block nothing
+      // east-west ([VERIFIED] 2026-08-12).
+      //
+      // A fence is safe on a straight run — one floor neighbour, and the fence
+      // faces it — so only junctions (two or more floor neighbours) are swapped
+      // for the whole-tile piece. The band keeps its cliff faces everywhere
+      // else. Themes whose pieces fill their tile never take this branch.
+      const junction = themeDef.directionalFences === true && floorNeighbours(gx, gy) >= 2
+      const piece = junction ? 'CrossWallSolid' : solidJoint(wallType)
+      Doodad.create(ctx, local.x, local.y, piece, arena.theme)
     }
   }
 
