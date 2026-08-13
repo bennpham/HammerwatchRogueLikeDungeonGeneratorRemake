@@ -22,20 +22,22 @@
  * internal `toGrid`/`toLocal` pair exists purely to index the rasterization
  * array, which cannot hold negative indices; it never leaks into emitted XML.
  *
- * Playtest fix: every doodad/actor/item/node above is emitted in *local*
- * space (`toLocal`), but `getArenaXML`'s tilemap blocks used to be stamped at
- * `x * TILEMAP_SIZE` in raw *grid* space — off by `originX`/`originY` (1, or
- * 5 when the alcove sits on the W/N wall), which is exactly the "random black
- * spots" the floor rendered as. Blocks are now stamped at
- * `x * TILEMAP_SIZE - originX` / `y * TILEMAP_SIZE - originY`, i.e. local
- * space, matching every other emitted entity; `getTiles` still indexes
- * `tileArray` in grid space internally, since that array has no negative
- * indices to give.
+ * Tilemap alignment, learned the hard way over three playtests. Doodads,
+ * actors, items and nodes are all emitted in *local* space (`toLocal`), but a
+ * tilemap block's declared `x`/`y` **must be a multiple of `TILEMAP_SIZE`** —
+ * the engine snaps it to that grid, so any offset written there is silently
+ * discarded. Two rounds of subtracting the origin from the declared position
+ * therefore changed nothing in game. The offset has to live in the *sampling*
+ * instead: blocks are declared at `b * TILEMAP_SIZE` and `getTiles` is called
+ * with `b * TILEMAP_SIZE + origin`, so cell `i` — which the engine draws at
+ * world `declared - 10 + i % 20` — carries grid index `world + origin`, and
+ * therefore renders at `grid - origin`, i.e. exactly local space.
  */
 
 import { Tile } from '../map/tile'
 import { searchPatterns } from '../map/wallPattern'
 import { Doodad } from '../objects/doodad'
+import type { DoodadTypeName } from '../objects/doodad'
 import { Item, ItemType } from '../objects/item'
 import { Monster } from '../objects/monster'
 import { ObjectSet } from '../objects/objectSet'
@@ -68,12 +70,12 @@ const TILEMAP_SIZE = 20
 
 /**
  * Tiles the alcove pocket adds beyond the interior's own wall band, on the
- * chosen side: 3 interior rows/cols plus 1 outer wall row/col. The mouth
+ * chosen side: 5 interior rows/cols plus 1 outer wall row/col. The mouth
  * itself (1 tile) is *not* extra — it reuses the 1-tile wall-band margin
- * every side already gets, just sealed with need-sync doodads instead of
- * ordinary ones.
+ * every side already gets, floored like the pocket but carrying the
+ * destructible seal doodads instead of ordinary wall.
  */
-const ALCOVE_EXTRA = 4
+const ALCOVE_EXTRA = 6
 
 export interface BossArenaResult {
   xml: string
@@ -108,34 +110,39 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
 
   const themeDef = getTheme(arena.theme) ?? THEME_DEFS[0]
 
-  // --- alcove geometry: the 3 mouth tiles (sealed, need-sync), the 3x3
-  // interior floor, and the orb's resting spot at its centre. All in local
-  // (interior-relative, possibly negative) coordinates. ---
+  // --- alcove geometry: a 3-tile mouth, a 5x5 pocket behind it, and the orb
+  // dead centre. All in local (interior-relative, possibly negative) tiles.
+  //
+  // Why 5x5 and not 3x3, which is what shipped and playtested unreachable:
+  // the themed wall pieces are 3 tiles TALL. `g_x_t_dn.xml` is
+  // `<origin>0 32</origin>` on a 48px frame drawn at `tile + 2`, so the wall
+  // above the pocket paints over its own tile and the two below it. In a
+  // 3-row pocket that buries the top two rows — including the centre, where
+  // the orb sat. A 5-row pocket leaves the centre clear, which is the only
+  // way "centred" and "visible" can both be true.
+  //
+  // The mouth tiles are floored like the pocket: destroying a doodad does not
+  // create ground, so a wall-tile mouth opens onto a hole in the floor (the
+  // water layer shows through). They are floor carrying explicit seal doodads.
   const mouth: Array<{ x: number; y: number }> = []
   const alcoveFloor: Array<{ x: number; y: number }> = []
   let orbLocal: { x: number; y: number }
 
-  // Interior columns/rows run 2..4 out from the wall, never 1..3: column/row 1
-  // is exactly where the mouth sits (col/row "0" relative to the wall band),
-  // so starting the interior there would put a floor tile on top of the seal.
+  // The mouth sits ON the interior's own wall band — at -1 for N/W, and at
+  // `width`/`height` for E (the far side has no symmetric -1 margin). The
+  // pocket therefore starts one step further out than the mouth on every wall.
   if (alcoveWall === 'N') {
     for (let dx = -1; dx <= 1; dx++) mouth.push({ x: midX + dx, y: -1 })
-    for (let dx = -1; dx <= 1; dx++) for (let row = 2; row <= 4; row++) alcoveFloor.push({ x: midX + dx, y: -row })
-    orbLocal = { x: midX, y: -3 }
+    for (let dx = -2; dx <= 2; dx++) for (let row = 2; row <= 6; row++) alcoveFloor.push({ x: midX + dx, y: -row })
+    orbLocal = { x: midX, y: -4 }
   } else if (alcoveWall === 'E') {
-    // East is not the mirror of N/W: the interior's own wall band already
-    // sits at x === width (there is no symmetric "-1" margin on this side —
-    // see the file header), so the mouth (x === width) is column 0 of the
-    // pocket and the 3 floored interior columns are 1..3, not 2..4. Using
-    // 2..4 here left width+1 as wall (unreachable pocket, see arena.ts's
-    // §1 fix note) and ate the reserved outer-wall column at width+4 instead.
     for (let dy = -1; dy <= 1; dy++) mouth.push({ x: width, y: midY + dy })
-    for (let dy = -1; dy <= 1; dy++) for (let col = 1; col <= 3; col++) alcoveFloor.push({ x: width + col, y: midY + dy })
-    orbLocal = { x: width + 2, y: midY }
+    for (let dy = -2; dy <= 2; dy++) for (let col = 1; col <= 5; col++) alcoveFloor.push({ x: width + col, y: midY + dy })
+    orbLocal = { x: width + 3, y: midY }
   } else {
     for (let dy = -1; dy <= 1; dy++) mouth.push({ x: -1, y: midY + dy })
-    for (let dy = -1; dy <= 1; dy++) for (let col = 2; col <= 4; col++) alcoveFloor.push({ x: -col, y: midY + dy })
-    orbLocal = { x: -3, y: midY }
+    for (let dy = -2; dy <= 2; dy++) for (let col = 2; col <= 6; col++) alcoveFloor.push({ x: -col, y: midY + dy })
+    orbLocal = { x: -4, y: midY }
   }
 
   // --- rasterize: one grid covering the interior, its 1-tile wall band on
@@ -159,83 +166,47 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
 
   for (let x = 0; x < width; x++) for (let y = 0; y < height; y++) setFloor(x, y)
   for (const c of alcoveFloor) setFloor(c.x, c.y)
+  // the mouth is floor too, so the doorway has ground once its seals are
+  // destroyed — a wall tile there opens onto the water layer instead
+  for (const c of mouth) setFloor(c.x, c.y)
 
-  // --- wall doodads: the exact pattern matcher the dungeon uses, scanned
-  // over the whole grid. The mouth tiles fall out of this the same as any
-  // other wall tile (a floor-floor boundary one tile thick matches
-  // Horizontal/Vertical, same as any straight wall segment) — they are only
-  // special in that we tag the resulting doodad need-sync and remember it.
-  // Cover is deliberately *not* drawn from this same scan (see below): now
-  // that §1's off-by-one is fixed, real floor sits immediately behind every
-  // mouth tile, so the matcher's own 2x2-wall Cover pattern correctly no
-  // longer fires there — it would take an explicit, not incidental, pass to
-  // blanket the mouth the way the plan calls for. ---
-  const mouthKeys = new Set(mouth.map((m) => `${m.x},${m.y}`))
-  const wallSeals: Doodad[] = []
-
+  // --- wall doodads: the exact pattern matcher the dungeon uses, scanned over
+  // the whole grid.
+  //
+  // No Cover (`doodads/special/color_theme_*_16.xml`) is emitted at all. It
+  // only fires on the interior of a 2x2-or-thicker wall mass, and the arena's
+  // band is one tile — so it appeared only in the few thick spots around the
+  // alcove, reading as random floating squares. Blanketing just the alcove was
+  // considered and rejected: with the rest of the wall bare, the blanket is
+  // itself a signpost for where the alcove is, so it hides nothing. The water
+  // base layer means there is no void left to paint over either. ---
   for (let gy = 0; gy < gridHeight; gy++) {
     for (let gx = 0; gx < gridWidth; gx++) {
       const idx = gx + gy * gridWidth
       if (!tileArray[idx].wall) continue // every pattern requires a wall centre; skip the lookup on floor
 
       const local = toLocal(gx, gy)
-      const isMouth = mouthKeys.has(`${local.x},${local.y}`)
-
       const wallType = searchPatterns(gx, gy, tileArray, gridWidth, true)
-      if (wallType !== null) {
-        const d = Doodad.create(ctx, local.x, local.y, wallType, arena.theme)
-        if (isMouth) {
-          d.needSync = true
-          wallSeals.push(d)
-        }
-      }
-
-      // Ordinary (non-alcove) Cover overlay, same as before this playtest fix
-      // — everywhere except the mouth, which gets its own explicit Cover pass
-      // below instead of whatever this scan would incidentally produce.
-      if (themeDef.omitCover !== true && !isMouth) {
-        const coverType = searchPatterns(gx, gy, tileArray, gridWidth, false)
-        if (coverType !== null) {
-          Doodad.create(ctx, local.x, local.y, coverType, arena.theme)
-        }
-      }
+      if (wallType !== null) Doodad.create(ctx, local.x, local.y, wallType, arena.theme)
     }
   }
 
-  // The alcove mouth is exactly 3 tiles wide, so the pattern matcher must have
-  // produced exactly 3 wall seal doodads for it. Verified across all 14 themes,
-  // but the matcher is shared with the dungeon and a future piece change could
-  // silently return null for a mouth tile — which would ship an alcove that
-  // never fully opens, a bug no XML check would catch. Fail loudly instead.
-  if (wallSeals.length !== mouth.length) {
-    throw new Error(
-      `boss arena: alcove mouth produced ${wallSeals.length} seal doodads, expected ${mouth.length}`
-    )
-  }
+  // --- the seals, placed explicitly rather than scavenged from the scan
+  // above. The mouth is floor now (so the opened doorway has ground), and the
+  // scan only visits wall tiles, so it can no longer produce them. A vertical
+  // run of 3 for an E/W mouth, a horizontal run for N — matching what the
+  // matcher would have chosen for a straight wall segment of that orientation.
+  const sealPiece: DoodadTypeName = alcoveWall === 'N' ? 'Horizontal' : 'Vertical'
+  const wallSeals = mouth.map((m) => {
+    const d = Doodad.create(ctx, m.x, m.y, sealPiece, arena.theme)
+    d.needSync = true
+    return d
+  })
 
-  // --- alcove Cover: blanket every mouth and pocket floor tile explicitly,
-  // so the whole alcove reads as solid rock from every angle until "Boss
-  // Died" opens it. Explicit, not incidental — the mouth no longer matches
-  // the shared pattern's own Cover shape (see above), and the pocket floor
-  // tiles were already carved to floor by `setFloor` earlier, so the wall
-  // scan's `!tileArray[idx].wall` guard would skip them regardless. Theme h
-  // sets omitCover, so it gets none of this either (its hidden-wall trick is
-  // directional cliff pieces, not overpainting). Doodad.create draws no RNG,
-  // so adding these does not touch ctx.bossRand's draw order. ---
-  const alcoveCovers: Doodad[] = []
-  if (themeDef.omitCover !== true) {
-    for (const c of [...mouth, ...alcoveFloor]) {
-      const d = Doodad.create(ctx, c.x, c.y, 'Cover', arena.theme)
-      d.needSync = true
-      alcoveCovers.push(d)
-    }
-  }
-
-  // Everything the "Boss Died" chain must destroy to fully open and reveal the
-  // alcove: the 3 structural wall seals, plus every Cover painted over the
-  // mouth and the pocket. This set and the doodads carrying `need-sync: true`
-  // must stay exactly identical — see the wiring below.
-  const alcoveSeals = [...wallSeals, ...alcoveCovers]
+  // Everything the "Boss Died" chain destroys to open the alcove: just the
+  // structural seals across the mouth. This set and the doodads carrying
+  // `need-sync: true` must stay exactly identical — see the wiring below.
+  const alcoveSeals = wallSeals
 
   // --- boss actor: a bare actor placement, no rig of its own — the engine
   // fires the "Boss ..." global events for any actor under actors/boss_*/. A
@@ -445,7 +416,18 @@ function getArenaXML(
 
   for (let x = -BLOCK_MARGIN; x < xTiles + 1 + BLOCK_MARGIN; x++) {
     for (let y = -BLOCK_MARGIN; y < yTiles + 1 + BLOCK_MARGIN; y++) {
-      const dataT = getTiles(ctx, tileArray, gridWidth, gridHeight, x * TILEMAP_SIZE, y * TILEMAP_SIZE, themeDef.tiles)
+      // Sample shifted by the origin, NOT the declared block position: the
+      // engine snaps a block's declared x/y to the 20-grid, so an offset put
+      // there is silently discarded. See the comment on the block below.
+      const dataT = getTiles(
+        ctx,
+        tileArray,
+        gridWidth,
+        gridHeight,
+        x * TILEMAP_SIZE + originX,
+        y * TILEMAP_SIZE + originY,
+        themeDef.tiles
+      )
 
       const tileSet = new XMLDictionary('')
       tileSet.addData(new XMLString('tileset', themeDef.tilemap))
@@ -462,8 +444,15 @@ function getArenaXML(
       dataSets.addData(tileSet)
 
       const tileBlock = new XMLDictionary('')
-      tileBlock.addData(new XMLInt('x', x * TILEMAP_SIZE - originX))
-      tileBlock.addData(new XMLInt('y', y * TILEMAP_SIZE - originY))
+      // Always a multiple of TILEMAP_SIZE. Every authored and shipped level in
+      // the game does this — level0, the editor-saved prep room, the lobby —
+      // and the engine snaps the declared position to that grid regardless, so
+      // subtracting the origin here (which this file did for two rounds) is
+      // discarded and the floor renders `origin` tiles away from its walls.
+      // Proven by hand-patching a generated boss.xml to 20-aligned origins:
+      // "the walls now sit on the theme instead of the water".
+      tileBlock.addData(new XMLInt('x', x * TILEMAP_SIZE))
+      tileBlock.addData(new XMLInt('y', y * TILEMAP_SIZE))
       tileBlock.addData(dataSets)
 
       tiledataArray.addData(tileBlock)

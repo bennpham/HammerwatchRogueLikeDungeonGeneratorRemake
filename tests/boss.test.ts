@@ -6,6 +6,8 @@ import type { BossOptions } from '../src/generator/config/parameters'
 import { buildBossArena } from '../src/generator/boss/arena'
 import { BOSS_DEFS } from '../src/generator/boss/bosses'
 import type { AlcoveWall } from '../src/generator/boss/bosses'
+import { DoodadType, doodadOffset, doodadPath } from '../src/generator/objects/doodad'
+import type { DoodadTypeName } from '../src/generator/objects/doodad'
 import { generateDungeon } from '../src/generator'
 import type { DungeonParameters, DungeonResult } from '../src/generator'
 import { allIds, badIntArray } from './xmlHelpers'
@@ -192,11 +194,9 @@ describe('boss arena — geometry', () => {
     it(`seed ${seed}: the alcove interior is real floor tiles, reachable one tile behind each seal`, () => {
       const { xml, preview } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
       const seals = destroyObjectTargets(xml)
-      // 3 structural wall seals + a Cover over each of the 3 mouth tiles + a
-      // Cover over each of the 9 pocket floor tiles, on a theme (the default,
-      // 'g') that doesn't set omitCover. See "theme h has no Cover doodads at
-      // all" below for the other branch.
-      expect(seals.length).toBe(15)
+      // Just the 3 structural wall seals across the mouth. The arena emits no
+      // Cover at all any more — see "no color_theme overlay anywhere".
+      expect(seals.length).toBe(3)
 
       const doodads = doodadEntries(xml)
       const sealDoodads = doodads.filter((d) => seals.includes(d.id))
@@ -334,10 +334,8 @@ describe('boss arena — id integrity', () => {
 
   it('never emits an empty DestroyObject array', () => {
     const { xml } = buildBossArena(freshCtx(4242), arenaOptions(), 0)
-    // 3 wall seals + 3 mouth Covers + 9 pocket Covers on a theme with Cover
-    // enabled (the default, 'g') — see the all-themes test below for theme h,
-    // which omits Cover and keeps this at 3.
-    expect(destroyObjectTargets(xml)).toHaveLength(15)
+    // the 3 structural wall seals across the mouth, and nothing else
+    expect(destroyObjectTargets(xml)).toHaveLength(3)
   })
 })
 
@@ -460,22 +458,19 @@ describe('boss arena — food placement', () => {
 
 describe('boss arena — every theme, not just the default', () => {
   // The seal doodads are whatever the shared wall-pattern matcher returned for
-  // the 3 mouth tiles, plus (except on theme h) a Cover over every mouth and
-  // pocket floor tile. Theme h uses directional cliff pieces and omits Cover
-  // entirely (its own omitCover flag) — see baseline.ts's ThemeDef — so it
-  // stays at the 3 structural wall seals with no Cover overlay at all, while
-  // every other theme, including the bonus ones which re-anchor every piece,
-  // gets 3 wall seals + 3 mouth Covers + 9 pocket Covers = 15. A theme that
-  // returned null for a mouth tile would ship an alcove that never fully
-  // opens, which is why the structural-seal count is still checked directly.
-  it('seals the alcove with exactly 3 wall seals, plus every Cover over the alcove, in every theme', () => {
+  // the 3 mouth tiles, on every theme. The seals are placed explicitly now
+  // rather than scavenged from the shared wall-pattern scan — the mouth is
+  // floor, and that scan only visits wall tiles — so this no longer depends on
+  // the matcher firing for a given theme's piece set. It is still worth
+  // checking per theme, because a theme whose Vertical/Horizontal override
+  // went missing would ship an alcove that never seals at all.
+  it('seals the alcove with exactly 3 wall seals in every theme', () => {
     for (const theme of THEMES) {
-      const omitsCover = getTheme(theme)?.omitCover === true
       for (const seed of [1, 4242]) {
         const { xml } = buildBossArena(freshCtx(seed), arenaOptions({ theme }), 0)
 
         const seals = destroyObjectTargets(xml)
-        expect(seals, `${theme} seed ${seed}`).toHaveLength(omitsCover ? 3 : 15)
+        expect(seals, `${theme} seed ${seed}`).toHaveLength(3)
 
         const doodads = doodadEntries(xml)
         const wallSeals = doodads.filter((d) => seals.includes(d.id) && !d.type.includes('/special/color_theme_'))
@@ -630,65 +625,6 @@ function tileBlocks(xml: string): { x: number; y: number; datasets: { tileset: s
   return blocks
 }
 
-describe('boss arena — tile alignment (block x/y in the same local space as every doodad)', () => {
-  it('the block covering the interior origin is emitted at -originX/-originY, matching the doodads', () => {
-    for (const seed of [1, 4242, 987654]) {
-      const { xml, preview } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
-      const room = preview.rooms[0] // room.x/room.y ARE originX/originY (buildArenaPreview passes them straight through)
-      const blocks = tileBlocks(xml)
-
-      // The grid-x=0, grid-y=0 block always exists (BLOCK_MARGIN keeps the
-      // loop's lower bound below 0), and — pre-fix — it used to be stamped at
-      // (0, 0) in raw grid space, one (or five, on the W/N alcove) tile away
-      // from local (0,0) where every doodad/actor/item/node actually lives.
-      const originBlock = blocks.find((b) => b.x === -room.x && b.y === -room.y)
-      expect(originBlock, `no block at local (${-room.x},${-room.y}) — block position not in local space`).toBeDefined()
-
-      // That block's data-t cell for local tile (0,0) — the interior's own
-      // top-left floor tile — must be non-zero (real floor, not the wall/void
-      // sentinel), proving the shift didn't just move the *label* but kept
-      // the actual raster content lined up underneath it.
-      const cellIndex = (room.y + 10) * 20 + (room.x + 10)
-      expect(originBlock!.datasets[1].dataT[cellIndex]).toBeGreaterThan(0)
-    }
-  })
-
-  it('a real entity (the boss actor) always falls inside the block its local coordinates should land in', () => {
-    // Independent cross-check using the same "-10 + i%20" block-sampling
-    // offset the modding skill documents for Level.getTiles (arena.ts's
-    // getTiles is the same formula): a block declared at (bx, by) covers
-    // grid tiles [bx+originX-10, bx+originX+9] (recovering grid space via
-    // +originX, since the fix only moves the *declared* position, not the
-    // grid math the sampling itself still runs in). Take the boss actor's
-    // own emitted (local) x/y, find which block that resolves to under this
-    // formula, and confirm a block was actually emitted there. Pre-fix,
-    // blocks were stamped in raw grid space while the boss (like every
-    // entity) is emitted in local space, so this cross-check would land on
-    // a block offset by originX/originY tiles (1, or 5 on a W/N alcove).
-    for (const seed of [1, 4242, 987654, 20260812]) {
-      const { xml, preview } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
-      const room = preview.rooms[0]
-      const boss = actorEntries(xml).find((a) => /^actors\/boss_/.test(a.type))!
-      const blocks = tileBlocks(xml)
-
-      const gridX = boss.x + room.x
-      const gridY = boss.y + room.y
-      const gx = Math.floor((gridX + 10) / 20)
-      const gy = Math.floor((gridY + 10) / 20)
-      const blockX = gx * 20 - room.x
-      const blockY = gy * 20 - room.y
-
-      const block = blocks.find((b) => b.x === blockX && b.y === blockY)
-      expect(block, `seed ${seed}: no block at (${blockX},${blockY}) for boss local (${boss.x},${boss.y})`).toBeDefined()
-
-      // and the boss's own tile within that block is real floor, not void
-      const cellCol = Math.round(gridX) - (gx * 20 - 10)
-      const cellRow = Math.round(gridY) - (gy * 20 - 10)
-      const cellIndex = cellRow * 20 + cellCol
-      expect(block!.datasets[1].dataT[cellIndex], `seed ${seed}: boss tile is void, not floor`).toBeGreaterThan(0)
-    }
-  })
-})
 
 describe('boss arena — playtest round 2: world-extent alignment per alcove wall', () => {
   // The §3 diagnostic the plan asked for, made permanent: compare, in the
@@ -818,5 +754,138 @@ describe('boss arena — water base layer', () => {
     // Cover doodads share the wall-pattern matcher's piece names with the
     // dungeon (see wallPattern.ts); every theme but h emits some.
     expect(doodads.length).toBeGreaterThan(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Playtest round 3. The alignment test that used to live here asserted
+// `block.x === gx*20 - room.x` — the emitter's own convention restated back at
+// itself, so it passed for two rounds while the arena was visibly broken in
+// game. These replace it with properties taken from the *artifacts*: what
+// every authored and shipped level does, and what the wall sprites actually
+// cover.
+// ---------------------------------------------------------------------------
+
+/** Local-space set of every tile carrying real floor, read back out of the emitted blocks. */
+function floorTiles(xml: string): Set<string> {
+  const out = new Set<string>()
+  for (const b of tileBlocks(xml)) {
+    const theme = b.datasets.find((d) => !d.tileset.includes('water'))
+    if (theme === undefined) continue
+    for (let i = 0; i < theme.dataT.length; i++) {
+      if (theme.dataT[i] !== 0) out.add(`${b.x - 10 + (i % 20)},${b.y - 10 + Math.trunc(i / 20)}`)
+    }
+  }
+  return out
+}
+
+/**
+ * Undo a doodad path.s render offset to recover the tile it occupies, using
+ * the real DoodadType table rather than guessing from the filename (an
+ * earlier version of this helper missed that g_x_t_dn carries yOffset 2, and
+ * mis-blamed the emitter for it).
+ */
+function tileOfDoodad(theme: string, path: string, x: number, y: number): { x: number; y: number } {
+  for (const name of Object.keys(DoodadType) as DoodadTypeName[]) {
+    if (doodadPath(name, theme) !== path) continue
+    const off = doodadOffset(name, theme)
+    return { x: Math.round(x - off.x), y: Math.round(y - off.y) }
+  }
+  return { x: Math.round(x), y: Math.round(y) }
+}
+
+/** One seed per alcove wall, classified from the seal doodads themselves. */
+function seedPerAlcoveWall(): Map<AlcoveWall, number> {
+  const found = new Map<AlcoveWall, number>()
+  for (let seed = 1; seed <= 200 && found.size < 3; seed++) {
+    const { xml } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
+    const seals = doodadEntries(xml).filter((d) => d.needSync)
+    if (seals.length !== 3) continue
+    const wall: AlcoveWall = seals[0].x === seals[1].x ? (seals[0].x < 0 ? 'W' : 'E') : 'N'
+    if (!found.has(wall)) found.set(wall, seed)
+  }
+  return found
+}
+
+describe('boss arena — tilemap block origins sit on the 20-grid', () => {
+  // The bug that survived two rounds of "fixes": the engine snaps a block's
+  // declared x/y to a multiple of TILEMAP_SIZE, so an offset written there is
+  // discarded and the floor renders `origin` tiles from its walls. Every
+  // authored and shipped level obeys this — level0, the editor-saved prep
+  // room, the lobby. Proven in game by hand-patching a generated boss.xml.
+  it('every arena block is emitted at a multiple of 20, for every alcove wall', () => {
+    for (const [wall, seed] of seedPerAlcoveWall()) {
+      const { xml } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
+      for (const b of tileBlocks(xml)) {
+        expect(Math.abs(b.x % 20), `${wall} seed ${seed}: block x=${b.x}`).toBe(0)
+        expect(Math.abs(b.y % 20), `${wall} seed ${seed}: block y=${b.y}`).toBe(0)
+      }
+    }
+  })
+
+  it('so does a dungeon floor — proving the assertion is not vacuous', () => {
+    const result = generateOk(defaultParameters(), 4242)
+    const floor = result.files.find((f) => f.path === 'levels/level0.xml')!.content
+    const blocks = tileBlocks(floor)
+    expect(blocks.length).toBeGreaterThan(0)
+    for (const b of blocks) {
+      expect(Math.abs(b.x % 20), `level0 block x=${b.x}`).toBe(0)
+      expect(Math.abs(b.y % 20), `level0 block y=${b.y}`).toBe(0)
+    }
+  })
+})
+
+describe('boss arena — the alcove is enterable and the orb is not buried', () => {
+  // Wall pieces are 3 tiles TALL: g_x_t_dn/g_h_8 are `<origin>0 32</origin>` on
+  // a 48px frame drawn at `tile + 2`, so a wall paints over its own tile and
+  // the two below it. A 3-row pocket therefore buries its own centre, which is
+  // exactly where the orb sat — unreachable in game across three playtests.
+  const OVERHANG = 2
+
+  it('floors the mouth, so the opened doorway has ground rather than a hole', () => {
+    for (const [wall, seed] of seedPerAlcoveWall()) {
+      const { xml } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
+      const floor = floorTiles(xml)
+      const seals = doodadEntries(xml).filter((d) => d.needSync)
+      for (const s of seals) {
+        const t = tileOfDoodad(arenaOptions().theme, s.type, s.x, s.y)
+        expect(floor.has(`${t.x},${t.y}`), `${wall} seed ${seed}: seal tile (${t.x},${t.y}) has no floor`).toBe(true)
+      }
+    }
+  })
+
+  it('puts the orb on floor, with no doodad on it and clear of the wall overhang', () => {
+    for (const [wall, seed] of seedPerAlcoveWall()) {
+      const { xml } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
+      const orb = itemEntries(xml).find((i) => i.type.includes('crystal'))!
+      const floor = floorTiles(xml)
+
+      expect(floor.has(`${orb.x},${orb.y}`), `${wall} seed ${seed}: orb tile is not floor`).toBe(true)
+
+      // every wall doodad's own tile, offset undone
+      const wallTiles = doodadEntries(xml)
+        .filter((d) => !d.type.includes('color_theme') && d.type.includes('/theme_'))
+        .map((d) => tileOfDoodad(arenaOptions().theme, d.type, d.x, d.y))
+
+      for (const w of wallTiles) {
+        if (w.x !== orb.x) continue
+        const covers = w.y <= orb.y && orb.y <= w.y + OVERHANG
+        expect(covers, `${wall} seed ${seed}: wall tile (${w.x},${w.y}) paints over the orb at (${orb.x},${orb.y})`).toBe(false)
+      }
+    }
+  })
+})
+
+describe('boss arena — no color_theme overlay anywhere', () => {
+  // Cover only fires on the interior of a 2x2-or-thicker wall mass, so on the
+  // arena's 1-tile band it appeared as isolated floating squares. Blanketing
+  // only the alcove was rejected too: with the rest of the wall bare, the
+  // blanket is itself a signpost for the alcove, so it hides nothing.
+  it('emits none, on any theme', () => {
+    for (const theme of THEMES) {
+      const { xml } = buildBossArena(freshCtx(7), arenaOptions({ theme }), 0)
+      const covers = doodadEntries(xml).filter((d) => d.type.includes('color_theme'))
+      expect(covers, `theme ${theme}`).toHaveLength(0)
+    }
   })
 })
