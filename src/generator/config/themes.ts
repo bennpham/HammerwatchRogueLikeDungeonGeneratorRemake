@@ -95,7 +95,8 @@ const THEMED_WALL_PIECES: readonly DoodadTypeName[] = [
   'TUp',
   'TLeft',
   'TRight',
-  'Pillar'
+  'Pillar',
+  'CrossWallSolid'
 ]
 
 function classic(id: string, tiles: number, group: string): ThemeDef {
@@ -268,6 +269,17 @@ function desertOutdoor(): ThemeDef {
   // theme h ships no `h_special_pillar` — the only solid free-standing prop in
   // the folder is this boulder, confirmed to carry a `<circle radius="18"/>`
   doodadOverrides.Pillar = { path: 'doodads/theme_h/h_deco_rock.xml', yOffset: 0 }
+
+  // The arena's joint twin. Point 4 above says CrossWall "must be given a
+  // piece that covers the *whole* tile, not a fence" — but the only whole-tile
+  // pieces this folder ships are the _v2 corners, and CrossWall above is
+  // h_h_8_up, itself a fence (full x, bottom edge only). In a dungeon that is
+  // survivable: wall masses are thick, so a leaky joint leads into more wall.
+  // The arena's band is one tile, so the joint is a way out of the level
+  // ([VERIFIED] in game 2026-08-12). h_crn_l_up_v2 is 16x16 with its collider
+  // at x -2..16, y -2..16 — the whole tile, one tile only — so it needs no
+  // lift, unlike the 16x32 pieces above.
+  doodadOverrides.CrossWallSolid = { path: 'doodads/theme_h/h_crn_l_up_v2.xml', yOffset: 0 }
 
   return {
     id: 'h',

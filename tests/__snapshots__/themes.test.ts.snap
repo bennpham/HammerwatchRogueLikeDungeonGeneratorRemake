@@ -51,6 +51,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_a/a_x_x.xml",
   },
+  "a:CrossWallSolid": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_a/a_x_x.xml",
+  },
   "a:ExitDn": {
     "offset": {
       "x": 0,
@@ -234,6 +241,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     "path": "doodads/special/color_theme_b_16.xml",
   },
   "b:CrossWall": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_b/b_x_x.xml",
+  },
+  "b:CrossWallSolid": {
     "offset": {
       "x": 0,
       "y": 1,
@@ -429,6 +443,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_bonus1/bonus1_x_x.xml",
   },
+  "bonus1:CrossWallSolid": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_bonus1/bonus1_x_x.xml",
+  },
   "bonus1:ExitDn": {
     "offset": {
       "x": 0.25,
@@ -612,6 +633,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     "path": "doodads/special/color_theme_a_16.xml",
   },
   "bonus2:CrossWall": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_bonus2/bonus2_x_x.xml",
+  },
+  "bonus2:CrossWallSolid": {
     "offset": {
       "x": 0,
       "y": 0,
@@ -807,6 +835,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_bonus3/bonus3_x_x.xml",
   },
+  "bonus3:CrossWallSolid": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_bonus3/bonus3_x_x.xml",
+  },
   "bonus3:ExitDn": {
     "offset": {
       "x": 0.25,
@@ -990,6 +1025,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     "path": "doodads/special/color_theme_a_16.xml",
   },
   "bonus4:CrossWall": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_bonus4/bonus4_x_x.xml",
+  },
+  "bonus4:CrossWallSolid": {
     "offset": {
       "x": 0,
       "y": 0,
@@ -1185,6 +1227,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_bonus5/bonus5_x_x.xml",
   },
+  "bonus5:CrossWallSolid": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_bonus5/bonus5_x_x.xml",
+  },
   "bonus5:ExitDn": {
     "offset": {
       "x": 0.25,
@@ -1368,6 +1417,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     "path": "doodads/special/color_theme_c_16.xml",
   },
   "c:CrossWall": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_c/c_x_x.xml",
+  },
+  "c:CrossWallSolid": {
     "offset": {
       "x": 0,
       "y": 1,
@@ -1563,6 +1619,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_d/d_x_x.xml",
   },
+  "d:CrossWallSolid": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_d/d_x_x.xml",
+  },
   "d:ExitDn": {
     "offset": {
       "x": 0,
@@ -1746,6 +1809,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     "path": "doodads/special/color_theme_e_16.xml",
   },
   "e:CrossWall": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_e/e_x_x.xml",
+  },
+  "e:CrossWallSolid": {
     "offset": {
       "x": 0,
       "y": 1,
@@ -1941,6 +2011,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_f/f_x_x.xml",
   },
+  "f:CrossWallSolid": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_f/f_x_x.xml",
+  },
   "f:ExitDn": {
     "offset": {
       "x": 0,
@@ -2124,6 +2201,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     "path": "doodads/special/color_theme_g_16.xml",
   },
   "g:CrossWall": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_g/g_x_x.xml",
+  },
+  "g:CrossWallSolid": {
     "offset": {
       "x": 0,
       "y": 1,
@@ -2319,6 +2403,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_h/h_h_8_up.xml",
   },
+  "h:CrossWallSolid": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_h/h_crn_l_up_v2.xml",
+  },
   "h:ExitDn": {
     "offset": {
       "x": 1.21875,
@@ -2502,6 +2593,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     "path": "doodads/special/color_theme_i_16.xml",
   },
   "i:CrossWall": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_i/i_x_x.xml",
+  },
+  "i:CrossWallSolid": {
     "offset": {
       "x": 0,
       "y": 1,

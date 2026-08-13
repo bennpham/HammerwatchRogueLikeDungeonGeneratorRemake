@@ -893,3 +893,26 @@ describe('boss arena — no color_theme overlay anywhere', () => {
     }
   })
 })
+
+describe('boss arena — theme h wall joints are solid, not fences', () => {
+  // Theme h's pieces are edge fences: each barricades one edge of its tile and
+  // a room is sealed because they join into a closed loop. CrossWall is that
+  // joint, and themes.ts's own notes say it "must be given a piece that covers
+  // the whole tile, not a fence" — but it was h_h_8_up, itself a fence. A
+  // dungeon survives that (thick wall masses); the arena's one-tile band turns
+  // the joint into a way out ([VERIFIED] in game 2026-08-12).
+  it('emits the whole-tile joint piece on theme h', () => {
+    for (const seed of [1, 4242, 987654]) {
+      const types = doodadEntries(buildBossArena(freshCtx(seed), arenaOptions({ theme: 'h' }), 0).xml).map((d) => d.type)
+      expect(types, `seed ${seed}`).toContain('doodads/theme_h/h_crn_l_up_v2.xml')
+    }
+  })
+
+  it('changes nothing for any other theme', () => {
+    for (const theme of THEMES) {
+      if (theme === 'h') continue
+      const types = doodadEntries(buildBossArena(freshCtx(7), arenaOptions({ theme }), 0).xml).map((d) => d.type)
+      for (const t of types) expect(t, `theme ${theme}`).not.toMatch(/_v2\.xml$/)
+    }
+  })
+})

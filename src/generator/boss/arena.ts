@@ -77,6 +77,25 @@ const TILEMAP_SIZE = 20
  */
 const ALCOVE_EXTRA = 6
 
+/**
+ * The arena asks for the solid joint twin instead of plain CrossWall.
+ *
+ * For 13 of the 14 themes it resolves to the identical asset and offset, so
+ * this is a no-op; theme h alone overrides it, because its pieces are edge
+ * fences rather than solid tiles and CrossWall is the joint where two
+ * perpendicular fences meet — a hole in a one-tile band ([VERIFIED] in game
+ * 2026-08-12). Dungeon floors keep asking for plain CrossWall and are
+ * untouched; their wall masses are thick enough that a leaky joint leads
+ * nowhere.
+ */
+const SOLID_JOINTS: Partial<Record<DoodadTypeName, DoodadTypeName>> = {
+  CrossWall: 'CrossWallSolid'
+}
+
+function solidJoint(type: DoodadTypeName): DoodadTypeName {
+  return SOLID_JOINTS[type] ?? type
+}
+
 export interface BossArenaResult {
   xml: string
   preview: LevelPreview
@@ -194,7 +213,7 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
 
       const local = toLocal(gx, gy)
       const wallType = searchPatterns(gx, gy, tileArray, gridWidth, true)
-      if (wallType !== null) Doodad.create(ctx, local.x, local.y, wallType, arena.theme)
+      if (wallType !== null) Doodad.create(ctx, local.x, local.y, solidJoint(wallType), arena.theme)
     }
   }
 
