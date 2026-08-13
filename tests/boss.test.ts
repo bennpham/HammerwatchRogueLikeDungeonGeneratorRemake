@@ -840,7 +840,11 @@ describe('boss arena — the alcove is enterable and the orb is not buried', () 
   // a 48px frame drawn at `tile + 2`, so a wall paints over its own tile and
   // the two below it. A 3-row pocket therefore buries its own centre, which is
   // exactly where the orb sat — unreachable in game across three playtests.
-  const OVERHANG = 2
+  // A wall piece at tile T covers world y from T to T + 3, not T + 2: the
+  // sprite is a 48px frame on an `<origin>0 32</origin>` anchor drawn at
+  // T + 2, so its bottom edge lands on T + 3. The earlier value of 2 is
+  // exactly why this test passed while the orb was half-buried in game.
+  const OVERHANG = 3
 
   it('floors the mouth, so the opened doorway has ground rather than a hole', () => {
     for (const [wall, seed] of seedPerAlcoveWall()) {

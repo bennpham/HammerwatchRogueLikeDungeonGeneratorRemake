@@ -131,18 +131,25 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   // The mouth sits ON the interior's own wall band — at -1 for N/W, and at
   // `width`/`height` for E (the far side has no symmetric -1 margin). The
   // pocket therefore starts one step further out than the mouth on every wall.
+  // The orb goes on the pocket's BOTTOM row, not its centre. Wall art only
+  // ever overhangs downward, and a piece at tile T reaches T + 3 (48px frame,
+  // 32px anchor, drawn at T + 2) — so on a 5-row pocket the top wall reaches
+  // the middle row and a vertically centred orb is half-buried and cannot be
+  // walked onto. Horizontally centred, vertically as far from that wall as the
+  // pocket allows. [VERIFIED] in game: an E alcove on a 25-wide arena puts the
+  // orb at (28, 21), which is exactly the coordinate that works.
   if (alcoveWall === 'N') {
     for (let dx = -1; dx <= 1; dx++) mouth.push({ x: midX + dx, y: -1 })
     for (let dx = -2; dx <= 2; dx++) for (let row = 2; row <= 6; row++) alcoveFloor.push({ x: midX + dx, y: -row })
-    orbLocal = { x: midX, y: -4 }
+    orbLocal = { x: midX, y: -2 }
   } else if (alcoveWall === 'E') {
     for (let dy = -1; dy <= 1; dy++) mouth.push({ x: width, y: midY + dy })
     for (let dy = -2; dy <= 2; dy++) for (let col = 1; col <= 5; col++) alcoveFloor.push({ x: width + col, y: midY + dy })
-    orbLocal = { x: width + 3, y: midY }
+    orbLocal = { x: width + 3, y: midY + 2 }
   } else {
     for (let dy = -1; dy <= 1; dy++) mouth.push({ x: -1, y: midY + dy })
     for (let dy = -2; dy <= 2; dy++) for (let col = 2; col <= 6; col++) alcoveFloor.push({ x: -col, y: midY + dy })
-    orbLocal = { x: -4, y: midY }
+    orbLocal = { x: -4, y: midY + 2 }
   }
 
   // --- rasterize: one grid covering the interior, its 1-tile wall band on
