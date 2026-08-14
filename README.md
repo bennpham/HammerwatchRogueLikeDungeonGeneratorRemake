@@ -23,10 +23,18 @@ Hammerwatch editor's `LevelPacker.exe` expects:
 dungeon<seed>/
 ├── info.xml            campaign name & lives
 ├── levels.xml          the act/level list
-└── levels/
-    ├── level0.xml      one Hammerwatch level per floor
-    └── …
+├── levels/
+│   ├── lobby.xml       optional hub you start in (vendors, starting gold)
+│   ├── level0.xml      one Hammerwatch level per floor
+│   ├── …
+│   ├── bossprep.xml    optional shop/prep room before the finale
+│   └── boss.xml        optional boss arena, with the reward orb
+└── tweak/
+    └── shared.xml      optional player-balance overrides
 ```
+
+The lobby, the boss finale and the player tweaks are all optional; with them
+off you get exactly the classic dungeon-only campaign the original tool made.
 
 If you point the app at your Hammerwatch install, it will write that folder
 into `<Hammerwatch>/editor/`, run `LevelPacker.exe` on it, and move the
@@ -66,12 +74,47 @@ new rolls a bounded number of times and then reports a friendly error — the
 original tool would retry forever or crash; this remake validates parameters
 up front and keeps every retry loop bounded.
 
+### The optional levels
+
+Three additions sit outside the floor loop above. None of them draw from the
+dungeon's RNG stream, so turning any of them on or off leaves a seed's floors
+**byte-identical** — they can only add or remove levels, never reshuffle one.
+
+- **Lobby** — a hand-authored hub the campaign starts in, with vendor stalls
+  for the shop columns you pick, a configurable pile of starting gold, and a
+  portal to floor 0.
+- **Boss finale** — two levels appended after the last floor. A **prep room**
+  (shops, a diamond payout, a portal) leads into a **boss arena**: a walled
+  room with one boss, spawners that switch on as its health crosses each
+  threshold, scattered cover pillars, and a sealed alcove holding the victory
+  orb. Killing the boss destroys the alcove seals; touching the orb ends the
+  game. With the boss on, the final floor's orb room is replaced by the
+  portal, so there is exactly one way to win.
+- **Player tweaks** — `tweak/*.xml` overrides for class stats, upgrade costs
+  and shop contents, edited per field or through bulk knobs. Purely a balance
+  layer: it draws no random values at all.
+
+## Verified in game
+
+The generated campaign has been played end to end in Hammerwatch 1.41 — a full
+run finished on the boss arena's orb (**YOU WIN!!**), and separately with the
+boss disabled, finishing on the dungeon's own orb room. Several facts about the
+game's level format were only discoverable that way and are recorded in
+`.claude/skills/hammerwatch-modding/references/`, notably that tilemap block
+origins must be multiples of 20 (the engine snaps them), that themed wall
+sprites are three tiles tall and overhang downward, and that destroying a wall
+doodad does not create ground beneath it.
+
 ## Using the app
 
 1. **Set your Hammerwatch folder** (bottom panel) — the folder containing
    `editor/` and `levels/`. It's saved for next time.
-2. **Tweak parameters** in the left panel. Invalid combinations show inline
-   errors and disable the Generate button, with an explanation of what to fix.
+2. **Tweak parameters** in the left panel, across four tabs — **Dungeon**
+   (floors, rooms, monsters), **Player** (class stats, upgrade costs, shop
+   contents), **Lobby** (the starting hub) and **Boss** (the finale). Invalid
+   combinations show inline errors and disable the Generate button, with an
+   explanation of what to fix; purely cosmetic caveats show as warnings and
+   still generate.
 3. Optionally enter a **seed** to reproduce a dungeon; leave blank for random.
 4. Press **Generate dungeon** and browse the per-floor map preview
    (rooms are color-coded — entrance, exit, orb, shop, vault, lairs, locks).
@@ -128,6 +171,30 @@ User-data folder: `%APPDATA%/hammerwatch-roguelike-dungeon-generator` (Windows),
 | `monsters0…N` | see defaults | Monster pool per floor (repeat an id to weight it) |
 | `max<Monster>` | see defaults | Horde-size cap per monster type; 0 disables the type |
 
+The optional levels add their own keys. All of them are omitted from a stock
+`parameters.txt` except the two the app now ships on by default (`lobby`,
+`player.shared.remove.life`):
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `lobby` | 1 | Start the campaign in a hub level instead of on floor 0 |
+| `lobbyGold` | 10000 | Starting gold, a multiple of 500 (one red diamond each), capped at 12000 |
+| `lobbyShops` | all 21 columns | Space-separated shop columns the lobby stalls sell |
+| `boss` | 0 | Append a prep room and a boss arena after the final floor |
+| `bossGold` | 0 | Gold paid out in the prep room, same 500-multiple rule |
+| `bossShops` | all 21 columns | Shop columns the prep-room stalls sell |
+| `bossTheme` | `g` | Tileset for the arena — any dungeon theme (`h` warns: its cliff art needs a thicker wall band and overlapping corners to stay sealed) |
+| `bossWidth`, `bossHeight` | 24–32, 32–44 | Arena size range in tiles |
+| `bossPool` | all seven | Comma-separated boss ids; the seed picks one per campaign |
+| `bossCover` | `random,0.08,4,3` | `pattern,density,ringSpacing,clusters`. Pattern is `random`/`ring`/`gaussian`/`symmetric`; **density is capped at 0.25** — it is the fraction of free floor filled with pillars, and denser than that leaves nowhere to fight |
+| `bossWave1…4` | see defaults | One wave per health tier (100/75/50/25%), as `monsters\|defaultIntervalMs\|monsterMax\|intervalMs`. Tiers switch on and never off, so by 25% all four are spawning at once |
+| `player.<class>.<group>.<field>` | — | Player balance overrides emitted to `tweak/*.xml`; only values that differ from stock are written |
+| `player.shared.remove.life` | 1 | Ships on by default — removes the repeatable extra-life shop upgrade |
+
+Whatever the arena's cover settings, a connectivity pass guarantees the boss,
+all nine spawn anchors and the alcove stay reachable from the entrance; pillars
+that would wall something off are pruned.
+
 Monster ids include the classic set (`bat1`, `tick1`, `maggot`, `slime`,
 `skeleton1/2/3`, `archer1/2/3`, `eye`, `wisp1/2`, `lich`), the desert set
 (`mummy_desert`, `mummy_ranged`, `guard_desert`, `guard_desert_range`,
@@ -153,12 +220,19 @@ list with actor files is in `src/generator/objects/monsterTypes.ts`.
 │   │   ├── objects/        Things placed on levels: monsters (roster data +
 │   │   │                   class), items, doodads, script nodes, prefab
 │   │   │                   object sets (stairs, shop, orb)
+│   │   ├── levelTemplate/  Shared helpers for the hand-authored levels below
+│   │   ├── lobby/          The starting hub: vendor stalls, gold, portal
+│   │   ├── bossprep/       The prep room between the last floor and the boss
+│   │   ├── boss/           The generated arena: geometry, spawn anchors,
+│   │   │                   cover pillars, wave rig, boss roster
+│   │   ├── tweak/          player tweak/*.xml emitters and bulk editors —
+│   │   │                   RNG-free, so they never move a seed's dungeon
 │   │   └── index.ts        generateDungeon(params, seed) → files + previews
 │   ├── main/               Electron main process: window, IPC handlers,
 │   │   │                   settings persistence, LevelPacker invocation,
 │   │   │                   folder/zip export
 │   ├── preload/            contextBridge exposing the typed window.api
-│   ├── renderer/           React GUI: parameter form, validation UX,
+│   ├── renderer/           React GUI: the four parameter tabs, validation UX,
 │   │                       canvas map preview, output panel
 │   └── shared/             IPC types shared between main and renderer
 ├── tests/                  Vitest suite for the generator
@@ -185,7 +259,7 @@ Design notes:
 ```bash
 npm install          # once
 npm run dev          # launch the app with hot reload
-npm test             # run the generator test suite (34 tests)
+npm test             # run the generator test suite (505 tests)
 npm run typecheck    # strict TypeScript across main/preload/renderer/generator
 npm run build        # typecheck + production build into out/
 npm run dist         # build a distributable for the current platform
@@ -201,3 +275,18 @@ DMG on macOS, AppImage on Linux) into `release/`.
 `parameters.txt` round-tripping, the validation matrix (every crash path of
 the original is a test case), and fixed-seed generation — determinism, map
 bounds, entrance/exit/orb presence per floor, and the XML section structure.
+
+The optional levels add their own suites, and two properties are worth calling
+out because they are what keeps the feature safe to leave on:
+
+- **Nothing new touches the dungeon's RNG.** The arena draws only from a third
+  seeded stream, asserted directly; the lobby and the player tweaks draw
+  nothing at all. Turning any of them on or off leaves every floor
+  byte-identical.
+- **Geometry is asserted against the game's rules, not the emitter's own.**
+  The alignment test that shipped first compared the emitter to itself and
+  passed for two rounds while the arena was visibly broken in game. Its
+  replacements assert what the shipped levels actually demonstrate — block
+  origins land on the 20-grid (checked against a dungeon floor too, so the
+  claim cannot be vacuous), no wall sprite's overhang reaches the orb, and the
+  arena band has no gap a player can walk through.
