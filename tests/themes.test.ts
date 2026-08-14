@@ -389,27 +389,3 @@ describe('determinism', () => {
     expect(getTheme('a')).toBe(THEME_DEFS[0])
   })
 })
-
-describe('the solid joint twin — a no-op everywhere except theme h', () => {
-  // The boss arena asks for CrossWallSolid instead of CrossWall, because theme
-  // h's pieces are edge fences rather than solid tiles and CrossWall is the
-  // joint where two perpendicular fences meet — a hole in a one-tile band.
-  // Swapping it unconditionally is only safe because for every other theme the
-  // twin resolves to the very same asset and offset; assert exactly that, or
-  // the arena silently repaints 13 themes' wall joints.
-  it('resolves identically to plain CrossWall for every theme but h', () => {
-    for (const theme of THEME_DEFS) {
-      if (theme.id === 'h') continue
-      expect(doodadPath('CrossWallSolid', theme.id), `${theme.id} path`).toBe(doodadPath('CrossWall', theme.id))
-      expect(doodadOffset('CrossWallSolid', theme.id), `${theme.id} offset`).toEqual(doodadOffset('CrossWall', theme.id))
-    }
-  })
-
-  it('resolves theme h to a whole-tile piece instead of a fence', () => {
-    expect(doodadPath('CrossWallSolid', 'h')).not.toBe(doodadPath('CrossWall', 'h'))
-    expect(doodadPath('CrossWallSolid', 'h')).toBe('doodads/theme_h/h_crn_l_up_v2.xml')
-    // 16x16 with its collider over the whole tile, so unlike the folder's
-    // 16x32 pieces it takes no lift
-    expect(doodadOffset('CrossWallSolid', 'h').y).toBe(0)
-  })
-})

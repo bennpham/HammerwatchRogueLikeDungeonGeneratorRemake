@@ -68,33 +68,8 @@ const FOOD_FOOTPRINT = { width: 1, height: 1 }
 
 const TILEMAP_SIZE = 20
 
-/**
- * Tiles the alcove pocket adds beyond the interior's own wall band, on the
- * chosen side: 5 interior rows/cols plus 1 outer wall row/col. The mouth
- * itself (1 tile) is *not* extra — it reuses the 1-tile wall-band margin
- * every side already gets, floored like the pocket but carrying the
- * destructible seal doodads instead of ordinary wall.
- */
-const ALCOVE_EXTRA = 6
-
-/**
- * The arena asks for the solid joint twin instead of plain CrossWall.
- *
- * For 13 of the 14 themes it resolves to the identical asset and offset, so
- * this is a no-op; theme h alone overrides it, because its pieces are edge
- * fences rather than solid tiles and CrossWall is the joint where two
- * perpendicular fences meet — a hole in a one-tile band ([VERIFIED] in game
- * 2026-08-12). Dungeon floors keep asking for plain CrossWall and are
- * untouched; their wall masses are thick enough that a leaky joint leads
- * nowhere.
- */
-const SOLID_JOINTS: Partial<Record<DoodadTypeName, DoodadTypeName>> = {
-  CrossWall: 'CrossWallSolid'
-}
-
-function solidJoint(type: DoodadTypeName): DoodadTypeName {
-  return SOLID_JOINTS[type] ?? type
-}
+/** Floored rows/cols inside the alcove pocket, behind the mouth. */
+const ALCOVE_POCKET = 5
 
 export interface BossArenaResult {
   xml: string
@@ -129,6 +104,18 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
 
   const themeDef = getTheme(arena.theme) ?? THEME_DEFS[0]
 
+  // How thick the arena's wall band is.
+  //
+  // One tile everywhere except a theme whose pieces fence a single edge rather
+  // than filling their tile (theme h). Its collision polygons cover 25-56% of
+  // a tile — measured by sampling the polygon, not by its bounding box, which
+  // is the error that made three earlier fixes worse. Such a theme seals a room
+  // the way its dungeons do: a closed loop of fences around a wall mass several
+  // tiles thick. One tile is a geometry its art simply cannot seal, and there
+  // is no whole-tile piece in the folder to swap in, so the band is thickened
+  // instead ([VERIFIED] in game: the one-tile band leaked on every attempt).
+  const BAND = themeDef.directionalFences === true ? 2 : 1
+
   // --- alcove geometry: a 3-tile mouth, a 5x5 pocket behind it, and the orb
   // dead centre. All in local (interior-relative, possibly negative) tiles.
   //
@@ -147,36 +134,45 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   const alcoveFloor: Array<{ x: number; y: number }> = []
   let orbLocal: { x: number; y: number }
 
-  // The mouth sits ON the interior's own wall band — at -1 for N/W, and at
-  // `width`/`height` for E (the far side has no symmetric -1 margin). The
-  // pocket therefore starts one step further out than the mouth on every wall.
-  // The orb goes on the pocket's BOTTOM row, not its centre. Wall art only
-  // ever overhangs downward, and a piece at tile T reaches T + 3 (48px frame,
-  // 32px anchor, drawn at T + 2) — so on a 5-row pocket the top wall reaches
-  // the middle row and a vertically centred orb is half-buried and cannot be
-  // walked onto. Horizontally centred, vertically as far from that wall as the
-  // pocket allows. [VERIFIED] in game: an E alcove on a 25-wide arena puts the
-  // orb at (28, 21), which is exactly the coordinate that works.
+  // The mouth sits ON the interior's own wall band and pierces its full depth,
+  // so with a thick band it is BAND tiles deep; the pocket starts immediately
+  // behind it. The orb goes on the pocket's BOTTOM row, not its centre: wall
+  // art only ever overhangs downward, and a piece at tile T reaches T + 3
+  // (48px frame, 32px anchor, drawn at T + 2), so on a 5-row pocket the top
+  // wall reaches the middle row and a vertically centred orb is half-buried
+  // and cannot be walked onto. Horizontally centred, vertically as far from
+  // that wall as the pocket allows. [VERIFIED] in game: an E alcove on a
+  // 25-wide arena puts the orb at (28, 21), which is the coordinate that works.
+  //
+  // Written in terms of BAND so the thick-band themes stay consistent; at
+  // BAND = 1 every expression below reduces to the geometry that shipped.
   if (alcoveWall === 'N') {
-    for (let dx = -1; dx <= 1; dx++) mouth.push({ x: midX + dx, y: -1 })
-    for (let dx = -2; dx <= 2; dx++) for (let row = 2; row <= 6; row++) alcoveFloor.push({ x: midX + dx, y: -row })
-    orbLocal = { x: midX, y: -2 }
+    for (let d = 1; d <= BAND; d++) for (let dx = -1; dx <= 1; dx++) mouth.push({ x: midX + dx, y: -d })
+    for (let dx = -2; dx <= 2; dx++) {
+      for (let row = BAND + 1; row <= BAND + ALCOVE_POCKET; row++) alcoveFloor.push({ x: midX + dx, y: -row })
+    }
+    orbLocal = { x: midX, y: -(BAND + 1) }
   } else if (alcoveWall === 'E') {
-    for (let dy = -1; dy <= 1; dy++) mouth.push({ x: width, y: midY + dy })
-    for (let dy = -2; dy <= 2; dy++) for (let col = 1; col <= 5; col++) alcoveFloor.push({ x: width + col, y: midY + dy })
-    orbLocal = { x: width + 3, y: midY + 2 }
+    for (let d = 0; d < BAND; d++) for (let dy = -1; dy <= 1; dy++) mouth.push({ x: width + d, y: midY + dy })
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let col = BAND; col < BAND + ALCOVE_POCKET; col++) alcoveFloor.push({ x: width + col, y: midY + dy })
+    }
+    orbLocal = { x: width + BAND + 2, y: midY + 2 }
   } else {
-    for (let dy = -1; dy <= 1; dy++) mouth.push({ x: -1, y: midY + dy })
-    for (let dy = -2; dy <= 2; dy++) for (let col = 2; col <= 6; col++) alcoveFloor.push({ x: -col, y: midY + dy })
-    orbLocal = { x: -4, y: midY + 2 }
+    for (let d = 1; d <= BAND; d++) for (let dy = -1; dy <= 1; dy++) mouth.push({ x: -d, y: midY + dy })
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let col = BAND + 1; col <= BAND + ALCOVE_POCKET; col++) alcoveFloor.push({ x: -col, y: midY + dy })
+    }
+    orbLocal = { x: -(BAND + 3), y: midY + 2 }
   }
 
-  // --- rasterize: one grid covering the interior, its 1-tile wall band on
-  // every side, and (on the alcove's side only) the extra pocket depth. ---
-  const originX = 1 + (alcoveWall === 'W' ? ALCOVE_EXTRA : 0)
-  const originY = 1 + (alcoveWall === 'N' ? ALCOVE_EXTRA : 0)
-  const gridWidth = originX + width + 1 + (alcoveWall === 'E' ? ALCOVE_EXTRA : 0)
-  const gridHeight = originY + height + 1
+  // --- rasterize: one grid covering the interior, its wall band on every side,
+  // and (on the alcove's side only) the pocket depth plus its own outer wall.
+  const alcoveExtra = ALCOVE_POCKET + BAND
+  const originX = BAND + (alcoveWall === 'W' ? alcoveExtra : 0)
+  const originY = BAND + (alcoveWall === 'N' ? alcoveExtra : 0)
+  const gridWidth = originX + width + BAND + (alcoveWall === 'E' ? alcoveExtra : 0)
+  const gridHeight = originY + height + BAND
 
   const toGrid = (x: number, y: number): { gx: number; gy: number } => ({ gx: x + originX, gy: y + originY })
   const toLocal = (gx: number, gy: number): { x: number; y: number } => ({ x: gx - originX, y: gy - originY })
@@ -206,19 +202,6 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   // considered and rejected: with the rest of the wall bare, the blanket is
   // itself a signpost for where the alcove is, so it hides nothing. The water
   // base layer means there is no void left to paint over either. ---
-  // How many of a tile's four orthogonal neighbours are floor. Out of bounds
-  // counts as wall, matching how searchPatterns treats the grid edge.
-  const floorNeighbours = (gx: number, gy: number): number => {
-    let n = 0
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      const nx = gx + dx
-      const ny = gy + dy
-      if (nx < 0 || ny < 0 || nx >= gridWidth || ny >= gridHeight) continue
-      if (!tileArray[nx + ny * gridWidth].wall) n++
-    }
-    return n
-  }
-
   for (let gy = 0; gy < gridHeight; gy++) {
     for (let gx = 0; gx < gridWidth; gx++) {
       const idx = gx + gy * gridWidth
@@ -226,23 +209,7 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
 
       const local = toLocal(gx, gy)
       const wallType = searchPatterns(gx, gy, tileArray, gridWidth, true)
-      if (wallType === null) continue
-
-      // On a theme whose pieces fence a single edge (theme h), searchPatterns
-      // picks by the wall's *shape*, which at a junction can face perpendicular
-      // to the direction that actually needs blocking — the arena's band is one
-      // tile thick, so that is a door out of the level. Seen in game as a gap
-      // beside the sealed alcove: the tiles where the pocket's top and bottom
-      // walls met the band got horizontal faces, which block nothing
-      // east-west ([VERIFIED] 2026-08-12).
-      //
-      // A fence is safe on a straight run — one floor neighbour, and the fence
-      // faces it — so only junctions (two or more floor neighbours) are swapped
-      // for the whole-tile piece. The band keeps its cliff faces everywhere
-      // else. Themes whose pieces fill their tile never take this branch.
-      const junction = themeDef.directionalFences === true && floorNeighbours(gx, gy) >= 2
-      const piece = junction ? 'CrossWallSolid' : solidJoint(wallType)
-      Doodad.create(ctx, local.x, local.y, piece, arena.theme)
+      if (wallType !== null) Doodad.create(ctx, local.x, local.y, wallType, arena.theme)
     }
   }
 
@@ -251,8 +218,18 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   // scan only visits wall tiles, so it can no longer produce them. A vertical
   // run of 3 for an E/W mouth, a horizontal run for N — matching what the
   // matcher would have chosen for a straight wall segment of that orientation.
+  //
+  // Only the ring of the mouth nearest the interior is sealed, even when the
+  // band is thicker: three doodads are enough to stop entry, and keeping the
+  // count at 3 keeps the DestroyObject array (and every test that pins it) the
+  // same shape on every theme. The outer mouth tiles are simply passage.
   const sealPiece: DoodadTypeName = alcoveWall === 'N' ? 'Horizontal' : 'Vertical'
-  const wallSeals = mouth.map((m) => {
+  const innerMouth = mouth.filter((m) => {
+    if (alcoveWall === 'N') return m.y === -1
+    if (alcoveWall === 'E') return m.x === width
+    return m.x === -1
+  })
+  const wallSeals = innerMouth.map((m) => {
     const d = Doodad.create(ctx, m.x, m.y, sealPiece, arena.theme)
     d.needSync = true
     return d

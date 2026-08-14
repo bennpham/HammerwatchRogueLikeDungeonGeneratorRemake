@@ -29,13 +29,6 @@ export const DoodadType = {
   CornerLU: { path: 'doodads/theme_%s/%s_crn_l_up.xml', xOffset: 0, yOffset: 1, themeSubs: 2 },
   CornerRD: { path: 'doodads/theme_%s/%s_crn_r_dn.xml', xOffset: 0, yOffset: 2, themeSubs: 2 },
   CornerRU: { path: 'doodads/theme_%s/%s_crn_r_up.xml', xOffset: 0, yOffset: 1, themeSubs: 2 },
-  // The joint twin the boss arena asks for instead of CrossWall. It defaults
-  // to the same asset and offset, so for 13 of the 14 themes this is a no-op;
-  // only theme h overrides it (see themes.ts), because its pieces are edge
-  // fences rather than solid tiles and CrossWall is the joint where two
-  // perpendicular fences meet. A dungeon's wall masses are thick enough that a
-  // leaky joint leads nowhere; the arena's one-tile band makes it a way out.
-  CrossWallSolid: { path: 'doodads/theme_%s/%s_x_x.xml', xOffset: 0, yOffset: 1, themeSubs: 2 },
   ExitDn: { path: 'doodads/theme_%s/%s_exit_h_dn.xml', xOffset: 0, yOffset: 0, themeSubs: 2 },
   ExitUp: { path: 'doodads/theme_%s/%s_exit_h_up.xml', xOffset: 0, yOffset: 0, themeSubs: 2 },
   Horizontal: { path: 'doodads/theme_%s/%s_h_8.xml', xOffset: 0, yOffset: 2, themeSubs: 2 },

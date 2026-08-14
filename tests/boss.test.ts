@@ -894,78 +894,56 @@ describe('boss arena — no color_theme overlay anywhere', () => {
   })
 })
 
-describe('boss arena — theme h wall joints are solid, not fences', () => {
-  // Theme h's pieces are edge fences: each barricades one edge of its tile and
-  // a room is sealed because they join into a closed loop. CrossWall is that
-  // joint, and themes.ts's own notes say it "must be given a piece that covers
-  // the whole tile, not a fence" — but it was h_h_8_up, itself a fence. A
-  // dungeon survives that (thick wall masses); the arena's one-tile band turns
-  // the joint into a way out ([VERIFIED] in game 2026-08-12).
-  it('emits the whole-tile joint piece on theme h', () => {
-    for (const seed of [1, 4242, 987654]) {
-      const types = doodadEntries(buildBossArena(freshCtx(seed), arenaOptions({ theme: 'h' }), 0).xml).map((d) => d.type)
-      expect(types, `seed ${seed}`).toContain('doodads/theme_h/h_crn_l_up_v2.xml')
+describe('boss arena — wall band thickness by theme', () => {
+  // Theme h's pieces fence one edge of their tile and never fill it: measured
+  // coverage is 25-56%, and the folder has no whole-tile piece at all. It seals
+  // a room the way its dungeons do — a closed loop of fences around a wall mass
+  // several tiles thick — so the arena gives it a 2-tile band. One tile is a
+  // geometry its art cannot seal, which three piece-swapping fixes proved the
+  // hard way. Every other theme keeps the 1-tile band, and the arena XML for
+  // those themes must be unchanged.
+  function bandThickness(theme: string, seed: number) {
+    const { preview } = buildBossArena(freshCtx(seed), arenaOptions({ theme }), 0)
+    const W = preview.mapWidth
+    const H = preview.mapHeight
+    const isWall = (x: number, y: number) => preview.walls[y * W + x] === '1'
+    const midY = Math.trunc(H / 2)
+    const midX = Math.trunc(W / 2)
+    let left = 0
+    while (left < W && isWall(left, midY)) left++
+    let right = 0
+    while (right < W && isWall(W - 1 - right, midY)) right++
+    let top = 0
+    while (top < H && isWall(midX, top)) top++
+    let bottom = 0
+    while (bottom < H && isWall(midX, H - 1 - bottom)) bottom++
+    return { left, right, top, bottom }
+  }
+
+  it('gives theme h a 2-tile band on all four sides', () => {
+    for (const seed of [1, 2, 4, 4242]) {
+      expect(bandThickness('h', seed), `seed ${seed}`).toEqual({ left: 2, right: 2, top: 2, bottom: 2 })
     }
   })
 
-  it('changes nothing for any other theme', () => {
+  it('leaves every other theme on a 1-tile band', () => {
     for (const theme of THEMES) {
       if (theme === 'h') continue
-      const types = doodadEntries(buildBossArena(freshCtx(7), arenaOptions({ theme }), 0).xml).map((d) => d.type)
-      for (const t of types) expect(t, `theme ${theme}`).not.toMatch(/_v2\.xml$/)
-    }
-  })
-})
-
-describe('boss arena — a fence theme leaves no door in the band', () => {
-  // Theme h's pieces barricade one edge of their tile, and searchPatterns picks
-  // by wall *shape* — so where the wall turns, the shape-derived piece can face
-  // perpendicular to the direction that needs blocking. In a one-tile band that
-  // is a door out of the level: seen in game as a gap flanking the sealed
-  // alcove, where the pocket's top and bottom walls met the band and got
-  // horizontal faces that block nothing east-west ([VERIFIED] 2026-08-12).
-  //
-  // The property, asserted directly rather than by counting pieces: no wall
-  // tile bordering floor on two or more sides may carry a directional fence.
-  const WHOLE_TILE = 'doodads/theme_h/h_crn_l_up_v2.xml'
-
-  it('gives every junction a whole-tile piece on theme h', () => {
-    for (const seed of [1, 2, 4, 7, 11, 4242]) {
-      const { xml, preview } = buildBossArena(freshCtx(seed), arenaOptions({ theme: 'h' }), 0)
-      const room = preview.rooms[0]
-      const W = preview.mapWidth
-      const H = preview.mapHeight
-      const isWall = (gx: number, gy: number) =>
-        gx < 0 || gy < 0 || gx >= W || gy >= H || preview.walls[gy * W + gx] === '1'
-
-      const pieceAt = new Map<string, string>()
-      for (const d of doodadEntries(xml)) {
-        const t = tileOfDoodad('h', d.type, d.x, d.y)
-        pieceAt.set(`${t.x},${t.y}`, d.type)
-      }
-
-      for (let gy = 0; gy < H; gy++) {
-        for (let gx = 0; gx < W; gx++) {
-          if (!isWall(gx, gy)) continue
-          let floors = 0
-          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-            if (!isWall(gx + dx, gy + dy)) floors++
-          }
-          if (floors < 2) continue // a straight run's fence faces its one floor side
-          const local = `${gx - room.x},${gy - room.y}`
-          expect(pieceAt.get(local), `seed ${seed}: junction at ${local} is a fence, not a whole tile`).toBe(WHOLE_TILE)
-        }
-      }
+      expect(bandThickness(theme, 4242), `theme ${theme}`).toEqual({ left: 1, right: 1, top: 1, bottom: 1 })
     }
   })
 
-  it('leaves straight runs as ordinary cliff faces, so the band still reads as cliffs', () => {
-    const { xml } = buildBossArena(freshCtx(1), arenaOptions({ theme: 'h' }), 0)
-    const types = doodadEntries(xml).map((d) => d.type)
-    // the directional faces must still dominate — a band made entirely of the
-    // whole-tile piece would pass the junction test but look nothing like h
-    expect(types.filter((t) => t.includes('h_v_8_') || t.includes('h_h_8_')).length).toBeGreaterThan(
-      types.filter((t) => t === WHOLE_TILE).length
-    )
+  it('still opens the alcove through the full band depth', () => {
+    for (const theme of ['g', 'h']) {
+      for (const seed of [1, 4242]) {
+        const { xml } = buildBossArena(freshCtx(seed), arenaOptions({ theme }), 0)
+        const seals = destroyObjectTargets(xml)
+        // three regardless of band thickness — only the ring nearest the
+        // interior is sealed; the rest of the mouth is passage
+        expect(seals, `${theme} seed ${seed}`).toHaveLength(3)
+        const syncing = doodadEntries(xml).filter((d) => d.needSync).map((d) => d.id)
+        expect(syncing.sort(), `${theme} seed ${seed}`).toEqual([...seals].sort())
+      }
+    }
   })
 })

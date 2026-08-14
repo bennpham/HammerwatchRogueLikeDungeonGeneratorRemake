@@ -60,16 +60,18 @@ export interface ThemeDef {
    */
   omitCover?: boolean
   /**
-   * This theme's wall pieces barricade a single *edge* of their tile rather
-   * than filling it, so a piece only blocks one direction.
+   * This theme's wall pieces barricade a single *edge* of their tile instead of
+   * filling it, so no single tile is ever solid.
    *
-   * `searchPatterns` chooses a piece from the wall's *shape*, which is fine
-   * when any piece fills its tile — but where a wall turns, the shape-derived
-   * choice can face perpendicular to the direction that actually needs
-   * blocking, leaving a one-tile door. Rooms still seal because the fences
-   * join into a closed loop; it is the *junctions* that need a whole-tile
-   * piece. See `CrossWallSolid` and the boss arena's junction pass, which is
-   * gated on this flag rather than on a theme id.
+   * Measured coverage of theme h's collision polygons, sampled over the tile
+   * rather than taken from their bounding boxes: 25% for `h_v_8_l`, 28% for
+   * `h_h_8_dn`, 9% for `h_h_8_up`, at best 56% for any piece in the folder. A
+   * room seals because those fences join into a closed loop *around a wall mass
+   * several tiles thick*, not because the tiles block.
+   *
+   * The boss arena therefore gives such a theme a thicker wall band — one tile
+   * is a geometry its art cannot seal, and three attempts to fix it by swapping
+   * pieces all failed because there is no whole-tile piece to swap to.
    */
   directionalFences?: boolean
   /**
@@ -108,8 +110,7 @@ const THEMED_WALL_PIECES: readonly DoodadTypeName[] = [
   'TUp',
   'TLeft',
   'TRight',
-  'Pillar',
-  'CrossWallSolid'
+  'Pillar'
 ]
 
 function classic(id: string, tiles: number, group: string): ThemeDef {
@@ -283,17 +284,6 @@ function desertOutdoor(): ThemeDef {
   // the folder is this boulder, confirmed to carry a `<circle radius="18"/>`
   doodadOverrides.Pillar = { path: 'doodads/theme_h/h_deco_rock.xml', yOffset: 0 }
 
-  // The arena's joint twin. Point 4 above says CrossWall "must be given a
-  // piece that covers the *whole* tile, not a fence" — but the only whole-tile
-  // pieces this folder ships are the _v2 corners, and CrossWall above is
-  // h_h_8_up, itself a fence (full x, bottom edge only). In a dungeon that is
-  // survivable: wall masses are thick, so a leaky joint leads into more wall.
-  // The arena's band is one tile, so the joint is a way out of the level
-  // ([VERIFIED] in game 2026-08-12). h_crn_l_up_v2 is 16x16 with its collider
-  // at x -2..16, y -2..16 — the whole tile, one tile only — so it needs no
-  // lift, unlike the 16x32 pieces above.
-  doodadOverrides.CrossWallSolid = { path: 'doodads/theme_h/h_crn_l_up_v2.xml', yOffset: 0 }
-
   return {
     id: 'h',
     label: 'h',
@@ -310,7 +300,7 @@ function desertOutdoor(): ThemeDef {
     // low cliff edges with open desert behind them: there is no wall top for an
     // occlusion overlay to sit on, and theme i's stone reads as grey slabs on sand
     omitCover: true,
-    // every piece here fences one edge of its tile — see the flag's own note
+    // its pieces fence one edge each and never fill a tile — see the flag's note
     directionalFences: true,
     // Verified in game: the level is sealed and reads correctly, but the folder
     // has no 4-way junction art, so corners borrow the 16x32 `h_h_8_up` face —
