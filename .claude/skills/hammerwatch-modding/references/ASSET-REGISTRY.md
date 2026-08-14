@@ -133,6 +133,41 @@ used verbatim, no substitution) for a piece its folder does not ship, and
 `xOffset`/`yOffset` when its art is anchored differently. There is no way to skip
 a piece, deliberately — see the offset rule below.
 
+### A piece is usually taller than its tile `[VERIFIED 2026-08-12]`
+
+The lettered wall art is **three tiles tall**: `g_x_t_dn.xml`, `g_h_8.xml` and
+friends are `<origin>0 32</origin>` on a `16 48` frame, drawn at `tile + 2`, so
+the sprite spans world `T` to `T + 3` — a wall at tile 15 paints over 15, 16
+**and** 17. The 1-tile pieces (`*_v_8`, `*_x_t_up`: `origin 0 16` on `16 16`)
+stay inside their own tile.
+
+So anything the player must see or walk onto needs **four** rows of clearance
+below the nearest wall above it. This is what made a reward orb centred in a
+5-row pocket unreachable — the centre row is still inside the overhang. Read the
+`<frame>` height and the `<origin>` y before assuming a piece occupies one tile.
+
+### A collision polygon's bounding box is NOT its coverage `[VERIFIED 2026-08-13]`
+
+Judging "does this piece fill its tile?" from the min/max of its
+`<polygon collision="true">` points is wrong whenever the art is diagonal, and
+it caused three failed fixes in a row. `h_crn_l_up_v2.xml` has extents
+x −2..16, y −2..16 — apparently a full tile — but its actual polygon is the
+sliver `(16,3) (2,16) (16,-2) (9,-1) (4,3) (-2,16)`, covering **38%**.
+
+Sample the polygon (point-in-polygon over the tile) before claiming a piece
+blocks anything. Measured coverage for theme `h`, the set this matters most for:
+
+| piece | coverage | | piece | coverage |
+| --- | --- | --- | --- | --- |
+| `h_crn_r_dn_v2` | 56% | | `h_v_8_l` / `h_v_8_r` | 25% |
+| `h_crn_l_up_v2` | 38% | | `h_h_8_up` | 9% |
+| `h_h_8_dn` | 28% | | `h_crn_*` (v1) | 0–1% |
+
+**No piece in theme `h` fills a tile.** It seals a room only because its fences
+join into a closed loop around a wall mass several tiles thick — which is why a
+one-tile wall band cannot be sealed with it at all, and the boss arena gives it
+a two-tile band instead (`ThemeDef.directionalFences`).
+
 ### Generic & special (theme-independent)
 
 | Doodad | Path | Offset (x, y) |
@@ -282,6 +317,24 @@ ceiling. Whether a pickup credits the party or each player is **still unknown**
 variants the tileset has; `data-t` values are `1..tiles`, with `0` meaning
 wall/void. **Emitting an index above `tiles` is a load-time error.**
 
+### Block origins must be multiples of 20 `[VERIFIED 2026-08-13]`
+
+A `<tiledata>` block's declared `x`/`y` **must** be a multiple of 20. The engine
+snaps it to that grid and silently discards anything else, so a block declared
+at, say, `-25` draws as though it were at `-20` and every tile in it lands 5
+tiles from where the file says. Every shipped campaign level, both authored
+templates here, and `Level`'s own emitter obey this; the boss arena was the one
+emitter that did not, and the one level that rendered shifted.
+
+Cell `i` of a block declared at `D` is drawn at world `D - 10 + i % 20`. If a
+level's entities live in a space offset from its rasterisation grid, put the
+offset in the **sampling** — declare at `b * 20`, read the tile array at
+`b * 20 + origin` — never in the declared position.
+
+When testing this, assert that the emitted origins are multiples of 20, and
+assert the same of a dungeon floor so the check cannot be vacuous. Asserting the
+emitter's own formula back at itself passes while the game is visibly wrong.
+
 All counts below are `[VERIFIED]` — they are the `<sprite>` count of the tileset
 XML, read from `assetsExtract/tilemaps/`. `level` is the tileset's draw layer.
 
@@ -430,6 +483,14 @@ and the four `_v2` corners.
 | `ShopArea` | vendor area; carries the vendor doodad type | shop type |
 | `GameEnd` | ends the campaign (final floor orb) | — |
 | `RespawnPlayers` | plain script node, no parameters | — |
+
+**`GameEnd` and item-watching `ObjectEventTrigger` are `[VERIFIED]` working**
+(2026-08-12, a full generated campaign completed on the orb). Both look
+unsupported if you go by the shipped campaigns: `GameEnd` appears in neither of
+them, and all 60 of their `Destroyed` triggers watch a *doodad*, never an item.
+The orb item is also a solid collider (`<collision static="true">`, radius 5),
+so it is bumped into rather than walked through. None of that stops the rig
+firing — if an orb seems unreachable, suspect its placement, not its wiring.
 
 ## Prefab object sets
 

@@ -8,6 +8,76 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-13 — a tilemap block's declared `x`/`y` MUST be a multiple of 20; the engine snaps it
+**Tag:** [VERIFIED] (proved by hand-patching a generated `boss.xml` and reloading
+it in Hammerwatch 1.41 — the floor snapped onto its walls)
+**Context:** The boss arena emits its entities in a local space offset from the
+rasterisation grid, so it declared each `<tiledata>` block at
+`b * 20 - origin` to compensate. The floor rendered `origin` tiles away from
+its walls anyway — 5 on X and 1 on Y for one seed — and two rounds of adjusting
+that subtraction changed nothing in game.
+**Evidence:** Every tilemap in the game and in this project uses block origins
+that are multiples of 20: `level_1.xml` and every shipped campaign level, the
+editor-saved `bossprep` template (−20, 0, 20), the lobby template, and `Level`'s
+own emitter. The boss arena was the **only** emitter producing non-multiples,
+and the only level that rendered shifted. The emitted file was internally
+consistent — floor tiles spanned x [−4..24] inside walls at −5 and 25 — so the
+arithmetic was right and the *declaration* was not.
+**Impact:** The engine quantises the declared origin to the 20-grid and silently
+discards any offset written there. The offset has to live in the **sampling**
+instead: declare at `b * 20`, and sample the tile array at `b * 20 + origin`.
+Cell `i` is drawn at world `declared - 10 + i % 20`, so it then carries grid
+index `world + origin` and renders at `grid - origin`, i.e. local space.
+Corollary for tests: asserting the emitter's own formula back at itself passes
+while the game is visibly broken. Assert that origins are multiples of 20, and
+assert it against a `Level` floor too so the claim cannot be vacuous.
+
+### 2026-08-12 — themed wall pieces are 3 tiles tall and overhang 2 tiles downward
+**Tag:** [VERIFIED] (in game, Hammerwatch 1.41 — the reward orb was unreachable
+until it was moved clear of the overhang)
+**Context:** The boss arena's alcove hid its orb inside a small pocket. The orb
+was placed at the pocket's centre and could be seen but not walked onto.
+**Evidence:** `doodads/theme_g/g_x_t_dn.xml` and `g_h_8.xml` declare
+`<origin>0 32</origin>` on a `16 48` frame — three tiles tall, anchored two
+tiles down — and `DoodadType` draws them at `tile + 2`. The sprite therefore
+spans world `T` to `T + 3`: a wall at tile 15 paints over tiles 15, 16 **and**
+17. In a 3-row pocket that buries the top two rows, including the centre.
+The 1-tile pieces (`*_v_8`, `*_x_t_up`, `origin 0 16` on a `16 16` frame) do not
+do this.
+**Impact:** Anything the player must reach needs at least **four** rows of
+clearance below the nearest wall tile above it, not three. The arena's alcove is
+5x5 with the orb on its bottom row; a centred orb in a 5-row pocket still lands
+one row inside the overhang. Read the `<frame>` height and the `<origin>` y
+before assuming a piece occupies only its own tile.
+
+### 2026-08-12 — destroying a wall doodad does not create ground under it
+**Tag:** [VERIFIED] (in game — the opened alcove was a hole onto the water layer)
+**Context:** The boss arena seals its alcove with `need-sync` wall doodads that a
+`DestroyObject` node removes when the boss dies. The wall opened correctly, but
+the doorway was a gap showing the level's base tilemap layer.
+**Evidence:** Collision and floor are independent. A doodad carries the collider;
+the tilemap carries the ground. The mouth tiles were left as wall in the tile
+array, so removing their doodads removed the collider and left no floor.
+**Impact:** Any tile a script will open must be **floored in the tilemap** as
+well as sealed with a doodad. A consequence for generated levels: the pattern
+matcher only visits wall tiles, so once a tile is floored it will no longer
+produce a wall piece for it — the seal has to be placed explicitly.
+
+### 2026-08-12 — the `Orb` win rig works, despite appearing in no shipped campaign
+**Tag:** [VERIFIED] (in game — a full generated campaign completed on it,
+**YOU WIN!!** with a score screen)
+**Context:** The orb's end-game chain — `Item` (`items/crystal_purple.xml`) +
+`ObjectEventTrigger` with `event="Destroyed"` watching that item + `GameEnd` —
+was ported from the Java original and had never been confirmed to fire.
+**Evidence:** Grepping both shipped campaigns finds **zero** uses of `GameEnd`,
+and every one of their 60 `Destroyed` triggers watches a *doodad*, never an
+item. The orb item is also `<collision static="true">` with a radius-5 circle,
+so it is a solid obstacle rather than something walked through. All three facts
+suggested the rig could not work; all three are red herrings.
+**Impact:** Do not "fix" this rig on the strength of it being absent from the
+shipped campaigns. When the orb appears unreachable the cause is its
+*placement*, not its wiring — see the wall-overhang entry above.
+
 ### 2026-08-13 — a collision polygon's bounding box is NOT its coverage; theme h fills no tile
 **Tag:** [VERIFIED]
 **Context:** The boss arena's one-tile wall band leaked on theme h. Three fixes
