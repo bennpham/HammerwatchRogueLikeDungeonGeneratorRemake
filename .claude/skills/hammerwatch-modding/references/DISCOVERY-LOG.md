@@ -32,6 +32,26 @@ Corollary for tests: asserting the emitter's own formula back at itself passes
 while the game is visibly broken. Assert that origins are multiples of 20, and
 assert it against a `Level` floor too so the claim cannot be vacuous.
 
+### 2026-08-13 — a collision polygon's bounding box is NOT its coverage; theme h fills no tile
+**Tag:** [VERIFIED]
+**Context:** The boss arena's one-tile wall band leaked on theme h. Three fixes
+swapped in pieces believed to be "solid", each judged by the min/max extent of
+the piece's `<polygon collision="true">` points. All three failed, the last
+making it visibly worse — a sawtooth band of 160 identical slivers.
+**Evidence:** Sampling the polygons properly (point-in-polygon over a 16x16
+grid) instead of taking their bounding boxes gives the real coverage of every
+`doodads/theme_h/` piece: `h_crn_r_dn_v2` 56%, `h_crn_l_up_v2` 38%,
+`h_h_8_dn` 28%, `h_v_8_l`/`h_v_8_r` 25%, `h_h_8_up` 9%, the v1 corners 0-1%.
+**No piece in the folder fills a tile.** `h_crn_l_up_v2`, which the bounding box
+reported as a full tile (x -2..16, y -2..16), is actually the thin diagonal
+`(16,3) (2,16) (16,-2) (9,-1) (4,3) (-2,16)`.
+**Impact:** Theme h seals a room only because its fences join into a closed
+loop *around a wall mass several tiles thick* — the way every theme h dungeon
+room does. A one-tile band is a geometry its art cannot seal, and no piece
+swap can fix that. The boss arena gives such a theme a 2-tile band instead
+(`ThemeDef.directionalFences`). Before judging whether any doodad blocks a
+tile, sample its polygon; the extents lie whenever the art is diagonal.
+
 ### 2026-08-12 — themed wall pieces are 3 tiles tall and overhang 2 tiles downward
 **Tag:** [VERIFIED] (in game, Hammerwatch 1.41 — the reward orb was unreachable
 until it was moved clear of the overhang)
@@ -77,26 +97,6 @@ suggested the rig could not work; all three are red herrings.
 **Impact:** Do not "fix" this rig on the strength of it being absent from the
 shipped campaigns. When the orb appears unreachable the cause is its
 *placement*, not its wiring — see the wall-overhang entry above.
-
-### 2026-08-13 — a collision polygon's bounding box is NOT its coverage; theme h fills no tile
-**Tag:** [VERIFIED]
-**Context:** The boss arena's one-tile wall band leaked on theme h. Three fixes
-swapped in pieces believed to be "solid", each judged by the min/max extent of
-the piece's `<polygon collision="true">` points. All three failed, the last
-making it visibly worse — a sawtooth band of 160 identical slivers.
-**Evidence:** Sampling the polygons properly (point-in-polygon over a 16x16
-grid) instead of taking their bounding boxes gives the real coverage of every
-`doodads/theme_h/` piece: `h_crn_r_dn_v2` 56%, `h_crn_l_up_v2` 38%,
-`h_h_8_dn` 28%, `h_v_8_l`/`h_v_8_r` 25%, `h_h_8_up` 9%, the v1 corners 0-1%.
-**No piece in the folder fills a tile.** `h_crn_l_up_v2`, which the bounding box
-reported as a full tile (x -2..16, y -2..16), is actually the thin diagonal
-`(16,3) (2,16) (16,-2) (9,-1) (4,3) (-2,16)`.
-**Impact:** Theme h seals a room only because its fences join into a closed
-loop *around a wall mass several tiles thick* — the way every theme h dungeon
-room does. A one-tile band is a geometry its art cannot seal, and no piece
-swap can fix that. The boss arena gives such a theme a 2-tile band instead
-(`ThemeDef.directionalFences`). Before judging whether any doodad blocks a
-tile, sample its polygon; the extents lie whenever the art is diagonal.
 
 ### 2026-08-11 — the boss portal is `exit_teleport_boss.xml`; `marker_exit.xml` is an editor decal, not portal art
 **Tag:** [VERIFIED]
