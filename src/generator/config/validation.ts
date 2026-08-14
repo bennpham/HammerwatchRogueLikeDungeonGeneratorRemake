@@ -446,6 +446,15 @@ function validateBoss(
     }
   }
 
+  // The arena's theme carries the same cosmetic caveat the dungeon's themes do
+  // — the loop above only walks `p.themes`, so without this, picking theme h
+  // for the arena said nothing at all. Same field-scoped shape, so BossForm's
+  // theme select shows it inline.
+  const arenaNote = getTheme(arena.theme)?.cosmeticWarning
+  if (arenaNote !== undefined) {
+    warnings.push({ field: 'boss.arena.theme', message: arenaNote })
+  }
+
   // No area-aware density warning lives here any more. It fired only when
   // `density * interior > free`, i.e. above ~0.69 even on the smallest legal
   // arena — unreachable now that BOSS_COVER_DENSITY_MAX errors at 0.25, and a

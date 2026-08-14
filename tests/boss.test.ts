@@ -947,3 +947,49 @@ describe('boss arena — wall band thickness by theme', () => {
     }
   })
 })
+
+describe('boss arena — the fence run continues past both ends of the mouth', () => {
+  // Theme h seals by an unbroken line of edge fences. The band tiles either
+  // side of the mouth are a turn in the wall, so searchPatterns gives them
+  // whatever suits that shape — in the reported campaign a 1%-coverage v1
+  // corner on one side and no doodad at all on the other, both of them
+  // doorways. The mouth's own piece is laid on both flanks to close the line.
+  // [VERIFIED] in game: the user hand-added exactly this and it stopped leaking.
+  it('lays the mouth piece on the tile either side of the run, on theme h', () => {
+    for (const seed of [1, 2, 4, 4242]) {
+      const { xml } = buildBossArena(freshCtx(seed), arenaOptions({ theme: 'h' }), 0)
+      const doodads = doodadEntries(xml)
+      const seals = doodads.filter((d) => d.needSync)
+      expect(seals, `seed ${seed}`).toHaveLength(3)
+
+      // the run is a straight line: one axis is constant across the seals
+      const vertical = seals.every((s) => s.x === seals[0].x)
+      const along = (d: { x: number; y: number }) => (vertical ? d.y : d.x)
+      const across = (d: { x: number; y: number }) => (vertical ? d.x : d.y)
+
+      const line = seals.map(along).sort((a, b) => a - b)
+      const before = line[0] - 1
+      const after = line[line.length - 1] + 1
+
+      const sameLine = doodads.filter(
+        (d) => d.type === seals[0].type && across(d) === across(seals[0])
+      )
+      const positions = sameLine.map(along)
+      expect(positions, `seed ${seed}: no fence before the mouth run`).toContain(before)
+      expect(positions, `seed ${seed}: no fence after the mouth run`).toContain(after)
+
+      // the flanks are ordinary wall — the doorway stays three tiles
+      const flanks = sameLine.filter((d) => along(d) === before || along(d) === after)
+      for (const f of flanks) expect(f.needSync, `seed ${seed}: flank must not be destroyed`).toBe(false)
+    }
+  })
+
+  it('adds no flanking pieces on a theme whose pieces fill their tile', () => {
+    for (const theme of ['g', 'a', 'bonus1']) {
+      const { xml } = buildBossArena(freshCtx(4242), arenaOptions({ theme }), 0)
+      const seals = doodadEntries(xml).filter((d) => d.needSync)
+      expect(seals, `theme ${theme}`).toHaveLength(3)
+      expect(destroyObjectTargets(xml), `theme ${theme}`).toHaveLength(3)
+    }
+  })
+})

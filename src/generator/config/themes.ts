@@ -309,7 +309,10 @@ function desertOutdoor(): ThemeDef {
     // the alternative is either grey indoor stone or a hole in every room.
     cosmeticWarning:
       'Theme h is an outdoor cliff set with no junction art, so wall pieces at ' +
-      'room corners overlap and may flicker. Cosmetic only — the level is sealed.'
+      'room corners overlap and may flicker. In the boss arena the corners look ' +
+      'especially odd: its pieces fence one edge each and never fill a tile, so ' +
+      'the arena plugs every joint deliberately rather than leave a hole the ' +
+      'player walks out through. Cosmetic only — the level is sealed.'
   }
 }
 

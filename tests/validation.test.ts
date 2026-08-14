@@ -455,3 +455,31 @@ describe('boss validation', () => {
     expect(result.warnings).toEqual([])
   })
 })
+
+describe('boss arena theme warning', () => {
+  const withBoss = (patch: Partial<ReturnType<typeof defaultParameters>['boss']>) => {
+    const p = defaultParameters()
+    p.boss = { ...p.boss, ...patch }
+    return validateParameters(p)
+  }
+
+  // validateParameters surfaces a theme's cosmeticWarning once per dungeon
+  // theme, but only walks p.themes — so picking theme h for the ARENA used to
+  // say nothing at all, despite its cliff art needing deliberately overlapping
+  // joints to stay sealed.
+  it('warns on boss.arena.theme when the arena uses theme h', () => {
+    const result = withBoss({ arena: { ...defaultParameters().boss.arena, theme: 'h' } })
+    expect(result.valid).toBe(true) // cosmetic, never blocking
+    expect(fieldsOf(result.warnings)).toContain('boss.arena.theme')
+  })
+
+  it('says nothing for a theme with no caveat', () => {
+    const result = withBoss({ arena: { ...defaultParameters().boss.arena, theme: 'g' } })
+    expect(fieldsOf(result.warnings)).not.toContain('boss.arena.theme')
+  })
+
+  it('stays quiet while the boss is disabled', () => {
+    const result = withBoss({ enabled: false, arena: { ...defaultParameters().boss.arena, theme: 'h' } })
+    expect(fieldsOf(result.warnings)).not.toContain('boss.arena.theme')
+  })
+})

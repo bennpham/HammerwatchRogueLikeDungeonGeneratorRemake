@@ -235,6 +235,32 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
     return d
   })
 
+  // On a fence theme the run has to CONTINUE past both ends of the mouth.
+  //
+  // Its pieces seal by forming an unbroken line of edge fences, and the band
+  // tiles immediately before and after the mouth are a turn in the wall, so
+  // searchPatterns gives them whatever suits that shape — in the reported
+  // campaign a 1%-coverage v1 corner on one side and no doodad at all on the
+  // other. Either is a doorway. Laying the mouth's own piece on both flanks
+  // closes the line ([VERIFIED] in game: the user hand-added exactly this
+  // fourth piece and the alcove stopped leaking).
+  //
+  // Deliberately NOT need-sync and NOT in DestroyObject: these are ordinary
+  // wall, so the opened doorway stays the three tiles already playtested and
+  // the flanks remain sealed afterwards. The fence pieces are single-tile
+  // sprites with no overhang, so they cannot obscure the opening.
+  if (themeDef.directionalFences === true) {
+    const along = alcoveWall === 'N' ? 'x' : 'y'
+    const values = innerMouth.map((m) => m[along])
+    const before = Math.min(...values) - 1
+    const after = Math.max(...values) + 1
+    const anchor = innerMouth[0]
+    for (const v of [before, after]) {
+      const pos = along === 'x' ? { x: v, y: anchor.y } : { x: anchor.x, y: v }
+      Doodad.create(ctx, pos.x, pos.y, sealPiece, arena.theme)
+    }
+  }
+
   // Everything the "Boss Died" chain destroys to open the alcove: just the
   // structural seals across the mouth. This set and the doodads carrying
   // `need-sync: true` must stay exactly identical — see the wiring below.
