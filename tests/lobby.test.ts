@@ -18,6 +18,7 @@ import {
 } from '../src/generator'
 import type { DungeonParameters, DungeonResult, LobbyOptions } from '../src/generator'
 import { LOBBY_ASSETS } from '../src/generator/lobby/assets'
+import { allIds, badIntArray } from './xmlHelpers'
 
 function generateOk(params: DungeonParameters, seed: number): DungeonResult {
   const result = generateDungeon(params, seed)
@@ -35,10 +36,6 @@ function lobbyXML(patch: Partial<LobbyOptions>): string {
   return buildLobby({ ...defaultParameters().lobby, ...patch })
 }
 
-/** Every `<int name="id">` in the file, element ids and nested params alike. */
-function allIds(xml: string): number[] {
-  return [...xml.matchAll(/<int name="id">(-?\d+)<\/int>/g)].map((m) => Number(m[1]))
-}
 
 describe('lobby — determinism', () => {
   // The single most important test in this file: the lobby must not touch
@@ -71,7 +68,13 @@ describe('lobby — determinism', () => {
 
 describe('lobby — disabled', () => {
   it('emits exactly the pre-lobby campaign', () => {
-    const off = generateOk(withLobby({ enabled: false }), 555)
+    // boss defaults on and appends its own two levels, and the stock player
+    // tweak adds a tweak/ file — neither is what this test is about, so turn
+    // both off and keep the assertion about the lobby alone
+    const params = withLobby({ enabled: false })
+    params.boss = { ...params.boss, enabled: false }
+    params.playerTweaks = {}
+    const off = generateOk(params, 555)
 
     expect(off.files.map((f) => f.path)).toEqual([
       ...Array.from({ length: defaultParameters().levels }, (_, i) => `levels/level${i}.xml`),
@@ -106,7 +109,11 @@ describe('lobby — campaign wiring', () => {
   })
 
   it('is not added to the preview, which only describes generated geometry', () => {
-    const on = generateOk(withLobby({ enabled: true }), 555)
+    // boss defaults on and pushes its own arena preview — turn it off so this
+    // stays a test of the lobby's own effect on `previews`, not the boss's
+    const params = withLobby({ enabled: true })
+    params.boss = { ...params.boss, enabled: false }
+    const on = generateOk(params, 555)
     const levels = defaultParameters().levels
     expect(on.levels).toHaveLength(levels)
     expect(on.levels.map((l) => l.level)).toEqual(Array.from({ length: levels }, (_, i) => i))
@@ -119,18 +126,6 @@ describe('lobby — campaign wiring', () => {
   // ([VERIFIED] 2026-07-31). This is the general form: any empty or
   // non-integer int-arr, in any emitted file, in any stall configuration.
   it('never emits an empty or non-integer int-arr, which LevelPacker cannot parse', () => {
-    // The first bad int-arr in `xml`, or null. Hand-rolled rather than one
-    // expect() per token: the tilemap arrays run to hundreds of thousands of
-    // integers apiece and the assertion overhead alone times the test out.
-    const badIntArray = (xml: string): string | null => {
-      for (const [, name, body] of xml.matchAll(/<int-arr name="([^"]*)">([^<]*)<\/int-arr>/g)) {
-        if (body === '') return `<int-arr name="${name}"> is empty`
-        const bad = body.split(' ').find((token) => !/^-?\d+$/.test(token))
-        if (bad !== undefined) return `<int-arr name="${name}"> holds "${bad}"`
-      }
-      return null
-    }
-
     // one full campaign covers the dungeon levels and the default lobby
     for (const file of generateOk(withLobby({ enabled: true, startingGold: LOBBY_GOLD_MAX }), 555).files) {
       if (file.encoding === 'base64') continue
@@ -160,13 +155,16 @@ describe('lobby — vendor stalls', () => {
     expect(xml).toContain('doodads/special/vendor_speech_level3.xml')
   })
 
-  it('sells the four main columns by default, power opt-in', () => {
+  it('sells all five columns by default, power included', () => {
     const xml = lobbyXML({})
     expect(xml).toContain('<string name="cats">combo1 combo2 combo3 combo4 combo5</string>')
     expect(xml).toContain('<string name="cats">def1 def2 def3 def4 def5</string>')
     expect(xml).toContain('<string name="cats">misc1 misc2 misc3 misc4 misc5</string>')
     expect(xml).toContain('<string name="cats">off1 off2 off3 off4 off5</string>')
-    expect(xml).not.toContain('<string name="cats">power</string>')
+    // power is on by default now: it sells the potions and rejuv, and the
+    // one thing that made it questionable — buyable extra lives — is stripped
+    // by the default player tweak instead
+    expect(xml).toContain('<string name="cats">power</string>')
   })
 
   it('removes a deselected stall entirely, leaving no dangling shape reference', () => {

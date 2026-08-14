@@ -345,8 +345,21 @@ describe('loadout sheet', () => {
 })
 
 describe('generateDungeon with tweaks', () => {
-  it('adds no tweak files for stock parameters', () => {
+  it('ships exactly one tweak file for stock parameters — the extra-life removal', () => {
+    // Stock is no longer tweak-free: defaultParameters() turns off the
+    // repeatable extra-life shop upgrade (CLAUDE.md invariant 6).
     const result = generateDungeon(defaultParameters(), 42)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const tweaks = result.files.filter((f) => f.path.startsWith('tweak/'))
+    expect(tweaks.map((f) => f.path)).toEqual(['tweak/shared.xml'])
+    expect(tweaks[0].content).not.toContain('"life"')
+  })
+
+  it('emits no tweak folder at all once every tweak is cleared', () => {
+    const params = defaultParameters()
+    params.playerTweaks = {}
+    const result = generateDungeon(params, 42)
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.files.filter((f) => f.path.startsWith('tweak/'))).toEqual([])

@@ -1,3 +1,3 @@
 export { XMLObject } from './xmlObject'
-export { XMLInt, XMLFloat, XMLBool, XMLString, XMLIntArray } from './xmlPrimitives'
+export { XMLInt, XMLFloat, XMLBool, XMLString, XMLIntArray, XMLRaw } from './xmlPrimitives'
 export { XMLArray, XMLDictionary } from './xmlContainers'

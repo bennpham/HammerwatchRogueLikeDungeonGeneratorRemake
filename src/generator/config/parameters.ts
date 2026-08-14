@@ -2,9 +2,26 @@ import { MONSTER_TYPES } from '../objects/monsterTypes'
 import { THEME_DEFS } from './themes'
 import { ALL_LOBBY_CATEGORIES } from '../lobby/shops'
 import type { PlayerTweaks } from '../tweak/types'
+// the tweak key builder, so the default life removal below cannot drift from
+// the key QuickSetup's checkbox writes. tweak/ imports nothing from config/,
+// so this direction adds no cycle
+import { removeKey } from '../tweak/chains'
 
 /** Ids of every theme the generator can emit — see themes.ts for the registry. */
 export const THEMES: readonly string[] = THEME_DEFS.map((t) => t.id)
+
+/** The four cover-placement patterns the arena's Boss tab offers. */
+export const BOSS_COVER_PATTERNS = ['random', 'ring', 'gaussian', 'symmetric'] as const
+
+/**
+ * Hard ceiling on arena cover density, as a fraction of the free floor.
+ *
+ * A validation error rather than a warning: 0.5 shipped once and the arena
+ * playtested as impassable, so anything this dense is a broken campaign, not
+ * an aggressive one. 0.25 is roughly 98 pillars on a mid-size arena — dense,
+ * but navigable given cover.ts's reachability guarantee.
+ */
+export const BOSS_COVER_DENSITY_MAX = 0.25
 
 /**
  * All knobs of the generator, ported from the modified Parameters.java.
@@ -52,6 +69,12 @@ export interface DungeonParameters {
    * campaign exactly — same files, same `levels.xml`, same seeds.
    */
   lobby: LobbyOptions
+  /**
+   * The boss fight appended after the last dungeon floor. `enabled: false`
+   * reproduces the pre-boss campaign exactly — the arena draws from its own
+   * RNG stream, so every existing seed's dungeon is unchanged.
+   */
+  boss: BossOptions
 }
 
 /**
@@ -65,6 +88,136 @@ export interface LobbyOptions {
   startingGold: number
   /** selected shop columns, e.g. ['misc1', 'misc2', 'off1', 'power'] */
   shopCategories: string[]
+}
+
+/**
+ * The boss fight appended after the last dungeon floor: a hand-authored prep
+ * room (shop + starting gold, like the lobby) then a generated arena.
+ *
+ * `enabled: false` reproduces today's campaign byte-for-byte — the arena draws
+ * from a dedicated RNG stream, `ctx.bossRand`, and never touches `ctx.rand` or
+ * `ctx.cosmeticRand`, so every existing seed's dungeon is unchanged.
+ */
+export interface BossOptions {
+  enabled: boolean
+  /** the prep room: a straight copy of the lobby's shop rig */
+  prep: {
+    /** shop columns the five stalls sell — ALL_LOBBY_CATEGORIES, power INCLUDED */
+    shopCategories: string[]
+    /** multiple of 500 — each 500 is one red diamond on the prep floor */
+    startingGold: number
+  }
+  arena: {
+    /** one theme letter from THEME_DEFS, independent of the dungeon floors' themes */
+    theme: string
+    minWidth: number
+    maxWidth: number
+    minHeight: number
+    maxHeight: number
+    /** ids of the end-boss actors the seed may pick from */
+    bossPool: string[]
+    /** exactly 4 waves, in order 100 / 75 / 50 / 25 */
+    waves: BossWave[]
+    cover: {
+      pattern: (typeof BOSS_COVER_PATTERNS)[number]
+      density: number
+      ringSpacing: number
+      clusters: number
+    }
+    /** scales each wave tier's monsterMax (except -1/endless, which stays endless) */
+    monsterMultiplier: number
+    /** scales the sparse health/mana pickup clusters scattered around the arena */
+    foodMultiplier: number
+  }
+}
+
+/**
+ * One spawn tier of the boss fight. A max count of -1 means endless — the
+ * monster's SpawnObject budget never expires, so the anchor keeps spawning until
+ * the timer is shut off (timers are never disabled; a tier stops only when its
+ * budgets run out).
+ */
+export interface BossWave {
+  /** monster ids from MONSTER_TYPES */
+  monsters: string[]
+  /** max horde size per monster id; -1 = endless */
+  monsterMax: Record<string, number>
+  /** the wave's shared spawn interval in ms */
+  defaultIntervalMs: number
+  /** per-monster interval overrides, keyed by monster id */
+  intervalMs?: Record<string, number>
+}
+
+/**
+ * The seven end-boss actors, in the order the Boss tab's checkbox grid lists
+ * them. The seed picks one per campaign from `boss.arena.bossPool`.
+ */
+export const BOSS_IDS = [
+  'boss_anubis',
+  'boss_dragon',
+  'boss_knight',
+  'boss_krilith',
+  'boss_lich',
+  'boss_queen',
+  'boss_worm'
+] as const
+
+/**
+ * The default boss options: feature on, a prep room that sells every column
+ * *including* power (extra lives matter more right before a boss than at the
+ * start of a run) with no gold on the floor, a castle-themed arena 24–32 ×
+ * 32–44 with all seven bosses in the pool, random cover, and four waves whose
+ * shared intervals tighten as the fight goes on.
+ */
+export function defaultBossOptions(): BossOptions {
+  return {
+    enabled: true,
+    prep: {
+      // unlike the lobby, power is on by default — see the interface comment
+      shopCategories: [...ALL_LOBBY_CATEGORIES],
+      startingGold: 0
+    },
+    arena: {
+      theme: 'g',
+      minWidth: 24,
+      maxWidth: 32,
+      minHeight: 32,
+      maxHeight: 44,
+      bossPool: [...BOSS_IDS],
+      waves: [
+        defaultWave(['bat1', 'tick1', 'maggot'], 4000),
+        defaultWave(['skeleton1', 'archer1', 'slime'], 3000),
+        defaultWave(['eye', 'wisp1', 'lich'], 2000),
+        defaultWave(['skeleton2', 'archer2', 'wisp2'], 1000)
+      ],
+      cover: {
+        pattern: 'random',
+        // density is the fraction of the free floor cover fills, so this is a
+        // much smaller number than it looks: 0.08 is ~31 pillars on a mid-size
+        // arena. The original 0.5 filled nearly half the floor and playtested
+        // as physically impassable — neither the player nor the boss could
+        // move. BOSS_COVER_DENSITY_MAX caps it; boss/cover.ts additionally
+        // guarantees the boss and every anchor stay reachable.
+        density: 0.08,
+        ringSpacing: 4,
+        clusters: 3
+      },
+      monsterMultiplier: 1.0,
+      foodMultiplier: 1.2
+    }
+  }
+}
+
+/** The stock per-monster max horde size a fresh wave starts every id at. */
+export const DEFAULT_WAVE_MONSTER_MAX = 10
+
+/** One wave whose monsters all use the shared interval, in nominal order. */
+function defaultWave(monsters: string[], defaultIntervalMs: number): BossWave {
+  return {
+    monsters,
+    monsterMax: Object.fromEntries(monsters.map((id) => [id, DEFAULT_WAVE_MONSTER_MAX])),
+    defaultIntervalMs
+  }
 }
 
 /**
@@ -107,10 +260,17 @@ export function defaultParameters(): DungeonParameters {
       ['mb_lich', 'mb_doomspawn', 'lich', 'wisp2', 'tower_nova2']
     ],
     monsterMax: Object.fromEntries(MONSTER_TYPES.map((t) => [t.id, t.defaultMax])),
-    playerTweaks: {},
+    // Extra lives are repeatable, so a party can farm them by leaving a level
+    // and coming back — off by default since that trivialises the campaign.
+    // Rejuvenation stays: it is a one-off full heal, not another life. This is
+    // the one tweak a stock run ships, so a stock campaign now emits exactly
+    // one tweak file (see CLAUDE.md invariant 6).
+    playerTweaks: { [removeKey('shared', 'life')]: 1 },
     // lobby on, but no gold on the floor: the point of the default is to show
     // the vendors exist, not to hand the party a head start they didn't ask for.
-    // power is off by default — potions/life/rejuv are a nice-to-have, not a must-have
-    lobby: { enabled: true, startingGold: 10000, shopCategories: ALL_LOBBY_CATEGORIES.filter((c) => c !== 'power') }
+    // power is on: it sells the potions and rejuv, and the one thing that made
+    // it questionable — buyable extra lives — is removed by the tweak above
+    lobby: { enabled: true, startingGold: 10000, shopCategories: [...ALL_LOBBY_CATEGORIES] },
+    boss: defaultBossOptions()
   }
 }

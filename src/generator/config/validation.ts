@@ -1,9 +1,11 @@
-import { DungeonParameters, THEMES } from './parameters'
+import { BOSS_COVER_DENSITY_MAX, BOSS_COVER_PATTERNS, BOSS_IDS, DungeonParameters, THEMES } from './parameters'
 import { getTheme } from './themes'
 import { isKnownMonsterId } from '../objects/monsterTypes'
 import { LOBBY_DIAMOND_VALUE, LOBBY_GOLD_MAX } from '../lobby/build'
 import { ALL_LOBBY_CATEGORIES, isLobbyCategory, lobbyCategoryCounts, vendorOfCategory } from '../lobby/shops'
 import { LOBBY_DIAMOND_SLOTS } from '../lobby/template'
+import { DIAMOND_VALUE } from '../levelTemplate/surgery'
+import { ARENA_MIN_HEIGHT, ARENA_MIN_WIDTH, freeFloorArea } from '../boss/geometry'
 import { TWEAK_BASELINE } from '../tweak/baseline'
 import { SHOP_PRICE_MAX } from '../tweak/bulk'
 import { SENTINELS, isDowngrade, improvesBy, paramKey } from '../tweak/chains'
@@ -202,6 +204,7 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
 
   validatePlayerTweaks(p, errors, warnings)
   validateLobby(p, errors, warnings)
+  validateBoss(p, errors, warnings)
 
   return { errors, warnings, valid: errors.length === 0 }
 }
@@ -269,6 +272,194 @@ function validateLobby(
         'Those stalls will stand in the lobby with nothing to sell.'
     })
   }
+}
+
+/**
+ * The 42 authored prep-room diamond slots, two deep — same reasoning as
+ * LOBBY_GOLD_MAX (see BOSSPREP_DIAMOND_SLOTS.length in boss-tab.md §3, which
+ * Phase 4 pins this against once the template import lands).
+ */
+export const BOSS_GOLD_MAX = DIAMOND_VALUE * 42 * 2
+
+/**
+ * The boss arena is generated geometry with its own validation rules — sizes,
+ * pool completeness and interval bounds. Absent boss object means "off", not
+ * "invalid", mirroring how validateLobby handles the lobby.
+ *
+ * Structured like validateLobby: a `before` snapshot, every error rule, a
+ * guard, then warnings — so a disabled boss or one with existing errors never
+ * accumulates warnings on top.
+ */
+function validateBoss(
+  p: DungeonParameters,
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[]
+): void {
+  const boss = p.boss
+  if (boss === undefined) return
+  const before = errors.length
+
+  const arena = boss.arena
+
+  // min ≤ max on both axes
+  if (arena.minWidth > arena.maxWidth) {
+    errors.push({ field: 'boss.arena.minWidth', message: 'Min width must be ≤ max width.' })
+  }
+  if (arena.minHeight > arena.maxHeight) {
+    errors.push({ field: 'boss.arena.minHeight', message: 'Min height must be ≤ max height.' })
+  }
+
+  // arena large enough for the biggest boss + 3×3 alcove + anchor insets
+  if (arena.minWidth < ARENA_MIN_WIDTH) {
+    errors.push({
+      field: 'boss.arena.minWidth',
+      message: `Arena width needs room for the boss, the alcove and the spawn anchors — minimum ${ARENA_MIN_WIDTH} tiles.`
+    })
+  }
+  if (arena.minHeight < ARENA_MIN_HEIGHT) {
+    errors.push({
+      field: 'boss.arena.minHeight',
+      message: `Arena height needs room for the boss, the alcove and the spawn anchors — minimum ${ARENA_MIN_HEIGHT} tiles.`
+    })
+  }
+
+  // bossPool must not be empty
+  if (arena.bossPool.length === 0) {
+    errors.push({ field: 'boss.arena.bossPool', message: 'At least one boss must be in the pool.' })
+  }
+  for (const id of arena.bossPool) {
+    if (!BOSS_IDS.includes(id as typeof BOSS_IDS[number])) {
+      errors.push({ field: 'boss.arena.bossPool', message: `Unknown boss "${id}".` })
+    }
+  }
+
+  // exactly 4 waves
+  if (arena.waves.length !== 4) {
+    errors.push({ field: 'boss.arena.waves', message: 'Exactly 4 waves are required (100/75/50/25).' })
+  }
+
+  // per-wave errors, indexed by wave so a NumberField can anchor to the tier
+  // that is actually wrong — every wave is reported, not just the first
+  for (let i = 0; i < arena.waves.length; i++) {
+    const wave = arena.waves[i]
+    const ms = wave.defaultIntervalMs
+    if (!Number.isInteger(ms) || ms < 100 || ms > 60000) {
+      errors.push({
+        field: `boss.arena.waves.${i}.defaultIntervalMs`,
+        message: 'Spawn interval must be between 100 and 60000 ms.'
+      })
+    }
+
+    for (const id of wave.monsters) {
+      if (!isKnownMonsterId(id)) {
+        errors.push({
+          field: `boss.arena.waves.${i}.monsters`,
+          message: `Wave ${i + 1} pool contains unknown monster "${id}".`
+        })
+      }
+    }
+
+    for (const [id, max] of Object.entries(wave.monsterMax ?? {})) {
+      if (!Number.isInteger(max) || max < -1) {
+        errors.push({
+          field: `boss.arena.waves.${i}.monsterMax.${id}`,
+          message: `Max count for "${id}" in wave ${i + 1} must be a whole number ≥ -1 (-1 = endless).`
+        })
+      }
+    }
+
+    if (wave.intervalMs) {
+      for (const [id, overrideMs] of Object.entries(wave.intervalMs)) {
+        if (!Number.isInteger(overrideMs) || overrideMs < 100 || overrideMs > 60000) {
+          errors.push({
+            field: `boss.arena.waves.${i}.intervalMs.${id}`,
+            message: `Monster "${id}" in wave ${i + 1} has interval ${overrideMs} — must be 100..60000.`
+          })
+        }
+      }
+    }
+  }
+
+  // theme valid
+  if (!THEMES.includes(arena.theme)) {
+    errors.push({ field: 'boss.arena.theme', message: `"${arena.theme}" is not one of: ${THEMES.join(', ')}.` })
+  }
+
+  // starting gold
+  const gold = boss.prep.startingGold
+  if (!Number.isInteger(gold) || gold < 0) {
+    errors.push({ field: 'boss.prep.startingGold', message: 'Starting gold must be a whole number ≥ 0.' })
+  } else if (gold % DIAMOND_VALUE !== 0) {
+    errors.push({
+      field: 'boss.prep.startingGold',
+      message: `Starting gold must be a multiple of ${DIAMOND_VALUE} — each ${DIAMOND_VALUE} is one red diamond.`
+    })
+  } else if (gold > BOSS_GOLD_MAX) {
+    errors.push({
+      field: 'boss.prep.startingGold',
+      message: `Starting gold cannot exceed ${BOSS_GOLD_MAX} — that is 42 diamonds, two deep, mirroring LOBBY_GOLD_MAX.`
+    })
+  }
+
+  // every prep shop column must be a real one
+  const unknownShop = boss.prep.shopCategories.filter((c) => !isLobbyCategory(c))
+  for (const id of [...new Set(unknownShop)].sort()) {
+    errors.push({
+      field: 'boss.prep.shopCategories',
+      message: `"${id}" is not a shop column. Valid columns: ${ALL_LOBBY_CATEGORIES.join(', ')}.`
+    })
+  }
+
+  // cover pattern and its numeric knobs
+  if (!(BOSS_COVER_PATTERNS as readonly string[]).includes(arena.cover.pattern)) {
+    errors.push({
+      field: 'boss.arena.cover.pattern',
+      message: `"${arena.cover.pattern}" is not one of: ${BOSS_COVER_PATTERNS.join(', ')}.`
+    })
+  }
+  // A hard error, not a warning. Density is a fraction of the free floor, so
+  // 0.5 — which shipped once — buries the arena under ~200 pillars and
+  // playtested as impassable in game. Anything past the cap is a broken
+  // campaign rather than an aggressive one.
+  if (!Number.isFinite(arena.cover.density) || arena.cover.density < 0 || arena.cover.density > BOSS_COVER_DENSITY_MAX) {
+    errors.push({
+      field: 'boss.arena.cover.density',
+      message: `Cover density must be between 0 and ${BOSS_COVER_DENSITY_MAX} — it is the fraction of the arena floor filled with pillars, and denser than that leaves nowhere to fight.`
+    })
+  }
+  if (!Number.isInteger(arena.cover.ringSpacing) || arena.cover.ringSpacing < 1) {
+    errors.push({ field: 'boss.arena.cover.ringSpacing', message: 'Ring spacing must be a whole number ≥ 1.' })
+  }
+  if (!Number.isInteger(arena.cover.clusters) || arena.cover.clusters < 1) {
+    errors.push({ field: 'boss.arena.cover.clusters', message: 'Cluster count must be a whole number ≥ 1.' })
+  }
+
+  if (!boss.enabled || errors.length > before) return
+
+  // per-wave warnings, same indexing as the errors above
+  for (let i = 0; i < arena.waves.length; i++) {
+    if (arena.waves[i].monsters.length === 0) {
+      warnings.push({
+        field: `boss.arena.waves.${i}.monsters`,
+        message: `Wave ${i + 1} has an empty monster pool — nothing will spawn at this tier.`
+      })
+    }
+  }
+
+  // The arena's theme carries the same cosmetic caveat the dungeon's themes do
+  // — the loop above only walks `p.themes`, so without this, picking theme h
+  // for the arena said nothing at all. Same field-scoped shape, so BossForm's
+  // theme select shows it inline.
+  const arenaNote = getTheme(arena.theme)?.cosmeticWarning
+  if (arenaNote !== undefined) {
+    warnings.push({ field: 'boss.arena.theme', message: arenaNote })
+  }
+
+  // No area-aware density warning lives here any more. It fired only when
+  // `density * interior > free`, i.e. above ~0.69 even on the smallest legal
+  // arena — unreachable now that BOSS_COVER_DENSITY_MAX errors at 0.25, and a
+  // rule that can never fire is worse than no rule. The cap plus cover.ts's
+  // reachability guarantee cover what this was reaching for.
 }
 
 /**

@@ -1,4 +1,5 @@
-import { DungeonParameters, defaultParameters } from './parameters'
+import { BOSS_COVER_PATTERNS, DEFAULT_WAVE_MONSTER_MAX, DungeonParameters, defaultParameters } from './parameters'
+import type { BossOptions } from './parameters'
 import { MONSTER_TYPES } from '../objects/monsterTypes'
 import { isLobbyCategory } from '../lobby/shops'
 import { TWEAK_FIELD_MAP, pruneTweaks } from '../tweak/overrides'
@@ -61,6 +62,7 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   // a base object round-tripped from an older settings file may predate these
   if (params.playerTweaks === undefined) params.playerTweaks = {}
   if (params.lobby === undefined) params.lobby = defaultParameters().lobby
+  if (params.boss === undefined) params.boss = defaultParameters().boss
   if (params.lockFinalRoom === undefined)
     params.lockFinalRoom = defaultParameters().lockFinalRoom
   const result: ParsedConfig = { params, unknownKeys: [] }
@@ -135,6 +137,135 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       params.lobby.shopCategories = wanted.filter(isLobbyCategory)
       for (const bad of wanted.filter((c) => !isLobbyCategory(c))) {
         result.unknownKeys.push(`${key} value "${bad}"`)
+      }
+      continue
+    }
+
+    if (keyLower === 'boss') {
+      params.boss.enabled = value === '1'
+      continue
+    }
+    if (keyLower === 'bossgold') {
+      const n = parseInt(value, 10)
+      if (Number.isNaN(n)) result.unknownKeys.push(key)
+      else params.boss.prep.startingGold = n
+      continue
+    }
+    if (keyLower === 'bossshops') {
+      const wanted = value.split(/\s+/).filter((c) => c !== '')
+      params.boss.prep.shopCategories = wanted.filter(isLobbyCategory)
+      for (const bad of wanted.filter((c) => !isLobbyCategory(c))) {
+        result.unknownKeys.push(`${key} value "${bad}"`)
+      }
+      continue
+    }
+    if (keyLower === 'bosstheme') {
+      params.boss.arena.theme = value
+      continue
+    }
+    if (keyLower === 'bosswidth') {
+      const parts = value.split(',').map((s) => parseInt(s.trim(), 10))
+      if (parts.length === 2 && !parts.some(Number.isNaN)) {
+        params.boss.arena.minWidth = parts[0]
+        params.boss.arena.maxWidth = parts[1]
+      } else {
+        result.unknownKeys.push(key)
+      }
+      continue
+    }
+    if (keyLower === 'bossheight') {
+      const parts = value.split(',').map((s) => parseInt(s.trim(), 10))
+      if (parts.length === 2 && !parts.some(Number.isNaN)) {
+        params.boss.arena.minHeight = parts[0]
+        params.boss.arena.maxHeight = parts[1]
+      } else {
+        result.unknownKeys.push(key)
+      }
+      continue
+    }
+    if (keyLower === 'bosspool') {
+      params.boss.arena.bossPool = value.split(',').map((s) => s.trim()).filter((s) => s !== '')
+      continue
+    }
+    if (keyLower === 'bosscover') {
+      // mirrors bosswidth/bossheight's NaN guard, but per-field rather than
+      // per-line: a malformed segment is reported and its own field keeps its
+      // default instead of the whole line being dropped or an arbitrary
+      // string being cast into the pattern union.
+      const parts = value.split(',').map((s) => s.trim())
+      const pattern = parts[0]
+      if (!(BOSS_COVER_PATTERNS as readonly string[]).includes(pattern)) {
+        result.unknownKeys.push(`${key} value "${pattern}"`)
+      } else {
+        params.boss.arena.cover.pattern = pattern as BossOptions['arena']['cover']['pattern']
+      }
+      if (parts.length >= 2) {
+        const density = parseFloat(parts[1])
+        if (Number.isNaN(density)) result.unknownKeys.push(`${key} value "${parts[1]}"`)
+        else params.boss.arena.cover.density = density
+      }
+      if (parts.length >= 3) {
+        const ringSpacing = parseInt(parts[2], 10)
+        if (Number.isNaN(ringSpacing)) result.unknownKeys.push(`${key} value "${parts[2]}"`)
+        else params.boss.arena.cover.ringSpacing = ringSpacing
+      }
+      if (parts.length >= 4) {
+        const clusters = parseInt(parts[3], 10)
+        if (Number.isNaN(clusters)) result.unknownKeys.push(`${key} value "${parts[3]}"`)
+        else params.boss.arena.cover.clusters = clusters
+      }
+      continue
+    }
+    const waveMatch = keyLower.match(/^bosswave(\d)$/)
+    if (waveMatch) {
+      const idx = parseInt(waveMatch[1], 10) - 1
+      if (idx < 0 || idx >= 4) {
+        result.unknownKeys.push(key)
+        continue
+      }
+      // four |-separated fields: monsters|defaultIntervalMs|monsterMax|intervalMs.
+      // The last two are optional on parse so the legacy two-field form still
+      // works. monsterMax is REBUILT from the parsed monster pool rather than
+      // merged onto whatever was there, which is what guarantees its keys
+      // always match the pool exactly.
+      const parts = value.split('|')
+      const monsters = (parts[0] ?? '').split(',').map((s) => s.trim()).filter((s) => s !== '')
+      params.boss.arena.waves[idx].monsters = monsters
+
+      if (parts.length >= 2 && parts[1].trim() !== '') {
+        const ms = parseInt(parts[1].trim(), 10)
+        if (Number.isNaN(ms)) result.unknownKeys.push(`${key} interval "${parts[1]}"`)
+        else params.boss.arena.waves[idx].defaultIntervalMs = ms
+      }
+
+      const parsedMax: Record<string, number> = {}
+      if (parts.length >= 3 && parts[2].trim() !== '') {
+        for (const entry of parts[2].split(',')) {
+          const [id, raw] = entry.split(':').map((s) => s.trim())
+          const n = raw === undefined ? NaN : parseInt(raw, 10)
+          if (id === '' || Number.isNaN(n)) {
+            result.unknownKeys.push(`${key} monsterMax "${entry}"`)
+            continue
+          }
+          parsedMax[id] = n
+        }
+      }
+      params.boss.arena.waves[idx].monsterMax = Object.fromEntries(
+        monsters.map((id) => [id, parsedMax[id] ?? DEFAULT_WAVE_MONSTER_MAX])
+      )
+
+      if (parts.length >= 4 && parts[3].trim() !== '') {
+        const overrides: Record<string, number> = {}
+        for (const entry of parts[3].split(',')) {
+          const [id, raw] = entry.split(':').map((s) => s.trim())
+          const n = raw === undefined ? NaN : parseInt(raw, 10)
+          if (id === '' || Number.isNaN(n)) {
+            result.unknownKeys.push(`${key} intervalMs "${entry}"`)
+            continue
+          }
+          overrides[id] = n
+        }
+        if (Object.keys(overrides).length > 0) params.boss.arena.waves[idx].intervalMs = overrides
       }
       continue
     }
@@ -265,6 +396,38 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
   lines.push(`lobby=${params.lobby.enabled ? 1 : 0}`)
   lines.push(`lobbyGold=${params.lobby.startingGold}`)
   lines.push(`lobbyShops=${params.lobby.shopCategories.join(' ')}`)
+
+  // Add boss params after the lobby params. Keys past the flag mirror the
+  // lobby's camelCase (lobbyGold/lobbyShops) — parsing is case-insensitive, so
+  // this is cosmetic with zero compatibility cost.
+  lines.push(`boss=${params.boss.enabled ? 1 : 0}`)
+  lines.push(`bossGold=${params.boss.prep.startingGold}`)
+  lines.push(`bossShops=${params.boss.prep.shopCategories.join(' ')}`)
+  lines.push(`bossTheme=${params.boss.arena.theme}`)
+  lines.push(`bossWidth=${params.boss.arena.minWidth},${params.boss.arena.maxWidth}`)
+  lines.push(`bossHeight=${params.boss.arena.minHeight},${params.boss.arena.maxHeight}`)
+  lines.push(`bossPool=${params.boss.arena.bossPool.join(',')}`)
+  lines.push(
+    `bossCover=${params.boss.arena.cover.pattern},${params.boss.arena.cover.density},${params.boss.arena.cover.ringSpacing},${params.boss.arena.cover.clusters}`
+  )
+  for (let i = 0; i < params.boss.arena.waves.length; i++) {
+    const wave = params.boss.arena.waves[i]
+    // fixed arity of four fields; monsterMax is always rebuilt from the
+    // monster pool (never merged), and the fourth field is left empty when
+    // there are no per-monster interval overrides.
+    const monsterMax = wave.monsters
+      .map((id) => `${id}:${wave.monsterMax[id] ?? DEFAULT_WAVE_MONSTER_MAX}`)
+      .join(',')
+    // sorted by id, so the same params always serialize to the same bytes no
+    // matter what order the overrides were inserted in
+    const overrides = wave.intervalMs
+      ? Object.entries(wave.intervalMs)
+          .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+          .map(([id, ms]) => `${id}:${ms}`)
+          .join(',')
+      : ''
+    lines.push(`bossWave${i + 1}=${wave.monsters.join(',')}|${wave.defaultIntervalMs}|${monsterMax}|${overrides}`)
+  }
 
   return lines.join('\r\n') + '\r\n'
 }

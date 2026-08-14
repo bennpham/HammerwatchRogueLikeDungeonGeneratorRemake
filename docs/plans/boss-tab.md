@@ -298,7 +298,6 @@ export interface BossOptions {
       clusters: number
     }
     monsterMultiplier: number
-    goldMultiplier: number
     foodMultiplier: number
   }
 }
@@ -320,6 +319,31 @@ than guessed at in a table now.
 Note the Player-tab default divergence the user asked for: unlike the lobby,
 **`power` is on by default in the prep room's shop** — extra lives matter more
 right before a boss than they do at the start of a run.
+
+**Post-Phase-5 follow-up (pre-Phase-6):** `goldMultiplier` was dropped from
+`arena` entirely — there is nothing to buy in the arena itself once the prep
+room's shop is behind the player, so a gold-scaling knob had no consumer and
+never will. The other two, previously declared but read by nothing, are now
+wired:
+
+- `monsterMultiplier` scales each wave tier's `monsterMax` in
+  `boss/waves.ts` (`buildWaveRig`'s new `monsterMultiplier` argument),
+  `Math.max(0, Math.trunc(max * monsterMultiplier))` — mirroring
+  `map/room.ts`'s own multiplier application. `-1` (endless) is a sentinel
+  and is never scaled.
+- `foodMultiplier` drives a new sparse food pass in `boss/arena.ts`
+  (`placeFood`, run after `placeCoverPillars`): 2–4 clusters
+  (`ctx.bossRand.iRand(2, 5)`), each with its own
+  `Math.trunc(ctx.bossRand.fRand(2, 5) * foodMultiplier)` pickups of
+  `ItemType.Food` (health/mana), rejected against the boss, anchors,
+  entrance, alcove and every placed pillar via `cover.ts`'s now-exported
+  `isFree`. `foodMultiplier: 0` yields zero food. Every `Item.create` call
+  passes its variant `index` explicitly, rolled from `ctx.bossRand` — leaving
+  it to default would silently roll from `ctx.rand`, the layout stream, and
+  shift every existing seed's dungeon (see `Item.create` in `objects/item.ts`).
+  `cover.ts`'s `placeCoverPillars` now returns `{ doodads, rects }` instead of
+  a bare `Doodad[]` so the food pass can reuse the pillars' footprints as
+  additional rejection rects.
 
 - `src/generator/config/validation.ts`: a `validateBoss(p, errors, warnings)`
   called next to `validateLobby`. Dotted field paths (`boss.arena.minWidth`) so

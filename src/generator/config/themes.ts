@@ -60,6 +60,21 @@ export interface ThemeDef {
    */
   omitCover?: boolean
   /**
+   * This theme's wall pieces barricade a single *edge* of their tile instead of
+   * filling it, so no single tile is ever solid.
+   *
+   * Measured coverage of theme h's collision polygons, sampled over the tile
+   * rather than taken from their bounding boxes: 25% for `h_v_8_l`, 28% for
+   * `h_h_8_dn`, 9% for `h_h_8_up`, at best 56% for any piece in the folder. A
+   * room seals because those fences join into a closed loop *around a wall mass
+   * several tiles thick*, not because the tiles block.
+   *
+   * The boss arena therefore gives such a theme a thicker wall band — one tile
+   * is a geometry its art cannot seal, and three attempts to fix it by swapping
+   * pieces all failed because there is no whole-tile piece to swap to.
+   */
+  directionalFences?: boolean
+  /**
    * Advisory note surfaced once by `validateParameters` when the theme is used.
    *
    * For cosmetic quirks a theme cannot avoid — not for anything that blocks
@@ -70,10 +85,12 @@ export interface ThemeDef {
 }
 
 /**
- * The wall pieces the pattern matcher places, i.e. every `themeSubs: 2` entry in
- * `DoodadType`. Listed literally rather than filtered off `DoodadType` to avoid a
- * runtime import cycle with doodad.ts; `themes.test.ts` asserts the two stay in
- * sync, so adding a themed piece without listing it here fails the suite.
+ * Every `themeSubs: 2` entry in `DoodadType` — the wall band pieces the pattern
+ * matcher places, plus `Pillar`, a free-standing arena cover piece that merely
+ * *shares* the two-substitution path template (`doodads/theme_<t>/<t>_*.xml`).
+ * Listed literally rather than filtered off `DoodadType` to avoid a runtime
+ * import cycle with doodad.ts; `themes.test.ts` asserts the two stay in sync,
+ * so adding a themeSubs:2 piece without listing it here fails the suite.
  */
 const THEMED_WALL_PIECES: readonly DoodadTypeName[] = [
   'CornerLD',
@@ -92,7 +109,8 @@ const THEMED_WALL_PIECES: readonly DoodadTypeName[] = [
   'TDown',
   'TUp',
   'TLeft',
-  'TRight'
+  'TRight',
+  'Pillar'
 ]
 
 function classic(id: string, tiles: number, group: string): ThemeDef {
@@ -128,6 +146,9 @@ function bonus(n: number, tiles: number, coverLetter: string): ThemeDef {
   doodadOverrides.ExitUp = { path: 'doodads/special/bonus_entrance.xml', xOffset: 0.25, yOffset: -1.25 }
   doodadOverrides.ExitDn = { path: 'doodads/special/bonus_exit.xml', xOffset: 0.25, yOffset: -1.25 }
   doodadOverrides.Cover = { path: `doodads/special/color_theme_${coverLetter}_16.xml` }
+  // the folder's pillar is `<t>_pillar.xml`, not `<t>_special_pillar.xml` — the
+  // classic themes' suffix, which the default DoodadType.Pillar template assumes
+  doodadOverrides.Pillar = { path: `doodads/theme_bonus${n}/bonus${n}_pillar.xml`, yOffset: 0 }
 
   return {
     id: `bonus${n}`,
@@ -259,6 +280,10 @@ function desertOutdoor(): ThemeDef {
   doodadOverrides.ExitUp = entrance
   doodadOverrides.ExitDn = entrance
 
+  // theme h ships no `h_special_pillar` — the only solid free-standing prop in
+  // the folder is this boulder, confirmed to carry a `<circle radius="18"/>`
+  doodadOverrides.Pillar = { path: 'doodads/theme_h/h_deco_rock.xml', yOffset: 0 }
+
   return {
     id: 'h',
     label: 'h',
@@ -275,6 +300,8 @@ function desertOutdoor(): ThemeDef {
     // low cliff edges with open desert behind them: there is no wall top for an
     // occlusion overlay to sit on, and theme i's stone reads as grey slabs on sand
     omitCover: true,
+    // its pieces fence one edge each and never fill a tile — see the flag's note
+    directionalFences: true,
     // Verified in game: the level is sealed and reads correctly, but the folder
     // has no 4-way junction art, so corners borrow the 16x32 `h_h_8_up` face —
     // which is the only piece that seals a whole tile. Being a tile taller than
@@ -282,7 +309,10 @@ function desertOutdoor(): ThemeDef {
     // the alternative is either grey indoor stone or a hole in every room.
     cosmeticWarning:
       'Theme h is an outdoor cliff set with no junction art, so wall pieces at ' +
-      'room corners overlap and may flicker. Cosmetic only — the level is sealed.'
+      'room corners overlap and may flicker. In the boss arena the corners look ' +
+      'especially odd: its pieces fence one edge each and never fill a tile, so ' +
+      'the arena plugs every joint deliberately rather than leave a hole the ' +
+      'player walks out through. Cosmetic only — the level is sealed.'
   }
 }
 

@@ -664,3 +664,35 @@ describe('reset', () => {
     expect(tweaks['player.general.hard.enemydamagebase']).toBe(3)
   })
 })
+
+describe('the extra-life removal survives the cost policy', () => {
+  // defaultParameters() ships player.shared.remove.life, and the coarse cost
+  // policy used to clear every remove.* flag — so picking any shop-price
+  // preset silently put buyable extra lives back on, undoing a default the
+  // user never touched. The targeted Quick Setup checkbox owns this flag now.
+  const LIFE = 'player.shared.remove.life'
+
+  it('is left alone by every cost policy', () => {
+    for (const policy of ['stock', 'free', 'custom', 'removed'] as const) {
+      const before = applyShopRemovals(EXTRA_LIFE_UPGRADES, true, {})
+      expect(before[LIFE], `${policy} setup`).toBe(1)
+
+      const after = applyCostPolicy(policy, SHOP_PRICE_MAX, before)
+      expect(after[LIFE], `after ${policy}`).toBe(1)
+    }
+  })
+
+  it('stays off when it was off, whatever the policy', () => {
+    for (const policy of ['stock', 'free', 'custom'] as const) {
+      const after = applyCostPolicy(policy, SHOP_PRICE_MAX, {})
+      expect(after[LIFE], `after ${policy}`).toBeUndefined()
+    }
+  })
+
+  it('does not by itself make the policy read as "removed"', () => {
+    // it is orthogonal to prices now, so a lone life removal must not be
+    // mistaken for "every upgrade removed"
+    const tweaks = applyShopRemovals(EXTRA_LIFE_UPGRADES, true, {})
+    expect(deriveCostPolicy(tweaks, SHOP_PRICE_MAX)).toBe('stock')
+  })
+})

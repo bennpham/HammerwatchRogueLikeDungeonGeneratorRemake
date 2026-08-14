@@ -75,3 +75,21 @@ export class XMLIntArray extends XMLObject {
     return `<int-arr name="${this.name}">${this.data.map((d) => Math.trunc(d)).join(' ')}</int-arr>`
   }
 }
+
+/**
+ * A pre-serialized XML fragment, emitted verbatim.
+ *
+ * Most nodes express their `parameters` as a `<dictionary>`, but SpawnObject,
+ * GlobalEventTrigger and TimerTrigger carry a bare scalar instead — a shape a
+ * dictionary cannot express. This lets a node splice that raw string into a
+ * parent dictionary without re-serializing it.
+ */
+export class XMLRaw extends XMLObject {
+  constructor(public xml: string) {
+    super()
+  }
+
+  getXML(): string {
+    return this.xml
+  }
+}

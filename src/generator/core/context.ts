@@ -22,6 +22,16 @@ export class GenerationContext {
    * output fully deterministic without disturbing the layout stream.
    */
   readonly cosmeticRand: Rand
+  /**
+   * drives the boss arena (cover placement, wave rolls, …). A third stream —
+   * not `rand`, not `cosmeticRand` — because the arena is generated after the
+   * dungeon floors but has no Java original to stay parallel with: it is free
+   * to draw as much randomness as it wants without perturbing the layout
+   * stream (`rand`) or the cosmetic stream (`cosmeticRand`). Drawing arena
+   * randomness from either of those would shift every existing seed's
+   * dungeon the moment the boss feature is enabled.
+   */
+  readonly bossRand: Rand
 
   currentLevel = 0
   idCounter = 0
@@ -37,6 +47,7 @@ export class GenerationContext {
     this.params = params
     this.rand = new Rand(seed)
     this.cosmeticRand = new Rand(seed + 1)
+    this.bossRand = new Rand(seed + 2)
   }
 
   /** Equivalent of the Clear() calls between levels in HammerwatchGen.main */
