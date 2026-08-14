@@ -124,17 +124,28 @@ XML dialect (`src/generator/xml/`):
 
 **Tilemap blocks.** The map is cut into 20×20 blocks; the generator emits
 `ceil(w/20)+1` × `ceil(h/20)+1` of them (the +1 is the original's behaviour —
-extra empty blocks are harmless `[EMITTED]`). Each block carries `x`, `y` (top
-left in tiles) and a `datasets` array of one dict:
+extra empty blocks are harmless `[EMITTED]`). Each block carries `x`, `y` and a
+`datasets` array of one or more dicts, drawn in order — the boss arena stacks
+`tilemaps/water.xml` under its theme so nothing shows through as void. Each
+dataset holds:
 
 - `tileset` — path to the tilemap XML, e.g. `tilemaps/a_default.xml`
 - `data-t` — 400 ints, floor tile variant per cell, `0` = wall/void, otherwise
   `1..tiles` for that tileset
-- `data-r`, `data-g`, `data-b`, `data-a` — 400 ints, all `255` (per-tile tint)
+- `data-r`, `data-g`, `data-b`, `data-a` — 400 ints, all `255` (per-tile tint).
+  `data-a` may instead be `0` where `data-t` is `0`, which is what the shipped
+  levels do for a layer meant to be transparent over the one below.
 
-Note the block sampling offset in `Level.getTiles`: cell *i* of the block at
-`(x, y)` maps to world `(x - 10 + i%20, y - 10 + floor(i/20))`. That −10 is
-from the original; don't "correct" it without checking the rendered map.
+A block's `x`/`y` is **not** its top-left corner: cell *i* maps to world
+`(x - 10 + i%20, y - 10 + floor(i/20))` — see `Level.getTiles`. That −10 is from
+the original; don't "correct" it without checking the rendered map.
+
+**`x` and `y` must be multiples of 20** `[VERIFIED 2026-08-13]`. The engine
+snaps them to that grid and discards anything else, so a block declared at −25
+draws as though it were −20. If your level's entities sit in a space offset from
+its rasterisation grid, put the offset in the *sampling*, never in the declared
+position. This cost several rounds of playtesting on the boss arena — see
+ASSET-REGISTRY's "Block origins must be multiples of 20".
 
 **Entities.** Doodads: `id`, `type` (path), `x`, `y` (float, with a per-type
 offset applied), `need-sync` (bool). Actors and items: `id`, `type`, `x`, `y`.
@@ -398,6 +409,14 @@ off for months as shipping "only corner pieces". If it is missing individual
 pieces, use `doodadOverrides[piece].path` to point them at a complete replacement
 (used verbatim, no `%s`). **Never just skip a missing piece**: wall doodads carry
 the collision, so a gap in the set is a gap the player walks through.
+
+**And never judge a piece's collision from its bounding box** `[VERIFIED
+2026-08-13]`. Take the min/max of a `<polygon collision="true">`'s points and a
+diagonal sliver reads as a solid tile. Sample the polygon instead. No piece in
+theme `h` covers more than 56% of its tile and most cover 25%; it seals a room
+only by joining fences into a closed loop around a *thick* wall mass, so a
+one-tile wall band cannot be sealed with it at all. Three consecutive "fixes"
+to the boss arena failed on this one mistake before anyone measured properly.
 
 **Spend the effort on the tees.** The piece mix is roughly 84% `T*`, 6.5%
 `CrossWall`, 6% corners, 1.7% straights and ~0% caps, so whatever art the tees
