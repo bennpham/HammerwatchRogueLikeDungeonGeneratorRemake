@@ -8,6 +8,25 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-16 — a campaign can start on a non-numeric level id, with no numeric floors at all
+**Tag:** [EMITTED] — generated and asserted in tests, not yet packed or loaded in game.
+**Context:** Allowing `levels = 0` so a campaign can be nothing but the boss
+prep room and the arena ("skip straight to the boss").
+**Evidence:** `levels.xml` is emitted as
+`<levels start="bossprep">` with exactly two `<level id="bossprep">` /
+`<level id="boss">` entries inside the single `<act name="lvl.act1">`, and no
+`levels/level*.xml` files at all. Nothing in the format suggests `start` must
+name a numeric id — the lobby already ships as `start="lobby"` and was played
+end to end ([VERIFIED] 2026-07-31 lobby entry), so a string id is accepted
+both as a level id and as `start`. What is new here is a campaign with *no*
+numeric floors at all.
+**Impact:** `src/generator/index.ts` picks `start` as
+lobby → `'0'` → `'bossprep'`. The lobby is forced off at 0 floors because
+`LOBBY_EXIT_TARGET` is the hardcoded floor `'0'` (`src/generator/lobby/build.ts`),
+which would strand the party. **Open question:** does the game's floor counter
+/ act display cope with an act whose only floors are `lvl.floor?floor=0` and
+`?floor=1` served by string ids? Raise to `[VERIFIED]` after one playthrough.
+
 ### 2026-08-16 — tower and spawner corpses: which wrecks you can walk over
 **Tag:** [VERIFIED] for the XML facts (read directly from a stock install's
 `editor/assetsExtract/actors/**`); [VERIFIED] in gameplay for `tower_flower_*`

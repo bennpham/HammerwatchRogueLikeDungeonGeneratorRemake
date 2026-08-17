@@ -254,7 +254,12 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
   // nothing from ctx.rand or ctx.cosmeticRand — exactly like emitTweakFiles.
   // Same seed means the same dungeon whether the lobby is on or off; it only
   // prepends a level entry and moves the campaign's `start`.
-  const lobbyEnabled = params.lobby?.enabled === true
+  //
+  // With 0 floors there is no floor 0 for it to teleport to — LOBBY_EXIT_TARGET
+  // is the hardcoded '0' (see lobby/build.ts) — so the lobby is skipped rather
+  // than stranding the party. Gating it here and not only in the GUI also covers
+  // a parameters.txt that imports `levels=0` alongside `lobby=true`.
+  const lobbyEnabled = params.lobby?.enabled === true && params.levels > 0
   if (lobbyEnabled) {
     files.push({ path: LOBBY_LEVEL_PATH, content: buildLobby(params.lobby) })
     files.push(...LOBBY_ASSETS)
@@ -289,10 +294,14 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
       '</info>'
   })
 
+  // The lobby comes first when it is there, otherwise floor 0 — and with no
+  // floors at all the campaign opens straight into the boss prep room.
+  const startLevel = lobbyEnabled ? LOBBY_LEVEL_ID : params.levels > 0 ? '0' : BOSSPREP_LEVEL_ID
+
   files.push({
     path: 'levels.xml',
     content:
-      `<levels start="${lobbyEnabled ? LOBBY_LEVEL_ID : '0'}">\n` +
+      `<levels start="${startLevel}">\n` +
       '<act name="lvl.act1">\n' +
       levelString +
       '       </act>\n' +

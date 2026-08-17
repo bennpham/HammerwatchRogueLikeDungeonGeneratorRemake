@@ -596,6 +596,73 @@ describe('boss campaign — wiring', () => {
   })
 })
 
+describe('boss-only campaign — 0 dungeon floors', () => {
+  /** Defaults with the dungeon removed: the prep room and the arena, nothing else. */
+  const zeroFloors = (): DungeonParameters => {
+    const params = defaultParameters()
+    params.levels = 0
+    return params
+  }
+
+  const startOf = (r: DungeonResult) =>
+    /<levels start="([^"]*)">/.exec(r.files.find((f) => f.path === 'levels.xml')!.content)?.[1]
+
+  it('emits only the prep room and the arena, and starts in the prep room', () => {
+    const result = generateOk(zeroFloors(), 12345)
+    const paths = result.files.map((f) => f.path)
+
+    expect(paths).toContain('levels/bossprep.xml')
+    expect(paths).toContain('levels/boss.xml')
+    expect(paths.filter((p) => /^levels\/level\d+\.xml$/.test(p))).toEqual([])
+    expect(paths).toContain('info.xml')
+    expect(paths).toContain('levels.xml')
+
+    // the arena is the only preview — there are no dungeon floors to draw
+    expect(result.levels).toHaveLength(1)
+
+    const levelsXml = result.files.find((f) => f.path === 'levels.xml')!.content
+    expect(startOf(result)).toBe('bossprep')
+    expect(levelsXml.match(/<level id="/g)).toHaveLength(2)
+    expect(levelsXml).toContain('<level id="bossprep"')
+    expect(levelsXml).toContain('<level id="boss"')
+  })
+
+  it('skips the lobby even when it is switched on — its teleport leads to floor 1', () => {
+    const params = zeroFloors()
+    params.lobby.enabled = true
+    const result = generateOk(params, 12345)
+    const paths = result.files.map((f) => f.path)
+
+    expect(paths).not.toContain('levels/lobby.xml')
+    expect(paths.filter((p) => p.startsWith('levels/lobby'))).toEqual([])
+    expect(startOf(result)).toBe('bossprep')
+  })
+
+  it('builds the same arena as a full campaign — the floor count never reaches the RNG', () => {
+    const seed = 90210
+    const withFloors = generateOk(defaultParameters(), seed)
+    const withoutFloors = generateOk(zeroFloors(), seed)
+    const arena = (r: DungeonResult) => r.files.find((f) => f.path === 'levels/boss.xml')!.content
+    expect(arena(withoutFloors)).toBe(arena(withFloors))
+  })
+
+  it('refuses 0 floors with the boss off rather than emitting an empty campaign', () => {
+    const params = zeroFloors()
+    params.boss.enabled = false
+    const result = generateDungeon(params, 12345)
+    expect(result.ok).toBe(false)
+    expect(result.ok ? '' : result.errors.join(' ')).toContain('levels')
+  })
+
+  it('leaves a normal campaign start untouched', () => {
+    const seed = 4242
+    expect(startOf(generateOk(defaultParameters(), seed))).toBe('lobby')
+    const noLobby = defaultParameters()
+    noLobby.lobby.enabled = false
+    expect(startOf(generateOk(noLobby, seed))).toBe('0')
+  })
+})
+
 describe('boss campaign — packer safety', () => {
   it('badIntArray finds nothing in any generated file, boss on or off', () => {
     for (const bossEnabled of [true, false]) {

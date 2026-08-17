@@ -104,10 +104,36 @@ describe('parameter validation', () => {
   it('rejects non-integer and negative sizes', () => {
     const p = defaultParameters()
     p.mapWidth = 79.5
-    p.levels = 0
+    p.levels = -1
     const result = validateParameters(p)
     expect(fieldsOf(result.errors)).toContain('mapWidth')
     expect(fieldsOf(result.errors)).toContain('levels')
+  })
+
+  it('accepts 0 floors when the boss fight is on (a boss-only campaign)', () => {
+    const p = defaultParameters()
+    p.levels = 0
+    const result = validateParameters(p)
+    expect(result.errors).toEqual([])
+    expect(result.valid).toBe(true)
+  })
+
+  it('rejects 0 floors with the boss fight off — nothing left to play', () => {
+    const p = defaultParameters()
+    p.levels = 0
+    p.boss.enabled = false
+    const result = validateParameters(p)
+    expect(result.valid).toBe(false)
+    expect(fieldsOf(result.errors)).toContain('levels')
+  })
+
+  it('warns that the lobby is skipped with 0 floors, without blocking', () => {
+    const p = defaultParameters()
+    p.levels = 0
+    p.lobby.enabled = true
+    const result = validateParameters(p)
+    expect(result.valid).toBe(true)
+    expect(fieldsOf(result.warnings)).toContain('lobby.enabled')
   })
 
   it('warns (without blocking) when rooms may not all fit', () => {

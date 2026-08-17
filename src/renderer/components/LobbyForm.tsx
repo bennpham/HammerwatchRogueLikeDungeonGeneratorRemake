@@ -59,6 +59,12 @@ export function LobbyForm({ params, issues, onChange }: LobbyFormProps) {
           checked={lobby.enabled}
           onChange={(enabled) => set({ enabled })}
         />
+        {params.levels === 0 && (
+          <p className="hint">
+            With 0 floors on the Dungeon tab the lobby is skipped whatever this says — its teleport
+            leads to floor 1. That campaign starts in the boss prep room instead.
+          </p>
+        )}
       </Section>
 
       <Section title="Starting gold" defaultOpen badge={`${lobby.startingGold}`}>

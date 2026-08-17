@@ -51,7 +51,21 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
     return true
   }
 
-  requirePositiveInt('levels', p.levels)
+  // 0 floors is legal and means "boss-only campaign": no generated dungeon at
+  // all, straight into the prep room. The rules just below keep that honest.
+  requirePositiveInt('levels', p.levels, 0)
+  if (p.levels === 0 && p.boss?.enabled !== true) {
+    errors.push({
+      field: 'levels',
+      message: 'With 0 floors the boss fight must be enabled — otherwise the campaign has no levels to play.'
+    })
+  }
+  if (p.levels === 0 && p.lobby?.enabled === true) {
+    warnings.push({
+      field: 'lobby.enabled',
+      message: 'The lobby is skipped with 0 floors — its teleport leads to floor 1, so the campaign starts in the boss prep room instead.'
+    })
+  }
   requirePositiveInt('minRoomSize', p.minRoomSize, 3)
   requirePositiveInt('maxRoomSize', p.maxRoomSize, 3)
   requirePositiveInt('minPassageWidth', p.minPassageWidth)
