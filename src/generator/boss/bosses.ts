@@ -17,6 +17,13 @@ export interface BossDef {
   /** footprint in tiles, derived from the actor's <collision> shape — see below */
   footprintWidth: number
   footprintHeight: number
+  /**
+   * The collision shape's own vertical offset, in tiles, negative = up.
+   * Optional; omit it (treated as 0) for a shape centred on the actor's own
+   * position. Only matters for a boss placed against a wall — see
+   * `topWallBossY` and the comment block below.
+   */
+  collisionOffsetY?: number
   /** where the arena places this boss */
   placement: 'centre' | 'topWall'
   /**
@@ -49,11 +56,19 @@ export interface BossDef {
  *
  * `boss_dragon` has no upward-facing art (its 9-slot aim arc and every walk
  * frame face down/down-diagonal) and `<collision static="true">` — it cannot
- * move, so it goes in the top wall, at the position the shipped
- * `editor/campaign/levels/level_boss_4.xml` uses: `<vec2>-5 -26.5</vec2>`
- * (confirmed by reading that file directly). `boss_queen` is also
- * `static="true"` with no `movement` dict at all, but its skill list attacks
- * in every direction, so centre is correct for it same as the movers.
+ * move, so it goes against the top wall. `boss_queen` is also `static="true"`
+ * with no `movement` dict at all, but its skill list attacks in every
+ * direction, so centre is correct for it same as the movers.
+ *
+ * A wall-placed boss also needs its collision `offset`, not just its footprint.
+ * The dragon's is `<circle offset="0 -8" radius="34" />`: the collider centre
+ * sits half a tile ABOVE the actor position and reaches 2.125 tiles out, so an
+ * actor flush against the top wall carries 2.625 tiles of *static* collider
+ * into the wall band. [VERIFIED] in game (DISCOVERY-LOG.md, 2026-08-16): at
+ * interior row 0 the dragon was unreachable, unhittable and could not fire —
+ * it read as being off the map to the north. `topWallBossY` below derives the
+ * shallowest row whose collider clears the band; for the dragon that is row 3,
+ * which is the hand-patched arena the fix was confirmed on.
  */
 const BOSS_DEFS_LIST: BossDef[] = [
   {
@@ -68,9 +83,13 @@ const BOSS_DEFS_LIST: BossDef[] = [
   {
     id: 'boss_dragon',
     actorPath: 'actors/boss_dragon/boss_dragon.xml',
-    // <collision static="true"><circle radius="34" .../></collision>
+    // <collision static="true"><circle offset="0 -8" radius="34" /></collision>
     footprintWidth: (2 * 34) / 16,
     footprintHeight: (2 * 34) / 16,
+    // the collider sits half a tile ABOVE the actor position — the other half
+    // of the geometry that decides where the top wall can hold it. See
+    // `topWallBossY`.
+    collisionOffsetY: -8 / 16,
     placement: 'topWall',
     // no upward-facing art + immobile: must never guard the alcove it can't defend from
     forbiddenAlcoveWalls: ['N']
@@ -134,4 +153,31 @@ export const BOSS_DEF_LIST: readonly BossDef[] = BOSS_IDS.map((id) => BOSS_DEFS[
 /** The largest of the seven footprints (queen) — geometry.ts reserves against this. */
 export function largestBossFootprintArea(): number {
   return Math.max(...BOSS_DEF_LIST.map((d) => d.footprintWidth * d.footprintHeight))
+}
+
+/**
+ * The shallowest interior row a `topWall` boss can sit at with its whole
+ * collider still on floor.
+ *
+ * The arena's interior starts at row 0 and the solid wall band sits above it,
+ * so the collider's top edge — `y + collisionOffsetY - footprintHeight / 2` —
+ * must not go negative. Solving for `y` and rounding up to a whole tile gives
+ * the row below. A *static* collider overlapping the band is not a cosmetic
+ * problem: the engine leaves the actor unreachable and its attacks blocked
+ * (see the dragon note in the comment block above).
+ *
+ * Returns 0 for a `centre` boss's def as well, if anyone asks — it is a pure
+ * function of the shape, and `arena.ts` only consults it for `topWall`.
+ */
+export function topWallBossY(def: BossDef): number {
+  return Math.max(0, Math.ceil(def.footprintHeight / 2 - (def.collisionOffsetY ?? 0)))
+}
+
+/**
+ * The interior row just past the bottom edge of a `topWall` boss's collider —
+ * i.e. the first row a spawn anchor can use without landing inside the boss.
+ * `anchors()` takes this as its `bossClearance` argument.
+ */
+export function topWallBossClearance(def: BossDef, bossY: number): number {
+  return Math.ceil(bossY + def.footprintHeight / 2 + (def.collisionOffsetY ?? 0)) + 1
 }

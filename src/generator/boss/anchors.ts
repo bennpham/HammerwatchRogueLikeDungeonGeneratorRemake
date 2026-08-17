@@ -73,8 +73,21 @@ export const ENTRANCE_DEPTH = 2
  * NORTH_ANCHOR_INSET. Order is fixed (N, S, E, W, NE, NW, SE, SW, C) so
  * callers that zip this against another fixed-order-9 list (round-robin
  * horde splitting in waves.ts) get a stable pairing.
+ *
+ * `bossClearance`, when given, is the first interior row free of a wall-mounted
+ * (`topWall`) boss's collider — see bosses.ts's `topWallBossClearance`. Only
+ * the N anchor can collide with such a boss: it shares the boss's midX, while
+ * NE/NW sit at ANCHOR_INSET from the side walls, far outside the widest boss
+ * footprint. So only N is pushed south, and only far enough to clear; it is
+ * clamped above midY so a minimum-height arena cannot fold N onto C. Omitting
+ * the argument leaves every anchor exactly where it has always been, which is
+ * what every centre-placed boss does.
+ *
+ * Pushing N further from the north wall never conflicts with
+ * NORTH_ANCHOR_INSET's own reason for existing (projectiles absorbed by the
+ * wall band) — that is a lower bound, and this only ever raises it.
  */
-export function anchors(width: number, height: number): Anchor[] {
+export function anchors(width: number, height: number, bossClearance?: number): Anchor[] {
   const left = ANCHOR_INSET
   const right = width - 1 - ANCHOR_INSET
   const top = NORTH_ANCHOR_INSET
@@ -82,8 +95,10 @@ export function anchors(width: number, height: number): Anchor[] {
   const midX = Math.trunc(width / 2)
   const midY = Math.trunc(height / 2)
 
+  const northMid = bossClearance === undefined ? top : Math.min(Math.max(top, bossClearance), midY)
+
   return [
-    { id: 'N', x: midX, y: top },
+    { id: 'N', x: midX, y: northMid },
     { id: 'S', x: midX, y: bottom },
     { id: 'E', x: right, y: midY },
     { id: 'W', x: left, y: midY },
@@ -94,3 +109,4 @@ export function anchors(width: number, height: number): Anchor[] {
     { id: 'C', x: midX, y: midY }
   ]
 }
+

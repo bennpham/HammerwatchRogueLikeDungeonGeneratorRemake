@@ -120,6 +120,33 @@ capped at 300 by observed frame rate rather than by its HP. Neither is in
 `defaultParameters().levelMonsters`; they are opt-in via the pool editor so
 existing seeds are unaffected.
 
+### A wall-mounted boss must clear the band by its collision `offset` `[VERIFIED 2026-08-16]`
+
+`boss_dragon` is the only boss placed against a wall rather than centred. Its
+shape is `<collision static="true"><circle offset="0 -8" radius="34" /></collision>`
+— at 16px/tile a **static** collider 2.125 tiles in radius whose centre sits half
+a tile *above* the actor's own position.
+
+Placed at interior row 0 (flush against the north wall), 2.625 tiles of that
+collider land inside the solid wall band. In game the dragon is then unreachable
+and undamageable, never attacks, and looks like it is off the map to the north.
+The whole level is unwinnable.
+
+The shallowest legal row is `ceil(radius − offsetY)`, i.e. **3** for the dragon —
+confirmed by hand-patching a generated arena in the game's own editor and
+playing it. `src/generator/boss/bosses.ts` records `collisionOffsetY` per boss
+and `topWallBossY()` derives the row; do not hardcode it.
+
+Two consequences worth knowing before placing any actor against a wall:
+
+- **Footprint alone is not enough.** The `offset` on the collision shape moves
+  the body independently of the sprite. Read both.
+- **What the boss then covers has to move.** At row 3 the dragon's collider
+  covers the `N` spawn anchor (`NORTH_ANCHOR_INSET` = 4), which would spawn wave
+  monsters inside a static boss. `anchors()` takes an optional `bossClearance`
+  that pushes only `N` south — to row 6 for the dragon. `NE`/`NW` are far enough
+  out in x to be unaffected.
+
 ## Doodads
 
 `%s` is replaced by the theme's `doodadToken` (`config/themes.ts`) — once for

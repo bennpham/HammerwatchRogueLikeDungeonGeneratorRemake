@@ -18,7 +18,10 @@
  * and its mouth sit *outside* that range (negative, or beyond width/height) —
  * that is a normal, valid coordinate in this XML dialect (the shipped
  * `level_boss_4.xml` places its dragon at `-5 -26.5`), so doodads there are
- * created with those raw, possibly-negative local coordinates. A single
+ * created with those raw, possibly-negative local coordinates. The boss actor
+ * itself is NOT one of them: a `topWall` boss sits at the shallowest interior
+ * row its collider fits on (`topWallBossY`), never on the band, because a
+ * static collider overlapping the wall band makes the boss unreachable. A single
  * internal `toGrid`/`toLocal` pair exists purely to index the rasterization
  * array, which cannot hold negative indices; it never leaks into emitted XML.
  *
@@ -50,7 +53,7 @@ import type { GenerationContext } from '../core/context'
 import type { BossOptions } from '../config/parameters'
 import type { LevelPreview, PreviewRoom } from '../index'
 import { ENTRANCE_DEPTH, ENTRANCE_WIDTH, anchors } from './anchors'
-import { BOSS_DEFS } from './bosses'
+import { BOSS_DEFS, topWallBossClearance, topWallBossY } from './bosses'
 import type { AlcoveWall, BossId } from './bosses'
 import { isFree, placeCoverPillars } from './cover'
 import type { CoverArena, Rect } from './cover'
@@ -95,7 +98,10 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
 
   const midX = Math.trunc(width / 2)
   const midY = Math.trunc(height / 2)
-  const bossLocal = bossDef.placement === 'topWall' ? { x: midX, y: 0 } : { x: midX, y: midY }
+  // A topWall boss is inset from the north wall, not flush against it: its
+  // collider (offset included) has to clear the wall band or the engine leaves
+  // it unreachable and unable to fire. bosses.ts owns that math.
+  const bossLocal = bossDef.placement === 'topWall' ? { x: midX, y: topWallBossY(bossDef) } : { x: midX, y: midY }
 
   // Seeded pick of N/E/W (S is always the entrance), filtered by the boss's
   // own vetoes. Never empty: only the dragon forbids a wall (N), leaving at
@@ -280,7 +286,14 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   )
 
   // --- spawn anchors + entrance + cover pillars ---
-  const anchorList = anchors(width, height)
+  // The N anchor shares the boss's midX, so a wall-mounted boss can swallow it
+  // whole; push it clear rather than spawning wave monsters inside the boss.
+  // Centre-placed bosses pass nothing and keep the historical anchor layout.
+  const anchorList = anchors(
+    width,
+    height,
+    bossDef.placement === 'topWall' ? topWallBossClearance(bossDef, bossLocal.y) : undefined
+  )
 
   const entranceRect: Rect = {
     x: midX - Math.trunc(ENTRANCE_WIDTH / 2),
