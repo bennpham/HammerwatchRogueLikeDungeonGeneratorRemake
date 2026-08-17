@@ -6,11 +6,12 @@ import {
   DEFAULT_WAVE_MONSTER_MAX,
   LOBBY_DIAMOND_VALUE,
   LOBBY_VENDORS,
-  MONSTER_GROUPS,
+  MONSTER_VARIANT_GROUPS,
   THEME_DEFS,
+  defaultTier,
   diamondCount,
   lobbyCategoryCounts,
-  monsterTypesInGroup
+  monsterVariantsInGroup
 } from '../../generator'
 import type { BossOptions, BossWave, DungeonParameters, PlayerTweaks, ValidationIssue } from '../../generator'
 import { BoolField, NumberField, Section, Subsection, ToggleGroup } from './fields'
@@ -409,6 +410,9 @@ interface WaveEditorProps {
 /** One health-tier's monster pool, max-count table and spawn interval — the MonsterPoolsEditor/MonsterMaxTable idiom, but scoped to a single wave instead of the whole dungeon. */
 function WaveEditor({ wave, index, issues, onWaveChange }: WaveEditorProps) {
   const filter = useMonsterFilter()
+  // Session-only, like the act filter — nothing here reaches DungeonParameters,
+  // so hiding an option can never change generated output.
+  const [passableOnly, setPassableOnly] = useState(false)
   const prefix = `boss.arena.waves.${index}`
 
   const toggleMonster = (id: string) => {
@@ -443,24 +447,62 @@ function WaveEditor({ wave, index, issues, onWaveChange }: WaveEditorProps) {
           </p>
         ))}
       <MonsterFilterBar filter={filter} />
+      <label className="pool-passable-toggle">
+        <input type="checkbox" checked={passableOnly} onChange={() => setPassableOnly(!passableOnly)} />
+        Passable only
+        <span className="hint">
+          Hides towers and spawners whose wreck keeps its collision, so clearing the arena can never wall it off.
+        </span>
+      </label>
       <div className="pool-groups">
-        {MONSTER_GROUPS.map((group) => {
-          const members = monsterTypesInGroup(group).filter((t) => filter.visible(t, wave.monsters.includes(t.id)))
+        {MONSTER_VARIANT_GROUPS.map((group) => {
+          const members = monsterVariantsInGroup(group).filter((v) => {
+            const picked = wave.monsters.includes(v.key)
+            // A pick always stays reachable so it can be un-picked, even when
+            // the act filter or the passable toggle would otherwise hide it.
+            if (picked) return true
+            if (passableOnly && v.corpse === 'blocking') return false
+            return filter.visible(v.type, false, v.key)
+          })
           if (members.length === 0) return null
           return (
             <div key={group} className="pool-group">
               <span className="pool-group-title">{group}</span>
               <div className="pool-checkboxes">
-                {members.map((t) => {
-                  const off = filter.offFilter(t)
+                {members.map((v) => {
+                  const hiddenByFilter = filter.offFilter(v.type, v.key)
+                  const hiddenByPassable = passableOnly && v.corpse === 'blocking'
+                  const off = hiddenByFilter || hiddenByPassable
                   return (
                     <label
-                      key={t.id}
+                      key={v.key}
                       className={off ? 'pool-checkbox off-filter' : 'pool-checkbox'}
-                      title={off ? 'In this wave, but hidden by the current filter' : undefined}
+                      title={
+                        off
+                          ? 'In this wave, but hidden by the current filter'
+                          : v.tier === defaultTier(v.type)
+                            ? v.actorPath
+                            : `${v.actorPath} — variant ${v.tier} of ${v.type.id}`
+                      }
                     >
-                      <input type="checkbox" checked={wave.monsters.includes(t.id)} onChange={() => toggleMonster(t.id)} />
-                      {t.id}
+                      <input
+                        type="checkbox"
+                        checked={wave.monsters.includes(v.key)}
+                        onChange={() => toggleMonster(v.key)}
+                      />
+                      {v.key}
+                      {v.corpse && (
+                        <span
+                          className={v.corpse === 'blocking' ? 'pool-badge blocks' : 'pool-badge'}
+                          title={
+                            v.corpse === 'blocking'
+                              ? 'Leaves a wreck that still blocks movement after it dies'
+                              : 'Its wreck can be walked over once it dies'
+                          }
+                        >
+                          {v.corpse === 'blocking' ? 'blocks' : 'passable'}
+                        </span>
+                      )}
                     </label>
                   )
                 })}

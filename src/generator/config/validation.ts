@@ -1,6 +1,12 @@
 import { BOSS_COVER_DENSITY_MAX, BOSS_COVER_PATTERNS, BOSS_IDS, DungeonParameters, THEMES } from './parameters'
 import { getTheme } from './themes'
-import { isKnownMonsterId } from '../objects/monsterTypes'
+import {
+  defaultTier,
+  isKnownMonsterId,
+  isKnownMonsterKey,
+  monsterTypeById,
+  parseMonsterKey
+} from '../objects/monsterTypes'
 import { LOBBY_DIAMOND_VALUE, LOBBY_GOLD_MAX } from '../lobby/build'
 import { ALL_LOBBY_CATEGORIES, isLobbyCategory, lobbyCategoryCounts, vendorOfCategory } from '../lobby/shops'
 import { LOBBY_DIAMOND_SLOTS } from '../lobby/template'
@@ -350,12 +356,34 @@ function validateBoss(
       })
     }
 
-    for (const id of wave.monsters) {
+    // A wave pool holds variant keys, not bare monster ids: `bat1` is the
+    // ordinary bat, `bat1#0` the bats spawner, `archer1#2` the elite. Each
+    // failure mode gets its own message so a hand-edited parameters.txt says
+    // what is actually wrong with the key.
+    for (const key of wave.monsters) {
+      if (isKnownMonsterKey(key)) continue
+      const { id, tier } = parseMonsterKey(key)
+      const field = `boss.arena.waves.${i}.monsters`
       if (!isKnownMonsterId(id)) {
+        errors.push({ field, message: `Wave ${i + 1} pool contains unknown monster "${key}".` })
+      } else if (tier === undefined || !Number.isInteger(tier)) {
         errors.push({
-          field: `boss.arena.waves.${i}.monsters`,
-          message: `Wave ${i + 1} pool contains unknown monster "${id}".`
+          field,
+          message: `Wave ${i + 1} entry "${key}" has a malformed variant — the suffix after "#" must be a whole number.`
         })
+      } else {
+        const type = monsterTypeById(id)
+        if (tier === defaultTier(type)) {
+          errors.push({
+            field,
+            message: `Wave ${i + 1} entry "${key}" is not canonical — that variant is spelled "${id}".`
+          })
+        } else {
+          errors.push({
+            field,
+            message: `Wave ${i + 1} entry "${key}" has no variant ${tier} — "${id}" has ${type.tiers.length} (0..${type.tiers.length - 1}).`
+          })
+        }
       }
     }
 

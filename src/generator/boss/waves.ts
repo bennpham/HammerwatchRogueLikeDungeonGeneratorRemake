@@ -23,11 +23,19 @@
  * until their SpawnObject budgets are exhausted, and lower tiers keep firing
  * as health drops further, so at 25% health all four tiers are spawning at
  * once (boss-tab.md, boss-tab-handoff.md item 6).
+ *
+ * A pool entry is a monster VARIANT key, not a bare monster id — `bat1` is the
+ * ordinary bat, `bat1#0` the bats spawner, `archer1#2` the elite archer (see
+ * monsterTypes.ts). `resolveActorPath` turns the key into one actor path with
+ * no RNG draw: the wave rig is deterministic structure, not a roll, so a key
+ * always resolves to the same actor. That is the whole difference from the
+ * dungeon, which rolls tiers upward with `upgradeChance` in Monster.createRolled
+ * and picks spawners separately in room.ts.
  */
 
 import type { GenerationContext } from '../core/context'
 import type { BossWave } from '../config/parameters'
-import { monsterTypeById } from '../objects/monsterTypes'
+import { resolveActorPath } from '../objects/monsterTypes'
 import {
   NodeAreaTrigger,
   NodeGlobalEventTrigger,
@@ -44,22 +52,6 @@ import type { Anchor } from './anchors'
  * one from the tier index (`TIER_EVENT_NAMES[tier - 1]`).
  */
 const TIER_EVENT_NAMES = ['Boss 75%', 'Boss 50%', 'Boss 25%'] as const
-
-/**
- * The actor path a boss-arena SpawnObject spawns for a monster id. Index 1 of
- * `MonsterTypeDef.tiers` is the ordinary creature for every roster entry;
- * index 0 is the spawner variant most types use (see monster.ts), which is
- * wrong here — the wave rig spawns the monster itself, not a spawner prop.
- * Clamped to the last tier for single-tier types (mirrors the clamp
- * Monster.createRolled applies — see monster.ts's divergence-8 comment) so a
- * monster with only `tiers[0]` still resolves to a real actor path. No RNG
- * draw: the wave rig is deterministic structure, not a roll, so every id
- * always resolves to the same actor path.
- */
-function spawnActorPath(monsterId: string): string {
-  const type = monsterTypeById(monsterId)
-  return type.tiers[Math.min(1, type.tiers.length - 1)]
-}
 
 /**
  * Splits `total` round-robin across `anchorCount` slots: the first
@@ -142,7 +134,7 @@ export function buildWaveRig(
         // Otherwise match room.ts's own multiplier application: trunc after
         // scaling, floored at 0 so a multiplier < 1 can't go negative.
         const max = rawMax === -1 ? -1 : Math.max(0, Math.trunc(rawMax * monsterMultiplier))
-        const actorPath = spawnActorPath(id)
+        const actorPath = resolveActorPath(id)
 
         if (max === -1) {
           // Endless: every anchor spawns this monster, unbounded, unchanged.

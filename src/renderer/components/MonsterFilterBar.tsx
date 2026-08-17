@@ -13,9 +13,14 @@ export interface MonsterFilter {
   query: string
   setActive: (next: Set<MonsterCategory>) => void
   setQuery: (next: string) => void
-  visible: (type: MonsterTypeDef, pinned?: boolean) => boolean
+  /**
+   * `searchKey` is what the search box matches, defaulting to `type.id`. A
+   * variant picker passes the variant key (`bat1#0`) so searching "spawner" or
+   * a tier suffix finds it; the plain type pickers pass nothing.
+   */
+  visible: (type: MonsterTypeDef, pinned?: boolean, searchKey?: string) => boolean
   /** True when the type only shows because it is pinned — render it dimmed. */
-  offFilter: (type: MonsterTypeDef) => boolean
+  offFilter: (type: MonsterTypeDef, searchKey?: string) => boolean
   /** Every category on and an empty search: the pre-filter view. */
   isDefault: boolean
 }
@@ -31,16 +36,16 @@ export function useMonsterFilter(): MonsterFilter {
 
   return useMemo(() => {
     const needle = query.trim().toLowerCase()
-    const matches = (type: MonsterTypeDef) =>
+    const matches = (type: MonsterTypeDef, searchKey?: string) =>
       monsterCategories(type).some((c) => active.has(c)) &&
-      (needle === '' || type.id.toLowerCase().includes(needle))
+      (needle === '' || (searchKey ?? type.id).toLowerCase().includes(needle))
     return {
       active,
       query,
       setActive,
       setQuery,
-      visible: (type, pinned = false) => pinned || matches(type),
-      offFilter: (type) => !matches(type),
+      visible: (type, pinned = false, searchKey) => pinned || matches(type, searchKey),
+      offFilter: (type, searchKey) => !matches(type, searchKey),
       isDefault: needle === '' && active.size === MONSTER_CATEGORIES.length
     }
   }, [active, query])

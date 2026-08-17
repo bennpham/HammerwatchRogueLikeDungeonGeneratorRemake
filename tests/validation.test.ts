@@ -359,6 +359,47 @@ describe('boss validation', () => {
     expect(fieldsOf(result.errors)).toContain('boss.arena.waves.1.monsters')
   })
 
+  it('accepts a spawner or elite variant key in a wave pool', () => {
+    const waves = defaultParameters().boss.arena.waves
+    waves[1].monsters = ['skeleton1#0', 'archer1#2']
+    const result = withBoss({ arena: { ...defaultParameters().boss.arena, waves } })
+    expect(fieldsOf(result.errors)).not.toContain('boss.arena.waves.1.monsters')
+  })
+
+  it('rejects a variant index the monster does not have', () => {
+    const waves = defaultParameters().boss.arena.waves
+    waves[1].monsters = ['bat1#99']
+    const result = withBoss({ arena: { ...defaultParameters().boss.arena, waves } })
+    const issue = result.errors.find((e) => e.field === 'boss.arena.waves.1.monsters')
+    expect(issue?.message).toContain('has no variant 99')
+  })
+
+  it('rejects a non-canonical spelling of the default variant', () => {
+    // bat1#1 and bat1 are the same actor — allowing both would let one actor
+    // hold two pool slots with two different max counts.
+    const waves = defaultParameters().boss.arena.waves
+    waves[1].monsters = ['bat1#1']
+    const result = withBoss({ arena: { ...defaultParameters().boss.arena, waves } })
+    const issue = result.errors.find((e) => e.field === 'boss.arena.waves.1.monsters')
+    expect(issue?.message).toContain('is not canonical')
+  })
+
+  it.each(['bat1#', 'bat1#x', 'bat1#1.5'])('rejects the malformed variant key %s', (key) => {
+    const waves = defaultParameters().boss.arena.waves
+    waves[1].monsters = [key]
+    const result = withBoss({ arena: { ...defaultParameters().boss.arena, waves } })
+    const issue = result.errors.find((e) => e.field === 'boss.arena.waves.1.monsters')
+    expect(issue?.message).toContain('malformed variant')
+  })
+
+  it('still names an unknown base id rather than blaming the variant', () => {
+    const waves = defaultParameters().boss.arena.waves
+    waves[1].monsters = ['dragon#0']
+    const result = withBoss({ arena: { ...defaultParameters().boss.arena, waves } })
+    const issue = result.errors.find((e) => e.field === 'boss.arena.waves.1.monsters')
+    expect(issue?.message).toContain('unknown monster')
+  })
+
   it('rejects a monsterMax below -1', () => {
     const waves = defaultParameters().boss.arena.waves
     waves[0].monsterMax = { ...waves[0].monsterMax, bat1: -2 }
