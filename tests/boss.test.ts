@@ -4,9 +4,9 @@ import { THEMES, defaultParameters } from '../src/generator/config/parameters'
 import { getTheme } from '../src/generator/config/themes'
 import type { BossOptions } from '../src/generator/config/parameters'
 import { buildBossArena } from '../src/generator/boss/arena'
-import { BOSS_DEFS } from '../src/generator/boss/bosses'
-import { ANCHOR_INSET, NORTH_ANCHOR_INSET } from '../src/generator/boss/anchors'
-import type { AlcoveWall } from '../src/generator/boss/bosses'
+import { BOSS_DEF_LIST, BOSS_DEFS, topWallBossClearance, topWallBossY } from '../src/generator/boss/bosses'
+import { ANCHOR_INSET, NORTH_ANCHOR_INSET, anchors } from '../src/generator/boss/anchors'
+import type { AlcoveWall, BossDef } from '../src/generator/boss/bosses'
 import { DoodadType, doodadOffset, doodadPath } from '../src/generator/objects/doodad'
 import type { DoodadTypeName } from '../src/generator/objects/doodad'
 import { generateDungeon } from '../src/generator'
@@ -80,6 +80,29 @@ function actorEntries(xml: string): { id: number; type: string; x: number; y: nu
   return [...actorsSection.matchAll(/<dictionary>\s*<int name="id">(-?\d+)<\/int>\s*<string name="type">([^<]*)<\/string>\s*<float name="x">(-?[\d.]+)<\/float>\s*<float name="y">(-?[\d.]+)<\/float>/g)].map(
     (m) => ({ id: Number(m[1]), type: m[2], x: Number(m[3]), y: Number(m[4]) })
   )
+}
+
+/** The single `actors/boss_*` entry every arena emits. */
+function bossActor(xml: string): { id: number; type: string; x: number; y: number } {
+  const boss = actorEntries(xml).find((a) => /^actors\/boss_/.test(a.type))
+  expect(boss, 'arena emitted no boss actor').toBeDefined()
+  return boss!
+}
+
+function bossDefFor(actorPath: string): BossDef {
+  const def = BOSS_DEF_LIST.find((d) => d.actorPath === actorPath)
+  expect(def, `no BossDef for ${actorPath}`).toBeDefined()
+  return def!
+}
+
+/**
+ * The 9 anchors arena.ts built for this arena, recomputed from the emitted
+ * boss rather than assumed: a topWall boss shifts the N anchor south past its
+ * own collider (anchors.ts's `bossClearance`), a centre boss does not.
+ */
+function arenaAnchors(xml: string, width: number, height: number) {
+  const def = bossDefFor(bossActor(xml).type)
+  return anchors(width, height, def.placement === 'topWall' ? topWallBossClearance(def, topWallBossY(def)) : undefined)
 }
 
 function doodadEntries(xml: string): { id: number; type: string; x: number; y: number; needSync: boolean }[] {
@@ -164,33 +187,56 @@ describe('boss arena — geometry', () => {
     })
 
     it(`seed ${seed}: all 9 anchors sit on walkable (non-wall) floor`, () => {
-      const { preview } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
+      const { xml, preview } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
       const room = preview.rooms[0]
       const isWall = (gx: number, gy: number): boolean => preview.walls[gy * preview.mapWidth + gx] === '1'
 
-      // anchors are computed the same way arena.ts computes them: inset from
-      // the interior edges by ANCHOR_INSET, except the north edge which uses
-      // the deeper NORTH_ANCHOR_INSET, in the same 9-point layout
-      const left = ANCHOR_INSET
-      const right = room.width - 1 - ANCHOR_INSET
-      const top = NORTH_ANCHOR_INSET
-      const bottom = room.height - 1 - ANCHOR_INSET
-      const midX = Math.trunc(room.width / 2)
-      const midY = Math.trunc(room.height / 2)
-      const anchorPoints = [
-        [midX, top],
-        [midX, bottom],
-        [right, midY],
-        [left, midY],
-        [right, top],
-        [left, top],
-        [right, bottom],
-        [left, bottom],
-        [midX, midY]
-      ]
-      for (const [ax, ay] of anchorPoints) {
-        expect(isWall(room.x + ax, room.y + ay)).toBe(false)
+      for (const a of arenaAnchors(xml, room.width, room.height)) {
+        expect(isWall(room.x + a.x, room.y + a.y)).toBe(false)
       }
+    })
+
+    // The N anchor shares the boss's midX, so a wall-mounted (topWall) boss is
+    // the only one whose collider can reach it. A monster spawned inside a
+    // static boss is stuck there, so arena.ts pushes N south by exactly that
+    // clearance — see anchors.ts's bossClearance parameter.
+    it(`seed ${seed}: no anchor sits inside the boss's own collider`, () => {
+      const { xml, preview } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
+      const room = preview.rooms[0]
+      const boss = bossActor(xml)
+      const def = bossDefFor(boss.type)
+      const offset = def.collisionOffsetY ?? 0
+
+      for (const a of arenaAnchors(xml, room.width, room.height)) {
+        // C is the documented exception: arena.ts puts a centre boss on exactly
+        // the C anchor point, and cover.ts drops that target rather than trying
+        // to unblock it. That is long-standing geometry, not what this checks.
+        if (a.id === 'C' && def.placement === 'centre') continue
+        const insideX = Math.abs(a.x - boss.x) < def.footprintWidth / 2
+        const insideY = Math.abs(a.y - (boss.y + offset)) < def.footprintHeight / 2
+        expect(insideX && insideY, `anchor ${a.id} is inside ${def.id}`).toBe(false)
+      }
+    })
+
+    // Centre-placed bosses must keep the historical anchor layout exactly —
+    // the dragon fix has to be inert for the other six. Only the dragon's
+    // arenas may differ, and only in N.
+    it(`seed ${seed}: a centre-placed boss keeps the plain NORTH_ANCHOR_INSET layout`, () => {
+      const { xml, preview } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
+      const room = preview.rooms[0]
+      const def = bossDefFor(bossActor(xml).type)
+      const at = (id: string) => arenaAnchors(xml, room.width, room.height).find((a) => a.id === id)!
+
+      if (def.placement === 'centre') {
+        expect(at('N').y).toBe(NORTH_ANCHOR_INSET)
+      } else {
+        // topWall: N is pushed clear, the other two northern anchors are not
+        expect(at('N').y).toBeGreaterThan(NORTH_ANCHOR_INSET)
+      }
+      expect(at('NE').y).toBe(NORTH_ANCHOR_INSET)
+      expect(at('NW').y).toBe(NORTH_ANCHOR_INSET)
+      expect(at('W').x).toBe(ANCHOR_INSET)
+      expect(at('S').y).toBe(room.height - 1 - ANCHOR_INSET)
     })
 
     it(`seed ${seed}: the alcove interior is real floor tiles, reachable one tile behind each seal`, () => {
@@ -280,8 +326,11 @@ describe('boss arena — geometry', () => {
       const seals = destroyObjectTargets(xml)
       const doodads = doodadEntries(xml)
       const sealDoodads = doodads.filter((d) => seals.includes(d.id))
-      // the N wall's mouth sits at local y === -1, i.e. one tile above the
-      // boss's own topWall row (y === 0) — dragon must never land there
+      // the N wall's mouth sits at local y === -1, on the wall band above the
+      // interior. The dragon no longer sits flush against that band (it is
+      // inset to topWallBossY), but the veto still stands: it has no upward
+      // art and cannot defend, let alone step out of, a reward it would be
+      // body-blocking.
       const onNorthWall = sealDoodads.every((d) => d.y < 0 && sealDoodads.every((o) => o.y === d.y))
       if (onNorthWall) {
         // the only way seals share a negative y is the N alcove — assert it never happens
@@ -1066,4 +1115,65 @@ describe('boss arena — the fence run continues past both ends of the mouth', (
       expect(destroyObjectTargets(xml), `theme ${theme}`).toHaveLength(3)
     }
   })
+})
+
+/**
+ * The dragon is the only `topWall` boss, and the only boss this whole
+ * placement path touches. Regression cover for the shipped bug: the arena put
+ * it at interior row 0, where 2.625 tiles of its *static* collider sat inside
+ * the north wall band — in game it could not be reached or damaged, could not
+ * fire, and read as being off the map to the north. See DISCOVERY-LOG.md,
+ * 2026-08-16, and bosses.ts's `topWallBossY`.
+ */
+describe('boss arena — the dragon sits on floor, not in the north wall', () => {
+  const dragonArena = () => arenaOptions({ bossPool: ['boss_dragon'] })
+  const SEEDS = [1, 2, 3, 4242, 987654, 20260816]
+
+  for (const seed of SEEDS) {
+    it(`seed ${seed}: the dragon's whole collider is on interior floor`, () => {
+      const { xml, preview } = buildBossArena(freshCtx(seed), dragonArena(), 0)
+      const room = preview.rooms[0]
+      const boss = bossActor(xml)
+      const def = BOSS_DEFS.boss_dragon
+      expect(boss.type).toBe(def.actorPath)
+
+      // the position the fix produces, and the one the hand-patched arena used
+      expect(boss.y).toBe(topWallBossY(def))
+      expect(boss.y).toBe(3)
+
+      const offset = def.collisionOffsetY ?? 0
+      const top = boss.y + offset - def.footprintHeight / 2
+      const bottom = boss.y + offset + def.footprintHeight / 2
+      expect(top).toBeGreaterThanOrEqual(0)
+      expect(bottom).toBeLessThan(room.height)
+
+      // and every tile the collider covers is real floor, not wall band
+      const isWall = (gx: number, gy: number): boolean => preview.walls[gy * preview.mapWidth + gx] === '1'
+      for (let ty = Math.floor(top); ty <= Math.ceil(bottom) - 1; ty++) {
+        for (let tx = Math.floor(boss.x - def.footprintWidth / 2); tx <= Math.ceil(boss.x + def.footprintWidth / 2) - 1; tx++) {
+          expect(isWall(room.x + tx, room.y + ty), `dragon collider covers wall tile ${tx},${ty}`).toBe(false)
+        }
+      }
+    })
+
+    it(`seed ${seed}: no wave SpawnObject lands inside the dragon`, () => {
+      const { xml } = buildBossArena(freshCtx(seed), dragonArena(), 0)
+      const def = BOSS_DEFS.boss_dragon
+      const boss = bossActor(xml)
+      const offset = def.collisionOffsetY ?? 0
+
+      const spawns = [
+        ...xml.matchAll(
+          /<string name="type">SpawnObject<\/string>[\s\S]*?<float name="x">(-?[\d.]+)<\/float>\s*<float name="y">(-?[\d.]+)<\/float>/g
+        )
+      ].map((m) => ({ x: Number(m[1]), y: Number(m[2]) }))
+      expect(spawns.length).toBeGreaterThan(0)
+
+      for (const s of spawns) {
+        const insideX = Math.abs(s.x - boss.x) < def.footprintWidth / 2
+        const insideY = Math.abs(s.y - (boss.y + offset)) < def.footprintHeight / 2
+        expect(insideX && insideY, `spawn ${s.x},${s.y} is inside the dragon`).toBe(false)
+      }
+    })
+  }
 })

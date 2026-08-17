@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { ANCHOR_INSET, ENTRANCE_DEPTH, ENTRANCE_WIDTH, NORTH_ANCHOR_INSET, anchors } from '../src/generator/boss/anchors'
 import { ARENA_MIN_HEIGHT, ARENA_MIN_WIDTH } from '../src/generator/boss/geometry'
-import { largestBossFootprintArea, BOSS_DEF_LIST } from '../src/generator/boss/bosses'
+import {
+  largestBossFootprintArea,
+  BOSS_DEF_LIST,
+  BOSS_DEFS,
+  topWallBossClearance,
+  topWallBossY
+} from '../src/generator/boss/bosses'
 
 // The parameter range boss.arena allows by default (boss-tab.md §6) plus the
 // hard floor validation.ts enforces (ARENA_MIN_WIDTH/HEIGHT).
@@ -100,4 +106,65 @@ describe('boss arena anchors', () => {
     // sanity: area must be <= the square of the largest single-axis extent
     expect(largestBossFootprintArea()).toBeLessThanOrEqual(largestFootprint * largestFootprint)
   })
+})
+
+/**
+ * `bossClearance` exists because a wall-mounted (topWall) boss sits ON the
+ * arena's midX, exactly where the N anchor is — so its collider swallows that
+ * anchor whole and wave monsters would spawn inside the boss. See arena.ts and
+ * bosses.ts's `topWallBossClearance`.
+ */
+describe('boss arena anchors — topWall boss clearance', () => {
+  const dragon = BOSS_DEFS.boss_dragon
+
+  for (const [width, height] of SIZES) {
+    describe(`${width}x${height}`, () => {
+      const bossY = topWallBossY(dragon)
+      const clearance = topWallBossClearance(dragon, bossY)
+      const plain = anchors(width, height)
+      const cleared = anchors(width, height, clearance)
+
+      it('omitting the argument changes nothing at all', () => {
+        expect(anchors(width, height, undefined)).toEqual(plain)
+      })
+
+      it('moves only the N anchor', () => {
+        for (let i = 0; i < plain.length; i++) {
+          if (cleared[i].id === 'N') continue
+          expect(cleared[i]).toEqual(plain[i])
+        }
+        expect(cleared.map((a) => a.id)).toEqual(plain.map((a) => a.id))
+      })
+
+      it('pushes N clear of the dragon collider it used to sit inside', () => {
+        const n = cleared.find((a) => a.id === 'N')!
+        const colliderBottom = bossY + (dragon.collisionOffsetY ?? 0) + dragon.footprintHeight / 2
+        expect(n.y).toBeGreaterThan(colliderBottom)
+        // and the un-cleared anchor really was the problem — otherwise this
+        // whole parameter is dead weight
+        expect(plain.find((a) => a.id === 'N')!.y).toBeLessThan(colliderBottom)
+      })
+
+      it('never pushes N past the centre row, so the 9 anchors stay distinct', () => {
+        const midY = Math.trunc(height / 2)
+        const n = cleared.find((a) => a.id === 'N')!
+        expect(n.y).toBeLessThanOrEqual(midY)
+        expect(n.y).toBeGreaterThanOrEqual(NORTH_ANCHOR_INSET)
+      })
+
+      it('an absurd clearance clamps at the centre row rather than escaping the arena', () => {
+        const n = anchors(width, height, height * 10).find((a) => a.id === 'N')!
+        expect(n.y).toBe(Math.trunc(height / 2))
+      })
+
+      it('all 9 still sit on interior floor', () => {
+        for (const a of cleared) {
+          expect(a.x).toBeGreaterThan(0)
+          expect(a.x).toBeLessThan(width - 1)
+          expect(a.y).toBeGreaterThan(0)
+          expect(a.y).toBeLessThan(height - 1)
+        }
+      })
+    })
+  }
 })

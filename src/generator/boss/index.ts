@@ -4,7 +4,7 @@ export type { Anchor, AnchorId } from './anchors'
 export { ANCHOR_INSET, ENTRANCE_DEPTH, ENTRANCE_WIDTH, NORTH_ANCHOR_INSET, anchors } from './anchors'
 
 export type { AlcoveWall, BossDef, BossId } from './bosses'
-export { BOSS_DEFS, BOSS_DEF_LIST, largestBossFootprintArea } from './bosses'
+export { BOSS_DEFS, BOSS_DEF_LIST, largestBossFootprintArea, topWallBossClearance, topWallBossY } from './bosses'
 
 export type { CoverArena, CoverBoss, CoverOptions, PlacedPillars, Rect } from './cover'
 export { isFree, placeCoverPillars } from './cover'

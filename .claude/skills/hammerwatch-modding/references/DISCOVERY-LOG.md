@@ -8,6 +8,34 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-16 — a wall-mounted actor must clear the wall band by its collision `offset`, not just its footprint
+**Tag:** [VERIFIED] (hand-patched in the game's own editor and played)
+**Context:** The dragon boss was unwinnable on every generated regular dungeon:
+players could not reach or damage it, it never attacked, and it read as sitting
+off the map to the north.
+**Evidence:** `editor/assetsExtract/actors/boss_dragon/boss_dragon.xml` carries
+`<collision static="true"><circle offset="0 -8" radius="34" /></collision>`. At
+the game's fixed 16px/tile that is a **static** collider of radius 2.125 tiles
+whose centre sits **half a tile above** the actor's own position. The generator
+placed the dragon at interior row 0 (flush against the north wall), so
+`0 - 0.5 - 2.125 = -2.625` — 2.6 tiles of static collider inside the solid wall
+band. The user hand-edited the arena to interior row 3 and re-saved through the
+editor (`editor/dungeon1834575286/levels/boss_fix.xml`, dragon at `13 3` vs the
+generated `13 0`): the dragon is then reachable, damageable, fires normally, and
+still reads as mounted on the north wall. Row 3 is exactly
+`ceil(radius - offsetY)` = `ceil(2.125 + 0.5)`.
+**Impact:** Footprint size alone is not enough to place an actor against a wall
+— the collision shape's `offset` has to be honoured too. `bosses.ts` now records
+`collisionOffsetY` per boss and derives the placement row in `topWallBossY`;
+`arena.ts` uses it instead of a hardcoded 0. Only the dragon is `topWall`, so
+every other boss's arena is byte-identical (verified by fingerprinting five
+centre-boss seeds before and after). Knock-on: at row 3 the dragon's collider
+covers the `N` spawn anchor at `NORTH_ANCHOR_INSET` (4), which would spawn wave
+monsters inside a static boss, so `anchors()` gained an optional `bossClearance`
+that pushes **only** `N` south (to row 6 for the dragon); `NE`/`NW` sit far
+enough out in x to be unaffected, and centre-placed bosses pass nothing and keep
+the historical layout.
+
 ### 2026-08-16 — a tile block stacks arbitrarily many tilesets, ordered by the tileset's own `level`, not by dataset order
 **Tag:** [VERIFIED] for the stacking mechanism and the full tileset roster below
 (read from the user's own install); [EMITTED] for the 14 overlay themes we now
