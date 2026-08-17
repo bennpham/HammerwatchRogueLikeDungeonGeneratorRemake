@@ -35,6 +35,19 @@ export interface ThemeDef {
   tilemap: string
   /** floor variants the tileset has; emitted `data-t` values are 1..tiles */
   tiles: number
+  /**
+   * A second tileset stacked over `tilemap` on every floor tile, for the paired
+   * dropdown entries (`c` and `c - tiles` are the same theme with and without
+   * one). The base still covers the floor; this only adds art on top, so the
+   * pair share every doodad, wall piece and grouping — see `overlayOf`.
+   *
+   * Draw order is *not* the order datasets appear in the block. The engine sorts
+   * by the `level` attribute the tileset's own XML declares, so an overlay whose
+   * `level` is below its base's silently renders underneath and the pairing does
+   * nothing. Every entry in `THEME_OVERLAYS` was checked against
+   * `editor/assetsExtract/tilemaps/*.xml` on that point.
+   */
+  overlay?: { tilemap: string; tiles: number }
   /** substituted for `%s` in themed doodad paths */
   doodadToken: string
   /** per-piece deviations from the `DoodadType` defaults */
@@ -317,10 +330,11 @@ function desertOutdoor(): ThemeDef {
 }
 
 /**
- * Every theme the generator can emit. `tiles` is the sprite count declared by the
- * tileset XML; emitting a `data-t` index above it is a load-time error.
+ * The plain themes — one tileset each, no overlay. `tiles` is the sprite count
+ * declared by the tileset XML; emitting a `data-t` index above it is a
+ * load-time error.
  */
-export const THEME_DEFS: readonly ThemeDef[] = [
+const BASE_THEME_DEFS: readonly ThemeDef[] = [
   classic('a', 2, 'Classic dungeon'),
   classic('b', 4, 'Classic dungeon'),
   classic('c', 4, 'Classic dungeon'),
@@ -336,6 +350,74 @@ export const THEME_DEFS: readonly ThemeDef[] = [
   bonus(4, 1, 'a'),
   bonus(5, 1, 'a')
 ]
+
+/**
+ * A base theme paired with one of the alternate tilesets its art sheet ships.
+ *
+ * Everything but the id, label and overlay is inherited by spread, which is the
+ * whole point: `c - tiles` must resolve the same walls, stairs, pillars, cover
+ * and cosmetic warning as `c`, because it *is* theme c with extra floor art. It
+ * also lands in c's dropdown group automatically.
+ *
+ * `id` is the overlay tileset's filename so the value written to parameters.txt
+ * says what it does; it carries no comma, which is what `themes=` needs.
+ */
+function overlayOf(baseId: string, file: string, tiles: number, suffix: string): ThemeDef {
+  const base = BASE_THEME_DEFS.find((t) => t.id === baseId)
+  if (base === undefined) throw new Error(`overlayOf: no base theme "${baseId}"`)
+  return {
+    ...base,
+    id: file,
+    label: `${base.label} - ${suffix}`,
+    overlay: { tilemap: `tilemaps/${file}.xml`, tiles }
+  }
+}
+
+/**
+ * The curated alternate-tileset pairings, as `[baseId, overlayFile, tiles, suffix]`.
+ *
+ * `tiles` is the count of *top-level* `<sprite scale=…>` in the overlay's XML.
+ * Sprites nested in `<borders>` do not count — the engine picks those itself and
+ * they are not addressable by `data-t` (the same rule theme h's comment records).
+ *
+ * Curated, not exhaustive. The game ships ~25 more non-border overlays; these are
+ * the ones whose art plausibly reads as a whole floor. Deliberately left out, and
+ * cheap to add once someone has looked at them in game: the `*_moss` sets (draw
+ * level 900+, sparse decoration meant to dapple a floor rather than be one), the
+ * `*_scattered` / `*_dirt` / `*_path` sets that ship `<borders>` and so are built
+ * for patches, and the theme-agnostic `grass*` / `slime_green` layers.
+ *
+ * Themes h and bonus 1-5 ship no non-border overlay at all, so they pair with
+ * nothing and appear once each.
+ */
+const THEME_OVERLAYS: ReadonlyArray<readonly [string, string, number, string]> = [
+  ['a', 'a_dirt', 2, 'dirt'],
+  ['b', 'b_tiles_mixed', 4, 'tiles'],
+  ['b', 'b_tiles_red', 1, 'red tiles'],
+  ['c', 'c_tiles', 4, 'tiles'],
+  ['c', 'c_tiles_dirt', 8, 'tiles dirt'],
+  ['d', 'd_default_dirt', 4, 'dirt'],
+  ['d', 'd_carpet', 6, 'carpet'],
+  ['e', 'e_default_dark', 2, 'dark'],
+  ['e', 'e_fine', 2, 'fine'],
+  ['f', 'f_fine', 2, 'fine'],
+  ['f', 'f_frozen', 2, 'frozen'],
+  ['g', 'g_fine', 2, 'fine'],
+  ['g', 'g_path_dense', 4, 'dense path'],
+  ['i', 'i_symbols', 4, 'symbols']
+]
+
+/**
+ * Every theme the generator can emit: each plain theme followed immediately by
+ * its overlay pairings, so the dropdown reads `c`, `c - tiles`, `c - tiles dirt`,
+ * `d`, … The renderer derives its `<optgroup>`s from this order.
+ */
+export const THEME_DEFS: readonly ThemeDef[] = BASE_THEME_DEFS.flatMap((base) => [
+  base,
+  ...THEME_OVERLAYS.filter(([baseId]) => baseId === base.id).map(([baseId, file, tiles, suffix]) =>
+    overlayOf(baseId, file, tiles, suffix)
+  )
+])
 
 const BY_ID = new Map(THEME_DEFS.map((t) => [t.id, t]))
 

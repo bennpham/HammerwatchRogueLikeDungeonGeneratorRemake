@@ -372,6 +372,59 @@ do not emit it. The game's own `campaign/levels/level_bonus_1.xml` pairs it with
 `bonus_1.xml` as a **second dataset** in the same tile block — `datasets` is an
 array, so we could do the same. Cosmetic; not currently done.
 
+### Overlay themes — a second tileset over the base floor
+
+A tile block's `datasets` is an array and the engine draws all of it, sorting by
+the `level` attribute each **tileset XML** declares — not by the order datasets
+appear in the block. `[VERIFIED]`: the user's hand-authored
+`test_alt_tileset.xml` stacks eight tilesets in one block and loads. See the
+2026-08-16 entry in `DISCOVERY-LOG.md` for the full `level` roster of every
+tileset in `assetsExtract/tilemaps/`.
+
+So a theme can be offered twice: once plain, once with an alternate tileset
+layered over its floor at full coverage. `ThemeDef.overlay` carries
+`{ tilemap, tiles }`; the pair share everything else, because an overlay def is
+built by spreading its base (`overlayOf` in `config/themes.ts`). The dropdown
+shows them as `c`, `c - tiles`, `c - tiles dirt`, and the id is the overlay
+tileset's filename so `themes=` in parameters.txt stays readable.
+
+Variants counted the same way as the table above — top-level `<sprite>` only.
+All `[EMITTED]`; none of these has been looked at in game yet.
+
+| Theme id | Base | Overlay path | Variants | `level` |
+| --- | --- | --- | --- | --- |
+| `a_dirt` | `a` (10) | `tilemaps/a_dirt.xml` | 2 | 12 |
+| `b_tiles_mixed` | `b` (20) | `tilemaps/b_tiles_mixed.xml` | 4 | 21 |
+| `b_tiles_red` | `b` (20) | `tilemaps/b_tiles_red.xml` | 1 | 39 |
+| `c_tiles` | `c` (50) | `tilemaps/c_tiles.xml` | 4 | 51 |
+| `c_tiles_dirt` | `c` (50) | `tilemaps/c_tiles_dirt.xml` | 8 | 53 |
+| `d_default_dirt` | `d` (70) | `tilemaps/d_default_dirt.xml` | 4 | 71 |
+| `d_carpet` | `d` (70) | `tilemaps/d_carpet.xml` | 6 | 75 |
+| `e_default_dark` | `e` (100) | `tilemaps/e_default_dark.xml` | 2 | 101 |
+| `e_fine` | `e` (100) | `tilemaps/e_fine.xml` | 2 | 110 |
+| `f_fine` | `f` (120) | `tilemaps/f_fine.xml` | 2 | 121 |
+| `f_frozen` | `f` (120) | `tilemaps/f_frozen.xml` | 2 | 123 |
+| `g_fine` | `g` (130) | `tilemaps/g_fine.xml` | 2 | 131 |
+| `g_path_dense` | `g` (130) | `tilemaps/g_path_dense.xml` | 4 | 133 |
+| `i_symbols` | `i` (150) | `tilemaps/i_symbols.xml` | 4 | 151 |
+
+Themes `h` and `bonus1`–`bonus5` ship no non-border overlay tileset and stay
+unpaired. Curated, not exhaustive — the `*_moss` (level 900+), `*_scattered`,
+`*_dirt`, `*_path` and theme-agnostic `grass*` / `slime_green` sets are all
+usable overlays but are built to dapple a floor in patches, and this feature
+paints at full coverage. They are the obvious inventory for a future patchy mode.
+
+Two rules the emitter must keep, both in `map/tilemapOverlay.ts`:
+
+1. **The overlay's `data-a` is the 0/255 floor mask, never a flat 255.** The base
+   layer sits on the void and can afford 255 everywhere; a layer *above* one must
+   be transparent wherever the floor stops or it paints its art out over the
+   emptiness beyond the map.
+2. **A theme with no overlay must draw zero random numbers.** `overlayDataset`
+   returns `null` before touching the stream. Hoisting the draws above that check
+   shifts `cosmeticRand` for every plain theme and silently changes the floor of
+   every dungeon ever generated from an existing seed.
+
 ### Theme `h` — desert outdoors
 
 **Supersedes the earlier "there is no usable theme `h`" entry, which was a false

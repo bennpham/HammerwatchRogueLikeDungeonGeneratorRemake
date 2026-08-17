@@ -191,6 +191,195 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_a/a_v_8.xml",
   },
+  "a_dirt:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
+  },
+  "a_dirt:CornerLD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_a/a_crn_l_dn.xml",
+  },
+  "a_dirt:CornerLU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_a/a_crn_l_up.xml",
+  },
+  "a_dirt:CornerRD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_a/a_crn_r_dn.xml",
+  },
+  "a_dirt:CornerRU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_a/a_crn_r_up.xml",
+  },
+  "a_dirt:Cover": {
+    "offset": {
+      "x": 0.5,
+      "y": 0.5,
+    },
+    "path": "doodads/special/color_theme_a_16.xml",
+  },
+  "a_dirt:CrossWall": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_a/a_x_x.xml",
+  },
+  "a_dirt:ExitDn": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_a/a_exit_h_dn.xml",
+  },
+  "a_dirt:ExitMarker": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/marker_exit.xml",
+  },
+  "a_dirt:ExitUp": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_a/a_exit_h_up.xml",
+  },
+  "a_dirt:HCapLeft": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_a/a_h_cap_l.xml",
+  },
+  "a_dirt:HCapRight": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_a/a_h_cap_r.xml",
+  },
+  "a_dirt:Horizontal": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_a/a_h_8.xml",
+  },
+  "a_dirt:Spawn": {
+    "offset": {
+      "x": 1,
+      "y": 1,
+    },
+    "path": "doodads/generic/marker_spawn.xml",
+  },
+  "a_dirt:TDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_a/a_x_t_dn.xml",
+  },
+  "a_dirt:TLeft": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_a/a_x_t_l.xml",
+  },
+  "a_dirt:TRight": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_a/a_x_t_r.xml",
+  },
+  "a_dirt:TUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_a/a_x_t_up.xml",
+  },
+  "a_dirt:Torch": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch.xml",
+  },
+  "a_dirt:TorchOff": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch_off.xml",
+  },
+  "a_dirt:VCapDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_a/a_v_cap_dn.xml",
+  },
+  "a_dirt:VCapUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_a/a_v_cap_up.xml",
+  },
+  "a_dirt:VendorCombo": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_combo.xml",
+  },
+  "a_dirt:VendorDefense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_defense.xml",
+  },
+  "a_dirt:VendorMisc": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_misc.xml",
+  },
+  "a_dirt:VendorOffense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_offense.xml",
+  },
+  "a_dirt:Vertical": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_a/a_v_8.xml",
+  },
   "b:BossPortal": {
     "offset": {
       "x": 0,
@@ -374,6 +563,384 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     "path": "doodads/special/vendor_offense.xml",
   },
   "b:Vertical": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_b/b_v_8.xml",
+  },
+  "b_tiles_mixed:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
+  },
+  "b_tiles_mixed:CornerLD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_b/b_crn_l_dn.xml",
+  },
+  "b_tiles_mixed:CornerLU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_b/b_crn_l_up.xml",
+  },
+  "b_tiles_mixed:CornerRD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_b/b_crn_r_dn.xml",
+  },
+  "b_tiles_mixed:CornerRU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_b/b_crn_r_up.xml",
+  },
+  "b_tiles_mixed:Cover": {
+    "offset": {
+      "x": 0.5,
+      "y": 0.5,
+    },
+    "path": "doodads/special/color_theme_b_16.xml",
+  },
+  "b_tiles_mixed:CrossWall": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_b/b_x_x.xml",
+  },
+  "b_tiles_mixed:ExitDn": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_b/b_exit_h_dn.xml",
+  },
+  "b_tiles_mixed:ExitMarker": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/marker_exit.xml",
+  },
+  "b_tiles_mixed:ExitUp": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_b/b_exit_h_up.xml",
+  },
+  "b_tiles_mixed:HCapLeft": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_b/b_h_cap_l.xml",
+  },
+  "b_tiles_mixed:HCapRight": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_b/b_h_cap_r.xml",
+  },
+  "b_tiles_mixed:Horizontal": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_b/b_h_8.xml",
+  },
+  "b_tiles_mixed:Spawn": {
+    "offset": {
+      "x": 1,
+      "y": 1,
+    },
+    "path": "doodads/generic/marker_spawn.xml",
+  },
+  "b_tiles_mixed:TDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_b/b_x_t_dn.xml",
+  },
+  "b_tiles_mixed:TLeft": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_b/b_x_t_l.xml",
+  },
+  "b_tiles_mixed:TRight": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_b/b_x_t_r.xml",
+  },
+  "b_tiles_mixed:TUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_b/b_x_t_up.xml",
+  },
+  "b_tiles_mixed:Torch": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch.xml",
+  },
+  "b_tiles_mixed:TorchOff": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch_off.xml",
+  },
+  "b_tiles_mixed:VCapDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_b/b_v_cap_dn.xml",
+  },
+  "b_tiles_mixed:VCapUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_b/b_v_cap_up.xml",
+  },
+  "b_tiles_mixed:VendorCombo": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_combo.xml",
+  },
+  "b_tiles_mixed:VendorDefense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_defense.xml",
+  },
+  "b_tiles_mixed:VendorMisc": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_misc.xml",
+  },
+  "b_tiles_mixed:VendorOffense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_offense.xml",
+  },
+  "b_tiles_mixed:Vertical": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_b/b_v_8.xml",
+  },
+  "b_tiles_red:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
+  },
+  "b_tiles_red:CornerLD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_b/b_crn_l_dn.xml",
+  },
+  "b_tiles_red:CornerLU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_b/b_crn_l_up.xml",
+  },
+  "b_tiles_red:CornerRD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_b/b_crn_r_dn.xml",
+  },
+  "b_tiles_red:CornerRU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_b/b_crn_r_up.xml",
+  },
+  "b_tiles_red:Cover": {
+    "offset": {
+      "x": 0.5,
+      "y": 0.5,
+    },
+    "path": "doodads/special/color_theme_b_16.xml",
+  },
+  "b_tiles_red:CrossWall": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_b/b_x_x.xml",
+  },
+  "b_tiles_red:ExitDn": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_b/b_exit_h_dn.xml",
+  },
+  "b_tiles_red:ExitMarker": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/marker_exit.xml",
+  },
+  "b_tiles_red:ExitUp": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_b/b_exit_h_up.xml",
+  },
+  "b_tiles_red:HCapLeft": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_b/b_h_cap_l.xml",
+  },
+  "b_tiles_red:HCapRight": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_b/b_h_cap_r.xml",
+  },
+  "b_tiles_red:Horizontal": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_b/b_h_8.xml",
+  },
+  "b_tiles_red:Spawn": {
+    "offset": {
+      "x": 1,
+      "y": 1,
+    },
+    "path": "doodads/generic/marker_spawn.xml",
+  },
+  "b_tiles_red:TDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_b/b_x_t_dn.xml",
+  },
+  "b_tiles_red:TLeft": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_b/b_x_t_l.xml",
+  },
+  "b_tiles_red:TRight": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_b/b_x_t_r.xml",
+  },
+  "b_tiles_red:TUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_b/b_x_t_up.xml",
+  },
+  "b_tiles_red:Torch": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch.xml",
+  },
+  "b_tiles_red:TorchOff": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch_off.xml",
+  },
+  "b_tiles_red:VCapDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_b/b_v_cap_dn.xml",
+  },
+  "b_tiles_red:VCapUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_b/b_v_cap_up.xml",
+  },
+  "b_tiles_red:VendorCombo": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_combo.xml",
+  },
+  "b_tiles_red:VendorDefense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_defense.xml",
+  },
+  "b_tiles_red:VendorMisc": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_misc.xml",
+  },
+  "b_tiles_red:VendorOffense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_offense.xml",
+  },
+  "b_tiles_red:Vertical": {
     "offset": {
       "x": 0,
       "y": 1,
@@ -1514,6 +2081,384 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_c/c_v_8.xml",
   },
+  "c_tiles:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
+  },
+  "c_tiles:CornerLD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_c/c_crn_l_dn.xml",
+  },
+  "c_tiles:CornerLU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_c/c_crn_l_up.xml",
+  },
+  "c_tiles:CornerRD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_c/c_crn_r_dn.xml",
+  },
+  "c_tiles:CornerRU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_c/c_crn_r_up.xml",
+  },
+  "c_tiles:Cover": {
+    "offset": {
+      "x": 0.5,
+      "y": 0.5,
+    },
+    "path": "doodads/special/color_theme_c_16.xml",
+  },
+  "c_tiles:CrossWall": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_c/c_x_x.xml",
+  },
+  "c_tiles:ExitDn": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_c/c_exit_h_dn.xml",
+  },
+  "c_tiles:ExitMarker": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/marker_exit.xml",
+  },
+  "c_tiles:ExitUp": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_c/c_exit_h_up.xml",
+  },
+  "c_tiles:HCapLeft": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_c/c_h_cap_l.xml",
+  },
+  "c_tiles:HCapRight": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_c/c_h_cap_r.xml",
+  },
+  "c_tiles:Horizontal": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_c/c_h_8.xml",
+  },
+  "c_tiles:Spawn": {
+    "offset": {
+      "x": 1,
+      "y": 1,
+    },
+    "path": "doodads/generic/marker_spawn.xml",
+  },
+  "c_tiles:TDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_c/c_x_t_dn.xml",
+  },
+  "c_tiles:TLeft": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_c/c_x_t_l.xml",
+  },
+  "c_tiles:TRight": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_c/c_x_t_r.xml",
+  },
+  "c_tiles:TUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_c/c_x_t_up.xml",
+  },
+  "c_tiles:Torch": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch.xml",
+  },
+  "c_tiles:TorchOff": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch_off.xml",
+  },
+  "c_tiles:VCapDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_c/c_v_cap_dn.xml",
+  },
+  "c_tiles:VCapUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_c/c_v_cap_up.xml",
+  },
+  "c_tiles:VendorCombo": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_combo.xml",
+  },
+  "c_tiles:VendorDefense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_defense.xml",
+  },
+  "c_tiles:VendorMisc": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_misc.xml",
+  },
+  "c_tiles:VendorOffense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_offense.xml",
+  },
+  "c_tiles:Vertical": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_c/c_v_8.xml",
+  },
+  "c_tiles_dirt:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
+  },
+  "c_tiles_dirt:CornerLD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_c/c_crn_l_dn.xml",
+  },
+  "c_tiles_dirt:CornerLU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_c/c_crn_l_up.xml",
+  },
+  "c_tiles_dirt:CornerRD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_c/c_crn_r_dn.xml",
+  },
+  "c_tiles_dirt:CornerRU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_c/c_crn_r_up.xml",
+  },
+  "c_tiles_dirt:Cover": {
+    "offset": {
+      "x": 0.5,
+      "y": 0.5,
+    },
+    "path": "doodads/special/color_theme_c_16.xml",
+  },
+  "c_tiles_dirt:CrossWall": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_c/c_x_x.xml",
+  },
+  "c_tiles_dirt:ExitDn": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_c/c_exit_h_dn.xml",
+  },
+  "c_tiles_dirt:ExitMarker": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/marker_exit.xml",
+  },
+  "c_tiles_dirt:ExitUp": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_c/c_exit_h_up.xml",
+  },
+  "c_tiles_dirt:HCapLeft": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_c/c_h_cap_l.xml",
+  },
+  "c_tiles_dirt:HCapRight": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_c/c_h_cap_r.xml",
+  },
+  "c_tiles_dirt:Horizontal": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_c/c_h_8.xml",
+  },
+  "c_tiles_dirt:Spawn": {
+    "offset": {
+      "x": 1,
+      "y": 1,
+    },
+    "path": "doodads/generic/marker_spawn.xml",
+  },
+  "c_tiles_dirt:TDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_c/c_x_t_dn.xml",
+  },
+  "c_tiles_dirt:TLeft": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_c/c_x_t_l.xml",
+  },
+  "c_tiles_dirt:TRight": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_c/c_x_t_r.xml",
+  },
+  "c_tiles_dirt:TUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_c/c_x_t_up.xml",
+  },
+  "c_tiles_dirt:Torch": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch.xml",
+  },
+  "c_tiles_dirt:TorchOff": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch_off.xml",
+  },
+  "c_tiles_dirt:VCapDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_c/c_v_cap_dn.xml",
+  },
+  "c_tiles_dirt:VCapUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_c/c_v_cap_up.xml",
+  },
+  "c_tiles_dirt:VendorCombo": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_combo.xml",
+  },
+  "c_tiles_dirt:VendorDefense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_defense.xml",
+  },
+  "c_tiles_dirt:VendorMisc": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_misc.xml",
+  },
+  "c_tiles_dirt:VendorOffense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_offense.xml",
+  },
+  "c_tiles_dirt:Vertical": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_c/c_v_8.xml",
+  },
   "d:BossPortal": {
     "offset": {
       "x": 0,
@@ -1697,6 +2642,384 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     "path": "doodads/special/vendor_offense.xml",
   },
   "d:Vertical": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_d/d_v_8.xml",
+  },
+  "d_carpet:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
+  },
+  "d_carpet:CornerLD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_d/d_crn_l_dn.xml",
+  },
+  "d_carpet:CornerLU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_d/d_crn_l_up.xml",
+  },
+  "d_carpet:CornerRD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_d/d_crn_r_dn.xml",
+  },
+  "d_carpet:CornerRU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_d/d_crn_r_up.xml",
+  },
+  "d_carpet:Cover": {
+    "offset": {
+      "x": 0.5,
+      "y": 0.5,
+    },
+    "path": "doodads/special/color_theme_d_16.xml",
+  },
+  "d_carpet:CrossWall": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_d/d_x_x.xml",
+  },
+  "d_carpet:ExitDn": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_d/d_exit_h_dn.xml",
+  },
+  "d_carpet:ExitMarker": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/marker_exit.xml",
+  },
+  "d_carpet:ExitUp": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_d/d_exit_h_up.xml",
+  },
+  "d_carpet:HCapLeft": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_d/d_h_cap_l.xml",
+  },
+  "d_carpet:HCapRight": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_d/d_h_cap_r.xml",
+  },
+  "d_carpet:Horizontal": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_d/d_h_8.xml",
+  },
+  "d_carpet:Spawn": {
+    "offset": {
+      "x": 1,
+      "y": 1,
+    },
+    "path": "doodads/generic/marker_spawn.xml",
+  },
+  "d_carpet:TDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_d/d_x_t_dn.xml",
+  },
+  "d_carpet:TLeft": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_d/d_x_t_l.xml",
+  },
+  "d_carpet:TRight": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_d/d_x_t_r.xml",
+  },
+  "d_carpet:TUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_d/d_x_t_up.xml",
+  },
+  "d_carpet:Torch": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch.xml",
+  },
+  "d_carpet:TorchOff": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch_off.xml",
+  },
+  "d_carpet:VCapDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_d/d_v_cap_dn.xml",
+  },
+  "d_carpet:VCapUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_d/d_v_cap_up.xml",
+  },
+  "d_carpet:VendorCombo": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_combo.xml",
+  },
+  "d_carpet:VendorDefense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_defense.xml",
+  },
+  "d_carpet:VendorMisc": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_misc.xml",
+  },
+  "d_carpet:VendorOffense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_offense.xml",
+  },
+  "d_carpet:Vertical": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_d/d_v_8.xml",
+  },
+  "d_default_dirt:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
+  },
+  "d_default_dirt:CornerLD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_d/d_crn_l_dn.xml",
+  },
+  "d_default_dirt:CornerLU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_d/d_crn_l_up.xml",
+  },
+  "d_default_dirt:CornerRD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_d/d_crn_r_dn.xml",
+  },
+  "d_default_dirt:CornerRU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_d/d_crn_r_up.xml",
+  },
+  "d_default_dirt:Cover": {
+    "offset": {
+      "x": 0.5,
+      "y": 0.5,
+    },
+    "path": "doodads/special/color_theme_d_16.xml",
+  },
+  "d_default_dirt:CrossWall": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_d/d_x_x.xml",
+  },
+  "d_default_dirt:ExitDn": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_d/d_exit_h_dn.xml",
+  },
+  "d_default_dirt:ExitMarker": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/marker_exit.xml",
+  },
+  "d_default_dirt:ExitUp": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_d/d_exit_h_up.xml",
+  },
+  "d_default_dirt:HCapLeft": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_d/d_h_cap_l.xml",
+  },
+  "d_default_dirt:HCapRight": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_d/d_h_cap_r.xml",
+  },
+  "d_default_dirt:Horizontal": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_d/d_h_8.xml",
+  },
+  "d_default_dirt:Spawn": {
+    "offset": {
+      "x": 1,
+      "y": 1,
+    },
+    "path": "doodads/generic/marker_spawn.xml",
+  },
+  "d_default_dirt:TDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_d/d_x_t_dn.xml",
+  },
+  "d_default_dirt:TLeft": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_d/d_x_t_l.xml",
+  },
+  "d_default_dirt:TRight": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_d/d_x_t_r.xml",
+  },
+  "d_default_dirt:TUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_d/d_x_t_up.xml",
+  },
+  "d_default_dirt:Torch": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch.xml",
+  },
+  "d_default_dirt:TorchOff": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch_off.xml",
+  },
+  "d_default_dirt:VCapDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_d/d_v_cap_dn.xml",
+  },
+  "d_default_dirt:VCapUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_d/d_v_cap_up.xml",
+  },
+  "d_default_dirt:VendorCombo": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_combo.xml",
+  },
+  "d_default_dirt:VendorDefense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_defense.xml",
+  },
+  "d_default_dirt:VendorMisc": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_misc.xml",
+  },
+  "d_default_dirt:VendorOffense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_offense.xml",
+  },
+  "d_default_dirt:Vertical": {
     "offset": {
       "x": 0,
       "y": 1,
@@ -1892,6 +3215,384 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_e/e_v_8.xml",
   },
+  "e_default_dark:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
+  },
+  "e_default_dark:CornerLD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_e/e_crn_l_dn.xml",
+  },
+  "e_default_dark:CornerLU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_e/e_crn_l_up.xml",
+  },
+  "e_default_dark:CornerRD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_e/e_crn_r_dn.xml",
+  },
+  "e_default_dark:CornerRU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_e/e_crn_r_up.xml",
+  },
+  "e_default_dark:Cover": {
+    "offset": {
+      "x": 0.5,
+      "y": 0.5,
+    },
+    "path": "doodads/special/color_theme_e_16.xml",
+  },
+  "e_default_dark:CrossWall": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_e/e_x_x.xml",
+  },
+  "e_default_dark:ExitDn": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_e/e_exit_h_dn.xml",
+  },
+  "e_default_dark:ExitMarker": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/marker_exit.xml",
+  },
+  "e_default_dark:ExitUp": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_e/e_exit_h_up.xml",
+  },
+  "e_default_dark:HCapLeft": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_e/e_h_cap_l.xml",
+  },
+  "e_default_dark:HCapRight": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_e/e_h_cap_r.xml",
+  },
+  "e_default_dark:Horizontal": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_e/e_h_8.xml",
+  },
+  "e_default_dark:Spawn": {
+    "offset": {
+      "x": 1,
+      "y": 1,
+    },
+    "path": "doodads/generic/marker_spawn.xml",
+  },
+  "e_default_dark:TDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_e/e_x_t_dn.xml",
+  },
+  "e_default_dark:TLeft": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_e/e_x_t_l.xml",
+  },
+  "e_default_dark:TRight": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_e/e_x_t_r.xml",
+  },
+  "e_default_dark:TUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_e/e_x_t_up.xml",
+  },
+  "e_default_dark:Torch": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch.xml",
+  },
+  "e_default_dark:TorchOff": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch_off.xml",
+  },
+  "e_default_dark:VCapDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_e/e_v_cap_dn.xml",
+  },
+  "e_default_dark:VCapUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_e/e_v_cap_up.xml",
+  },
+  "e_default_dark:VendorCombo": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_combo.xml",
+  },
+  "e_default_dark:VendorDefense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_defense.xml",
+  },
+  "e_default_dark:VendorMisc": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_misc.xml",
+  },
+  "e_default_dark:VendorOffense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_offense.xml",
+  },
+  "e_default_dark:Vertical": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_e/e_v_8.xml",
+  },
+  "e_fine:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
+  },
+  "e_fine:CornerLD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_e/e_crn_l_dn.xml",
+  },
+  "e_fine:CornerLU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_e/e_crn_l_up.xml",
+  },
+  "e_fine:CornerRD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_e/e_crn_r_dn.xml",
+  },
+  "e_fine:CornerRU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_e/e_crn_r_up.xml",
+  },
+  "e_fine:Cover": {
+    "offset": {
+      "x": 0.5,
+      "y": 0.5,
+    },
+    "path": "doodads/special/color_theme_e_16.xml",
+  },
+  "e_fine:CrossWall": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_e/e_x_x.xml",
+  },
+  "e_fine:ExitDn": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_e/e_exit_h_dn.xml",
+  },
+  "e_fine:ExitMarker": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/marker_exit.xml",
+  },
+  "e_fine:ExitUp": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_e/e_exit_h_up.xml",
+  },
+  "e_fine:HCapLeft": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_e/e_h_cap_l.xml",
+  },
+  "e_fine:HCapRight": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_e/e_h_cap_r.xml",
+  },
+  "e_fine:Horizontal": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_e/e_h_8.xml",
+  },
+  "e_fine:Spawn": {
+    "offset": {
+      "x": 1,
+      "y": 1,
+    },
+    "path": "doodads/generic/marker_spawn.xml",
+  },
+  "e_fine:TDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_e/e_x_t_dn.xml",
+  },
+  "e_fine:TLeft": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_e/e_x_t_l.xml",
+  },
+  "e_fine:TRight": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_e/e_x_t_r.xml",
+  },
+  "e_fine:TUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_e/e_x_t_up.xml",
+  },
+  "e_fine:Torch": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch.xml",
+  },
+  "e_fine:TorchOff": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch_off.xml",
+  },
+  "e_fine:VCapDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_e/e_v_cap_dn.xml",
+  },
+  "e_fine:VCapUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_e/e_v_cap_up.xml",
+  },
+  "e_fine:VendorCombo": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_combo.xml",
+  },
+  "e_fine:VendorDefense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_defense.xml",
+  },
+  "e_fine:VendorMisc": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_misc.xml",
+  },
+  "e_fine:VendorOffense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_offense.xml",
+  },
+  "e_fine:Vertical": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_e/e_v_8.xml",
+  },
   "f:BossPortal": {
     "offset": {
       "x": 0,
@@ -2081,6 +3782,384 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_f/f_v_8.xml",
   },
+  "f_fine:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
+  },
+  "f_fine:CornerLD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_f/f_crn_l_dn.xml",
+  },
+  "f_fine:CornerLU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_f/f_crn_l_up.xml",
+  },
+  "f_fine:CornerRD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_f/f_crn_r_dn.xml",
+  },
+  "f_fine:CornerRU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_f/f_crn_r_up.xml",
+  },
+  "f_fine:Cover": {
+    "offset": {
+      "x": 0.5,
+      "y": 0.5,
+    },
+    "path": "doodads/special/color_theme_f_16.xml",
+  },
+  "f_fine:CrossWall": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_f/f_x_x.xml",
+  },
+  "f_fine:ExitDn": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_f/f_exit_h_dn.xml",
+  },
+  "f_fine:ExitMarker": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/marker_exit.xml",
+  },
+  "f_fine:ExitUp": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_f/f_exit_h_up.xml",
+  },
+  "f_fine:HCapLeft": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_f/f_h_cap_l.xml",
+  },
+  "f_fine:HCapRight": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_f/f_h_cap_r.xml",
+  },
+  "f_fine:Horizontal": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_f/f_h_8.xml",
+  },
+  "f_fine:Spawn": {
+    "offset": {
+      "x": 1,
+      "y": 1,
+    },
+    "path": "doodads/generic/marker_spawn.xml",
+  },
+  "f_fine:TDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_f/f_x_t_dn.xml",
+  },
+  "f_fine:TLeft": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_f/f_x_t_l.xml",
+  },
+  "f_fine:TRight": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_f/f_x_t_r.xml",
+  },
+  "f_fine:TUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_f/f_x_t_up.xml",
+  },
+  "f_fine:Torch": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch.xml",
+  },
+  "f_fine:TorchOff": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch_off.xml",
+  },
+  "f_fine:VCapDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_f/f_v_cap_dn.xml",
+  },
+  "f_fine:VCapUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_f/f_v_cap_up.xml",
+  },
+  "f_fine:VendorCombo": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_combo.xml",
+  },
+  "f_fine:VendorDefense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_defense.xml",
+  },
+  "f_fine:VendorMisc": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_misc.xml",
+  },
+  "f_fine:VendorOffense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_offense.xml",
+  },
+  "f_fine:Vertical": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_f/f_v_8.xml",
+  },
+  "f_frozen:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
+  },
+  "f_frozen:CornerLD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_f/f_crn_l_dn.xml",
+  },
+  "f_frozen:CornerLU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_f/f_crn_l_up.xml",
+  },
+  "f_frozen:CornerRD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_f/f_crn_r_dn.xml",
+  },
+  "f_frozen:CornerRU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_f/f_crn_r_up.xml",
+  },
+  "f_frozen:Cover": {
+    "offset": {
+      "x": 0.5,
+      "y": 0.5,
+    },
+    "path": "doodads/special/color_theme_f_16.xml",
+  },
+  "f_frozen:CrossWall": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_f/f_x_x.xml",
+  },
+  "f_frozen:ExitDn": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_f/f_exit_h_dn.xml",
+  },
+  "f_frozen:ExitMarker": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/marker_exit.xml",
+  },
+  "f_frozen:ExitUp": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_f/f_exit_h_up.xml",
+  },
+  "f_frozen:HCapLeft": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_f/f_h_cap_l.xml",
+  },
+  "f_frozen:HCapRight": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_f/f_h_cap_r.xml",
+  },
+  "f_frozen:Horizontal": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_f/f_h_8.xml",
+  },
+  "f_frozen:Spawn": {
+    "offset": {
+      "x": 1,
+      "y": 1,
+    },
+    "path": "doodads/generic/marker_spawn.xml",
+  },
+  "f_frozen:TDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_f/f_x_t_dn.xml",
+  },
+  "f_frozen:TLeft": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_f/f_x_t_l.xml",
+  },
+  "f_frozen:TRight": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_f/f_x_t_r.xml",
+  },
+  "f_frozen:TUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_f/f_x_t_up.xml",
+  },
+  "f_frozen:Torch": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch.xml",
+  },
+  "f_frozen:TorchOff": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch_off.xml",
+  },
+  "f_frozen:VCapDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_f/f_v_cap_dn.xml",
+  },
+  "f_frozen:VCapUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_f/f_v_cap_up.xml",
+  },
+  "f_frozen:VendorCombo": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_combo.xml",
+  },
+  "f_frozen:VendorDefense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_defense.xml",
+  },
+  "f_frozen:VendorMisc": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_misc.xml",
+  },
+  "f_frozen:VendorOffense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_offense.xml",
+  },
+  "f_frozen:Vertical": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_f/f_v_8.xml",
+  },
   "g:BossPortal": {
     "offset": {
       "x": 0,
@@ -2264,6 +4343,384 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     "path": "doodads/special/vendor_offense.xml",
   },
   "g:Vertical": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_g/g_v_8.xml",
+  },
+  "g_fine:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
+  },
+  "g_fine:CornerLD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_g/g_crn_l_dn.xml",
+  },
+  "g_fine:CornerLU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_g/g_crn_l_up.xml",
+  },
+  "g_fine:CornerRD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_g/g_crn_r_dn.xml",
+  },
+  "g_fine:CornerRU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_g/g_crn_r_up.xml",
+  },
+  "g_fine:Cover": {
+    "offset": {
+      "x": 0.5,
+      "y": 0.5,
+    },
+    "path": "doodads/special/color_theme_g_16.xml",
+  },
+  "g_fine:CrossWall": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_g/g_x_x.xml",
+  },
+  "g_fine:ExitDn": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_g/g_exit_h_dn.xml",
+  },
+  "g_fine:ExitMarker": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/marker_exit.xml",
+  },
+  "g_fine:ExitUp": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_g/g_exit_h_up.xml",
+  },
+  "g_fine:HCapLeft": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_g/g_h_cap_l.xml",
+  },
+  "g_fine:HCapRight": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_g/g_h_cap_r.xml",
+  },
+  "g_fine:Horizontal": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_g/g_h_8.xml",
+  },
+  "g_fine:Spawn": {
+    "offset": {
+      "x": 1,
+      "y": 1,
+    },
+    "path": "doodads/generic/marker_spawn.xml",
+  },
+  "g_fine:TDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_g/g_x_t_dn.xml",
+  },
+  "g_fine:TLeft": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_g/g_x_t_l.xml",
+  },
+  "g_fine:TRight": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_g/g_x_t_r.xml",
+  },
+  "g_fine:TUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_g/g_x_t_up.xml",
+  },
+  "g_fine:Torch": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch.xml",
+  },
+  "g_fine:TorchOff": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch_off.xml",
+  },
+  "g_fine:VCapDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_g/g_v_cap_dn.xml",
+  },
+  "g_fine:VCapUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_g/g_v_cap_up.xml",
+  },
+  "g_fine:VendorCombo": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_combo.xml",
+  },
+  "g_fine:VendorDefense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_defense.xml",
+  },
+  "g_fine:VendorMisc": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_misc.xml",
+  },
+  "g_fine:VendorOffense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_offense.xml",
+  },
+  "g_fine:Vertical": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_g/g_v_8.xml",
+  },
+  "g_path_dense:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
+  },
+  "g_path_dense:CornerLD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_g/g_crn_l_dn.xml",
+  },
+  "g_path_dense:CornerLU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_g/g_crn_l_up.xml",
+  },
+  "g_path_dense:CornerRD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_g/g_crn_r_dn.xml",
+  },
+  "g_path_dense:CornerRU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_g/g_crn_r_up.xml",
+  },
+  "g_path_dense:Cover": {
+    "offset": {
+      "x": 0.5,
+      "y": 0.5,
+    },
+    "path": "doodads/special/color_theme_g_16.xml",
+  },
+  "g_path_dense:CrossWall": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_g/g_x_x.xml",
+  },
+  "g_path_dense:ExitDn": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_g/g_exit_h_dn.xml",
+  },
+  "g_path_dense:ExitMarker": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/marker_exit.xml",
+  },
+  "g_path_dense:ExitUp": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_g/g_exit_h_up.xml",
+  },
+  "g_path_dense:HCapLeft": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_g/g_h_cap_l.xml",
+  },
+  "g_path_dense:HCapRight": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_g/g_h_cap_r.xml",
+  },
+  "g_path_dense:Horizontal": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_g/g_h_8.xml",
+  },
+  "g_path_dense:Spawn": {
+    "offset": {
+      "x": 1,
+      "y": 1,
+    },
+    "path": "doodads/generic/marker_spawn.xml",
+  },
+  "g_path_dense:TDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_g/g_x_t_dn.xml",
+  },
+  "g_path_dense:TLeft": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_g/g_x_t_l.xml",
+  },
+  "g_path_dense:TRight": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_g/g_x_t_r.xml",
+  },
+  "g_path_dense:TUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_g/g_x_t_up.xml",
+  },
+  "g_path_dense:Torch": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch.xml",
+  },
+  "g_path_dense:TorchOff": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch_off.xml",
+  },
+  "g_path_dense:VCapDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_g/g_v_cap_dn.xml",
+  },
+  "g_path_dense:VCapUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_g/g_v_cap_up.xml",
+  },
+  "g_path_dense:VendorCombo": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_combo.xml",
+  },
+  "g_path_dense:VendorDefense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_defense.xml",
+  },
+  "g_path_dense:VendorMisc": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_misc.xml",
+  },
+  "g_path_dense:VendorOffense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_offense.xml",
+  },
+  "g_path_dense:Vertical": {
     "offset": {
       "x": 0,
       "y": 1,
@@ -2642,6 +5099,195 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     "path": "doodads/special/vendor_offense.xml",
   },
   "i:Vertical": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_i/i_v_8.xml",
+  },
+  "i_symbols:BossPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport_boss.xml",
+  },
+  "i_symbols:CornerLD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_i/i_crn_l_dn.xml",
+  },
+  "i_symbols:CornerLU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_i/i_crn_l_up.xml",
+  },
+  "i_symbols:CornerRD": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_i/i_crn_r_dn.xml",
+  },
+  "i_symbols:CornerRU": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_i/i_crn_r_up.xml",
+  },
+  "i_symbols:Cover": {
+    "offset": {
+      "x": 0.5,
+      "y": 0.5,
+    },
+    "path": "doodads/special/color_theme_i_16.xml",
+  },
+  "i_symbols:CrossWall": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_i/i_x_x.xml",
+  },
+  "i_symbols:ExitDn": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_i/i_exit_h_dn.xml",
+  },
+  "i_symbols:ExitMarker": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/marker_exit.xml",
+  },
+  "i_symbols:ExitUp": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/theme_i/i_exit_h_up.xml",
+  },
+  "i_symbols:HCapLeft": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_i/i_h_cap_l.xml",
+  },
+  "i_symbols:HCapRight": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_i/i_h_cap_r.xml",
+  },
+  "i_symbols:Horizontal": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_i/i_h_8.xml",
+  },
+  "i_symbols:Spawn": {
+    "offset": {
+      "x": 1,
+      "y": 1,
+    },
+    "path": "doodads/generic/marker_spawn.xml",
+  },
+  "i_symbols:TDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_i/i_x_t_dn.xml",
+  },
+  "i_symbols:TLeft": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_i/i_x_t_l.xml",
+  },
+  "i_symbols:TRight": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_i/i_x_t_r.xml",
+  },
+  "i_symbols:TUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_i/i_x_t_up.xml",
+  },
+  "i_symbols:Torch": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch.xml",
+  },
+  "i_symbols:TorchOff": {
+    "offset": {
+      "x": 0.5,
+      "y": 1,
+    },
+    "path": "doodads/generic/lamp_torch_off.xml",
+  },
+  "i_symbols:VCapDown": {
+    "offset": {
+      "x": 0,
+      "y": 2,
+    },
+    "path": "doodads/theme_i/i_v_cap_dn.xml",
+  },
+  "i_symbols:VCapUp": {
+    "offset": {
+      "x": 0,
+      "y": 1,
+    },
+    "path": "doodads/theme_i/i_v_cap_up.xml",
+  },
+  "i_symbols:VendorCombo": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_combo.xml",
+  },
+  "i_symbols:VendorDefense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_defense.xml",
+  },
+  "i_symbols:VendorMisc": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_misc.xml",
+  },
+  "i_symbols:VendorOffense": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/special/vendor_offense.xml",
+  },
+  "i_symbols:Vertical": {
     "offset": {
       "x": 0,
       "y": 1,

@@ -89,17 +89,146 @@ describe('doodad resolution matrix — regression guard for the Pillar addition'
     expect(matrix).toMatchSnapshot()
   })
 
+  // keyed off doodadToken, not id: an overlay theme (`c_tiles`) has its own id
+  // but borrows theme c's whole doodad folder, which is the point of the pairing
   it('resolves Pillar for every theme to a path that exists in the confirmed set', () => {
     for (const def of THEME_DEFS) {
       const path = doodadPath('Pillar', def.id)
-      if (def.id === 'h') {
+      const t = def.doodadToken
+      if (t === 'h') {
         expect(path).toBe('doodads/theme_h/h_deco_rock.xml')
-      } else if (def.id.startsWith('bonus')) {
-        expect(path).toBe(`doodads/theme_${def.id}/${def.id}_pillar.xml`)
+      } else if (t.startsWith('bonus')) {
+        expect(path).toBe(`doodads/theme_${t}/${t}_pillar.xml`)
       } else {
-        expect(path).toBe(`doodads/theme_${def.id}/${def.id}_special_pillar.xml`)
+        expect(path).toBe(`doodads/theme_${t}/${t}_special_pillar.xml`)
       }
     }
+  })
+})
+
+describe('overlay themes — an alternate tileset layered over a base theme', () => {
+  const overlays = THEME_DEFS.filter((t) => t.overlay !== undefined)
+
+  it('pairs every overlay with a real base theme it shares everything but art with', () => {
+    expect(overlays.length).toBeGreaterThan(0)
+    for (const def of overlays) {
+      const base = getTheme(def.doodadToken)
+      expect(base, `no base theme for ${def.id}`).toBeDefined()
+      expect(base!.overlay).toBeUndefined()
+      // same floor underneath, same grouping, same wall art
+      expect(def.tilemap).toBe(base!.tilemap)
+      expect(def.tiles).toBe(base!.tiles)
+      expect(def.group).toBe(base!.group)
+      expect(def.overlay!.tilemap).toMatch(/^tilemaps\/.+\.xml$/)
+      expect(def.overlay!.tiles).toBeGreaterThanOrEqual(1)
+      // the id is the overlay tileset's own filename, and carries no comma —
+      // `themes=` in parameters.txt is comma-separated
+      expect(def.overlay!.tilemap).toBe(`tilemaps/${def.id}.xml`)
+      expect(def.id).not.toContain(',')
+    }
+  })
+
+  // The whole promise of the pairing: `c - tiles` must build exactly the level
+  // `c` does and only paint extra floor art over it. Anything resolving
+  // differently means a wall, stair or collider moved.
+  it('resolves every doodad identically to its base theme', () => {
+    for (const def of overlays) {
+      for (const type of Object.keys(DoodadType) as DoodadTypeName[]) {
+        expect(doodadPath(type, def.id), `${def.id}:${type}`).toBe(doodadPath(type, def.doodadToken))
+        expect(doodadOffset(type, def.id), `${def.id}:${type}`).toEqual(
+          doodadOffset(type, def.doodadToken)
+        )
+      }
+    }
+  })
+
+  it('emits the base tileset and the overlay as two datasets in every block', () => {
+    const level0 = generateWithTheme('c_tiles', 4242, 1).files.find(
+      (f) => f.path === 'levels/level0.xml'
+    )!.content
+    const sets = level0.match(/<string name="tileset">([^<]*)<\/string>/g) ?? []
+    expect(sets.length).toBeGreaterThan(0)
+    expect(sets.length % 2).toBe(0)
+    // base first, overlay second, in every single block
+    for (let i = 0; i < sets.length; i += 2) {
+      expect(sets[i]).toContain('tilemaps/c_default.xml')
+      expect(sets[i + 1]).toContain('tilemaps/c_tiles.xml')
+    }
+  })
+
+  // Mandatory: the base layer sits on the void and can afford a flat 255, but a
+  // layer above one must be transparent wherever the floor stops, or it paints
+  // its art out over the emptiness beyond the map.
+  it('masks the overlay to exactly the base layer’s floor tiles', () => {
+    const level0 = generateWithTheme('d_carpet', 4242, 1).files.find(
+      (f) => f.path === 'levels/level0.xml'
+    )!.content
+    const nums = (row: string) =>
+      row
+        .replace(/<[^>]+>/g, '')
+        .split(/[\s,]+/)
+        .filter((v) => v.length > 0)
+        .map(Number)
+
+    const dataT = (level0.match(/<int-arr name="data-t">[^<]*<\/int-arr>/g) ?? []).map(nums)
+    const dataA = (level0.match(/<int-arr name="data-a">[^<]*<\/int-arr>/g) ?? []).map(nums)
+    expect(dataT.length).toBeGreaterThan(0)
+    expect(dataT.length % 2).toBe(0)
+
+    const overlayDef = getTheme('d_carpet')!
+    let sawFloor = false
+    for (let block = 0; block < dataT.length; block += 2) {
+      const base = dataT[block]
+      const over = dataT[block + 1]
+      const overAlpha = dataA[block + 1]
+      for (let i = 0; i < base.length; i++) {
+        if (base[i] === 0) {
+          expect(over[i]).toBe(0)
+          expect(overAlpha[i]).toBe(0)
+        } else {
+          sawFloor = true
+          expect(over[i]).toBeGreaterThanOrEqual(1)
+          expect(over[i]).toBeLessThanOrEqual(overlayDef.overlay!.tiles)
+          expect(overAlpha[i]).toBe(255)
+        }
+      }
+    }
+    expect(sawFloor).toBe(true)
+  })
+
+  it('stacks water, theme and overlay in the boss arena', () => {
+    const params = defaultParameters()
+    params.boss.enabled = true
+    params.boss.arena.theme = 'f_frozen'
+    const result = generateDungeon(params, 4242)
+    expect(result.ok).toBe(true)
+    const boss = (result as DungeonResult).files.find((f) => f.path === 'levels/boss.xml')!.content
+    const sets = boss.match(/<string name="tileset">([^<]*)<\/string>/g) ?? []
+    expect(sets.length).toBeGreaterThan(0)
+    expect(sets.length % 3).toBe(0)
+    for (let i = 0; i < sets.length; i += 3) {
+      expect(sets[i]).toContain('tilemaps/water.xml')
+      expect(sets[i + 1]).toContain('tilemaps/f_default.xml')
+      expect(sets[i + 2]).toContain('tilemaps/f_frozen.xml')
+    }
+  })
+
+  // Invariant 2. A plain theme must draw the exact random numbers it drew
+  // before overlays existed, so every seed from an earlier build still
+  // produces byte-identical output — which is only true because
+  // overlayDataset returns before touching the stream when there is no overlay.
+  it('draws no RNG for a theme without an overlay', () => {
+    const plain = generateWithTheme('c', 31337, 3)
+    const again = generateWithTheme('c', 31337, 3)
+    expect(plain.files.map((f) => f.content)).toEqual(again.files.map((f) => f.content))
+    // and the paired theme really does differ — otherwise the test above is vacuous
+    const paired = generateWithTheme('c_tiles', 31337, 3)
+    const plain0 = plain.files.find((f) => f.path === 'levels/level0.xml')!.content
+    const paired0 = paired.files.find((f) => f.path === 'levels/level0.xml')!.content
+    expect(paired0).not.toBe(plain0)
+    // ...only by the added dataset: the doodads section is untouched
+    const doodads = (xml: string) => xml.slice(xml.indexOf('<dictionary name="doodads">'))
+    expect(doodads(paired0)).toBe(doodads(plain0))
   })
 })
 
@@ -217,6 +346,11 @@ describe('generating with a bonus theme', () => {
     }
   })
 
+  // An index above the tileset's sprite count is a load-time error in game, so
+  // this is checked per *dataset*: a paired theme emits the base's data-t and
+  // the overlay's, and the two have different variant counts (c_default has 4,
+  // c_tiles_dirt has 8). Comparing the whole file against one number would both
+  // miss an over-range overlay and false-alarm on a legitimate one.
   it('never emits a floor index above the tileset variant count', () => {
     for (const def of THEME_DEFS) {
       const level0 = generateWithTheme(def.id, 99, 1).files.find(
@@ -224,16 +358,21 @@ describe('generating with a bonus theme', () => {
       )!.content
       const rows = level0.match(/<int-arr name="data-t">([^<]*)<\/int-arr>/g) ?? []
       expect(rows.length).toBeGreaterThan(0)
-      const max = Math.max(
-        ...rows.flatMap((row) =>
-          row
+      // datasets alternate base, overlay, base, overlay... when there is one
+      const limits = def.overlay === undefined ? [def.tiles] : [def.tiles, def.overlay.tiles]
+      expect(rows.length % limits.length).toBe(0)
+      rows.forEach((row, i) => {
+        const max = Math.max(
+          ...row
             .replace(/<[^>]+>/g, '')
             .split(/[\s,]+/)
             .filter((v) => v.length > 0)
             .map(Number)
         )
-      )
-      expect(max).toBeLessThanOrEqual(def.tiles)
+        expect(max, `${def.id} dataset ${i % limits.length}`).toBeLessThanOrEqual(
+          limits[i % limits.length]
+        )
+      })
     }
   })
 })

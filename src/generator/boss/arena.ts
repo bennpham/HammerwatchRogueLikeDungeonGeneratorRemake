@@ -45,6 +45,7 @@ import { NodeDestroyObject, NodeGlobalEventTrigger, NodeLevelStart, NodeRectangl
 import { getTheme, THEME_DEFS } from '../config/themes'
 import type { ThemeDef } from '../config/themes'
 import { XMLArray, XMLDictionary, XMLInt, XMLIntArray, XMLString } from '../xml'
+import { dataAFromDataT, overlayDataset } from '../map/tilemapOverlay'
 import type { GenerationContext } from '../core/context'
 import type { BossOptions } from '../config/parameters'
 import type { LevelPreview, PreviewRoom } from '../index'
@@ -419,16 +420,6 @@ function defaultIntArray(name: string): XMLIntArray {
 }
 
 /**
- * Shipped convention (Cover/wall doodads paint the rest, but the raw tile
- * layer itself should read as absent where there's no tile): `data-a` is 0
- * wherever `data-t` is the wall/void sentinel 0, 255 wherever a real floor
- * variant is drawn.
- */
-function dataAFromDataT(dataT: readonly number[]): XMLIntArray {
-  return new XMLIntArray('data-a', dataT.map((t) => (t === 0 ? 0 : 255)))
-}
-
-/**
  * `tilemaps/water.xml` — a single animated `data-t` value 1 — is the lowest
  * tileset level in the game (level 1; the next lowest classic tileset is 10).
  * Stacked as a second dataset under every theme dataset, it is the base
@@ -500,6 +491,12 @@ function getArenaXML(
       const dataSets = new XMLArray('datasets')
       dataSets.addData(waterDataset())
       dataSets.addData(tileSet)
+
+      // A paired arena theme (`c - tiles`) adds its alternate tileset on top,
+      // making the stack water -> theme -> overlay. Drawn from ctx.bossRand like
+      // everything else in this file; a plain theme draws nothing and gets null.
+      const overlay = overlayDataset(themeDef, dataT, ctx.bossRand)
+      if (overlay !== null) dataSets.addData(overlay)
 
       const tileBlock = new XMLDictionary('')
       // Always a multiple of TILEMAP_SIZE. Every authored and shipped level in
