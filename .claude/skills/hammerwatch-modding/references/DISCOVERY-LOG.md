@@ -8,6 +8,84 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-16 — tower and spawner corpses: which wrecks you can walk over
+**Tag:** [VERIFIED] for the XML facts (read directly from a stock install's
+`editor/assetsExtract/actors/**`); [VERIFIED] in gameplay for `tower_flower_*`
+(walkable) and `tower_nova_*` (blocked) only — the user has walked those two.
+Every other row of the table below is `[UNVERIFIED]` in gameplay until played.
+**Context:** Issue #20. Towers and spawners are the only roster actors that
+leave a *permanent* doodad on the floor, so they are the only ones that can
+seal an arena after the fight. Nothing in the port recorded which ones do.
+**Evidence:** A live actor's `<entry name="corpse">` names a `*_razed.xml`; the
+razed file's `<collision>` block is what stays on the floor forever. All 30
+towers/spawners are solid *while alive* — passability is purely post-death.
+
+- passable: `tower_banner_1/2/3`, `tower_battlement_archer_1`,
+  `tower_battlement_archer_3`, `tower_battlement_empty`, `tower_flower_1`,
+  `tower_flower_1_small`, `tower_flower_2`, `tower_flower_3`,
+  `spawners/archer_1`, `spawners/archer_2`, `spawners/doomspawn_1`,
+  `spawners/eye_1`, `spawners/mummy_1`, `spawners/mummy_ranged_1`,
+  `spawners/skeleton_1`, `spawners/skeleton_2`, `spawners/tick_1`,
+  `spawners/bonus/skeleton_1`, `slime_1_host`
+- blocking: `tower_nova_1` (circle r=8), `tower_nova_2` (r=8),
+  `tower_static_frost` (r=10), `tower_tracking_1/2/3` (r=8),
+  `spawners/bats` (r=8), `spawners/maggot_1` (7-point polygon),
+  `spawners/wisp_1` (r=14)
+
+Three different mechanisms produce "passable", so no filename or grep rule
+separates them — the table has to be written out by hand:
+1. The razed file has no `<collision>` at all (most entries).
+2. The razed file's `<collision>` block is **commented out** —
+   `tower_flower_1_razed.xml:8-10`, `spawners/archer_1_razed.xml:7-15`,
+   `spawners/archer_2_razed.xml:7-15`. Grepping for the tag finds these and
+   gets the answer exactly backwards.
+3. The live actor's `corpse` entry is itself commented out —
+   `spawners/doomspawn_1.xml:18`. `doomspawn_1_razed.xml` exists and carries a
+   radius-18 circle, but nothing loads it, so a dead doomspawn spawner leaves
+   nothing at all.
+
+Two actors reuse another's razed file, so the corpse cannot be found by
+transforming the live path either: `tower_nova_2.xml` -> `tower_nova_1_razed.xml`
+and `tower_battlement_archer_1.xml` -> `tower_battlement_archer_3_razed.xml`.
+**Impact:** New `src/generator/objects/actorCollision.ts` holds the table,
+keyed by the live actor path (what appears in `MonsterTypeDef.tiers`), with
+`tests/actorCollision.test.ts` re-transcribing it independently and asserting
+that every tower/spawner in the roster is covered. The boss-wave picker badges
+each option `passable`/`blocks` and offers a "Passable only" filter. Nothing
+*uses* the data for placement yet — that is the follow-up dead-end-prevention
+feature. Note this refines, and does not contradict, the existing
+`tower_empty` entries below: its **live** collision is a full 32x32 blocking
+polygon, but its **corpse** is walkable.
+
+
+### 2026-08-16 — the boss arena could only ever spawn one tier per monster
+**Tag:** [VERIFIED] (read from the port's own source and its emitted `boss.xml`)
+**Context:** Issue #20 reported "all spawners are missing" from the boss arena.
+**Evidence:** `boss/waves.ts` resolved a pool id with
+`type.tiers[Math.min(1, type.tiers.length - 1)]` — always index 1, no RNG draw,
+clamped down only for single-tier types. The dungeon by contrast rolls tiers
+upward with `upgradeChance` (`Monster.createRolled`) and places `tiers[0]`
+spawner props separately (`room.ts`). So the arena excluded tier 0 (all 13
+spawners) **and** every tier >= 2: roughly 20 actors including
+`archer_1_elite`, `bat_3`, `eye_1`, `lich_2`, `lich_3`, `maggot_1`,
+`maggot_1_elite`, `mummy_1_small`, `mummy_1_elite`, `mummy_ranged_2`,
+`skeleton_1`, `skeleton_1_elite`, `skeleton_2`, `skeleton_2_elite`,
+`slime_1_host`, `tick_1`, `tick_1_elite`, `tick_2_small`, `wisp_1`.
+**Impact:** A wave pool entry is now a *variant key*, not a bare monster id:
+`bat1` is still `tiers[1]`, `bat1#0` is the spawner, `archer1#2` the elite
+(`monsterTypes.ts`: `parseMonsterKey` / `resolveActorPath` / `variantKey`).
+A bare id keeps its old meaning, so every saved `parameters.txt`, every preset
+and every seed's arena is byte-identical — the whole existing suite passes
+unchanged, which is the regression gate for this change. Exactly one canonical
+key exists per actor path (`bat1#1` is rejected as a non-canonical spelling of
+`bat1`), so one actor can never hold two pool slots with two different max
+counts. `#` is safe in the `bossWave%d=` grammar, which already uses `|`, `,`
+and `:`. Spawner variants are grouped under a synthetic **Spawners** group in
+the wave picker rather than inside the group of the monster they emit — that
+also moves `mb_doomspawn` (whose only tier IS a spawner) out of **Bosses** in
+that picker; the dungeon pool editor is untouched.
+
+
 ### 2026-08-16 — a `SpawnObject` 2 tiles from the north wall makes projectile monsters harmless
 **Tag:** [VERIFIED] (hand-patched `boss.xml` reloaded in Hammerwatch; the user's
 `boss_fix_tower.xml` in `editor/dungeon2088907814/levels/` is the fixed file)

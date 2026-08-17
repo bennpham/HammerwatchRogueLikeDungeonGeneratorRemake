@@ -41,10 +41,29 @@ export {
   MONSTER_CATEGORIES,
   MONSTER_GROUPS,
   MONSTER_TYPES,
+  MONSTER_VARIANT_GROUPS,
+  defaultTier,
+  isKnownMonsterKey,
   monsterCategories,
-  monsterTypesInGroup
+  monsterTypeById,
+  monsterTypesInGroup,
+  monsterVariants,
+  monsterVariantsInGroup,
+  parseMonsterKey,
+  resolveActorPath,
+  variantGroup,
+  variantKey
 } from './objects/monsterTypes'
-export type { MonsterAct, MonsterCategory, MonsterGroup, MonsterTypeDef } from './objects/monsterTypes'
+export type {
+  MonsterAct,
+  MonsterCategory,
+  MonsterGroup,
+  MonsterTypeDef,
+  MonsterVariant,
+  MonsterVariantGroup
+} from './objects/monsterTypes'
+export { corpseCollision, corpseCollisionPaths } from './objects/actorCollision'
+export type { CorpseCollision } from './objects/actorCollision'
 export {
   EXTRA_LIFE_UPGRADES,
   SHOP_PRICE_MAX,

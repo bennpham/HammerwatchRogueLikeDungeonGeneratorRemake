@@ -5,6 +5,7 @@ import type { BossWave } from '../src/generator/config/parameters'
 import { anchors } from '../src/generator/boss/anchors'
 import { buildWaveRig } from '../src/generator/boss/waves'
 import { NodeRectangleShape } from '../src/generator/objects/nodes'
+import type { NodeSpawnObject, NodeTimerTrigger } from '../src/generator/objects/nodes'
 import type { ScriptNode } from '../src/generator/objects/scriptNode'
 
 function freshCtx(seed = 12345): GenerationContext {
@@ -287,5 +288,79 @@ describe('boss wave rig — uses the default boss options end to end', () => {
     expect(() => buildRig(ctx, waves)).not.toThrow()
     expect(nodesOfType(ctx, 'TimerTrigger').length).toBeGreaterThan(0)
     expect(nodesOfType(ctx, 'SpawnObject').length).toBeGreaterThan(0)
+  })
+})
+
+describe('boss wave rig — variant keys (issue #20)', () => {
+  const spawnPaths = (ctx: GenerationContext) =>
+    (nodesOfType(ctx, 'SpawnObject') as NodeSpawnObject[]).map((n) => n.actorPath)
+
+  it('a bare id still spawns the pre-variant actor', () => {
+    const ctx = freshCtx()
+    buildRig(ctx, [wave(['bat1'], { bat1: 9 })])
+    expect(new Set(spawnPaths(ctx))).toEqual(new Set(['actors/bat_1.xml']))
+  })
+
+  it('a single-tier id still spawns its only actor', () => {
+    const ctx = freshCtx()
+    buildRig(ctx, [wave(['skeleton3'], { skeleton3: 9 })])
+    expect(new Set(spawnPaths(ctx))).toEqual(new Set(['actors/skeleton_3.xml']))
+  })
+
+  it('#0 spawns the spawner prop the arena could not reach before', () => {
+    const ctx = freshCtx()
+    buildRig(ctx, [wave(['bat1#0'], { 'bat1#0': 9 })])
+    expect(new Set(spawnPaths(ctx))).toEqual(new Set(['actors/spawners/bats.xml']))
+  })
+
+  it('#2 spawns the elite the arena could not reach before', () => {
+    const ctx = freshCtx()
+    buildRig(ctx, [wave(['archer1#2'], { 'archer1#2': 9 })])
+    expect(new Set(spawnPaths(ctx))).toEqual(new Set(['actors/archer_1_elite.xml']))
+  })
+
+  it('mixes a spawner, an ordinary creature and an elite in one tier', () => {
+    const ctx = freshCtx()
+    buildRig(ctx, [wave(['skeleton1#0', 'skeleton1', 'skeleton1#3'], { 'skeleton1#0': 9, skeleton1: 9, 'skeleton1#3': 9 })])
+    const paths = spawnPaths(ctx)
+    // three keys x nine anchors, one SpawnObject each
+    expect(paths).toHaveLength(27)
+    // bare `skeleton1` is tiers[1], the SMALL skeleton — the full-size
+    // skeleton_1 is tiers[2] and needs its own key, which is exactly the gap
+    // issue #20 is about.
+    expect(new Set(paths)).toEqual(
+      new Set(['actors/spawners/skeleton_1.xml', 'actors/skeleton_1_small.xml', 'actors/skeleton_1_elite.xml'])
+    )
+  })
+
+  it('treats a variant key as its own pool slot, with its own max and interval', () => {
+    const ctx = freshCtx()
+    buildRig(ctx, [
+      wave(['bat1', 'bat1#0'], { bat1: 9, 'bat1#0': 3 }, 3000, { 'bat1#0': 5000 })
+    ])
+    const spawns = nodesOfType(ctx, 'SpawnObject') as NodeSpawnObject[]
+    const bats = spawns.filter((s) => s.actorPath === 'actors/bat_1.xml')
+    const spawners = spawns.filter((s) => s.actorPath === 'actors/spawners/bats.xml')
+    expect(bats).toHaveLength(9) // 9 across 9 anchors
+    expect(spawners).toHaveLength(3) // 3 across the first 3 anchors
+    // the differing interval forces a second TimerTrigger for the same tier
+    const timers = nodesOfType(ctx, 'TimerTrigger') as NodeTimerTrigger[]
+    expect(timers.map((t) => t.intervalMs).sort()).toEqual([3000, 5000])
+  })
+
+  it('never draws from any RNG stream, whatever variants a wave holds', () => {
+    // Variant resolution must stay a pure lookup: if it ever drew, every
+    // layout stream downstream of it would shift and every saved seed would
+    // change (invariant 2).
+    const nextTen = (c: GenerationContext) => ({
+      rand: Array.from({ length: 10 }, () => c.rand.iRand(0, 1000)),
+      cosmetic: Array.from({ length: 10 }, () => c.cosmeticRand.iRand(0, 1000)),
+      boss: Array.from({ length: 10 }, () => c.bossRand.iRand(0, 1000))
+    })
+
+    const ctx = freshCtx()
+    buildRig(ctx, [wave(['bat1#0', 'archer1#2', 'tower_nova1'], { 'bat1#0': 4, 'archer1#2': 4, tower_nova1: 4 })])
+
+    expect(nextTen(ctx)).toEqual(nextTen(freshCtx()))
   })
 })

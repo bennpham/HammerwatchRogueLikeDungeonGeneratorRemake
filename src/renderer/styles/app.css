@@ -287,6 +287,49 @@ select:focus {
   gap: 6px;
   font-size: 12px;
   color: var(--text);
+  /* a long variant key must be clipped inside its own column, never spill
+     over the neighbouring checkbox */
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* The boss-wave picker lists variant keys (`mummy_ranged#0`) with a passability
+   badge after them, so its rows are much wider than the dungeon pool editor's
+   bare ids — 150px columns make the badge overlap the next column. */
+.boss-wave .pool-checkboxes {
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+}
+
+/* Corpse passability, on the boss-wave variant picker only: what a tower or
+   spawner leaves on the floor after it dies. Green reads "safe to place". */
+.pool-badge {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid var(--ok);
+  color: var(--ok);
+  white-space: nowrap;
+}
+
+.pool-badge.blocks {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.pool-passable-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text);
+  margin-top: 6px;
+}
+
+.pool-passable-toggle .hint {
+  font-size: 11px;
+  color: var(--text-dim);
 }
 
 .pool-raw {

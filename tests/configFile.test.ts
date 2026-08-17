@@ -256,3 +256,30 @@ describe('parameters.txt parsing', () => {
     expect(parsed.params.playerTweaks).toEqual(defaultParameters().playerTweaks)
   })
 })
+
+describe('parameters.txt — boss wave variant keys (issue #20)', () => {
+  it('round-trips variant keys through the wave encoding', () => {
+    // `#` has to survive the |, `,` and `:` separators of the wave grammar.
+    const original = defaultParameters()
+    original.boss.arena.waves[0].monsters = ['bat1', 'bat1#0', 'archer1#2']
+    original.boss.arena.waves[0].monsterMax = { bat1: 10, 'bat1#0': 3, 'archer1#2': 5 }
+    original.boss.arena.waves[0].defaultIntervalMs = 4000
+    original.boss.arena.waves[0].intervalMs = { 'bat1#0': 5000 }
+
+    const text = serializeParametersTxt(original)
+    expect(text).toContain('bossWave1=bat1,bat1#0,archer1#2|4000|bat1:10,bat1#0:3,archer1#2:5|bat1#0:5000')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.params.boss.arena.waves[0]).toEqual(original.boss.arena.waves[0])
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('re-serializes a parsed variant wave byte-identically', () => {
+    const original = defaultParameters()
+    original.boss.arena.waves[2].monsters = ['skeleton1#0', 'lich#3']
+    original.boss.arena.waves[2].monsterMax = { 'skeleton1#0': -1, 'lich#3': 2 }
+
+    const text = serializeParametersTxt(original)
+    expect(serializeParametersTxt(parseParametersTxt(text).params)).toBe(text)
+  })
+})

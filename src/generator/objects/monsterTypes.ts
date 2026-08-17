@@ -4,6 +4,9 @@
  * the plain-text id used in parameters.txt monster pools, the parameters.txt
  * key for its max count, and the default max count.
  */
+import { corpseCollision } from './actorCollision'
+import type { CorpseCollision } from './actorCollision'
+
 /**
  * Display groups, in render order. The GUI iterates this list, so the union and
  * the thing the UI draws are the same list — a monster can't be defined into a
@@ -185,4 +188,127 @@ export function monsterTypeById(id: string): MonsterTypeDef {
 
 export function isKnownMonsterId(id: string): boolean {
   return byId.has(id)
+}
+
+//==============================================
+// Variants — one selectable entry per actor path
+//==============================================
+
+/**
+ * Separates a monster id from an explicit tier index in a boss-wave pool key:
+ * `bat1#0` is the bats spawner, `archer1#2` is the elite archer. Chosen because
+ * it collides with nothing in the parameters.txt wave grammar, which already
+ * uses `|`, `,` and `:` as separators (see configFile.ts).
+ */
+const VARIANT_SEPARATOR = '#'
+
+/**
+ * The tier a BARE monster id has always resolved to in a boss wave: index 1,
+ * the ordinary creature, clamped down for single-tier types. Keeping the bare
+ * id pinned to this tier is what makes every pre-variant parameters.txt, preset
+ * and seed keep producing byte-identical output.
+ */
+export function defaultTier(type: MonsterTypeDef): number {
+  return Math.min(1, type.tiers.length - 1)
+}
+
+/** One selectable actor: a monster type at a specific tier. */
+export interface MonsterVariant {
+  /**
+   * Canonical pool key. The bare id for `defaultTier`, `id#tier` otherwise —
+   * so exactly one key exists per actor path and the picker can never offer two
+   * checkboxes that spawn the same thing.
+   */
+  key: string
+  type: MonsterTypeDef
+  tier: number
+  actorPath: string
+  /** A spawner prop rather than a creature — `actors/spawners/**`. */
+  role: 'spawner' | 'creature'
+  /** What it leaves behind when killed; undefined for anything that leaves gibs. */
+  corpse?: CorpseCollision
+}
+
+/** The canonical pool key for `type` at `tier`. */
+export function variantKey(type: MonsterTypeDef, tier: number): string {
+  return tier === defaultTier(type) ? type.id : `${type.id}${VARIANT_SEPARATOR}${tier}`
+}
+
+/** Every actor `type` can spawn, one variant per tier, in tier order. */
+export function monsterVariants(type: MonsterTypeDef): MonsterVariant[] {
+  return type.tiers.map((actorPath, tier) => ({
+    key: variantKey(type, tier),
+    type,
+    tier,
+    actorPath,
+    role: actorPath.startsWith('actors/spawners/') ? 'spawner' : 'creature',
+    corpse: corpseCollision(actorPath)
+  }))
+}
+
+/**
+ * Splits a pool key into its id and explicit tier. `tier` is undefined for a
+ * bare id (meaning `defaultTier`) and NaN for a malformed suffix, which
+ * validation rejects — parsing never throws, so the generator stays total on
+ * bad input (invariant 4: reject, don't crash).
+ */
+export function parseMonsterKey(key: string): { id: string; tier?: number } {
+  const at = key.indexOf(VARIANT_SEPARATOR)
+  if (at === -1) return { id: key }
+  const raw = key.slice(at + 1)
+  return { id: key.slice(0, at), tier: /^\d+$/.test(raw) ? parseInt(raw, 10) : NaN }
+}
+
+/**
+ * The actor XML a pool key spawns. Unknown ids fall through
+ * monsterTypeById's bat1 fallback and an out-of-range tier falls back to
+ * `defaultTier`, so this always returns a real actor path.
+ */
+export function resolveActorPath(key: string): string {
+  const { id, tier } = parseMonsterKey(key)
+  const type = monsterTypeById(id)
+  if (tier === undefined || !Number.isInteger(tier) || tier < 0 || tier >= type.tiers.length) {
+    return type.tiers[defaultTier(type)]
+  }
+  return type.tiers[tier]
+}
+
+/**
+ * True for a canonical pool key only. A non-canonical spelling of the default
+ * tier (`bat1#1`) is rejected on purpose: allowing both would let the same
+ * actor occupy two pool slots with two different max counts.
+ */
+export function isKnownMonsterKey(key: string): boolean {
+  const { id, tier } = parseMonsterKey(key)
+  if (!isKnownMonsterId(id)) return false
+  if (tier === undefined) return true
+  const type = byId.get(id)!
+  return Number.isInteger(tier) && tier >= 0 && tier < type.tiers.length && tier !== defaultTier(type)
+}
+
+/**
+ * Display groups for a variant picker. Spawners get their own group rather than
+ * sitting inside the group of the monster they spit out — they are static
+ * buildings, like the towers they sit next to (issue #20). MONSTER_GROUPS
+ * itself is left alone because the dungeon pool editor iterates it and has no
+ * variant concept.
+ */
+export const MONSTER_VARIANT_GROUPS = [...MONSTER_GROUPS, 'Spawners'] as const
+
+export type MonsterVariantGroup = (typeof MONSTER_VARIANT_GROUPS)[number]
+
+export function variantGroup(variant: MonsterVariant): MonsterVariantGroup {
+  return variant.role === 'spawner' ? 'Spawners' : variant.type.group
+}
+
+/**
+ * The members of `group` as a variant picker should list them: deprecated types
+ * dropped, the rest sorted by key. Mirrors monsterTypesInGroup — see its
+ * comment for why sorting happens here and not in MONSTER_TYPES.
+ */
+export function monsterVariantsInGroup(group: MonsterVariantGroup): MonsterVariant[] {
+  return MONSTER_TYPES.filter((t) => !t.deprecated)
+    .flatMap(monsterVariants)
+    .filter((v) => variantGroup(v) === group)
+    .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
 }
