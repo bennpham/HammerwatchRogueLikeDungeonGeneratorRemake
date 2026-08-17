@@ -9,9 +9,13 @@
  * on why that third stream exists. Draw order (fixed, so the same seed always
  * produces the same arena): width, height, boss pick, alcove wall, then
  * whatever `placeCoverPillars` draws, then `placeFood`'s own clusters (see
- * its header). `Item.create` rolls a variant from `ctx.rand` when `index` is
- * omitted — every arena Item.create call passes one explicitly, from
- * `ctx.bossRand`, so the layout stream is never touched.
+ * its header), and last `placeSpawnPoints` for any wave monster on a scatter
+ * spawn mode. That step is deliberately last: with every monster on the
+ * default `anchors` mode it makes no draws at all, so adding it left every
+ * arena that existed before spawn modes byte-identical. `Item.create` rolls a
+ * variant from `ctx.rand` when `index` is omitted — every arena Item.create
+ * call passes one explicitly, from `ctx.bossRand`, so the layout stream is
+ * never touched.
  *
  * Coordinate convention: interior tiles are `x` in `[0, width)`, `y` in
  * `[0, height)`, matching anchors.ts/cover.ts/geometry.ts. The alcove pocket
@@ -57,7 +61,8 @@ import { BOSS_DEFS, topWallBossClearance, topWallBossY } from './bosses'
 import type { AlcoveWall, BossId } from './bosses'
 import { isFree, placeCoverPillars } from './cover'
 import type { CoverArena, Rect } from './cover'
-import { buildWaveRig } from './waves'
+import { buildWaveRig, scatterRequests } from './waves'
+import { placeSpawnPoints } from './spawnPoints'
 
 /**
  * Placement attempts per food pickup before giving up on that one slot —
@@ -329,7 +334,19 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   entranceShape.width = ENTRANCE_WIDTH
   entranceShape.height = ENTRANCE_DEPTH
 
-  buildWaveRig(ctx, arena.waves, arena.monsterMultiplier, anchorList, entranceShape)
+  // --- scattered spawn points: the last ctx.bossRand draws of the arena, and
+  // none at all while every monster is on the default `anchors` mode. The rig
+  // itself stays RNG-free — it only consumes the finished map. ---
+  const spawnPoints = placeSpawnPoints(
+    ctx,
+    coverArena,
+    pillarRects,
+    scatterRequests(arena.waves, arena.monsterMultiplier),
+    arena.spawn,
+    anchorList
+  )
+
+  buildWaveRig(ctx, arena.waves, arena.monsterMultiplier, anchorList, entranceShape, spawnPoints)
 
   // --- win chain: Boss Died -> DestroyObject(seals) -> the wall opens ->
   // the existing Orb prefab's own ObjectEventTrigger -> GameEnd fires when the

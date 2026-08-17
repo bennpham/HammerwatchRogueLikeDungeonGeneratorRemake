@@ -369,6 +369,13 @@ select:focus {
   color: var(--text-dim);
 }
 
+/* The spawn-mode picker sits under a monster's max count in a boss wave, so it
+   is sized to match that number input rather than the form's full-size selects. */
+.max-item .spawn-mode {
+  padding: 3px 6px;
+  font-size: 11px;
+}
+
 /* ---- right panel ---- */
 
 .generate-bar {

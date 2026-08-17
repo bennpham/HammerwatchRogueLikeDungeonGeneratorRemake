@@ -158,6 +158,44 @@ describe('parameters.txt parsing', () => {
     expect(parsed.params.boss.arena.waves[0].intervalMs).toBeUndefined()
   })
 
+  it('round-trips the scatter spawn knobs and per-monster spawn modes', () => {
+    const original = defaultParameters()
+    original.boss.arena.spawn = { spacing: 3, ringSpacing: 6, clusters: 5 }
+    original.boss.arena.waves[0].spawnMode = { bat1: 'gaussian', maggot: 'ring' }
+
+    const text = serializeParametersTxt(original)
+    expect(text).toContain('bossSpawn=3,6,5')
+    // the fifth wave field, sorted by id like the interval overrides before it
+    expect(text).toContain('bossWave1=bat1,tick1,maggot|4000|bat1:10,tick1:10,maggot:10||bat1:gaussian,maggot:ring')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.params.boss).toEqual(original.boss)
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('writes no spawn-mode field while every monster is on the anchors mode', () => {
+    const params = defaultParameters()
+    params.boss.arena.waves[0].spawnMode = { bat1: 'anchors' }
+    expect(serializeParametersTxt(params)).toContain(
+      'bossWave1=bat1,tick1,maggot|4000|bat1:10,tick1:10,maggot:10||\r\n'
+    )
+  })
+
+  it('drops a spawn mode naming an unknown mode or a monster outside the pool', () => {
+    const parsed = parseParametersTxt('bosswave1=bat1|4000|||bat1:spiral,tick1:random\n')
+    expect(parsed.params.boss.arena.waves[0].spawnMode).toBeUndefined()
+    expect(parsed.unknownKeys).toEqual([
+      'bosswave1 spawnMode "bat1:spiral"',
+      'bosswave1 spawnMode "tick1:random"'
+    ])
+  })
+
+  it('reports a malformed bossspawn line without corrupting the defaults', () => {
+    const parsed = parseParametersTxt('bossspawn=abc,x,y\n')
+    expect(parsed.unknownKeys).toHaveLength(3)
+    expect(parsed.params.boss.arena.spawn).toEqual(defaultParameters().boss.arena.spawn)
+  })
+
   it('reports a malformed bosscover line without corrupting the defaults', () => {
     const parsed = parseParametersTxt('bosscover=nonsense,abc,x,y\n')
     expect(parsed.unknownKeys).toHaveLength(4)

@@ -402,6 +402,94 @@ describe('boss arena — waves reach the rig', () => {
   })
 })
 
+describe('boss arena — scattered spawn modes (issue #21)', () => {
+  /** Every SpawnObject the arena emitted, with its actor path, position and trigger-times budget. */
+  function spawnNodes(xml: string): { id: number; triggerTimes: number; x: number; y: number; actorPath: string }[] {
+    return [
+      ...xml.matchAll(
+        /<dictionary>\s*<int name="id">(-?\d+)<\/int>\s*<string name="type">SpawnObject<\/string>\s*<bool name="enabled">[^<]*<\/bool>\s*<int name="trigger-times">(-?\d+)<\/int>\s*<float name="x">(-?[\d.]+)<\/float>\s*<float name="y">(-?[\d.]+)<\/float>\s*<string name="parameters">([^<]*)<\/string>/g
+      )
+    ].map((m) => ({ id: Number(m[1]), triggerTimes: Number(m[2]), x: Number(m[3]), y: Number(m[4]), actorPath: m[5] }))
+  }
+
+  /** Tier 0's wave, with `key` scattered by `mode` at `count`, everything else stock. */
+  function scattered(mode: 'random' | 'ring' | 'gaussian' | 'symmetric', key = 'bat1', count = 12) {
+    const arena = arenaOptions()
+    return arenaOptions({
+      waves: arena.waves.map((w, i) =>
+        i === 0
+          ? { ...w, monsters: [key], monsterMax: { [key]: count }, spawnMode: { [key]: mode } }
+          : { ...w, monsters: [], monsterMax: {} }
+      )
+    })
+  }
+
+  it('leaves a stock arena byte-identical whatever the scatter knobs say', () => {
+    // The knobs are inert until a monster is actually put on a scatter mode —
+    // which is also what keeps every seed generated before this feature intact.
+    const stock = buildBossArena(freshCtx(4242), arenaOptions(), 0)
+    const retuned = buildBossArena(freshCtx(4242), arenaOptions({ spawn: { spacing: 5, ringSpacing: 9, clusters: 7 } }), 0)
+    expect(retuned.xml).toBe(stock.xml)
+  })
+
+  for (const mode of ['random', 'ring', 'gaussian', 'symmetric'] as const) {
+    it(`${mode}: emits one one-shot SpawnObject per monster, on walkable floor`, () => {
+      const { xml, preview } = buildBossArena(freshCtx(4242), scattered(mode), 0)
+      const room = preview.rooms[0]
+      const bats = spawnNodes(xml).filter((s) => s.actorPath === 'actors/bat_1.xml')
+
+      expect(bats).toHaveLength(12)
+      for (const bat of bats) {
+        expect(bat.triggerTimes).toBe(1)
+        expect(bat.x).toBeGreaterThanOrEqual(0)
+        expect(bat.y).toBeGreaterThanOrEqual(0)
+        expect(bat.x).toBeLessThan(room.width)
+        expect(bat.y).toBeLessThan(room.height)
+        expect(preview.walls[(room.y + bat.y) * preview.mapWidth + (room.x + bat.x)]).not.toBe('1')
+      }
+    })
+  }
+
+  it('drops the timer rig entirely for a tier of nothing but scattered monsters', () => {
+    const { xml } = buildBossArena(freshCtx(4242), scattered('gaussian'), 0)
+    expect(xml).not.toContain('<string name="type">TimerTrigger</string>')
+    expect(xml).not.toContain('<string name="type">ToggleElement</string>')
+    // the tier still fires — the AreaTrigger over the entrance is what starts it
+    expect(xml).toContain('<string name="type">AreaTrigger</string>')
+  })
+
+  it('scales a scattered count by the arena monster multiplier', () => {
+    const options = { ...scattered('random'), monsterMultiplier: 2.0 }
+    const { xml } = buildBossArena(freshCtx(4242), options, 0)
+    expect(spawnNodes(xml).filter((s) => s.actorPath === 'actors/bat_1.xml')).toHaveLength(24)
+  })
+
+  it('stays deterministic and keeps every node id resolvable', () => {
+    const a = buildBossArena(freshCtx(777), scattered('ring'), 0)
+    const b = buildBossArena(freshCtx(777), scattered('ring'), 0)
+    expect(a.xml).toBe(b.xml)
+    expect(badIntArray(a.xml)).toBeNull()
+
+    const ids = new Set(allIds(a.xml))
+    for (const [, arr] of a.xml.matchAll(/<int-arr name="connections">([^<]*)<\/int-arr>/g)) {
+      for (const ref of arr.split(' ').filter((r) => r !== '')) {
+        expect(ids.has(Number(ref)), `connections id ${ref} does not resolve`).toBe(true)
+      }
+    }
+  })
+
+  it('is reachable through generateDungeon, not just the arena builder', () => {
+    const params = withBoss({ enabled: true })
+    params.boss.arena = scattered('gaussian', 'skeleton1#0', 6)
+    const result = generateOk(params, 31337)
+    const arena = result.files.find((f) => f.path === 'levels/boss.xml')
+    expect(arena).toBeDefined()
+    const spawners = spawnNodes(arena!.content).filter((s) => s.actorPath === 'actors/spawners/skeleton_1.xml')
+    expect(spawners).toHaveLength(6)
+    expect(spawners.every((s) => s.triggerTimes === 1)).toBe(true)
+  })
+})
+
 describe('boss arena — the wall bitmap stays free of unaddressed voids', () => {
   it('every doodad the arena emits sits within the emitted tilemap bounds', () => {
     const { xml, preview } = buildBossArena(freshCtx(4242), arenaOptions(), 0)

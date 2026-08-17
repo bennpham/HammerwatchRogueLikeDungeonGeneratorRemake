@@ -7,8 +7,17 @@ import { LOBBY_ASSETS, LOBBY_LEVEL_ID, LOBBY_LEVEL_PATH, buildLobby } from './lo
 import { BOSSPREP_LEVEL_ID, BOSSPREP_LEVEL_PATH, buildBossPrep } from './bossprep'
 import { buildBossArena } from './boss'
 
-export type { DungeonParameters, LobbyOptions, BossOptions, BossWave } from './config/parameters'
-export { THEMES, BOSS_IDS, BOSS_COVER_PATTERNS, DEFAULT_WAVE_MONSTER_MAX, defaultBossOptions } from './config/parameters'
+export type { DungeonParameters, LobbyOptions, BossOptions, BossWave, BossSpawnMode } from './config/parameters'
+export {
+  THEMES,
+  BOSS_IDS,
+  BOSS_COVER_PATTERNS,
+  BOSS_SPAWN_MODES,
+  DEFAULT_WAVE_MONSTER_MAX,
+  defaultBossOptions,
+  isScatterMode,
+  waveSpawnMode
+} from './config/parameters'
 export { THEME_DEFS, getTheme } from './config/themes'
 export type { ThemeDef } from './config/themes'
 export { defaultParameters }

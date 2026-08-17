@@ -24,6 +24,17 @@
  * as health drops further, so at 25% health all four tiers are spawning at
  * once (boss-tab.md, boss-tab-handoff.md item 6).
  *
+ * A monster on a *scatter* spawn mode (issue #21) skips that whole rig: it
+ * gets no toggle and no timer, and its SpawnObjects — one per monster, at
+ * points spawnPoints.ts placed across the arena, each with `trigger-times: 1`
+ * — hang directly off the tier trigger, so the entire group appears the moment
+ * the tier fires:
+ *
+ *   trigger ─> SpawnObject{trigger-times: 1} × count
+ *
+ * A tier whose monsters are all on scatter modes therefore emits no
+ * ToggleElement or TimerTrigger at all.
+ *
  * A pool entry is a monster VARIANT key, not a bare monster id — `bat1` is the
  * ordinary bat, `bat1#0` the bats spawner, `archer1#2` the elite archer (see
  * monsterTypes.ts). `resolveActorPath` turns the key into one actor path with
@@ -31,10 +42,15 @@
  * always resolves to the same actor. That is the whole difference from the
  * dungeon, which rolls tiers upward with `upgradeChance` in Monster.createRolled
  * and picks spawners separately in room.ts.
+ *
+ * This module draws no RNG at all, including for the scatter modes: the points
+ * are placed by arena.ts (which owns the ctx.bossRand draw order) and passed in
+ * as a finished map.
  */
 
 import type { GenerationContext } from '../core/context'
 import type { BossWave } from '../config/parameters'
+import { isScatterMode, waveSpawnMode } from '../config/parameters'
 import { resolveActorPath } from '../objects/monsterTypes'
 import {
   NodeAreaTrigger,
@@ -45,6 +61,8 @@ import {
   NodeToggleElement
 } from '../objects/nodes'
 import type { Anchor } from './anchors'
+import type { SpawnPointMap, SpawnRequest } from './spawnPoints'
+import { spawnPointKey } from './spawnPoints'
 
 /**
  * GlobalEventTrigger names for tiers 75/50/25 — index 0 (the 100% tier) is
@@ -69,13 +87,59 @@ function splitRoundRobin(total: number, anchorCount: number): number[] {
 }
 
 /**
+ * A monster's horde size after the arena's monsterMultiplier. `-1` is the
+ * endless sentinel, not a quantity — it must never be scaled. Otherwise this
+ * matches room.ts's own multiplier application: trunc after scaling, floored
+ * at 0 so a multiplier < 1 can't go negative.
+ */
+export function scaledMax(rawMax: number, monsterMultiplier: number): number {
+  return rawMax === -1 ? -1 : Math.max(0, Math.trunc(rawMax * monsterMultiplier))
+}
+
+/**
+ * Every monster across every tier that needs scattered spawn points, in tier
+ * order and then `wave.monsters` order — the order arena.ts feeds to
+ * `placeSpawnPoints`, and therefore the order its `ctx.bossRand` draws happen
+ * in. Pure: this is the same count arithmetic `buildWaveRig` applies, factored
+ * out so the placement pass and the rig can never disagree about how many
+ * spawns a monster gets.
+ *
+ * An endless (`-1`) count has no meaning for a one-shot scattered spawn —
+ * validation rejects that combination, and it is skipped here so a params
+ * object built in code emits nothing for it rather than something arbitrary.
+ */
+export function scatterRequests(waves: readonly BossWave[], monsterMultiplier: number): SpawnRequest[] {
+  const requests: SpawnRequest[] = []
+
+  for (let tier = 0; tier < waves.length; tier++) {
+    const wave = waves[tier]
+    for (const key of wave.monsters) {
+      const mode = waveSpawnMode(wave, key)
+      if (!isScatterMode(mode)) continue
+      const count = scaledMax(wave.monsterMax[key], monsterMultiplier)
+      if (count <= 0) continue
+      requests.push({ tier, key, mode, count })
+    }
+  }
+
+  return requests
+}
+
+/**
  * Builds the full wave rig for all of `waves` (exactly 4 tiers, 100/75/50/25
- * — enforced by validation.ts, not re-checked here) and wires every
+ * — enforced by validation.ts, not re-checked here) and wires every timed
  * SpawnObject onto `anchorList` (the 9 fixed-order anchors from anchors.ts).
  *
  * `entranceShape` is the arena's entrance RectangleShape, built and
  * positioned by the caller (Phase 5e's arena.ts) — this module only connects
  * an AreaTrigger to it, it never places or sizes arena geometry.
+ *
+ * `spawnPoints` carries the scattered monsters' placed points, keyed by
+ * `spawnPointKey(tier, monsterKey)` — `scatterRequests` decides what goes in
+ * it and arena.ts fills it. Defaulting it to an empty map is what lets a
+ * caller that has no scatter modes (and every test written before them) call
+ * this with five arguments: a scattered monster with no points is simply not
+ * wired.
  *
  * A tier with an empty monster pool (`wave.monsters.length === 0`, allowed —
  * validation only warns) degrades safely: no trigger, toggle or timer is
@@ -89,13 +153,35 @@ export function buildWaveRig(
   waves: readonly BossWave[],
   monsterMultiplier: number,
   anchorList: readonly Anchor[],
-  entranceShape: NodeRectangleShape
+  entranceShape: NodeRectangleShape,
+  spawnPoints: SpawnPointMap = new Map()
 ): void {
   let y = entranceShape.y
 
   for (let tier = 0; tier < waves.length; tier++) {
     const wave = waves[tier]
     if (wave.monsters.length === 0) continue
+
+    // Scatter monsters leave the timer rig entirely, so the split has to happen
+    // before the interval grouping below — otherwise a tier of nothing but
+    // scattered monsters would still ship a toggle and a timer with nothing on
+    // the end of them.
+    const anchorIds: string[] = []
+    const scatterIds: string[] = []
+    for (const id of wave.monsters) {
+      if (isScatterMode(waveSpawnMode(wave, id))) scatterIds.push(id)
+      else anchorIds.push(id)
+    }
+
+    const scattered = scatterIds
+      .map((id) => ({ id, points: spawnPoints.get(spawnPointKey(tier, id)) ?? [] }))
+      .filter((entry) => entry.points.length > 0)
+
+    // Every monster is scattered and none of them got a point (a zero count, or
+    // a params object that never passed validation): there is nothing for the
+    // tier trigger to connect to, and a node must never ship an empty
+    // `connections` array.
+    if (anchorIds.length === 0 && scattered.length === 0) continue
 
     y += 1
     let triggerNode
@@ -111,7 +197,7 @@ export function buildWaveRig(
     // monsters first appear in wave.monsters (Map iteration is insertion
     // order) — deterministic and independent of any object-key order.
     const byInterval = new Map<number, string[]>()
-    for (const id of wave.monsters) {
+    for (const id of anchorIds) {
       const interval = wave.intervalMs?.[id] ?? wave.defaultIntervalMs
       const group = byInterval.get(interval)
       if (group) group.push(id)
@@ -129,11 +215,7 @@ export function buildWaveRig(
       triggerNode.connectTo(toggle)
 
       for (const id of ids) {
-        const rawMax = wave.monsterMax[id]
-        // -1 is the endless sentinel, not a quantity — it must never be scaled.
-        // Otherwise match room.ts's own multiplier application: trunc after
-        // scaling, floored at 0 so a multiplier < 1 can't go negative.
-        const max = rawMax === -1 ? -1 : Math.max(0, Math.trunc(rawMax * monsterMultiplier))
+        const max = scaledMax(wave.monsterMax[id], monsterMultiplier)
         const actorPath = resolveActorPath(id)
 
         if (max === -1) {
@@ -153,6 +235,20 @@ export function buildWaveRig(
           spawn.triggerTimes = shares[i]
           timer.connectTo(spawn)
         }
+      }
+    }
+
+    // Scattered monsters: one SpawnObject per monster, on the point placed for
+    // it, hanging straight off the tier trigger. `trigger-times: 1` is what
+    // makes it a one-shot — tier 0's AreaTrigger fires again every time a
+    // player walks back over the entrance, and without the budget that would
+    // re-summon the whole group each time.
+    for (const { id, points } of scattered) {
+      const actorPath = resolveActorPath(id)
+      for (const point of points) {
+        const spawn = new NodeSpawnObject(ctx, point.x, point.y, actorPath)
+        spawn.triggerTimes = 1
+        triggerNode.connectTo(spawn)
       }
     }
   }

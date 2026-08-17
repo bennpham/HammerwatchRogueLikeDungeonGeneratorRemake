@@ -24,6 +24,24 @@ export const BOSS_COVER_PATTERNS = ['random', 'ring', 'gaussian', 'symmetric'] a
 export const BOSS_COVER_DENSITY_MAX = 0.25
 
 /**
+ * How one monster of a boss wave reaches the arena floor.
+ *
+ * `anchors` is the original rig and the default: the monster's budget is split
+ * round-robin across the 9 fixed spawn anchors and trickles in on the wave's
+ * timer. The other four are one-shot *scatter* modes sharing cover.ts's
+ * pattern names — the whole budget is placed as individual SpawnObjects across
+ * the arena and fires once, so the wave's interval means nothing for that
+ * monster (issue #21).
+ */
+export const BOSS_SPAWN_MODES = ['anchors', 'random', 'ring', 'gaussian', 'symmetric'] as const
+export type BossSpawnMode = (typeof BOSS_SPAWN_MODES)[number]
+
+/** Whether `mode` places its monsters as one-shot scattered spawns. */
+export function isScatterMode(mode: BossSpawnMode): boolean {
+  return mode !== 'anchors'
+}
+
+/**
  * All knobs of the generator, ported from the modified Parameters.java.
  * Sizes are in tiles. `monsterMax` is keyed by monster id (see monsterTypes.ts).
  */
@@ -124,6 +142,20 @@ export interface BossOptions {
       ringSpacing: number
       clusters: number
     }
+    /**
+     * Tuning for the scatter spawn modes — deliberately its own block rather
+     * than a second reading of `cover`, so a monster ring and a pillar ring can
+     * be spaced differently. Ignored entirely while every monster is on
+     * `anchors`, which is the default.
+     */
+    spawn: {
+      /** minimum gap, in tiles, kept between two scattered spawn points */
+      spacing: number
+      /** minimum gap between adjacent points on the `ring` mode */
+      ringSpacing: number
+      /** seeded cluster centres for the `gaussian` mode */
+      clusters: number
+    }
     /** scales each wave tier's monsterMax (except -1/endless, which stays endless) */
     monsterMultiplier: number
     /** scales the sparse health/mana pickup clusters scattered around the arena */
@@ -146,6 +178,19 @@ export interface BossWave {
   defaultIntervalMs: number
   /** per-monster interval overrides, keyed by monster id */
   intervalMs?: Record<string, number>
+  /**
+   * Per-monster spawn mode, keyed by monster id. A missing key (and a missing
+   * record) means `anchors`, so a wave that has never been touched behaves
+   * exactly as it did before the modes existed. A monster on a scatter mode
+   * ignores both `defaultIntervalMs` and its own `intervalMs` override — it
+   * spawns once, not on a timer.
+   */
+  spawnMode?: Record<string, BossSpawnMode>
+}
+
+/** The spawn mode `wave` uses for `id` — the stored one, or `anchors`. */
+export function waveSpawnMode(wave: BossWave, id: string): BossSpawnMode {
+  return wave.spawnMode?.[id] ?? 'anchors'
 }
 
 /**
@@ -199,6 +244,14 @@ export function defaultBossOptions(): BossOptions {
         // move. BOSS_COVER_DENSITY_MAX caps it; boss/cover.ts additionally
         // guarantees the boss and every anchor stay reachable.
         density: 0.08,
+        ringSpacing: 4,
+        clusters: 3
+      },
+      // Inert until a monster is put on a scatter mode; `spacing: 2` keeps
+      // scattered spawns a tile apart so a horde does not materialise stacked
+      // on one square.
+      spawn: {
+        spacing: 2,
         ringSpacing: 4,
         clusters: 3
       },

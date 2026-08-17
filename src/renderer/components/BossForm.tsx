@@ -3,17 +3,29 @@ import {
   BOSS_COVER_PATTERNS,
   BOSS_DEF_LIST,
   BOSS_GOLD_MAX,
+  BOSS_SPAWN_MODES,
   DEFAULT_WAVE_MONSTER_MAX,
   LOBBY_DIAMOND_VALUE,
   LOBBY_VENDORS,
   MONSTER_VARIANT_GROUPS,
   THEME_DEFS,
+  corpseCollision,
   defaultTier,
   diamondCount,
+  isScatterMode,
   lobbyCategoryCounts,
-  monsterVariantsInGroup
+  monsterVariantsInGroup,
+  resolveActorPath,
+  waveSpawnMode
 } from '../../generator'
-import type { BossOptions, BossWave, DungeonParameters, PlayerTweaks, ValidationIssue } from '../../generator'
+import type {
+  BossOptions,
+  BossSpawnMode,
+  BossWave,
+  DungeonParameters,
+  PlayerTweaks,
+  ValidationIssue
+} from '../../generator'
 import { BoolField, NumberField, Section, Subsection, ToggleGroup } from './fields'
 import { MonsterFilterBar, useMonsterFilter } from './MonsterFilterBar'
 
@@ -203,6 +215,13 @@ interface ArenaTabProps {
 }
 
 function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
+  // Which scatter modes any wave actually uses, so the knobs that only matter
+  // for `ring` and `gaussian` stay hidden until they mean something — the same
+  // conditional shape the Cover section uses for its own two knobs.
+  const scatterModesInUse = new Set(
+    arena.waves.flatMap((wave) => wave.monsters.map((id) => waveSpawnMode(wave, id)).filter(isScatterMode))
+  )
+
   const toggleBoss = (id: string, on: boolean) => {
     const next = new Set(arena.bossPool)
     if (on) next.add(id)
@@ -390,6 +409,47 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
           )}
         </div>
       </Section>
+
+      <Section title="Scattered spawns">
+        <p className="hint">
+          Tuning for monsters set to a scatter mode in the waves above — those spawn once, spread across
+          the arena, instead of trickling out of the nine anchors on the tier's timer. Nothing here
+          matters while every monster is on <code>anchors</code>.
+        </p>
+        <div className="field-grid">
+          <NumberField
+            label="Spacing"
+            field="boss.arena.spawn.spacing"
+            value={arena.spawn.spacing}
+            onChange={(spacing) => setArena({ spawn: { ...arena.spawn, spacing } })}
+            issues={issues}
+            min={1}
+            title="Tiles kept between two scattered spawn points, so a horde does not materialise stacked on one square"
+          />
+          {scatterModesInUse.has('ring') && (
+            <NumberField
+              label="Ring spacing"
+              field="boss.arena.spawn.ringSpacing"
+              value={arena.spawn.ringSpacing}
+              onChange={(ringSpacing) => setArena({ spawn: { ...arena.spawn, ringSpacing } })}
+              issues={issues}
+              min={1}
+              title="Gap between neighbouring spawns around the ring — it also caps how many the ring can hold"
+            />
+          )}
+          {scatterModesInUse.has('gaussian') && (
+            <NumberField
+              label="Clusters"
+              field="boss.arena.spawn.clusters"
+              value={arena.spawn.clusters}
+              onChange={(clusters) => setArena({ spawn: { ...arena.spawn, clusters } })}
+              issues={issues}
+              min={1}
+              title="Number of seeded cluster centres scattered monsters gather around"
+            />
+          )}
+        </div>
+      </Section>
     </>
   )
 }
@@ -435,6 +495,28 @@ function WaveEditor({ wave, index, issues, onWaveChange }: WaveEditorProps) {
       intervalMs[id] = value
     }
     onWaveChange({ intervalMs: Object.keys(intervalMs).length > 0 ? intervalMs : undefined })
+  }
+
+  // Only monsters still on the timer rig have an interval to override — a
+  // scattered one spawns once, so showing it a box would invite a number the
+  // fight ignores.
+  const timedMonsters = wave.monsters.filter((id) => !isScatterMode(waveSpawnMode(wave, id)))
+
+  const setSpawnMode = (id: string, mode: BossSpawnMode) => {
+    const spawnMode = { ...(wave.spawnMode ?? {}) }
+    if (isScatterMode(mode)) spawnMode[id] = mode
+    else delete spawnMode[id]
+
+    // A scattered monster has no timer, so its interval override would sit in
+    // parameters.txt doing nothing — drop it with the mode change rather than
+    // leaving a value the fight ignores.
+    const intervalMs = { ...(wave.intervalMs ?? {}) }
+    if (isScatterMode(mode)) delete intervalMs[id]
+
+    onWaveChange({
+      spawnMode: Object.keys(spawnMode).length > 0 ? spawnMode : undefined,
+      intervalMs: Object.keys(intervalMs).length > 0 ? intervalMs : undefined
+    })
   }
 
   return (
@@ -531,7 +613,13 @@ function WaveEditor({ wave, index, issues, onWaveChange }: WaveEditorProps) {
           {wave.monsters.map((id) => {
             const value = wave.monsterMax[id] ?? DEFAULT_WAVE_MONSTER_MAX
             const field = `${prefix}.monsterMax.${id}`
-            const fieldIssues = issues.filter((i) => i.field === field)
+            const modeField = `${prefix}.spawnMode.${id}`
+            const fieldIssues = issues.filter((i) => i.field === field || i.field === modeField)
+            const mode = waveSpawnMode(wave, id)
+            // A wreck that keeps its collision is permanent geometry, so
+            // scattering it can wall the arena off — validation refuses it and
+            // the options are disabled here so it never gets picked by hand.
+            const blocks = corpseCollision(resolveActorPath(id)) === 'blocking'
             return (
               <label key={id} className={fieldIssues.length > 0 ? 'max-item field-error' : 'max-item'}>
                 <span>{id}</span>
@@ -542,6 +630,22 @@ function WaveEditor({ wave, index, issues, onWaveChange }: WaveEditorProps) {
                   title="-1 means endless — the spawner never runs out of this monster"
                   onChange={(e) => setMax(id, e.target.value === '' ? 0 : Number(e.target.value))}
                 />
+                <select
+                  className="spawn-mode"
+                  value={mode}
+                  title={
+                    blocks
+                      ? 'Only the anchors mode: this one leaves a wreck that still blocks movement, and scattering those can wall the arena off'
+                      : 'anchors trickles this monster out of the nine spawn points on the tier timer; the others place its whole count across the arena and spawn it once'
+                  }
+                  onChange={(e) => setSpawnMode(id, e.target.value as BossSpawnMode)}
+                >
+                  {BOSS_SPAWN_MODES.map((m) => (
+                    <option key={m} value={m} disabled={blocks && isScatterMode(m)}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
                 {fieldIssues.map((issue, i) => (
                   <span key={i} className="field-message">
                     {issue.message}
@@ -553,11 +657,11 @@ function WaveEditor({ wave, index, issues, onWaveChange }: WaveEditorProps) {
         </div>
       )}
 
-      {wave.monsters.length > 0 && (
+      {timedMonsters.length > 0 && (
         <details className="boss-wave-advanced">
           <summary>Advanced — per-monster interval overrides</summary>
           <div className="max-grid">
-            {wave.monsters.map((id) => {
+            {timedMonsters.map((id) => {
               const value = wave.intervalMs?.[id]
               const field = `${prefix}.intervalMs.${id}`
               const fieldIssues = issues.filter((i) => i.field === field)

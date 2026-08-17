@@ -25,14 +25,10 @@ import { Doodad } from '../objects/doodad'
 import type { Anchor } from './anchors'
 import { coverPillarCount, pillarFootprint } from './geometry'
 import { BOSS_COVER_PATTERNS } from '../config/parameters'
+import type { Rect } from './placement'
+import { PLACEMENT_ATTEMPTS, footprintRect, nextGaussian, overlaps, pointOnPerimeter } from './placement'
 
-/** Axis-aligned box in interior tile coordinates — same convention as anchors.ts. */
-export interface Rect {
-  x: number
-  y: number
-  width: number
-  height: number
-}
+export type { Rect }
 
 /** The boss's placement, for overlap purposes: a footprint centred on (x, y). */
 export interface CoverBoss {
@@ -68,26 +64,8 @@ export interface CoverOptions {
   clusters: number
 }
 
-/**
- * Placement attempts per pillar before giving up on that one slot. Bounded
- * per invariant #3 — never a `while (true)`. 40 is generous for an interior
- * that, per validation, always has *some* free floor once the boss, anchors,
- * entrance and alcove are excluded; a slot that fails 40 random draws is
- * simply skipped rather than retried forever.
- */
-const PLACEMENT_ATTEMPTS = 40
-
 /** Half-extent of the square kept clear around each spawn anchor. */
-const ANCHOR_PILLAR_CLEARANCE = 1
-
-function overlaps(a: Rect, b: Rect): boolean {
-  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
-}
-
-/** A pillar footprint centred on (cx, cy), in the arena's theme-real size. */
-function footprintRect(cx: number, cy: number, footprint: { width: number; height: number }): Rect {
-  return { x: cx - footprint.width / 2, y: cy - footprint.height / 2, width: footprint.width, height: footprint.height }
-}
+export const ANCHOR_PILLAR_CLEARANCE = 1
 
 /**
  * The one rejection filter every pattern shares: reject a candidate that
@@ -123,18 +101,6 @@ export function isFree(candidate: Rect, arena: CoverArena, placed: readonly Rect
   }
 
   return true
-}
-
-/**
- * Box-Muller transform over two `ctx.bossRand.fRand(0, 1)` draws. No Java
- * original to stay parallel with here (context.ts: bossRand is free to draw
- * however it likes without perturbing the layout/cosmetic streams), so this
- * does not need to reproduce java.util.Random.nextGaussian's polar method.
- */
-function nextGaussian(ctx: GenerationContext): number {
-  const u1 = Math.max(ctx.bossRand.fRand(0, 1), 1e-9) // guard log(0)
-  const u2 = ctx.bossRand.fRand(0, 1)
-  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2)
 }
 
 function placeAt(ctx: GenerationContext, arena: CoverArena, x: number, y: number): Doodad {
@@ -181,23 +147,6 @@ function placeRandom(ctx: GenerationContext, arena: CoverArena, options: CoverOp
   }
 
   return result
-}
-
-/** A point at `distance` tiles along the perimeter of `rect`, clockwise from its top-left corner. */
-function pointOnPerimeter(rect: { left: number; top: number; right: number; bottom: number }, distance: number): { x: number; y: number } {
-  const w = rect.right - rect.left
-  const h = rect.bottom - rect.top
-  const perimeter = 2 * (w + h)
-  if (perimeter <= 0) return { x: rect.left, y: rect.top }
-
-  let d = ((distance % perimeter) + perimeter) % perimeter
-  if (d <= w) return { x: rect.left + d, y: rect.top }
-  d -= w
-  if (d <= h) return { x: rect.right, y: rect.top + d }
-  d -= h
-  if (d <= w) return { x: rect.right - d, y: rect.bottom }
-  d -= w
-  return { x: rect.left, y: rect.bottom - d }
 }
 
 function placeRing(ctx: GenerationContext, arena: CoverArena, options: CoverOptions): Candidate[] {
