@@ -8,6 +8,39 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-16 — shadows are a client display setting, so a room lit for shadows-off is too dark for everyone else
+**Tag:** [VERIFIED] that one light is not enough with shadows on (the user played
+the prep room on an install with shadows enabled and found it too dark);
+[EMITTED] for the 18-light replacement now committed, until it is played.
+**Context:** The authored boss prep room
+(`levels/test_non_related_to_map/test_boss_prep_room.xml` in the
+`pht6_quiky_dreadmann_mansion` editor campaign) shipped with a single light at
+`0 -13` and `ambient-color 50 50 50 255`. On the dev machine's install shadows
+are off, so the room looked fine; on an install with shadows on the same room
+was too dark to use.
+**Evidence:** Shadow rendering is a per-installation display setting, not
+something the level XML controls — the same level file reads as adequately lit
+or unplayably dark depending on the client. `ambient-color` is the only floor
+brightness a dark room gets when its `lights` array is nearly empty, and 50/255
+ambient is not enough on its own. The re-authored level carries 18 lights (ids
+3313, 3514, 3517–3532) spread over the stalls, the diamond rows and the
+entrance; `shadow-color 135 128 128 255`, `ambient-color 50 50 50 255`,
+`add-color 0 0 0 255` and `shadow-length 1` are unchanged, so the fix is
+entirely additional lights rather than a brighter ambient.
+**Impact:** Author every hand-made room (prep room, lobby) for a shadows-**on**
+client — that is the strictly darker case, and a room that reads well there
+reads well with shadows off. Re-imported via
+`node scripts/import-bossprep-assets.mjs --from "<HW>/editor/pht6_quiky_dreadmann_mansion"`;
+the import is a pure addition inside `<array name="lights">` and every constant
+`deriveMeta()` derives (`BOSSPREP_TEMPLATE_IDS`, `BOSSPREP_EXIT_NODE_ID = 232`,
+the 42 `BOSSPREP_DIAMOND_SLOTS`, `BOSSPREP_ITEM_ID_BASE = 10000`) came back
+identical, so `buildBossPrep()` needed no change. Note the new light ids run to
+3532, still well clear of the diamond id base. Raise to `[VERIFIED]` after the
+lit room has been walked in game with shadows on. The generated dungeon floors
+and the boss arena still emit an empty `lights` array with the Java original's
+255/255/255 ambient (`src/generator/map/level.ts`, `src/generator/boss/arena.ts`) —
+they are full-bright, so this finding does not apply to them.
+
 ### 2026-08-16 — a campaign can start on a non-numeric level id, with no numeric floors at all
 **Tag:** [EMITTED] — generated and asserted in tests, not yet packed or loaded in game.
 **Context:** Allowing `levels = 0` so a campaign can be nothing but the boss

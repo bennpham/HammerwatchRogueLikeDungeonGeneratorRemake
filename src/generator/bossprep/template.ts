@@ -1269,6 +1269,210 @@ export const BOSSPREP_TEMPLATE = `<dictionary>
 				<int-arr name="addColor3">48 32 0 255</int-arr>
 				<float name="addRange">4</float>
 			</dictionary>
+			<dictionary>
+				<int name="id">3524</int>
+				<vec2 name="pos">-3 -16</vec2>
+				<int-arr name="mulColor1">255 255 255 255</int-arr>
+				<int-arr name="mulColor2">255 255 224 255</int-arr>
+				<int-arr name="mulColor3">128 1 255 255</int-arr>
+				<float name="mulRange">15</float>
+				<int-arr name="addColor1">96 64 0 255</int-arr>
+				<int-arr name="addColor2">64 48 0 255</int-arr>
+				<int-arr name="addColor3">48 32 0 255</int-arr>
+				<float name="addRange">4</float>
+			</dictionary>
+			<dictionary>
+				<int name="id">3525</int>
+				<vec2 name="pos">3 -16</vec2>
+				<int-arr name="mulColor1">255 255 255 255</int-arr>
+				<int-arr name="mulColor2">255 255 224 255</int-arr>
+				<int-arr name="mulColor3">128 1 255 255</int-arr>
+				<float name="mulRange">15</float>
+				<int-arr name="addColor1">96 64 0 255</int-arr>
+				<int-arr name="addColor2">64 48 0 255</int-arr>
+				<int-arr name="addColor3">48 32 0 255</int-arr>
+				<float name="addRange">4</float>
+			</dictionary>
+			<dictionary>
+				<int name="id">3514</int>
+				<vec2 name="pos">-2 -7</vec2>
+				<int-arr name="mulColor1">255 255 255 255</int-arr>
+				<int-arr name="mulColor2">255 255 224 255</int-arr>
+				<int-arr name="mulColor3">255 0 0 255</int-arr>
+				<float name="mulRange">15</float>
+				<int-arr name="addColor1">96 64 0 255</int-arr>
+				<int-arr name="addColor2">64 48 0 255</int-arr>
+				<int-arr name="addColor3">48 32 0 255</int-arr>
+				<float name="addRange">4</float>
+			</dictionary>
+			<dictionary>
+				<int name="id">3517</int>
+				<vec2 name="pos">-8 7</vec2>
+				<int-arr name="mulColor1">255 255 255 255</int-arr>
+				<int-arr name="mulColor2">255 255 224 255</int-arr>
+				<int-arr name="mulColor3">255 165 0 255</int-arr>
+				<float name="mulRange">15</float>
+				<int-arr name="addColor1">96 64 0 255</int-arr>
+				<int-arr name="addColor2">64 48 0 255</int-arr>
+				<int-arr name="addColor3">48 32 0 255</int-arr>
+				<float name="addRange">4</float>
+			</dictionary>
+			<dictionary>
+				<int name="id">3518</int>
+				<vec2 name="pos">-4 7</vec2>
+				<int-arr name="mulColor1">255 255 255 255</int-arr>
+				<int-arr name="mulColor2">255 255 224 255</int-arr>
+				<int-arr name="mulColor3">255 165 0 255</int-arr>
+				<float name="mulRange">15</float>
+				<int-arr name="addColor1">96 64 0 255</int-arr>
+				<int-arr name="addColor2">64 48 0 255</int-arr>
+				<int-arr name="addColor3">48 32 0 255</int-arr>
+				<float name="addRange">4</float>
+			</dictionary>
+			<dictionary>
+				<int name="id">3519</int>
+				<vec2 name="pos">0 7</vec2>
+				<int-arr name="mulColor1">255 255 255 255</int-arr>
+				<int-arr name="mulColor2">255 255 224 255</int-arr>
+				<int-arr name="mulColor3">255 165 0 255</int-arr>
+				<float name="mulRange">15</float>
+				<int-arr name="addColor1">96 64 0 255</int-arr>
+				<int-arr name="addColor2">64 48 0 255</int-arr>
+				<int-arr name="addColor3">48 32 0 255</int-arr>
+				<float name="addRange">4</float>
+			</dictionary>
+			<dictionary>
+				<int name="id">3520</int>
+				<vec2 name="pos">4 7</vec2>
+				<int-arr name="mulColor1">255 255 255 255</int-arr>
+				<int-arr name="mulColor2">255 255 224 255</int-arr>
+				<int-arr name="mulColor3">255 165 0 255</int-arr>
+				<float name="mulRange">15</float>
+				<int-arr name="addColor1">96 64 0 255</int-arr>
+				<int-arr name="addColor2">64 48 0 255</int-arr>
+				<int-arr name="addColor3">48 32 0 255</int-arr>
+				<float name="addRange">4</float>
+			</dictionary>
+			<dictionary>
+				<int name="id">3521</int>
+				<vec2 name="pos">8 7</vec2>
+				<int-arr name="mulColor1">255 255 255 255</int-arr>
+				<int-arr name="mulColor2">255 255 224 255</int-arr>
+				<int-arr name="mulColor3">255 165 0 255</int-arr>
+				<float name="mulRange">15</float>
+				<int-arr name="addColor1">96 64 0 255</int-arr>
+				<int-arr name="addColor2">64 48 0 255</int-arr>
+				<int-arr name="addColor3">48 32 0 255</int-arr>
+				<float name="addRange">4</float>
+			</dictionary>
+			<dictionary>
+				<int name="id">3522</int>
+				<vec2 name="pos">-2 -5</vec2>
+				<int-arr name="mulColor1">255 255 255 255</int-arr>
+				<int-arr name="mulColor2">255 255 224 255</int-arr>
+				<int-arr name="mulColor3">255 0 0 255</int-arr>
+				<float name="mulRange">15</float>
+				<int-arr name="addColor1">96 64 0 255</int-arr>
+				<int-arr name="addColor2">64 48 0 255</int-arr>
+				<int-arr name="addColor3">48 32 0 255</int-arr>
+				<float name="addRange">4</float>
+			</dictionary>
+			<dictionary>
+				<int name="id">3523</int>
+				<vec2 name="pos">-3 -10</vec2>
+				<int-arr name="mulColor1">255 255 255 255</int-arr>
+				<int-arr name="mulColor2">255 255 224 255</int-arr>
+				<int-arr name="mulColor3">128 1 255 255</int-arr>
+				<float name="mulRange">15</float>
+				<int-arr name="addColor1">96 64 0 255</int-arr>
+				<int-arr name="addColor2">64 48 0 255</int-arr>
+				<int-arr name="addColor3">48 32 0 255</int-arr>
+				<float name="addRange">4</float>
+			</dictionary>
+			<dictionary>
+				<int name="id">3526</int>
+				<vec2 name="pos">3 -10</vec2>
+				<int-arr name="mulColor1">255 255 255 255</int-arr>
+				<int-arr name="mulColor2">255 255 224 255</int-arr>
+				<int-arr name="mulColor3">128 1 255 255</int-arr>
+				<float name="mulRange">15</float>
+				<int-arr name="addColor1">96 64 0 255</int-arr>
+				<int-arr name="addColor2">64 48 0 255</int-arr>
+				<int-arr name="addColor3">48 32 0 255</int-arr>
+				<float name="addRange">4</float>
+			</dictionary>
+			<dictionary>
+				<int name="id">3527</int>
+				<vec2 name="pos">2 -7</vec2>
+				<int-arr name="mulColor1">255 255 255 255</int-arr>
+				<int-arr name="mulColor2">255 255 224 255</int-arr>
+				<int-arr name="mulColor3">255 0 0 255</int-arr>
+				<float name="mulRange">15</float>
+				<int-arr name="addColor1">96 64 0 255</int-arr>
+				<int-arr name="addColor2">64 48 0 255</int-arr>
+				<int-arr name="addColor3">48 32 0 255</int-arr>
+				<float name="addRange">4</float>
+			</dictionary>
+			<dictionary>
+				<int name="id">3528</int>
+				<vec2 name="pos">2 -5</vec2>
+				<int-arr name="mulColor1">255 255 255 255</int-arr>
+				<int-arr name="mulColor2">255 255 224 255</int-arr>
+				<int-arr name="mulColor3">255 0 0 255</int-arr>
+				<float name="mulRange">15</float>
+				<int-arr name="addColor1">96 64 0 255</int-arr>
+				<int-arr name="addColor2">64 48 0 255</int-arr>
+				<int-arr name="addColor3">48 32 0 255</int-arr>
+				<float name="addRange">4</float>
+			</dictionary>
+			<dictionary>
+				<int name="id">3529</int>
+				<vec2 name="pos">2 -3</vec2>
+				<int-arr name="mulColor1">255 255 255 255</int-arr>
+				<int-arr name="mulColor2">255 255 224 255</int-arr>
+				<int-arr name="mulColor3">255 0 0 255</int-arr>
+				<float name="mulRange">15</float>
+				<int-arr name="addColor1">96 64 0 255</int-arr>
+				<int-arr name="addColor2">64 48 0 255</int-arr>
+				<int-arr name="addColor3">48 32 0 255</int-arr>
+				<float name="addRange">4</float>
+			</dictionary>
+			<dictionary>
+				<int name="id">3530</int>
+				<vec2 name="pos">-2 -3</vec2>
+				<int-arr name="mulColor1">255 255 255 255</int-arr>
+				<int-arr name="mulColor2">255 255 224 255</int-arr>
+				<int-arr name="mulColor3">255 0 0 255</int-arr>
+				<float name="mulRange">15</float>
+				<int-arr name="addColor1">96 64 0 255</int-arr>
+				<int-arr name="addColor2">64 48 0 255</int-arr>
+				<int-arr name="addColor3">48 32 0 255</int-arr>
+				<float name="addRange">4</float>
+			</dictionary>
+			<dictionary>
+				<int name="id">3531</int>
+				<vec2 name="pos">-2 -1</vec2>
+				<int-arr name="mulColor1">255 255 255 255</int-arr>
+				<int-arr name="mulColor2">255 255 224 255</int-arr>
+				<int-arr name="mulColor3">255 0 0 255</int-arr>
+				<float name="mulRange">15</float>
+				<int-arr name="addColor1">96 64 0 255</int-arr>
+				<int-arr name="addColor2">64 48 0 255</int-arr>
+				<int-arr name="addColor3">48 32 0 255</int-arr>
+				<float name="addRange">4</float>
+			</dictionary>
+			<dictionary>
+				<int name="id">3532</int>
+				<vec2 name="pos">2 -1</vec2>
+				<int-arr name="mulColor1">255 255 255 255</int-arr>
+				<int-arr name="mulColor2">255 255 224 255</int-arr>
+				<int-arr name="mulColor3">255 0 0 255</int-arr>
+				<float name="mulRange">15</float>
+				<int-arr name="addColor1">96 64 0 255</int-arr>
+				<int-arr name="addColor2">64 48 0 255</int-arr>
+				<int-arr name="addColor3">48 32 0 255</int-arr>
+				<float name="addRange">4</float>
+			</dictionary>
 		</array>
 		<int-arr name="shadow-color">135 128 128 255</int-arr>
 		<int-arr name="ambient-color">50 50 50 255</int-arr>
