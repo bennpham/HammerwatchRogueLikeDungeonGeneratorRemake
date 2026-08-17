@@ -6,6 +6,7 @@ import { Doodad } from '../objects/doodad'
 import { GOLD_LOCK_TIER } from '../objects/item'
 import { getTheme, THEME_DEFS } from '../config/themes'
 import { XMLArray, XMLDictionary, XMLInt, XMLIntArray, XMLString } from '../xml'
+import { overlayDataset } from './tilemapOverlay'
 import type { GenerationContext } from '../core/context'
 
 const TILEMAP_SIZE = 20
@@ -240,16 +241,27 @@ export class Level {
 
     for (let x = 0; x < xTiles + 1; x++) {
       for (let y = 0; y < yTiles + 1; y++) {
+        const dataT = this.getTiles(x * TILEMAP_SIZE, y * TILEMAP_SIZE, tilemap.tiles)
+
         const tileSet = new XMLDictionary('')
         tileSet.addData(new XMLString('tileset', tilemap.tilemap))
-        tileSet.addData(new XMLIntArray('data-t', this.getTiles(x * TILEMAP_SIZE, y * TILEMAP_SIZE, tilemap.tiles)))
+        tileSet.addData(new XMLIntArray('data-t', dataT))
         tileSet.addData(this.defaultIntArray('data-r'))
         tileSet.addData(this.defaultIntArray('data-g'))
         tileSet.addData(this.defaultIntArray('data-b'))
+        // deliberately a flat 255, not the 0/255 mask the overlay below uses:
+        // this is the bottom layer and there is nothing under it to show through
         tileSet.addData(this.defaultIntArray('data-a'))
 
         const dataSets = new XMLArray('datasets')
         dataSets.addData(tileSet)
+
+        // A paired theme (`c - tiles`) stacks its alternate tileset on top of the
+        // base at full coverage. Plain themes get `null` back having drawn no
+        // random numbers at all, so their output is unchanged — see the note on
+        // `overlayDataset`.
+        const overlay = overlayDataset(tilemap, dataT, ctx.cosmeticRand)
+        if (overlay !== null) dataSets.addData(overlay)
 
         const tileBlock = new XMLDictionary('')
         tileBlock.addData(new XMLInt('x', x * TILEMAP_SIZE))

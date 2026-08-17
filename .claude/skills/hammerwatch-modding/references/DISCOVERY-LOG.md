@@ -8,6 +8,95 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-16 — a tile block stacks arbitrarily many tilesets, ordered by the tileset's own `level`, not by dataset order
+**Tag:** [VERIFIED] for the stacking mechanism and the full tileset roster below
+(read from the user's own install); [EMITTED] for the 14 overlay themes we now
+generate, until they are seen in game.
+**Context:** Adding paired theme entries (`c`, `c - tiles`, `c - tiles dirt`, …)
+so a floor can carry alternate art without a new layout algorithm.
+**Evidence:** The user hand-authored
+`editor/pht6_quiky_dreadmann_mansion/levels/test_non_related_to_map/test_alt_tileset.xml`
+in the game's own editor and it loads. One 20x20 block there carries **eight**
+datasets — `b_default`, `b_tiles_mixed`, `b_tiles_red`, `c_default`, `c_tiles`,
+`c_tiles_dirt`, `d_default`, `d_carpet` — each with its own `data-t`/`data-a`,
+painted over disjoint 4x4 patches. So `datasets` is not limited to the two the
+boss arena uses (`water` + theme), and a `data-a` of 0 is how a layer declares
+itself absent on a cell.
+
+Draw order comes from the `level` attribute the *tileset XML* declares, not from
+the order datasets appear in the block. Every tileset in
+`editor/assetsExtract/tilemaps/` and its `level`, with the top-level `<sprite>`
+count (excluding `<borders>`, which the engine picks and `data-t` cannot address):
+
+| Tileset | `level` | Variants | Borders |
+| --- | --- | --- | --- |
+| `water` | 1 | 1 | no |
+| `a_default` | 10 | 2 | no |
+| `a_scattered` | 11 | 5 | yes |
+| `a_dirt` | 12 | 2 | no |
+| `a_dirt_scattered` | 13 | 5 | yes |
+| `b_default` | 20 | 4 | no |
+| `b_tiles_mixed` | 21 | 4 | no |
+| `b_default_border_*` | 31–38 | 1 each | no |
+| `b_tiles_red` | 39 | 1 | no |
+| `c_default` | 50 | 4 | no |
+| `c_tiles` | 51 | 4 | no |
+| `c_dirt` | 52 | 2 | yes |
+| `c_tiles_dirt` | 53 | 8 | no |
+| `c_default_border_*` | 61–68 | 1 each | no |
+| `d_default` | 70 | 8 | no |
+| `d_default_dirt` | 71 | 4 | no |
+| `d_dirt` | 72 | 2 | yes |
+| `d_carpet` | 75 | 6 | no |
+| `d_carpet_border_*` | 81–88 | 1 each | no |
+| `d_carpet_dirt` | 90 | 2 | yes |
+| `e_default` | 100 | 2 | no |
+| `e_default_dark` | 101 | 2 | no |
+| `e_arable` | 103 | 1 | yes |
+| `e_fine` | 110 | 2 | yes |
+| `e_moss` | 111 | 2 | yes |
+| `f_default` | 120 | 2 | no |
+| `f_fine` | 121 | 2 | yes |
+| `f_path` | 122 | 5 | yes |
+| `f_frozen` | 123 | 2 | yes |
+| `g_default` | 130 | 2 | no |
+| `g_fine` | 131 | 2 | yes |
+| `g_path` | 132 | 2 | yes |
+| `g_path_dense` | 133 | 4 | no |
+| `h_default` | 140 | 2 | yes |
+| `i_default` | 150 | 8 | no |
+| `i_symbols` | 151 | 4 | no |
+| `bonus_1`–`bonus_5` | 500–504 | 2,1,1,1,1 | no |
+| `bonus_shadow` | 600 | 1 | no |
+| `b_moss` | 900 | 2 | yes |
+| `c_moss` | 901 | 1 | yes |
+| `c_moss_tile` | 902 | 1 | yes |
+| `d_moss` | 905 | 2 | yes |
+| `slime_green` | 950 | 1 | yes |
+| `grass` / `grass_brown` / `grass_yellow` / `grass_frozen` | 1000–1003 | 2 each | yes |
+| `special_zone` | 1500 | 1 | no |
+
+Two consequences fall straight out of the table. Every `<theme>_default` is the
+lowest `level` in its own family, so any same-family overlay reliably sorts above
+it — the pairing works without reordering anything. And `water` at `level` 1 is
+below every classic tileset, which is why the arena's water underlay renders
+beneath the theme regardless of where it sits in `datasets`.
+**Impact:** `ThemeDef` gained an optional `overlay: { tilemap, tiles }`, and
+`THEME_DEFS` now interleaves 14 curated pairings among the 14 plain themes —
+`a_dirt`, `b_tiles_mixed`, `b_tiles_red`, `c_tiles`, `c_tiles_dirt`,
+`d_default_dirt`, `d_carpet`, `e_default_dark`, `e_fine`, `f_fine`, `f_frozen`,
+`g_fine`, `g_path_dense`, `i_symbols`. An overlay theme is its base theme by
+spread, so it resolves identical doodads, walls, stairs and warnings; only the
+extra tilemap dataset differs. `src/generator/map/tilemapOverlay.ts` builds that
+dataset for both `map/level.ts` and `boss/arena.ts`, and returns `null` *before*
+touching the RNG when a theme has no overlay — which is what keeps every
+pre-existing seed byte-identical (verified by hashing a fixed-seed campaign
+before and after the change). Themes `h` and `bonus1`–`bonus5` ship no non-border
+overlay and stay unpaired. The `*_moss`, `*_scattered`, `*_path` and `grass*`
+sets are deliberately not offered yet: they are built to dapple a floor in
+patches, and this feature paints at full coverage.
+
+
 ### 2026-08-16 — shadows are a client display setting, so a room lit for shadows-off is too dark for everyone else
 **Tag:** [VERIFIED] that one light is not enough with shadows on (the user played
 the prep room on an install with shadows enabled and found it too dark);

@@ -486,7 +486,12 @@ describe('boss arena — every theme, not just the default', () => {
         expect(badIntArray(xml), `${theme} seed ${seed}`).toBeNull()
       }
     }
-  })
+    // THEMES includes the overlay pairings, so this builds ~2x the arenas it
+    // used to and needs more than the 5s default. Worth the wall clock rather
+    // than skipping them: overlay themes are doodad-identical to their base
+    // (themes.test.ts proves that), but they emit an extra tilemap dataset, and
+    // badIntArray above is what checks it.
+  }, 30_000)
 })
 
 // --- Phase 7: whole-campaign integration -----------------------------------

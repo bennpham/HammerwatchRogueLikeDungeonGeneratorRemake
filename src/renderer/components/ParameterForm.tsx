@@ -99,7 +99,11 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
           &nbsp;&nbsp;2 = brown crack dirt<br/>
           &nbsp;&nbsp;3 = black/brown diagonal squares<br/>
           &nbsp;&nbsp;4 = brown/tan checker tiles<br/>
-          &nbsp;&nbsp;5 = red tiles.
+          &nbsp;&nbsp;5 = red tiles.<br/>
+          <br/>
+          Entries like <strong>c - tiles</strong> are that same theme with an
+          alternate tileset layered over its floor. Same rooms, walls and
+          stairs — only the floor art changes.
         </p>
         <div className="theme-grid">
           {Array.from({ length: Math.max(params.levels, 0) || 0 }, (_, i) => (

@@ -63,6 +63,21 @@ describe('parameters.txt parsing', () => {
     expect(parsed.unknownKeys).toEqual([])
   })
 
+  // Overlay theme ids are the overlay tileset's filename (`c_tiles`), which is
+  // longer than a letter and must survive the comma-separated `themes=` list
+  it('round-trips overlay theme ids', () => {
+    const original = defaultParameters()
+    original.levels = 3
+    original.themes = ['c_tiles', 'd_carpet', 'f_frozen']
+    original.boss.arena.theme = 'g_path_dense'
+
+    const parsed = parseParametersTxt(serializeParametersTxt(original))
+
+    expect(parsed.params.themes).toEqual(['c_tiles', 'd_carpet', 'f_frozen'])
+    expect(parsed.params.boss.arena.theme).toBe('g_path_dense')
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
   it('round-trips lockFinalRoom as 1/0', () => {
     const original = defaultParameters()
     expect(serializeParametersTxt(original)).toContain('lockFinalRoom=1')

@@ -125,8 +125,14 @@ XML dialect (`src/generator/xml/`):
 **Tilemap blocks.** The map is cut into 20×20 blocks; the generator emits
 `ceil(w/20)+1` × `ceil(h/20)+1` of them (the +1 is the original's behaviour —
 extra empty blocks are harmless `[EMITTED]`). Each block carries `x`, `y` and a
-`datasets` array of one or more dicts, drawn in order — the boss arena stacks
-`tilemaps/water.xml` under its theme so nothing shows through as void. Each
+`datasets` array of one or more dicts. The boss arena stacks `tilemaps/water.xml`
+under its theme so nothing shows through as void, and an overlay theme
+(`c - tiles`) stacks its alternate tileset over the base floor.
+
+Draw order is the `level` attribute each **tileset XML** declares, *not* the
+order datasets appear in the block `[VERIFIED]` — `water.xml` is `level` 1, below
+every classic tileset, and each `<theme>_default` is the lowest `level` in its
+own family. Emit low-to-high anyway so the file reads the way it renders. Each
 dataset holds:
 
 - `tileset` — path to the tilemap XML, e.g. `tilemaps/a_default.xml`
@@ -134,7 +140,9 @@ dataset holds:
   `1..tiles` for that tileset
 - `data-r`, `data-g`, `data-b`, `data-a` — 400 ints, all `255` (per-tile tint).
   `data-a` may instead be `0` where `data-t` is `0`, which is what the shipped
-  levels do for a layer meant to be transparent over the one below.
+  levels do for a layer meant to be transparent over the one below. For any layer
+  stacked *above* another this is mandatory, not optional: a flat 255 paints the
+  layer's art out over the void beyond the floor.
 
 A block's `x`/`y` is **not** its top-left corner: cell *i* maps to world
 `(x - 10 + i%20, y - 10 + floor(i/20))` — see `Level.getTiles`. That −10 is from
