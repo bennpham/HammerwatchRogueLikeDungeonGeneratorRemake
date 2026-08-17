@@ -29,6 +29,10 @@ const ALCOVE_AREA = 3 * 3
  * anchors() keeps between an anchor and the wall band. Sourced from
  * anchors.ts so the two files can't disagree about how much floor an anchor
  * needs.
+ *
+ * The three northern anchors sit deeper in (NORTH_ANCHOR_INSET) so their
+ * towers can shoot past the north wall, but the clearance they reserve is
+ * unchanged — this is a reserved-area budget, not a position.
  */
 const ANCHOR_CLEARANCE_AREA = ANCHOR_INSET * ANCHOR_INSET
 const ANCHOR_COUNT = 9
