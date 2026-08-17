@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ANCHOR_INSET, ENTRANCE_DEPTH, ENTRANCE_WIDTH, anchors } from '../src/generator/boss/anchors'
+import { ANCHOR_INSET, ENTRANCE_DEPTH, ENTRANCE_WIDTH, NORTH_ANCHOR_INSET, anchors } from '../src/generator/boss/anchors'
 import { ARENA_MIN_HEIGHT, ARENA_MIN_WIDTH } from '../src/generator/boss/geometry'
 import { largestBossFootprintArea, BOSS_DEF_LIST } from '../src/generator/boss/bosses'
 
@@ -52,6 +52,27 @@ describe('boss arena anchors', () => {
           expect(a.y).toBeGreaterThan(0)
           expect(a.y).toBeLessThan(height - 1)
         }
+      })
+
+      // A tower spawned at ANCHOR_INSET from the north wall fires into the
+      // wall band and every projectile is absorbed (issue #19) — the three
+      // northern anchors sit at NORTH_ANCHOR_INSET instead. The other six are
+      // untouched by that fix, so pin them to ANCHOR_INSET explicitly.
+      it('the northern anchors sit at NORTH_ANCHOR_INSET, the rest at ANCHOR_INSET', () => {
+        const at = (id: string) => points.find((a) => a.id === id)!
+        for (const id of ['N', 'NE', 'NW']) expect(at(id).y).toBe(NORTH_ANCHOR_INSET)
+        for (const id of ['S', 'SE', 'SW']) expect(at(id).y).toBe(height - 1 - ANCHOR_INSET)
+        for (const id of ['W', 'NW', 'SW']) expect(at(id).x).toBe(ANCHOR_INSET)
+        for (const id of ['E', 'NE', 'SE']) expect(at(id).x).toBe(width - 1 - ANCHOR_INSET)
+      })
+
+      // The deeper north inset eats into the gap between the N and C rows. At
+      // the hard floor (ARENA_MIN_HEIGHT) it must still leave three distinct
+      // rows, or N collapses onto C and the arena loses a spawn point.
+      it('the north, centre and south rows stay strictly ordered', () => {
+        const midY = Math.trunc(height / 2)
+        expect(NORTH_ANCHOR_INSET).toBeLessThan(midY)
+        expect(midY).toBeLessThan(height - 1 - ANCHOR_INSET)
       })
 
       it('the S anchor never collides with the entrance mouth', () => {

@@ -5,6 +5,7 @@ import { getTheme } from '../src/generator/config/themes'
 import type { BossOptions } from '../src/generator/config/parameters'
 import { buildBossArena } from '../src/generator/boss/arena'
 import { BOSS_DEFS } from '../src/generator/boss/bosses'
+import { ANCHOR_INSET, NORTH_ANCHOR_INSET } from '../src/generator/boss/anchors'
 import type { AlcoveWall } from '../src/generator/boss/bosses'
 import { DoodadType, doodadOffset, doodadPath } from '../src/generator/objects/doodad'
 import type { DoodadTypeName } from '../src/generator/objects/doodad'
@@ -168,11 +169,12 @@ describe('boss arena — geometry', () => {
       const isWall = (gx: number, gy: number): boolean => preview.walls[gy * preview.mapWidth + gx] === '1'
 
       // anchors are computed the same way arena.ts computes them: inset from
-      // the interior edges by ANCHOR_INSET (2), in the same 9-point layout
-      const left = 2
-      const right = room.width - 1 - 2
-      const top = 2
-      const bottom = room.height - 1 - 2
+      // the interior edges by ANCHOR_INSET, except the north edge which uses
+      // the deeper NORTH_ANCHOR_INSET, in the same 9-point layout
+      const left = ANCHOR_INSET
+      const right = room.width - 1 - ANCHOR_INSET
+      const top = NORTH_ANCHOR_INSET
+      const bottom = room.height - 1 - ANCHOR_INSET
       const midX = Math.trunc(room.width / 2)
       const midY = Math.trunc(room.height / 2)
       const anchorPoints = [

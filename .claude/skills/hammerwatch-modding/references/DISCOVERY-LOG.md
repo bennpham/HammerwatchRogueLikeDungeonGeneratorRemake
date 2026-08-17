@@ -8,6 +8,32 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-16 — a `SpawnObject` 2 tiles from the north wall makes projectile monsters harmless
+**Tag:** [VERIFIED] (hand-patched `boss.xml` reloaded in Hammerwatch; the user's
+`boss_fix_tower.xml` in `editor/dungeon2088907814/levels/` is the fixed file)
+**Context:** The boss arena's 9 spawn anchors were all inset 2 tiles from the
+interior edge. Waves that rolled a tower — `tower_nova_1`, the flower and
+battlement towers — produced towers on the three northern anchors that never
+damaged anyone. Players could still shoot them, so they read as a spawn bug,
+not a balance one.
+**Evidence:** Every projectile from a north-row tower vanished on spawn. A
+tower actor fires from an origin *above* its own tile, and at 2 tiles the
+origin lands in the north wall band, so the shot collides immediately. The
+user hand-edited a generated 32x42 arena, moving only the `NW`/`N`/`NE`
+`SpawnObject` nodes from `y = 2` to `y = 4` (`2 2`/`16 2`/`29 2` -> `2 4`/
+`16 4`/`29 4`) and leaving the other six anchors, `LevelStart`, the entrance
+`RectangleShape` and all 4 waves untouched. Towers fired normally afterwards.
+**Impact:** The inset is no longer uniform. `boss/anchors.ts` gains
+`NORTH_ANCHOR_INSET = 4`, used by `N`, `NE` and `NW`; `ANCHOR_INSET = 2` still
+governs west, east and south. A flat constant, not a function of the wall
+band's thickness — the interior floor starts at `y = 0` on every theme, so the
+clearance the firing origin needs does not vary with `BAND`. Fixes issue #19.
+Note this shifts cover-pillar and food layout for existing seeds (the anchor
+rects feed `cover.ts`'s rejection filter, and a rejection costs a `bossRand`
+draw); `ctx.rand` and `ctx.cosmeticRand` are untouched, so dungeon levels are
+byte-identical and only boss arenas change.
+
+
 ### 2026-08-13 — a tilemap block's declared `x`/`y` MUST be a multiple of 20; the engine snaps it
 **Tag:** [VERIFIED] (proved by hand-patching a generated `boss.xml` and reloading
 it in Hammerwatch 1.41 — the floor snapped onto its walls)
