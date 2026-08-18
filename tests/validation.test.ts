@@ -461,6 +461,25 @@ describe('boss validation', () => {
     expect(fieldsOf(result.errors)).toContain('boss.arena.theme')
   })
 
+  it('rejects an unknown arena floor pattern', () => {
+    const result = withBoss({
+      arena: {
+        ...defaultParameters().boss.arena,
+        floorPattern: 'spiral' as 'random'
+      }
+    })
+    expect(fieldsOf(result.errors)).toContain('boss.arena.floorPattern')
+  })
+
+  // Setting a pattern on a theme with no palette is simply unused, not an
+  // error: clearing it when the user switches theme would lose their choice.
+  it('accepts a floor pattern on a theme that ignores it', () => {
+    const result = withBoss({
+      arena: { ...defaultParameters().boss.arena, theme: 'g', floorPattern: 'rings' }
+    })
+    expect(fieldsOf(result.errors)).not.toContain('boss.arena.floorPattern')
+  })
+
   it('rejects starting gold that is not a multiple of 500', () => {
     const result = withBoss({ prep: { ...defaultParameters().boss.prep, startingGold: 750 } })
     expect(result.valid).toBe(false)

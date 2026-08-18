@@ -1,6 +1,7 @@
 import {
   BOSS_COVER_DENSITY_MAX,
   BOSS_COVER_PATTERNS,
+  BOSS_FLOOR_PATTERNS,
   BOSS_IDS,
   BOSS_SPAWN_MODES,
   DungeonParameters,
@@ -486,6 +487,16 @@ function validateBoss(
   // theme valid
   if (!THEMES.includes(arena.theme)) {
     errors.push({ field: 'boss.arena.theme', message: `"${arena.theme}" is not one of: ${THEMES.join(', ')}.` })
+  }
+
+  // floor pattern valid. Not an error to set one on a theme that ignores it —
+  // the value is simply unused, and clearing it when the user switches theme
+  // away and back would lose their choice.
+  if (!BOSS_FLOOR_PATTERNS.includes(arena.floorPattern)) {
+    errors.push({
+      field: 'boss.arena.floorPattern',
+      message: `"${arena.floorPattern}" is not one of: ${BOSS_FLOOR_PATTERNS.join(', ')}.`
+    })
   }
 
   // starting gold

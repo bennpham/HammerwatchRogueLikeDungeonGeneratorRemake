@@ -8,6 +8,34 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-17 — mixed themes: the verified stacking mechanism, driven per region
+**Tag:** [EMITTED] for the 8 `x - mixed` themes; the mechanism they rely on is
+already [VERIFIED] by the 2026-08-16 tile-block-stacking entry below.
+**Context:** Extending the paired themes of PR #24 so a floor can vary within
+itself — `a - mixed` … `g - mixed` (plus `i`), one surface per room and per
+corridor, and a geometric pattern across the boss arena.
+**Evidence:** Nothing new about the engine was needed. The user's hand-authored
+`test_alt_tileset.xml` already proved the three facts this depends on: a block
+takes many datasets, they may paint disjoint patches, and `data-a: 0` is how a
+layer declares itself absent on a cell. This change simply chooses the patches
+from the level's own room/corridor rectangles instead of a hand-drawn 4x4 grid.
+A generated `c - mixed` block carries the base plus at most one dataset per
+palette overlay, and blocks whose regions all landed on the plain slot carry
+just the base.
+**Impact:** `src/generator/map/tilemapOverlay.ts` gained `mixedDatasets`, shared
+by the floors and the arena. Two things remain unverified and are the first
+thing to look at in game:
+- **Seams.** The curated overlays ship no `<borders>` (that is why the
+  `*_scattered` / `*_path` sets were excluded from curation), so where two
+  regions meet, the art changes on a hard tile edge. Inside a room that edge is
+  under the wall band, but a corridor meeting a room is open floor. If it reads
+  badly, the fix is to bias corridors towards the plain slot rather than to add
+  border tilesets.
+- **Dataset count per block.** Eight was verified by hand; a mixed theme emits
+  at most 1 + 2 (floors) or 1 + 1 + 2 (arena, counting `water`), so this stays
+  well inside what was seen — but it is the first time the generator has emitted
+  more than three.
+
 ### 2026-08-17 — `slime_1_host` is a spawner, and the folder does not say so
 **Tag:** [VERIFIED] (read from a stock install's `editor/assetsExtract/actors/`)
 **Context:** The boss-wave variant picker groups spawners separately from

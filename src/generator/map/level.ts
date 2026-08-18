@@ -6,7 +6,7 @@ import { Doodad } from '../objects/doodad'
 import { GOLD_LOCK_TIER } from '../objects/item'
 import { getTheme, THEME_DEFS } from '../config/themes'
 import { XMLArray, XMLDictionary, XMLInt, XMLIntArray, XMLString } from '../xml'
-import { overlayDataset } from './tilemapOverlay'
+import { mixedDatasets, overlayDataset } from './tilemapOverlay'
 import type { GenerationContext } from '../core/context'
 
 const TILEMAP_SIZE = 20
@@ -25,6 +25,18 @@ export class Level {
   passageList: Passage[] = []
   levelValid = true
   theme: string
+
+  /**
+   * Which room or corridor owns each cell, parallel to `tileArray`:
+   * -1 for wall/void, `i` for `rooms[i]`, `rooms.length + i` for
+   * `passageList[i]`. Filled by `buildTileArray` from the same room-first test
+   * that decides the wall bit, so the two can never disagree — which matters
+   * because `Room.contains` is inclusive and a passage's last cells overlap the
+   * room it arrives at.
+   *
+   * Used only by the mixed themes, to give a whole room one floor surface.
+   */
+  regionMap: Int32Array = new Int32Array(0)
 
   private ctx: GenerationContext
 
@@ -239,6 +251,18 @@ export class Level {
     // matches the original's default branch rather than throwing
     const tilemap = getTheme(this.theme) ?? THEME_DEFS[0]
 
+    // A mixed theme gives every room and every corridor its own floor surface:
+    // one palette slot each, rolled here rather than per tile so a room reads as
+    // a single deliberate surface. Guarded so a plain or paired theme draws
+    // nothing at all and every seed generated before this existed is unchanged.
+    const palette = tilemap.mixed
+    const regionVariant =
+      palette === undefined
+        ? null
+        : Array.from({ length: this.rooms.length + this.passageList.length }, () =>
+            Math.trunc(ctx.cosmeticRand.nextFloat() * palette.length)
+          )
+
     for (let x = 0; x < xTiles + 1; x++) {
       for (let y = 0; y < yTiles + 1; y++) {
         const dataT = this.getTiles(x * TILEMAP_SIZE, y * TILEMAP_SIZE, tilemap.tiles)
@@ -262,6 +286,17 @@ export class Level {
         // `overlayDataset`.
         const overlay = overlayDataset(tilemap, dataT, ctx.cosmeticRand)
         if (overlay !== null) dataSets.addData(overlay)
+
+        // A mixed theme instead adds one masked dataset per palette overlay that
+        // any region in this block landed on — often none, since most blocks sit
+        // inside a single room.
+        if (regionVariant !== null) {
+          const regionIds = this.getRegionIds(x * TILEMAP_SIZE, y * TILEMAP_SIZE)
+          const cellVariant = regionIds.map((r) => (r < 0 ? -1 : regionVariant[r]))
+          for (const d of mixedDatasets(tilemap, dataT, cellVariant, ctx.cosmeticRand)) {
+            dataSets.addData(d)
+          }
+        }
 
         const tileBlock = new XMLDictionary('')
         tileBlock.addData(new XMLInt('x', x * TILEMAP_SIZE))
@@ -361,6 +396,33 @@ export class Level {
     return tiles
   }
 
+  /**
+   * `regionMap` sampled for one 20x20 block — the same index math and the same
+   * `-10` block-centring offset as `getTiles`, so cell `i` here describes the
+   * same tile as cell `i` there. Draws no random numbers.
+   */
+  private getRegionIds(x: number, y: number): number[] {
+    const ids = new Array<number>(TILEMAP_SIZE * TILEMAP_SIZE)
+    for (let i = 0; i < TILEMAP_SIZE * TILEMAP_SIZE; i++) {
+      const tileX = x - 10 + (i % TILEMAP_SIZE)
+      const tileY = y - 10 + Math.trunc(i / TILEMAP_SIZE)
+      const tileIndex = tileX + tileY * this.width
+      if (
+        tileIndex >= 0 &&
+        tileIndex < this.width * this.height &&
+        tileX >= 0 &&
+        tileX < this.width &&
+        tileY >= 0 &&
+        tileY < this.height
+      ) {
+        ids[i] = this.regionMap[tileIndex]
+      } else {
+        ids[i] = -1
+      }
+    }
+    return ids
+  }
+
   private defaultIntArray(name: string): XMLIntArray {
     return new XMLIntArray(name, new Array<number>(TILEMAP_SIZE * TILEMAP_SIZE).fill(255))
   }
@@ -368,6 +430,7 @@ export class Level {
   /** Rasterize rooms + passages into the wall/floor grid. */
   private buildTileArray(): void {
     this.tileArray = new Array<Tile>(this.width * this.height)
+    this.regionMap = new Int32Array(this.width * this.height).fill(-1)
     for (let i = 0; i < this.width * this.height; i++) {
       const tile = new Tile(false)
       this.tileArray[i] = tile
@@ -376,17 +439,19 @@ export class Level {
       const y = Math.trunc(i / this.width)
 
       let isWall = true
-      for (const r of this.rooms) {
-        if (r.contains(x, y)) {
+      for (let r = 0; r < this.rooms.length; r++) {
+        if (this.rooms[r].contains(x, y)) {
           isWall = false
+          this.regionMap[i] = r
           break
         }
       }
 
       if (isWall) {
-        for (const p of this.passageList) {
-          if (p.contains(x, y)) {
+        for (let p = 0; p < this.passageList.length; p++) {
+          if (this.passageList[p].contains(x, y)) {
             isWall = false
+            this.regionMap[i] = this.rooms.length + p
             break
           }
         }

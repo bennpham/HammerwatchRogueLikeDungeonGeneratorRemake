@@ -14,6 +14,29 @@ export const THEMES: readonly string[] = THEME_DEFS.map((t) => t.id)
 export const BOSS_COVER_PATTERNS = ['random', 'ring', 'gaussian', 'symmetric'] as const
 
 /**
+ * How a *mixed* arena theme lays its floor palette out — `random` lets the seed
+ * pick, anything else pins it. Ignored entirely unless `arena.theme` is one of
+ * the `- mixed` entries, which are the only ones with a palette to arrange.
+ *
+ * Listed literally rather than derived from `ARENA_PATTERN_KINDS` to keep
+ * config/ from importing boss/ at runtime — the same reason `THEMED_WALL_PIECES`
+ * is spelled out in themes.ts. `arenaPattern.test.ts` asserts the two stay in
+ * sync, so adding a kind without listing it here fails the suite.
+ */
+export const BOSS_FLOOR_PATTERNS = [
+  'random',
+  'checker',
+  'bandsH',
+  'bandsV',
+  'bandsDiag',
+  'rings',
+  'diamond',
+  'cross',
+  'triangle'
+] as const
+export type BossFloorPattern = (typeof BOSS_FLOOR_PATTERNS)[number]
+
+/**
  * Hard ceiling on arena cover density, as a fraction of the free floor.
  *
  * A validation error rather than a warning: 0.5 shipped once and the arena
@@ -128,6 +151,12 @@ export interface BossOptions {
   arena: {
     /** one theme letter from THEME_DEFS, independent of the dungeon floors' themes */
     theme: string
+    /**
+     * Which pattern a `- mixed` arena theme arranges its floor palette in.
+     * `random` (the default) lets the seed choose. Ignored for every other
+     * theme, which has no palette to arrange.
+     */
+    floorPattern: BossFloorPattern
     minWidth: number
     maxWidth: number
     minHeight: number
@@ -224,6 +253,7 @@ export function defaultBossOptions(): BossOptions {
     },
     arena: {
       theme: 'g',
+      floorPattern: 'random',
       minWidth: 24,
       maxWidth: 32,
       minHeight: 32,

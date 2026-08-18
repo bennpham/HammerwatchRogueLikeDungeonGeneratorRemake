@@ -1,7 +1,9 @@
 import React, { useState } from 'react'
 import {
+  ARENA_PATTERN_LABELS,
   BOSS_COVER_PATTERNS,
   BOSS_DEF_LIST,
+  BOSS_FLOOR_PATTERNS,
   BOSS_GOLD_MAX,
   BOSS_SPAWN_MODES,
   DEFAULT_WAVE_MONSTER_MAX,
@@ -12,6 +14,7 @@ import {
   corpseCollision,
   defaultTier,
   diamondCount,
+  getTheme,
   isScatterMode,
   lobbyCategoryCounts,
   monsterVariantsInGroup,
@@ -19,6 +22,8 @@ import {
   waveSpawnMode
 } from '../../generator'
 import type {
+  ArenaPatternKind,
+  BossFloorPattern,
   BossOptions,
   BossSpawnMode,
   BossWave,
@@ -297,6 +302,14 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
       </Section>
 
       <Section title="Theme">
+        <p className="hint">
+          Entries like <strong>f - frozen</strong> layer an alternate tileset over
+          the theme’s floor. A <strong>- mixed</strong> entry picks between the
+          plain floor and those alternates — the arena is one open room, so it
+          lays them out in a geometric pattern rather than per room, which the
+          seed picks unless you choose one below. The orb alcove and the
+          entrance stay on the plain floor either way.
+        </p>
         <label className="field">
           <span className="field-label">Arena theme</span>
           <select value={arena.theme} onChange={(e) => setArena({ theme: e.target.value })}>
@@ -313,6 +326,31 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
         </label>
         {issues
           .filter((i) => i.field === 'boss.arena.theme')
+          .map((issue, i) => (
+            <p key={i} className="field-message">
+              {issue.message}
+            </p>
+          ))}
+        {/* only a mixed theme has a palette to arrange, so the choice is
+            meaningless — and misleading — for every other theme */}
+        {getTheme(arena.theme)?.mixed !== undefined && (
+          <label className="field">
+            <span className="field-label">Floor pattern</span>
+            <select
+              value={arena.floorPattern}
+              onChange={(e) => setArena({ floorPattern: e.target.value as BossFloorPattern })}
+            >
+              <option value="random">random (the seed picks)</option>
+              {BOSS_FLOOR_PATTERNS.filter((p) => p !== 'random').map((p) => (
+                <option key={p} value={p}>
+                  {ARENA_PATTERN_LABELS[p as ArenaPatternKind]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {issues
+          .filter((i) => i.field === 'boss.arena.floorPattern')
           .map((issue, i) => (
             <p key={i} className="field-message">
               {issue.message}

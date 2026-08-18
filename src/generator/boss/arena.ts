@@ -52,7 +52,9 @@ import { NodeDestroyObject, NodeGlobalEventTrigger, NodeLevelStart, NodeRectangl
 import { getTheme, THEME_DEFS } from '../config/themes'
 import type { ThemeDef } from '../config/themes'
 import { XMLArray, XMLDictionary, XMLInt, XMLIntArray, XMLString } from '../xml'
-import { dataAFromDataT, overlayDataset } from '../map/tilemapOverlay'
+import { dataAFromDataT, mixedDatasets, overlayDataset } from '../map/tilemapOverlay'
+import { patternVariant, pickArenaPattern } from './arenaPattern'
+import type { ArenaPattern } from './arenaPattern'
 import type { GenerationContext } from '../core/context'
 import type { BossOptions } from '../config/parameters'
 import type { LevelPreview, PreviewRoom } from '../index'
@@ -358,8 +360,22 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   for (const seal of alcoveSeals) destroyWalls.connectDoodad(seal)
   bossDied.connectTo(destroyWalls)
 
+  // A mixed arena theme lays its palette out as a geometric pattern — the arena
+  // is one open rectangle, so the per-room mixing the dungeon floors use would
+  // paint the whole thing one variant. Rolled here, after every other bossRand
+  // draw in the build, and only for a mixed theme: a plain or paired theme draws
+  // nothing and its arenas stay byte-identical to what they were.
+  const pattern =
+    themeDef.mixed === undefined
+      ? null
+      : pickArenaPattern(
+          ctx.bossRand,
+          themeDef.mixed.length,
+          arena.floorPattern === 'random' ? undefined : arena.floorPattern
+        )
+
   return {
-    xml: getArenaXML(ctx, tileArray, gridWidth, gridHeight, themeDef, originX, originY),
+    xml: getArenaXML(ctx, tileArray, gridWidth, gridHeight, themeDef, originX, originY, width, height, pattern),
     preview: buildArenaPreview(ctx, tileArray, gridWidth, gridHeight, originX, originY, width, height, arena.theme, levelNumber)
   }
 }
@@ -445,6 +461,38 @@ function getTiles(ctx: GenerationContext, tileArray: Tile[], gridWidth: number, 
   return tiles
 }
 
+/**
+ * The pattern's palette slot for every cell of one 20x20 block — same index
+ * math and same `-10` offset as `getTiles`, so cell `i` here is cell `i` there.
+ * Draws no random numbers.
+ *
+ * The alcove pocket, its mouth and the entrance all sit outside the fight
+ * rectangle in local coordinates, and are pinned to slot 0 (the plain base) so
+ * they still read as somewhere other than the floor the fight happens on.
+ */
+function getPatternVariants(
+  pattern: ArenaPattern,
+  x: number,
+  y: number,
+  originX: number,
+  originY: number,
+  fightWidth: number,
+  fightHeight: number
+): number[] {
+  const variants = new Array<number>(TILEMAP_SIZE * TILEMAP_SIZE)
+  for (let i = 0; i < TILEMAP_SIZE * TILEMAP_SIZE; i++) {
+    // grid -> local, the inverse of the arena's own toGrid
+    const localX = x - 10 + (i % TILEMAP_SIZE) - originX
+    const localY = y - 10 + Math.trunc(i / TILEMAP_SIZE) - originY
+    if (localX < 0 || localY < 0 || localX >= fightWidth || localY >= fightHeight) {
+      variants[i] = 0
+    } else {
+      variants[i] = patternVariant(pattern, localX, localY, fightWidth, fightHeight)
+    }
+  }
+  return variants
+}
+
 function defaultIntArray(name: string): XMLIntArray {
   return new XMLIntArray(name, new Array<number>(TILEMAP_SIZE * TILEMAP_SIZE).fill(255))
 }
@@ -487,7 +535,10 @@ function getArenaXML(
   gridHeight: number,
   themeDef: ThemeDef,
   originX: number,
-  originY: number
+  originY: number,
+  fightWidth: number,
+  fightHeight: number,
+  pattern: ArenaPattern | null
 ): string {
   const tiledataArray = new XMLArray('tiledata')
   const xTiles = Math.ceil(gridWidth / TILEMAP_SIZE)
@@ -527,6 +578,23 @@ function getArenaXML(
       // everything else in this file; a plain theme draws nothing and gets null.
       const overlay = overlayDataset(themeDef, dataT, ctx.bossRand)
       if (overlay !== null) dataSets.addData(overlay)
+
+      // A mixed arena theme instead adds one masked dataset per palette slot the
+      // pattern put in this block.
+      if (pattern !== null) {
+        const cellVariant = getPatternVariants(
+          pattern,
+          x * TILEMAP_SIZE + originX,
+          y * TILEMAP_SIZE + originY,
+          originX,
+          originY,
+          fightWidth,
+          fightHeight
+        )
+        for (const d of mixedDatasets(themeDef, dataT, cellVariant, ctx.bossRand)) {
+          dataSets.addData(d)
+        }
+      }
 
       const tileBlock = new XMLDictionary('')
       // Always a multiple of TILEMAP_SIZE. Every authored and shipped level in
