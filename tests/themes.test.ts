@@ -232,6 +232,262 @@ describe('overlay themes — an alternate tileset layered over a base theme', ()
   })
 })
 
+/** Every dataset of every block, in order, as {tileset, data-t, data-a}. */
+function readDatasets(xml: string): Array<{ tileset: string; t: number[]; a: number[] }> {
+  const nums = (row: string) =>
+    row
+      .split(/[\s,]+/)
+      .filter((v) => v.length > 0)
+      .map(Number)
+  return [
+    ...xml.matchAll(
+      /<string name="tileset">([^<]*)<\/string>\s*<int-arr name="data-t">([^<]*)<\/int-arr>[\s\S]*?<int-arr name="data-a">([^<]*)<\/int-arr>/g
+    )
+  ].map((m) => ({ tileset: m[1], t: nums(m[2]), a: nums(m[3]) }))
+}
+
+/** Datasets grouped per tile block — a block starts at each base-tileset row. */
+function blocksOf(xml: string, baseTileset: string): Array<ReturnType<typeof readDatasets>> {
+  const blocks: Array<ReturnType<typeof readDatasets>> = []
+  for (const ds of readDatasets(xml)) {
+    if (ds.tileset === baseTileset || blocks.length === 0) blocks.push([])
+    blocks[blocks.length - 1].push(ds)
+  }
+  return blocks
+}
+
+describe('mixed themes — the plain floor and its overlays varied per region', () => {
+  const mixed = THEME_DEFS.filter((t) => t.mixed !== undefined)
+
+  it('gives every base theme that has curated overlays exactly one mixed entry', () => {
+    expect(mixed.length).toBeGreaterThan(0)
+    for (const base of THEME_DEFS.filter((t) => t.overlay === undefined && t.mixed === undefined)) {
+      const overlayCount = THEME_DEFS.filter(
+        (t) => t.overlay !== undefined && t.doodadToken === base.doodadToken
+      ).length
+      const entries = mixed.filter((t) => t.id === `${base.id}_mixed`)
+      expect(entries.length, `${base.id} has ${overlayCount} overlays`).toBe(
+        overlayCount === 0 ? 0 : 1
+      )
+    }
+    // the ones the ask named, plus i which has a curated overlay too
+    for (const id of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'i']) {
+      expect(THEMES).toContain(`${id}_mixed`)
+    }
+    // h and the bonus sets ship no non-border overlay, so they have nothing to mix
+    expect(THEMES).not.toContain('h_mixed')
+    expect(THEMES).not.toContain('bonus1_mixed')
+  })
+
+  it('builds each palette as the plain base plus that base’s curated overlays', () => {
+    for (const def of mixed) {
+      const base = getTheme(def.doodadToken)!
+      // never both: `overlay` means "this tileset everywhere", the opposite of mixing
+      expect(def.overlay).toBeUndefined()
+      expect(def.tilemap).toBe(base.tilemap)
+      expect(def.tiles).toBe(base.tiles)
+      expect(def.group).toBe(base.group)
+      expect(def.id).not.toContain(',')
+
+      const palette = def.mixed!
+      expect(palette.length).toBeGreaterThanOrEqual(2)
+      // slot 0 is the plain base floor; nothing else is null
+      expect(palette[0]).toBeNull()
+      const siblings = THEME_DEFS.filter(
+        (t) => t.overlay !== undefined && t.doodadToken === def.doodadToken
+      ).map((t) => t.overlay!)
+      expect(palette.slice(1)).toEqual(siblings)
+    }
+  })
+
+  it('resolves every doodad identically to its base theme', () => {
+    for (const def of mixed) {
+      for (const type of Object.keys(DoodadType) as DoodadTypeName[]) {
+        expect(doodadPath(type, def.id), `${def.id}:${type}`).toBe(doodadPath(type, def.doodadToken))
+        expect(doodadOffset(type, def.id), `${def.id}:${type}`).toEqual(
+          doodadOffset(type, def.doodadToken)
+        )
+      }
+    }
+  })
+
+  // Unlike a paired theme, the stack height varies: a block sitting inside one
+  // room needs at most one extra dataset, and a block on a plain-slot room needs
+  // none. Only the tilesets in the theme's own palette may ever appear.
+  it('stacks the base first and only palette overlays above it', () => {
+    const def = getTheme('c_mixed')!
+    const level0 = generateWithTheme('c_mixed', 4242, 1).files.find(
+      (f) => f.path === 'levels/level0.xml'
+    )!.content
+    const allowed = def.mixed!.filter((s) => s !== null).map((s) => s!.tilemap)
+    expect(allowed).toEqual(['tilemaps/c_tiles.xml', 'tilemaps/c_tiles_dirt.xml'])
+
+    const blocks = blocksOf(level0, def.tilemap)
+    expect(blocks.length).toBeGreaterThan(0)
+    for (const block of blocks) {
+      expect(block[0].tileset).toBe('tilemaps/c_default.xml')
+      expect(block.length).toBeLessThanOrEqual(1 + allowed.length)
+      const extras = block.slice(1).map((d) => d.tileset)
+      for (const tileset of extras) expect(allowed).toContain(tileset)
+      // a tileset never appears twice in one block
+      expect(new Set(extras).size).toBe(extras.length)
+    }
+  })
+
+  it('masks every extra dataset to the floor and keeps the masks disjoint', () => {
+    const def = getTheme('d_mixed')!
+    const level0 = generateWithTheme('d_mixed', 4242, 1).files.find(
+      (f) => f.path === 'levels/level0.xml'
+    )!.content
+    const limits = new Map(def.mixed!.filter((s) => s !== null).map((s) => [s!.tilemap, s!.tiles]))
+
+    let sawExtra = false
+    for (const block of blocksOf(level0, def.tilemap)) {
+      const base = block[0].t
+      for (let i = 0; i < base.length; i++) {
+        let covering = 0
+        for (const extra of block.slice(1)) {
+          if (extra.t[i] === 0) {
+            expect(extra.a[i]).toBe(0)
+            continue
+          }
+          // an overlay tile only ever sits on a floor tile of the base
+          expect(base[i]).not.toBe(0)
+          expect(extra.t[i]).toBeLessThanOrEqual(limits.get(extra.tileset)!)
+          expect(extra.a[i]).toBe(255)
+          covering++
+          sawExtra = true
+        }
+        // the palette slots partition the floor: never two overlays on one cell
+        expect(covering).toBeLessThanOrEqual(1)
+      }
+    }
+    expect(sawExtra).toBe(true)
+  })
+
+  // The point of mixing per region rather than per tile: a room is one surface,
+  // so a level reads as several deliberate floors instead of speckle.
+  it('gives a whole room a single floor surface', () => {
+    const params = defaultParameters()
+    params.levels = 1
+    params.themes = ['c_mixed']
+    params.levelMonsters = params.levelMonsters.slice(0, 1)
+    const result = generateDungeon(params, 4242)
+    expect(result.ok).toBe(true)
+    const res = result as DungeonResult
+    const level0 = res.files.find((f) => f.path === 'levels/level0.xml')!.content
+    const preview = res.levels[0]
+
+    // rebuild the world-space variant of every floor cell from the emitted XML
+    const def = getTheme('c_mixed')!
+    const variantAt = new Map<string, string>()
+    const blocks = blocksOf(level0, def.tilemap)
+    const perRow = Math.ceil(params.mapHeight / 20) + 1
+    blocks.forEach((block, b) => {
+      const blockX = Math.trunc(b / perRow) * 20
+      const blockY = (b % perRow) * 20
+      for (let i = 0; i < block[0].t.length; i++) {
+        if (block[0].t[i] === 0) continue
+        const x = blockX - 10 + (i % 20)
+        const y = blockY - 10 + Math.trunc(i / 20)
+        const extra = block.slice(1).find((d) => d.t[i] !== 0)
+        variantAt.set(`${x},${y}`, extra?.tileset ?? 'base')
+      }
+    })
+    expect(variantAt.size).toBeGreaterThan(0)
+
+    let checked = 0
+    for (const room of preview.rooms) {
+      const seen = new Set<string>()
+      for (let x = room.x; x <= room.x + room.width; x++) {
+        for (let y = room.y; y <= room.y + room.height; y++) {
+          const v = variantAt.get(`${x},${y}`)
+          if (v !== undefined) seen.add(v)
+        }
+      }
+      if (seen.size > 0) {
+        expect(seen.size, `room at ${room.x},${room.y} has ${[...seen].join(' + ')}`).toBe(1)
+        checked++
+      }
+    }
+    expect(checked).toBeGreaterThan(0)
+    // and the level as a whole is genuinely mixed, or the assertion above is vacuous
+    expect(new Set(variantAt.values()).size).toBeGreaterThan(1)
+  })
+
+  // Invariant 2, the same proof the overlay suite uses: mixing may only add
+  // floor art, never move a wall, a stair or a monster.
+  it('is deterministic and leaves the layout identical to the plain theme', () => {
+    const once = generateWithTheme('c_mixed', 31337, 3)
+    const again = generateWithTheme('c_mixed', 31337, 3)
+    expect(once.files.map((f) => f.content)).toEqual(again.files.map((f) => f.content))
+
+    const mixed0 = once.files.find((f) => f.path === 'levels/level0.xml')!.content
+    const plain0 = generateWithTheme('c', 31337, 3).files.find(
+      (f) => f.path === 'levels/level0.xml'
+    )!.content
+    const paired0 = generateWithTheme('c_tiles', 31337, 3).files.find(
+      (f) => f.path === 'levels/level0.xml'
+    )!.content
+    expect(mixed0).not.toBe(plain0)
+    expect(mixed0).not.toBe(paired0)
+    const doodads = (xml: string) => xml.slice(xml.indexOf('<dictionary name="doodads">'))
+    expect(doodads(mixed0)).toBe(doodads(plain0))
+  })
+
+  it('lays a mixed arena theme out as a pattern, leaving the alcove plain', () => {
+    const params = defaultParameters()
+    params.boss.enabled = true
+    params.boss.arena.theme = 'f_mixed'
+    const result = generateDungeon(params, 4242)
+    expect(result.ok).toBe(true)
+    const boss = (result as DungeonResult).files.find((f) => f.path === 'levels/boss.xml')!.content
+
+    const datasets = readDatasets(boss)
+    const tilesets = new Set(datasets.map((d) => d.tileset))
+    expect(tilesets).toContain('tilemaps/water.xml')
+    expect(tilesets).toContain('tilemaps/f_default.xml')
+    // f's palette is [plain, f_fine, f_frozen]. A centre shape uses only two
+    // slots, so one seed need not show both — only that the pattern laid down
+    // something over the plain floor.
+    const palette = ['tilemaps/f_fine.xml', 'tilemaps/f_frozen.xml']
+    expect(palette.some((p) => tilesets.has(p))).toBe(true)
+    for (const set of tilesets) {
+      expect(['tilemaps/water.xml', 'tilemaps/f_default.xml', ...palette]).toContain(set)
+    }
+
+    // water first, theme second, pattern datasets after — per block
+    let sawExtra = false
+    for (const block of blocksOf(boss, 'tilemaps/water.xml')) {
+      expect(block[0].tileset).toBe('tilemaps/water.xml')
+      if (block.length === 1) continue // the margin blocks carry water only
+      expect(block[1].tileset).toBe('tilemaps/f_default.xml')
+      const base = block[1].t
+      for (const extra of block.slice(2)) {
+        sawExtra = true
+        for (let i = 0; i < base.length; i++) {
+          if (extra.t[i] !== 0) expect(base[i]).not.toBe(0)
+        }
+      }
+    }
+    expect(sawExtra).toBe(true)
+  })
+
+  it('draws no RNG in the arena for a theme without a palette', () => {
+    const run = (theme: string) => {
+      const params = defaultParameters()
+      params.boss.enabled = true
+      params.boss.arena.theme = theme
+      const result = generateDungeon(params, 909)
+      expect(result.ok).toBe(true)
+      return (result as DungeonResult).files.find((f) => f.path === 'levels/boss.xml')!.content
+    }
+    expect(run('g')).toBe(run('g'))
+    expect(run('g_mixed')).toBe(run('g_mixed'))
+    expect(run('g_mixed')).not.toBe(run('g'))
+  })
+})
+
 describe('doodadOffset — the anchor compensation', () => {
   // DoodadType's offsets encode the classic art's <origin> y / 16. The bonus art
   // is anchored at 0 0, so reusing the classic offsets displaces the collision
@@ -347,32 +603,41 @@ describe('generating with a bonus theme', () => {
   })
 
   // An index above the tileset's sprite count is a load-time error in game, so
-  // this is checked per *dataset*: a paired theme emits the base's data-t and
-  // the overlay's, and the two have different variant counts (c_default has 4,
-  // c_tiles_dirt has 8). Comparing the whole file against one number would both
-  // miss an over-range overlay and false-alarm on a legitimate one.
+  // this is checked per *dataset*, against the limit of the tileset that dataset
+  // actually names: a paired theme emits the base's data-t and the overlay's,
+  // and the two have different variant counts (c_default has 4, c_tiles_dirt has
+  // 8). Comparing the whole file against one number would both miss an
+  // over-range overlay and false-alarm on a legitimate one. Matching on the
+  // tileset rather than on dataset position is what lets this cover the mixed
+  // themes too, whose stack height varies block by block.
   it('never emits a floor index above the tileset variant count', () => {
     for (const def of THEME_DEFS) {
+      const limits = new Map<string, number>([[def.tilemap, def.tiles]])
+      if (def.overlay !== undefined) limits.set(def.overlay.tilemap, def.overlay.tiles)
+      for (const slot of def.mixed ?? []) {
+        if (slot !== null) limits.set(slot.tilemap, slot.tiles)
+      }
+
       const level0 = generateWithTheme(def.id, 99, 1).files.find(
         (f) => f.path === 'levels/level0.xml'
       )!.content
-      const rows = level0.match(/<int-arr name="data-t">([^<]*)<\/int-arr>/g) ?? []
-      expect(rows.length).toBeGreaterThan(0)
-      // datasets alternate base, overlay, base, overlay... when there is one
-      const limits = def.overlay === undefined ? [def.tiles] : [def.tiles, def.overlay.tiles]
-      expect(rows.length % limits.length).toBe(0)
-      rows.forEach((row, i) => {
+      const datasets = [
+        ...level0.matchAll(
+          /<string name="tileset">([^<]*)<\/string>\s*<int-arr name="data-t">([^<]*)<\/int-arr>/g
+        )
+      ]
+      expect(datasets.length).toBeGreaterThan(0)
+      for (const [, tileset, data] of datasets) {
+        const limit = limits.get(tileset)
+        expect(limit, `${def.id} emitted an unexpected tileset ${tileset}`).toBeDefined()
         const max = Math.max(
-          ...row
-            .replace(/<[^>]+>/g, '')
+          ...data
             .split(/[\s,]+/)
             .filter((v) => v.length > 0)
             .map(Number)
         )
-        expect(max, `${def.id} dataset ${i % limits.length}`).toBeLessThanOrEqual(
-          limits[i % limits.length]
-        )
-      })
+        expect(max, `${def.id} dataset ${tileset}`).toBeLessThanOrEqual(limit!)
+      }
     }
   })
 })

@@ -78,6 +78,19 @@ describe('parameters.txt parsing', () => {
     expect(parsed.unknownKeys).toEqual([])
   })
 
+  it('round-trips mixed theme ids', () => {
+    const original = defaultParameters()
+    original.levels = 3
+    original.themes = ['a_mixed', 'c_mixed', 'f_mixed']
+    original.boss.arena.theme = 'g_mixed'
+
+    const parsed = parseParametersTxt(serializeParametersTxt(original))
+
+    expect(parsed.params.themes).toEqual(['a_mixed', 'c_mixed', 'f_mixed'])
+    expect(parsed.params.boss.arena.theme).toBe('g_mixed')
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
   it('round-trips lockFinalRoom as 1/0', () => {
     const original = defaultParameters()
     expect(serializeParametersTxt(original)).toContain('lockFinalRoom=1')

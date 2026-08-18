@@ -297,6 +297,14 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
       </Section>
 
       <Section title="Theme">
+        <p className="hint">
+          Entries like <strong>f - frozen</strong> layer an alternate tileset over
+          the theme’s floor. A <strong>- mixed</strong> entry picks between the
+          plain floor and those alternates — the arena is one open room, so it
+          lays them out in a geometric pattern (checker, bands, rings, or a shape
+          centred on the fight) rather than per room. The orb alcove and the
+          entrance stay on the plain floor either way.
+        </p>
         <label className="field">
           <span className="field-label">Arena theme</span>
           <select value={arena.theme} onChange={(e) => setArena({ theme: e.target.value })}>

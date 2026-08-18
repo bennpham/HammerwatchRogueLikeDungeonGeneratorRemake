@@ -103,7 +103,11 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
           <br/>
           Entries like <strong>c - tiles</strong> are that same theme with an
           alternate tileset layered over its floor. Same rooms, walls and
-          stairs — only the floor art changes.
+          stairs — only the floor art changes.<br/>
+          <br/>
+          <strong>c - mixed</strong> varies that choice across the level: every
+          room and every corridor picks its own surface from the plain theme and
+          its alternates, so a carpeted hall can lead into a dirt-floored vault.
         </p>
         <div className="theme-grid">
           {Array.from({ length: Math.max(params.levels, 0) || 0 }, (_, i) => (

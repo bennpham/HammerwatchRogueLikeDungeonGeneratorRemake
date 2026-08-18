@@ -24,6 +24,12 @@ export interface DoodadOverride {
  * are `tilemaps/bonus_1.xml` + `doodads/theme_bonus1/bonus1_h_8.xml` — the
  * digit moves and an underscore appears, so no single token derives both.
  */
+/** A floor tileset stacked over a theme's base: the path plus its sprite count. */
+export interface ThemeOverlay {
+  tilemap: string
+  tiles: number
+}
+
 export interface ThemeDef {
   /** key used in `params.themes` and in parameters.txt */
   id: string
@@ -47,7 +53,21 @@ export interface ThemeDef {
    * nothing. Every entry in `THEME_OVERLAYS` was checked against
    * `editor/assetsExtract/tilemaps/*.xml` on that point.
    */
-  overlay?: { tilemap: string; tiles: number }
+  overlay?: ThemeOverlay
+  /**
+   * A `x - mixed` entry's palette: slot 0 is `null`, meaning the plain base
+   * floor, and every other slot is one of that base's curated overlays.
+   *
+   * On a dungeon floor each room and each corridor draws one slot, so a level
+   * reads as several related surfaces — a carpeted hall into a dirt-floored
+   * vault — instead of one uniform sheet. The boss arena is a single open
+   * rectangle with no rooms to divide, so it lays the same palette out in a
+   * geometric pattern instead; see `boss/arenaPattern.ts`.
+   *
+   * Mutually exclusive with `overlay`: a mixed def must leave `overlay` unset,
+   * or `overlayDataset` would also fire and paint one variant over everything.
+   */
+  mixed?: ReadonlyArray<ThemeOverlay | null>
   /** substituted for `%s` in themed doodad paths */
   doodadToken: string
   /** per-piece deviations from the `DoodadType` defaults */
@@ -407,17 +427,51 @@ const THEME_OVERLAYS: ReadonlyArray<readonly [string, string, number, string]> =
   ['i', 'i_symbols', 4, 'symbols']
 ]
 
+/** The overlays curated for one base theme, in registry order. */
+function overlaysFor(baseId: string): ThemeOverlay[] {
+  return THEME_OVERLAYS.filter(([b]) => b === baseId).map(([, file, tiles]) => ({
+    tilemap: `tilemaps/${file}.xml`,
+    tiles
+  }))
+}
+
 /**
- * Every theme the generator can emit: each plain theme followed immediately by
- * its overlay pairings, so the dropdown reads `c`, `c - tiles`, `c - tiles dirt`,
- * `d`, … The renderer derives its `<optgroup>`s from this order.
+ * A base theme whose floor varies between the plain tileset and each of its
+ * curated overlays, region by region — the `x - mixed` dropdown entries.
+ *
+ * Built by the same spread as `overlayOf` and for the same reason: `c - mixed`
+ * is theme c, with c's walls, stairs, doodads and grouping. `overlay` is cleared
+ * explicitly because the spread would otherwise carry nothing useful and the two
+ * fields must never both be set — `overlay` means "this tileset everywhere",
+ * which is exactly what mixing is not.
+ *
+ * Only generated for a base with at least one curated overlay, so a mixed
+ * palette always has something to mix in.
  */
-export const THEME_DEFS: readonly ThemeDef[] = BASE_THEME_DEFS.flatMap((base) => [
-  base,
-  ...THEME_OVERLAYS.filter(([baseId]) => baseId === base.id).map(([baseId, file, tiles, suffix]) =>
-    overlayOf(baseId, file, tiles, suffix)
+function mixedOf(baseId: string): ThemeDef {
+  const base = BASE_THEME_DEFS.find((t) => t.id === baseId)
+  if (base === undefined) throw new Error(`mixedOf: no base theme "${baseId}"`)
+  return {
+    ...base,
+    id: `${baseId}_mixed`,
+    label: `${base.label} - mixed`,
+    overlay: undefined,
+    mixed: [null, ...overlaysFor(baseId)]
+  }
+}
+
+/**
+ * Every theme the generator can emit: each plain theme, then its overlay
+ * pairings, then its mixed entry — so the dropdown reads `c`, `c - tiles`,
+ * `c - tiles dirt`, `c - mixed`, `d`, … The renderer derives its `<optgroup>`s
+ * from this order.
+ */
+export const THEME_DEFS: readonly ThemeDef[] = BASE_THEME_DEFS.flatMap((base) => {
+  const overlays = THEME_OVERLAYS.filter(([baseId]) => baseId === base.id).map(
+    ([baseId, file, tiles, suffix]) => overlayOf(baseId, file, tiles, suffix)
   )
-])
+  return overlays.length === 0 ? [base] : [base, ...overlays, mixedOf(base.id)]
+})
 
 const BY_ID = new Map(THEME_DEFS.map((t) => [t.id, t]))
 
