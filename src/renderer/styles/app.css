@@ -267,11 +267,56 @@ select:focus {
   gap: 8px;
 }
 
+/* Each group collapses, like the monster-max table — the full variant roster is
+   several screens tall, so an open-by-default list buries everything under it. */
 .pool-group-title {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 1px;
   color: var(--accent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+/* `display: flex` on a summary drops the native disclosure triangle, so draw
+   our own caret rather than leave the row looking like a plain heading. */
+.pool-group-title::before {
+  content: '▸';
+  font-size: 9px;
+  transition: transform 100ms;
+}
+
+.pool-group[open] > .pool-group-title::before {
+  transform: rotate(90deg);
+}
+
+.pool-group-count {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-dim);
+}
+
+.info-tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 6px;
+  border: 1px solid var(--text-dim);
+  border-radius: 50%;
+  font-size: 10px;
+  font-style: italic;
+  line-height: 1;
+  cursor: help;
+  vertical-align: middle;
+}
+
+.pool-variant-hint {
+  margin: 6px 0 4px;
 }
 
 .pool-checkboxes {

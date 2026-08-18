@@ -27,7 +27,9 @@ import type {
   ValidationIssue
 } from '../../generator'
 import { BoolField, NumberField, Section, Subsection, ToggleGroup } from './fields'
+import { InfoTip } from './InfoTip'
 import { MonsterFilterBar, useMonsterFilter } from './MonsterFilterBar'
+import { PoolGroup } from './PoolGroup'
 
 interface BossFormProps {
   params: DungeonParameters
@@ -536,6 +538,15 @@ function WaveEditor({ wave, index, issues, onWaveChange }: WaveEditorProps) {
           Hides towers and spawners whose wreck keeps its collision, so clearing the arena can never wall it off.
         </span>
       </label>
+      <p className="hint pool-variant-hint">
+        A “#” suffix picks a different tier of the same monster: bare “archer1” is its ordinary
+        form, “archer1#2” its elite.
+        <InfoTip
+          text={
+            'Each monster type ships one actor per tier, weakest first. #0 is usually the spawner building that keeps producing that monster, then the small, ordinary and elite versions. The bare name with no # is always the ordinary form, so old parameter files keep spawning what they always did. Hover a checkbox to see the exact actor file it spawns.'
+          }
+        />
+      </p>
       <div className="pool-groups">
         {MONSTER_VARIANT_GROUPS.map((group) => {
           const members = monsterVariantsInGroup(group).filter((v) => {
@@ -548,8 +559,13 @@ function WaveEditor({ wave, index, issues, onWaveChange }: WaveEditorProps) {
           })
           if (members.length === 0) return null
           return (
-            <div key={group} className="pool-group">
-              <span className="pool-group-title">{group}</span>
+            <PoolGroup
+              key={group}
+              title={group}
+              selected={members.filter((v) => wave.monsters.includes(v.key)).length}
+              total={members.length}
+              forceOpen={!filter.isDefault || passableOnly}
+            >
               <div className="pool-checkboxes">
                 {members.map((v) => {
                   const hiddenByFilter = filter.offFilter(v.type, v.key)
@@ -563,8 +579,10 @@ function WaveEditor({ wave, index, issues, onWaveChange }: WaveEditorProps) {
                         off
                           ? 'In this wave, but hidden by the current filter'
                           : v.tier === defaultTier(v.type)
-                            ? v.actorPath
-                            : `${v.actorPath} — variant ${v.tier} of ${v.type.id}`
+                            ? `${v.actorPath} — the ordinary ${v.type.id}`
+                            : `${v.actorPath} — tier ${v.tier} of ${v.type.id}, ${
+                                v.role === 'spawner' ? 'a spawner building' : 'a creature'
+                              }`
                       }
                     >
                       <input
@@ -589,7 +607,7 @@ function WaveEditor({ wave, index, issues, onWaveChange }: WaveEditorProps) {
                   )
                 })}
               </div>
-            </div>
+            </PoolGroup>
           )
         })}
       </div>
