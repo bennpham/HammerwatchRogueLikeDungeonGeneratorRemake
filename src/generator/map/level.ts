@@ -7,6 +7,7 @@ import { GOLD_LOCK_TIER } from '../objects/item'
 import { getTheme, THEME_DEFS } from '../config/themes'
 import { XMLArray, XMLDictionary, XMLInt, XMLIntArray, XMLString } from '../xml'
 import { mixedDatasets, overlayDataset } from './tilemapOverlay'
+import { exitReachable } from './reachability'
 import type { GenerationContext } from '../core/context'
 
 const TILEMAP_SIZE = 20
@@ -236,6 +237,15 @@ export class Level {
 
     this.buildTileArray()
     this.buildWalls()
+
+    // Last, because it reads the finished tile grid: a floor whose exit (or
+    // orb, or a key) the player physically cannot walk to is discarded and
+    // re-rolled like any other invalid floor. The tile grid alone says such a
+    // floor is connected — what seals it is the wall art's overhang, which
+    // reachability.ts models. Draws no random values.
+    if (!exitReachable(this, ctx)) {
+      this.levelValid = false
+    }
   }
 
   /** Serialize the level to Hammerwatch's XML dialect. */

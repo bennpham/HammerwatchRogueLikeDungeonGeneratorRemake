@@ -41,7 +41,7 @@ src/
 │   │   └── validation.ts every crash path of the original, as a rule
 │   ├── xml/              XMLDictionary/Array/Int/Float/Bool/String/IntArray
 │   ├── map/              level.ts, room.ts, passage.ts, tile.ts,
-│   │                     wallPattern.ts, posDir.ts
+│   │                     wallPattern.ts, posDir.ts, reachability.ts
 │   ├── objects/          monsterTypes.ts (roster data), monster.ts, item.ts,
 │   │                     doodad.ts, nodes.ts, scriptNode.ts, objectSet.ts
 │   ├── lobby/            the prebuilt starting level — NOT generated geometry
@@ -168,7 +168,14 @@ Plus two app settings that are *not* generator parameters:
    pattern matcher (`wallPattern.ts`) over every cell to pick the wall doodad
    (corner / T / cap / cross / straight). Tiles claimed by a stair prefab are
    marked `wallSet` and skipped.
-6. **XML** — `Level.getXML()` emits, in order: `tilemap` (20×20 blocks),
+6. **Reachability** — `reachability.ts` flood-fills the finished grid and
+   rejects the floor if the player cannot walk from the entrance stairs to the
+   exit (or orb/portal) and to every key. Tile connectivity is not enough: the
+   lettered wall pieces are three tiles tall, so the two rows under any wall
+   mass are dead space (`OVERHANG_ROWS`), and a corridor whose only shared row
+   with the room it reaches sits in that band is sealed in game while looking
+   open in the tilemap and the preview. ~6% of first rolls are discarded here.
+7. **XML** — `Level.getXML()` emits, in order: `tilemap` (20×20 blocks),
    `doodads`, `actors`, `scripting`, `items`, `lighting`.
 
 Failure of any floor after 60 attempts returns a friendly `DungeonError`
