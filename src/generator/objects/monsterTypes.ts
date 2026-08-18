@@ -234,6 +234,14 @@ export function variantKey(type: MonsterTypeDef, tier: number): string {
   return tier === defaultTier(type) ? type.id : `${type.id}${VARIANT_SEPARATOR}${tier}`
 }
 
+/**
+ * Spawners that do not live under `actors/spawners/`, so the path prefix alone
+ * cannot classify them. The slime host is a static hive that produces
+ * `slime_1_spawn` and leaves a razed doodad on death like every spawner does —
+ * see the corpse table in actorCollision.ts, which already treats it as one.
+ */
+const NON_PREFIXED_SPAWNERS = new Set(['actors/slime_1_host.xml'])
+
 /** Every actor `type` can spawn, one variant per tier, in tier order. */
 export function monsterVariants(type: MonsterTypeDef): MonsterVariant[] {
   return type.tiers.map((actorPath, tier) => ({
@@ -241,7 +249,10 @@ export function monsterVariants(type: MonsterTypeDef): MonsterVariant[] {
     type,
     tier,
     actorPath,
-    role: actorPath.startsWith('actors/spawners/') ? 'spawner' : 'creature',
+    role:
+      actorPath.startsWith('actors/spawners/') || NON_PREFIXED_SPAWNERS.has(actorPath)
+        ? 'spawner'
+        : 'creature',
     corpse: corpseCollision(actorPath)
   }))
 }
@@ -289,9 +300,11 @@ export function isKnownMonsterKey(key: string): boolean {
 /**
  * Display groups for a variant picker. Spawners get their own group rather than
  * sitting inside the group of the monster they spit out — they are static
- * buildings, like the towers they sit next to (issue #20). MONSTER_GROUPS
- * itself is left alone because the dungeon pool editor iterates it and has no
- * variant concept.
+ * buildings, like the towers they sit next to (issue #20). Membership follows
+ * `MonsterVariant.role`, not the actor folder: `slime#0` is a hive that lives
+ * outside `actors/spawners/` and still belongs here. MONSTER_GROUPS itself is
+ * left alone because the dungeon pool editor iterates it and has no variant
+ * concept.
  */
 export const MONSTER_VARIANT_GROUPS = [...MONSTER_GROUPS, 'Spawners'] as const
 

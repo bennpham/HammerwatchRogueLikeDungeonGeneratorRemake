@@ -3,6 +3,7 @@ import { MONSTER_GROUPS, monsterTypesInGroup } from '../../generator'
 import type { DungeonParameters, ValidationIssue } from '../../generator'
 import { MonsterFilterBar, useMonsterFilter } from './MonsterFilterBar'
 import { PoolGroup } from './PoolGroup'
+import { PoolTextField } from './PoolTextField'
 
 interface MonsterPoolsEditorProps {
   params: DungeonParameters
@@ -91,22 +92,17 @@ export function MonsterPoolsEditor({ params, issues, onChange }: MonsterPoolsEdi
                   </PoolGroup>
                 )
               })}
-              <label className="pool-raw">
-                <span>Weighted list (advanced)</span>
-                <input
-                  type="text"
-                  value={pool.join(',')}
-                  onChange={(e) => {
-                    const pools = params.levelMonsters.map((p) => [...p])
-                    while (pools.length <= level) pools.push([])
-                    pools[level] = e.target.value
-                      .split(',')
-                      .map((m) => m.trim())
-                      .filter((m) => m !== '')
-                    onChange({ ...params, levelMonsters: pools })
-                  }}
-                />
-              </label>
+              <PoolTextField
+                label="Weighted list (advanced)"
+                value={pool}
+                hint="Comma-separated. Repeat a type to weight it; paste a list to replace this level's pool."
+                onCommit={(next) => {
+                  const pools = params.levelMonsters.map((p) => [...p])
+                  while (pools.length <= level) pools.push([])
+                  pools[level] = next
+                  onChange({ ...params, levelMonsters: pools })
+                }}
+              />
             </div>
           </details>
         )

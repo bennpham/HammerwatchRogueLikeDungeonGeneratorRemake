@@ -383,6 +383,23 @@ select:focus {
   gap: 4px;
   font-size: 11px;
   color: var(--text-dim);
+  margin-top: 8px;
+}
+
+.pool-raw-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pool-raw-head button {
+  font-size: 10px;
+  padding: 1px 8px;
+}
+
+.pool-raw-hint {
+  color: var(--text-dim);
+  opacity: 0.8;
 }
 
 /* monster max */

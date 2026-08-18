@@ -8,6 +8,22 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-17 — `slime_1_host` is a spawner, and the folder does not say so
+**Tag:** [VERIFIED] (read from a stock install's `editor/assetsExtract/actors/`)
+**Context:** The boss-wave variant picker groups spawners separately from
+creatures, and decided membership from the `actors/spawners/` path prefix. That
+filed `slime#0` under Classic beside the walkers.
+**Evidence:** `actors/slime_1_host.xml` is a static hive that produces
+`slime_1_spawn` and leaves a razed doodad on death — the same shape as every
+`actors/spawners/**` file, and is already recorded as such in the
+corpse-passability entry below. It simply ships one directory up.
+**Impact:** Spawner-hood is a per-actor fact, not a path rule. The port keeps a
+`NON_PREFIXED_SPAWNERS` set in `objects/monsterTypes.ts` for the exception;
+`slime_1_host` is its only member today, pinned by a test. Display only —
+`slime#0` still resolves to the same actor, so no seed changes. If another
+hive-shaped actor joins the roster it needs an entry there, or it will show up
+among the creatures.
+
 ### 2026-08-17 — the north-wall projectile band applies to every spawned monster, not just anchor spawns
 **Tag:** [EMITTED] (the band itself is [VERIFIED] — see the 2026-08-16
 `SpawnObject` entry; what is unconfirmed is only that applying it to scatter

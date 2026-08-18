@@ -30,6 +30,7 @@ import { BoolField, NumberField, Section, Subsection, ToggleGroup } from './fiel
 import { InfoTip } from './InfoTip'
 import { MonsterFilterBar, useMonsterFilter } from './MonsterFilterBar'
 import { PoolGroup } from './PoolGroup'
+import { PoolTextField } from './PoolTextField'
 
 interface BossFormProps {
   params: DungeonParameters
@@ -485,6 +486,19 @@ function WaveEditor({ wave, index, issues, onWaveChange }: WaveEditorProps) {
     onWaveChange({ monsters, monsterMax })
   }
 
+  // Replaces the whole pool at once — the paste path. Seeds a max for anything
+  // newly added and leaves the maxes, spawn modes and interval overrides of
+  // removed monsters alone, exactly like toggleMonster: re-adding a monster
+  // restores what you had set for it, and validation and configFile both ignore
+  // entries whose monster is no longer in the pool.
+  const setPool = (monsters: string[]) => {
+    const monsterMax = { ...wave.monsterMax }
+    for (const id of monsters) {
+      if (monsterMax[id] === undefined) monsterMax[id] = DEFAULT_WAVE_MONSTER_MAX
+    }
+    onWaveChange({ monsters, monsterMax })
+  }
+
   const setMax = (id: string, value: number) => {
     onWaveChange({ monsterMax: { ...wave.monsterMax, [id]: value } })
   }
@@ -611,6 +625,14 @@ function WaveEditor({ wave, index, issues, onWaveChange }: WaveEditorProps) {
           )
         })}
       </div>
+
+      <PoolTextField
+        label="Pool list (advanced)"
+        value={wave.monsters}
+        dedupe
+        hint="Comma-separated variant keys. Copy a tier you like and paste it here to reuse it — pasting replaces this tier's pool. Spawn modes stay on the rows below."
+        onCommit={setPool}
+      />
 
       <div className="field-grid">
         <NumberField
