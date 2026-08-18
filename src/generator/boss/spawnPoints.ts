@@ -68,18 +68,6 @@ export function spawnPointKey(tier: number, monsterKey: string): string {
   return `${tier}:${monsterKey}`
 }
 
-/**
- * Hard ceiling on the spawns one request may emit. Every spawn is a
- * `SpawnObject` script node in the level XML, and `monsterMax` is unbounded
- * above, so without this a hand-edited parameters.txt could ask for thousands
- * of nodes on one floor.
- *
- * Validation rejects a scaled scatter count above this (and warns from
- * BOSS_SCATTER_WARN up), so the clamp below is defensive only — it exists so a
- * params object built in code, which never passes through validation, still
- * cannot produce an unloadable level.
- */
-export const SPAWN_POINT_CAP = 120
 
 /** The square kept clear around a scattered spawn point. */
 function spawnFootprint(options: SpawnPointOptions): { width: number; height: number } {
@@ -303,7 +291,7 @@ export function placeSpawnPoints(
 
   for (const request of requests) {
     if (request.count <= 0) continue
-    const total = Math.min(request.count, SPAWN_POINT_CAP)
+    const total = request.count
 
     let points: SpawnPoint[]
     switch (request.mode) {

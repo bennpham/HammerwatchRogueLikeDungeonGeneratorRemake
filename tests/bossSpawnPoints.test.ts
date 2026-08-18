@@ -3,7 +3,7 @@ import { GenerationContext } from '../src/generator/core/context'
 import { defaultParameters } from '../src/generator/config/parameters'
 import { BOSS_SPAWN_MODES } from '../src/generator/config/parameters'
 import { anchors, ENTRANCE_DEPTH, ENTRANCE_WIDTH } from '../src/generator/boss/anchors'
-import { placeSpawnPoints, spawnPointKey, SPAWN_POINT_CAP } from '../src/generator/boss/spawnPoints'
+import { placeSpawnPoints, spawnPointKey } from '../src/generator/boss/spawnPoints'
 import type { SpawnPointOptions, SpawnRequest } from '../src/generator/boss/spawnPoints'
 import type { CoverArena, Rect } from '../src/generator/boss/cover'
 
@@ -147,9 +147,9 @@ describe('boss scatter spawn points', () => {
     }
   })
 
-  it('clamps a runaway count to SPAWN_POINT_CAP', () => {
+  it('places a huge count in full, uncapped', () => {
     const { map } = place([{ tier: 0, key: 'bat1', mode: 'random', count: 5000 }])
-    expect(map.get(spawnPointKey(0, 'bat1'))).toHaveLength(SPAWN_POINT_CAP)
+    expect(map.get(spawnPointKey(0, 'bat1'))).toHaveLength(5000)
   })
 
   it('skips a zero count and the anchors mode entirely', () => {

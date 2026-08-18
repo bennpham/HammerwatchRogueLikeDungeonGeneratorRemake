@@ -570,7 +570,7 @@ describe('boss validation', () => {
     expect(fieldsOf(result.errors)).toContain('boss.arena.waves.0.spawnMode.bat1')
   })
 
-  it('rejects a scattered count past the script-node cap, multiplier included', () => {
+  it('accepts a huge scattered count — there is no upper limit', () => {
     const arena = defaultParameters().boss.arena
     const p = defaultParameters()
     p.boss = {
@@ -579,13 +579,13 @@ describe('boss validation', () => {
         ...arena,
         monsterMultiplier: 4.0,
         waves: arena.waves.map((w, i) =>
-          i === 0 ? { ...w, monsterMax: { ...w.monsterMax, bat1: 40 }, spawnMode: { bat1: 'random' as const } } : w
+          i === 0 ? { ...w, monsterMax: { ...w.monsterMax, bat1: 400 }, spawnMode: { bat1: 'random' as const } } : w
         )
       }
     }
     const result = validateParameters(p)
-    expect(result.valid).toBe(false)
-    expect(fieldsOf(result.errors)).toContain('boss.arena.waves.0.spawnMode.bat1')
+    expect(result.valid).toBe(true)
+    expect(fieldsOf(result.warnings)).toContain('boss.arena.waves.0.spawnMode.bat1')
   })
 
   it('warns, without blocking, about a big scatter and an interval it will ignore', () => {

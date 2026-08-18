@@ -23,7 +23,6 @@ import { ALL_LOBBY_CATEGORIES, isLobbyCategory, lobbyCategoryCounts, vendorOfCat
 import { LOBBY_DIAMOND_SLOTS } from '../lobby/template'
 import { DIAMOND_VALUE } from '../levelTemplate/surgery'
 import { ARENA_MIN_HEIGHT, ARENA_MIN_WIDTH, freeFloorArea } from '../boss/geometry'
-import { SPAWN_POINT_CAP } from '../boss/spawnPoints'
 import { scaledMax } from '../boss/waves'
 import { TWEAK_BASELINE } from '../tweak/baseline'
 import { SHOP_PRICE_MAX } from '../tweak/bulk'
@@ -318,7 +317,7 @@ export const BOSS_GOLD_MAX = DIAMOND_VALUE * 42 * 2
  * Scattered spawn count that starts drawing a warning. A scattered monster is
  * one `SpawnObject` script node of its own — the anchor rig fits any horde in
  * at most 9 nodes, a scatter needs one per monster — so a big count quietly
- * turns into a big level. Advisory only up to `SPAWN_POINT_CAP`, which errors.
+ * turns into a big level. Advisory only — there is no upper limit.
  */
 export const BOSS_SCATTER_WARN = 60
 
@@ -475,20 +474,11 @@ function validateBoss(
         })
       }
 
-      const max = wave.monsterMax[id]
-      if (max === -1) {
+      if (wave.monsterMax[id] === -1) {
         errors.push({
           field,
           message: `"${id}" is set to endless (-1), which has no meaning for a one-shot scattered spawn. Give it a real count, or put it back on the anchors mode.`
         })
-      } else {
-        const count = scatterCount(max, arena.monsterMultiplier)
-        if (count > SPAWN_POINT_CAP) {
-          errors.push({
-            field,
-            message: `"${id}" would scatter ${count} spawns — each one is its own script node, so the limit is ${SPAWN_POINT_CAP}. Lower the count or the arena's monster multiplier.`
-          })
-        }
       }
     }
   }

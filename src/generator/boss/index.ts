@@ -12,7 +12,7 @@ export { ANCHOR_PILLAR_CLEARANCE, isFree, placeCoverPillars } from './cover'
 export { PLACEMENT_ATTEMPTS } from './placement'
 
 export type { SpawnPoint, SpawnPointMap, SpawnPointOptions, SpawnRequest } from './spawnPoints'
-export { SPAWN_POINT_CAP, placeSpawnPoints, spawnPointKey } from './spawnPoints'
+export { placeSpawnPoints, spawnPointKey } from './spawnPoints'
 
 export { ARENA_MIN_HEIGHT, ARENA_MIN_WIDTH, coverPillarCount, freeFloorArea, pillarFootprint } from './geometry'
 
