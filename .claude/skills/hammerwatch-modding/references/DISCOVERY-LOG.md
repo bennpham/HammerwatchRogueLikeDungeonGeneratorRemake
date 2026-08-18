@@ -8,6 +8,32 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-17 — the north-wall projectile band applies to every spawned monster, not just anchor spawns
+**Tag:** [EMITTED] (the band itself is [VERIFIED] — see the 2026-08-16
+`SpawnObject` entry; what is unconfirmed is only that applying it to scatter
+points fixes the reported case in game)
+**Context:** Playtesting the scatter spawn modes (#21): the northern-most
+scattered `SpawnObject`s came out inside the north wall, the same symptom the
+fixed anchors had before #22 and the dragon had before #25.
+**Evidence:** The 2026-08-16 entry established that a monster spawned 2 tiles
+from the north wall fires into the wall band and every projectile is absorbed,
+and that y = 4 fires cleanly on a 32x42 arena. That fact is about *where a
+monster stands*, not about which code path put it there — but the fix landed
+only in `anchors.ts` (`NORTH_ANCHOR_INSET`) and, for the boss's static
+collider, in `bosses.ts` (`topWallBossY`). `spawnPoints.ts` (#21) drew
+candidates over the whole interior and filtered them through cover.ts's
+`isFree`, which has no north-band rule — a pillar in the top rows is only
+decoration — so a scattered monster could legally land at interior y = 0..3.
+**Impact:** `spawnPoints.ts` now filters through its own `isFreeSpawn`
+(`rect.y >= NORTH_ANCHOR_INSET && isFree(...)`) and each of the four patterns
+draws its y from the legal range, so the band costs no placement attempts. The
+requested count is still always the count that spawns — `padToCount` stacks the
+leftovers, and its anchor fallback already honours the band. The boss was left
+at `topWallBossY` (dragon y = 3): #25's collider math is a separate constraint
+and the reported bug was about the spawn nodes. The general rule for anything
+added later: **a north-band rule belongs to the monster, so every path that
+places one must apply it.**
+
 ### 2026-08-17 — a one-shot scattered horde is a trigger wired straight to N `SpawnObject`s with `trigger-times: 1`
 **Tag:** [EMITTED] (derived from the [VERIFIED] 2026-08-10 `SpawnObject`
 semantics; this exact rig has not been loaded in game yet)

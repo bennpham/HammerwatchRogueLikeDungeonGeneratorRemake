@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { GenerationContext } from '../src/generator/core/context'
 import { defaultParameters } from '../src/generator/config/parameters'
 import { BOSS_SPAWN_MODES } from '../src/generator/config/parameters'
-import { anchors, ENTRANCE_DEPTH, ENTRANCE_WIDTH } from '../src/generator/boss/anchors'
+import { anchors, ENTRANCE_DEPTH, ENTRANCE_WIDTH, NORTH_ANCHOR_INSET } from '../src/generator/boss/anchors'
 import { placeSpawnPoints, spawnPointKey } from '../src/generator/boss/spawnPoints'
 import type { SpawnPointOptions, SpawnRequest } from '../src/generator/boss/spawnPoints'
 import type { CoverArena, Rect } from '../src/generator/boss/cover'
@@ -54,6 +54,30 @@ describe('boss scatter spawn points', () => {
         expect(point.y).toBeGreaterThanOrEqual(0)
         expect(point.x).toBeLessThan(arena.width)
         expect(point.y).toBeLessThan(arena.height)
+      }
+    })
+
+    it(`${mode} never places a point in the north wall band`, () => {
+      // Same reason the N/NE/NW anchors sit at NORTH_ANCHOR_INSET (#22): a
+      // projectile monster in the top rows fires straight into the wall band
+      // and every shot is absorbed on spawn. Padded duplicates are included
+      // deliberately — a stacked point is a real spawn too.
+      for (const seed of [1, 42, 777, 20260817]) {
+        const { map } = place([{ tier: 0, key: 'bat1', mode, count: 60 }], seed)
+        for (const point of map.get(spawnPointKey(0, 'bat1'))!) {
+          expect(point.y).toBeGreaterThanOrEqual(NORTH_ANCHOR_INSET)
+        }
+      }
+    })
+
+    it(`${mode} still returns the full count on an arena the north band eats into`, () => {
+      // A short arena loses a bigger fraction of its floor to the band, which
+      // is exactly where a band that silently shrank a horde would show up.
+      const { map } = place([{ tier: 0, key: 'bat1', mode, count: 30 }], 7, [], options(), 16, 20)
+      const points = map.get(spawnPointKey(0, 'bat1'))!
+      expect(points).toHaveLength(30)
+      for (const point of points) {
+        expect(point.y).toBeGreaterThanOrEqual(NORTH_ANCHOR_INSET)
       }
     })
 

@@ -7,10 +7,15 @@
  *
  * It is the sibling of cover.ts and deliberately mirrors it: the same four
  * pattern names, the same `ctx.bossRand`-only rule, the same bounded attempt
- * loops, and the *same* rejection filter (`cover.ts`'s exported `isFree`), so
- * a spawn point can never land on the boss, the entrance, the alcove, one of
- * the 9 anchors, a cover pillar, or another spawn point. The shared geometry
- * helpers live in placement.ts.
+ * loops, and (nearly) the same rejection filter (`cover.ts`'s exported
+ * `isFree`), so a spawn point can never land on the boss, the entrance, the
+ * alcove, one of the 9 anchors, a cover pillar, or another spawn point. The
+ * shared geometry helpers live in placement.ts.
+ *
+ * The one deliberate difference from cover.ts: a spawn point also has to clear
+ * the north wall band (`isFreeSpawn` below). A pillar in the top rows is
+ * decoration; a *monster* there is the #22 bug, and cover.ts has no reason to
+ * care.
  *
  * Two things it does that cover.ts does not:
  *
@@ -30,6 +35,7 @@
 import type { GenerationContext } from '../core/context'
 import type { BossSpawnMode } from '../config/parameters'
 import type { Anchor } from './anchors'
+import { NORTH_ANCHOR_INSET } from './anchors'
 import type { CoverArena } from './cover'
 import { ANCHOR_PILLAR_CLEARANCE, isFree } from './cover'
 import type { Rect } from './placement'
@@ -75,6 +81,20 @@ function spawnFootprint(options: SpawnPointOptions): { width: number; height: nu
   return { width: size, height: size }
 }
 
+/**
+ * `cover.ts`'s filter plus the north band: a scattered monster is subject to
+ * exactly the same wall-band problem as a monster on an anchor (#22) — a
+ * projectile fired from the top rows is absorbed by the band on spawn — so the
+ * whole footprint has to sit at or below `NORTH_ANCHOR_INSET`. Every pattern
+ * below goes through this rather than `isFree` directly.
+ *
+ * The patterns also *draw* from the legal range where they can, so the band
+ * costs no placement attempts; this is the guarantee, that is the optimisation.
+ */
+function isFreeSpawn(rect: Rect, arena: CoverArena, placed: readonly Rect[]): boolean {
+  return rect.y >= NORTH_ANCHOR_INSET && isFree(rect, arena, placed)
+}
+
 function placeRandom(
   ctx: GenerationContext,
   arena: CoverArena,
@@ -88,9 +108,9 @@ function placeRandom(
   for (let i = 0; i < target; i++) {
     for (let attempt = 0; attempt < PLACEMENT_ATTEMPTS; attempt++) {
       const x = ctx.bossRand.iRand(0, arena.width)
-      const y = ctx.bossRand.iRand(0, arena.height)
+      const y = ctx.bossRand.iRand(NORTH_ANCHOR_INSET, Math.max(NORTH_ANCHOR_INSET + 1, arena.height))
       const rect = footprintRect(x, y, footprint)
-      if (isFree(rect, arena, placed)) {
+      if (isFreeSpawn(rect, arena, placed)) {
         placed.push(rect)
         points.push({ x, y })
         break
@@ -111,9 +131,17 @@ function placeRing(
   const points: SpawnPoint[] = []
 
   // Same band cover.ts's ring uses: one tile inside the spawn anchors, so the
-  // ring reads as its own circle rather than sitting on the anchor points.
+  // ring reads as its own circle rather than sitting on the anchor points —
+  // except on the north edge, where the ring is pushed down to the same band
+  // the anchors keep clear (#22). The ring is no longer perfectly centred as a
+  // result; a monster that can actually shoot is worth more than symmetry.
   const inset = ANCHOR_PILLAR_CLEARANCE + 2
-  const bounds = { left: inset, top: inset, right: arena.width - 1 - inset, bottom: arena.height - 1 - inset }
+  const bounds = {
+    left: inset,
+    top: Math.max(inset, NORTH_ANCHOR_INSET),
+    right: arena.width - 1 - inset,
+    bottom: arena.height - 1 - inset
+  }
   const w = bounds.right - bounds.left
   const h = bounds.bottom - bounds.top
   if (w <= 0 || h <= 0) return points
@@ -138,7 +166,7 @@ function placeRing(
       const x = Math.round(point.x)
       const y = Math.round(point.y)
       const rect = footprintRect(x, y, footprint)
-      if (isFree(rect, arena, placed)) {
+      if (isFreeSpawn(rect, arena, placed)) {
         placed.push(rect)
         points.push({ x, y })
         break
@@ -165,13 +193,18 @@ function placeGaussian(
   // a cluster reads as a pocket on any arena size.
   const sigma = Math.max(1, Math.min(arena.width, arena.height) / 8)
   const margin = 2
+  // A cluster centred in the north band would throw most of its members at
+  // tiles isFreeSpawn rejects, so the centre itself starts below the band. The
+  // Box-Muller offsets can still stray north from a legal centre; those land
+  // on the filter.
+  const northMargin = Math.max(margin, NORTH_ANCHOR_INSET)
 
   const perCluster = Math.trunc(target / clusters)
   const remainder = target - perCluster * clusters
 
   for (let c = 0; c < clusters; c++) {
     const centreX = ctx.bossRand.iRand(margin, Math.max(margin + 1, arena.width - margin))
-    const centreY = ctx.bossRand.iRand(margin, Math.max(margin + 1, arena.height - margin))
+    const centreY = ctx.bossRand.iRand(northMargin, Math.max(northMargin + 1, arena.height - margin))
     const countThisCluster = perCluster + (c < remainder ? 1 : 0)
 
     for (let i = 0; i < countThisCluster; i++) {
@@ -179,7 +212,7 @@ function placeGaussian(
         const x = Math.round(centreX + nextGaussian(ctx) * sigma)
         const y = Math.round(centreY + nextGaussian(ctx) * sigma)
         const rect = footprintRect(x, y, footprint)
-        if (isFree(rect, arena, placed)) {
+        if (isFreeSpawn(rect, arena, placed)) {
           placed.push(rect)
           points.push({ x, y })
           break
@@ -212,7 +245,9 @@ function placeSymmetric(
   for (let g = 0; g < groups; g++) {
     for (let attempt = 0; attempt < PLACEMENT_ATTEMPTS; attempt++) {
       const x = ctx.bossRand.iRand(0, halfWidth)
-      const y = ctx.bossRand.iRand(0, halfHeight)
+      // North half only down to the band (#22); the southern mirror of a legal
+      // y is `height - 1 - y`, which is in the bottom half and never affected.
+      const y = ctx.bossRand.iRand(NORTH_ANCHOR_INSET, Math.max(NORTH_ANCHOR_INSET + 1, halfHeight))
       const mirrorX = arena.width - 1 - x
       const mirrorY = arena.height - 1 - y
 
@@ -234,7 +269,7 @@ function placeSymmetric(
       let anyPlaced = false
       for (const candidate of candidates) {
         const rect = footprintRect(candidate.x, candidate.y, footprint)
-        if (!isFree(rect, arena, placed)) continue
+        if (!isFreeSpawn(rect, arena, placed)) continue
         placed.push(rect)
         points.push(candidate)
         anyPlaced = true
@@ -253,6 +288,10 @@ function placeSymmetric(
  * anchors when the pattern placed nothing at all (a pathological arena, or a
  * `count` the ring's spacing reduced to zero); anchors are guaranteed walkable
  * floor, so this can only fail if there are no anchors, which cannot happen.
+ *
+ * The fallback needs no north-band check of its own: `anchors()` already puts
+ * the N/NE/NW anchors at `NORTH_ANCHOR_INSET` or deeper, so every source point
+ * here — placed or anchor — is already clear of the band.
  */
 function padToCount(points: SpawnPoint[], count: number, anchorList: readonly Anchor[]): SpawnPoint[] {
   if (points.length >= count) return points.slice(0, count)

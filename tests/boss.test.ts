@@ -448,6 +448,20 @@ describe('boss arena — scattered spawn modes (issue #21)', () => {
         expect(preview.walls[(room.y + bat.y) * preview.mapWidth + (room.x + bat.x)]).not.toBe('1')
       }
     })
+
+    it(`${mode}: keeps every scattered spawn out of the north wall band`, () => {
+      // A scattered monster is subject to the same wall-band absorption the N
+      // anchors were moved for (#22): the top NORTH_ANCHOR_INSET interior rows
+      // are off limits, on every seed, for placed and stacked points alike.
+      for (const seed of [1, 4242, 987654, 20260817]) {
+        const { xml } = buildBossArena(freshCtx(seed), scattered(mode, 'bat1', 40), 0)
+        const bats = spawnNodes(xml).filter((s) => s.actorPath === 'actors/bat_1.xml')
+        expect(bats).toHaveLength(40)
+        for (const bat of bats) {
+          expect(bat.y).toBeGreaterThanOrEqual(NORTH_ANCHOR_INSET)
+        }
+      }
+    })
   }
 
   it('drops the timer rig entirely for a tier of nothing but scattered monsters', () => {
