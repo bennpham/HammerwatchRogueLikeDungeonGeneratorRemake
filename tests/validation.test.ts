@@ -304,6 +304,12 @@ describe('boss validation', () => {
     return validateParameters(p)
   }
 
+  /** The stock parameters with tier 0's wave patched — the spawn-mode rules are all per-wave. */
+  const withWave0 = (patch: Partial<ReturnType<typeof defaultParameters>['boss']['arena']['waves'][number]>) => {
+    const arena = defaultParameters().boss.arena
+    return withBoss({ arena: { ...arena, waves: arena.waves.map((w, i) => (i === 0 ? { ...w, ...patch } : w)) } })
+  }
+
   it('accepts the default boss options', () => {
     const result = withBoss({})
     expect(result.errors).toEqual([])
@@ -509,6 +515,92 @@ describe('boss validation', () => {
       }
     })
     expect(fieldsOf(result.errors)).not.toContain('boss.arena.cover.density')
+  })
+
+  it('rejects the scatter spawn knobs below 1', () => {
+    const result = withBoss({
+      arena: {
+        ...defaultParameters().boss.arena,
+        spawn: { spacing: 0, ringSpacing: 0, clusters: 0 }
+      }
+    })
+    expect(fieldsOf(result.errors)).toContain('boss.arena.spawn.spacing')
+    expect(fieldsOf(result.errors)).toContain('boss.arena.spawn.ringSpacing')
+    expect(fieldsOf(result.errors)).toContain('boss.arena.spawn.clusters')
+  })
+
+  it('rejects an unknown spawn mode', () => {
+    const result = withWave0({ spawnMode: { bat1: 'spiral' as never } })
+    expect(fieldsOf(result.errors)).toContain('boss.arena.waves.0.spawnMode.bat1')
+  })
+
+  it('rejects scattering a monster whose wreck still blocks movement', () => {
+    // tower_nova_1's razed doodad keeps a shoot-through collision circle, so a
+    // scattered field of them can wall the arena off after the kill (issue #21).
+    const result = withWave0({
+      monsters: ['tower_nova1'],
+      monsterMax: { tower_nova1: 6 },
+      spawnMode: { tower_nova1: 'random' }
+    })
+    expect(result.valid).toBe(false)
+    expect(fieldsOf(result.errors)).toContain('boss.arena.waves.0.spawnMode.tower_nova1')
+  })
+
+  it('accepts the same monster on the anchors mode', () => {
+    const result = withWave0({
+      monsters: ['tower_nova1'],
+      monsterMax: { tower_nova1: 6 },
+      spawnMode: { tower_nova1: 'anchors' }
+    })
+    expect(fieldsOf(result.errors)).not.toContain('boss.arena.waves.0.spawnMode.tower_nova1')
+  })
+
+  it('accepts scattering a monster whose wreck is passable', () => {
+    const result = withWave0({
+      monsters: ['skeleton1#0'],
+      monsterMax: { 'skeleton1#0': 6 },
+      spawnMode: { 'skeleton1#0': 'gaussian' }
+    })
+    expect(result.valid).toBe(true)
+  })
+
+  it('rejects an endless count on a scattered monster', () => {
+    const result = withWave0({ monsterMax: { bat1: -1, tick1: 10, maggot: 10 }, spawnMode: { bat1: 'ring' } })
+    expect(result.valid).toBe(false)
+    expect(fieldsOf(result.errors)).toContain('boss.arena.waves.0.spawnMode.bat1')
+  })
+
+  it('accepts a huge scattered count — there is no upper limit', () => {
+    const arena = defaultParameters().boss.arena
+    const p = defaultParameters()
+    p.boss = {
+      ...p.boss,
+      arena: {
+        ...arena,
+        monsterMultiplier: 4.0,
+        waves: arena.waves.map((w, i) =>
+          i === 0 ? { ...w, monsterMax: { ...w.monsterMax, bat1: 400 }, spawnMode: { bat1: 'random' as const } } : w
+        )
+      }
+    }
+    const result = validateParameters(p)
+    expect(result.valid).toBe(true)
+    expect(fieldsOf(result.warnings)).toContain('boss.arena.waves.0.spawnMode.bat1')
+  })
+
+  it('warns, without blocking, about a big scatter and an interval it will ignore', () => {
+    const result = withWave0({
+      monsterMax: { bat1: 80, tick1: 10, maggot: 10 },
+      intervalMs: { bat1: 5000 },
+      spawnMode: { bat1: 'random' }
+    })
+    expect(result.valid).toBe(true)
+    expect(fieldsOf(result.warnings).filter((f) => f === 'boss.arena.waves.0.spawnMode.bat1')).toHaveLength(2)
+  })
+
+  it('ignores a spawn mode left behind for a monster no longer in the pool', () => {
+    const result = withWave0({ spawnMode: { tower_nova1: 'random' } })
+    expect(result.valid).toBe(true)
   })
 
   it('never warns while the boss is disabled (no dead-statement regression)', () => {

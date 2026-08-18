@@ -1,17 +1,29 @@
-import { BOSS_COVER_DENSITY_MAX, BOSS_COVER_PATTERNS, BOSS_IDS, DungeonParameters, THEMES } from './parameters'
+import {
+  BOSS_COVER_DENSITY_MAX,
+  BOSS_COVER_PATTERNS,
+  BOSS_IDS,
+  BOSS_SPAWN_MODES,
+  DungeonParameters,
+  THEMES,
+  isScatterMode,
+  waveSpawnMode
+} from './parameters'
 import { getTheme } from './themes'
 import {
   defaultTier,
   isKnownMonsterId,
   isKnownMonsterKey,
   monsterTypeById,
-  parseMonsterKey
+  parseMonsterKey,
+  resolveActorPath
 } from '../objects/monsterTypes'
+import { corpseCollision } from '../objects/actorCollision'
 import { LOBBY_DIAMOND_VALUE, LOBBY_GOLD_MAX } from '../lobby/build'
 import { ALL_LOBBY_CATEGORIES, isLobbyCategory, lobbyCategoryCounts, vendorOfCategory } from '../lobby/shops'
 import { LOBBY_DIAMOND_SLOTS } from '../lobby/template'
 import { DIAMOND_VALUE } from '../levelTemplate/surgery'
 import { ARENA_MIN_HEIGHT, ARENA_MIN_WIDTH, freeFloorArea } from '../boss/geometry'
+import { scaledMax } from '../boss/waves'
 import { TWEAK_BASELINE } from '../tweak/baseline'
 import { SHOP_PRICE_MAX } from '../tweak/bulk'
 import { SENTINELS, isDowngrade, improvesBy, paramKey } from '../tweak/chains'
@@ -302,6 +314,24 @@ function validateLobby(
 export const BOSS_GOLD_MAX = DIAMOND_VALUE * 42 * 2
 
 /**
+ * Scattered spawn count that starts drawing a warning. A scattered monster is
+ * one `SpawnObject` script node of its own — the anchor rig fits any horde in
+ * at most 9 nodes, a scatter needs one per monster — so a big count quietly
+ * turns into a big level. Advisory only — there is no upper limit.
+ */
+export const BOSS_SCATTER_WARN = 60
+
+/**
+ * How many spawns a scattered monster actually emits — the same arithmetic
+ * `buildWaveRig` applies, imported rather than re-derived so a message can
+ * never quote a number the generator disagrees with. Endless (`-1`) has its
+ * own error, so it counts as nothing here.
+ */
+function scatterCount(max: number, monsterMultiplier: number): number {
+  return max === -1 ? 0 : scaledMax(max, monsterMultiplier)
+}
+
+/**
  * The boss arena is generated geometry with its own validation rules — sizes,
  * pool completeness and interval bounds. Absent boss object means "off", not
  * "invalid", mirroring how validateLobby handles the lobby.
@@ -420,6 +450,37 @@ function validateBoss(
         }
       }
     }
+
+    // Spawn modes. A key for a monster that is no longer in the pool is
+    // ignored rather than reported — the parser and the form both rebuild the
+    // record from the pool, so a stale key is housekeeping, not user error.
+    for (const [id, mode] of Object.entries(wave.spawnMode ?? {})) {
+      if (!wave.monsters.includes(id)) continue
+      const field = `boss.arena.waves.${i}.spawnMode.${id}`
+
+      if (!(BOSS_SPAWN_MODES as readonly string[]).includes(mode)) {
+        errors.push({ field, message: `"${mode}" is not one of: ${BOSS_SPAWN_MODES.join(', ')}.` })
+        continue
+      }
+      if (!isScatterMode(mode)) continue
+
+      // A wreck that keeps its collision is permanent geometry. Nine anchors
+      // put those wrecks in nine known places; a scatter puts them anywhere,
+      // which is how an arena ends up walled off by its own dead towers.
+      if (isKnownMonsterKey(id) && corpseCollision(resolveActorPath(id)) === 'blocking') {
+        errors.push({
+          field,
+          message: `"${id}" leaves a wreck that still blocks movement, so it cannot be scattered — scattering it can wall the arena off. Use the anchors mode, or pick a variant whose wreck is passable.`
+        })
+      }
+
+      if (wave.monsterMax[id] === -1) {
+        errors.push({
+          field,
+          message: `"${id}" is set to endless (-1), which has no meaning for a one-shot scattered spawn. Give it a real count, or put it back on the anchors mode.`
+        })
+      }
+    }
   }
 
   // theme valid
@@ -476,15 +537,52 @@ function validateBoss(
     errors.push({ field: 'boss.arena.cover.clusters', message: 'Cluster count must be a whole number ≥ 1.' })
   }
 
+  // the scatter modes' own knobs — same shape as cover's, deliberately separate
+  // so pillars and monsters can be spaced differently
+  if (!Number.isInteger(arena.spawn.spacing) || arena.spawn.spacing < 1) {
+    errors.push({ field: 'boss.arena.spawn.spacing', message: 'Spawn spacing must be a whole number ≥ 1.' })
+  }
+  if (!Number.isInteger(arena.spawn.ringSpacing) || arena.spawn.ringSpacing < 1) {
+    errors.push({ field: 'boss.arena.spawn.ringSpacing', message: 'Spawn ring spacing must be a whole number ≥ 1.' })
+  }
+  if (!Number.isInteger(arena.spawn.clusters) || arena.spawn.clusters < 1) {
+    errors.push({ field: 'boss.arena.spawn.clusters', message: 'Spawn cluster count must be a whole number ≥ 1.' })
+  }
+
   if (!boss.enabled || errors.length > before) return
 
   // per-wave warnings, same indexing as the errors above
   for (let i = 0; i < arena.waves.length; i++) {
-    if (arena.waves[i].monsters.length === 0) {
+    const wave = arena.waves[i]
+    if (wave.monsters.length === 0) {
       warnings.push({
         field: `boss.arena.waves.${i}.monsters`,
         message: `Wave ${i + 1} has an empty monster pool — nothing will spawn at this tier.`
       })
+    }
+
+    for (const id of wave.monsters) {
+      const mode = waveSpawnMode(wave, id)
+      if (!isScatterMode(mode)) continue
+      const field = `boss.arena.waves.${i}.spawnMode.${id}`
+
+      // The interval belongs to the timer rig, and a scattered monster has no
+      // timer. Worth saying out loud: the number stays visible in
+      // parameters.txt, so silence would read as "it still applies".
+      if (wave.intervalMs?.[id] !== undefined) {
+        warnings.push({
+          field,
+          message: `"${id}" in wave ${i + 1} is scattered, so its ${wave.intervalMs[id]} ms interval is ignored — scattered monsters all spawn at once.`
+        })
+      }
+
+      const count = scatterCount(wave.monsterMax[id], arena.monsterMultiplier)
+      if (count >= BOSS_SCATTER_WARN) {
+        warnings.push({
+          field,
+          message: `"${id}" in wave ${i + 1} scatters ${count} spawns, one script node each — that is a lot of nodes on one floor.`
+        })
+      }
     }
   }
 

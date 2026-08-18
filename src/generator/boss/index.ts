@@ -7,11 +7,16 @@ export type { AlcoveWall, BossDef, BossId } from './bosses'
 export { BOSS_DEFS, BOSS_DEF_LIST, largestBossFootprintArea, topWallBossClearance, topWallBossY } from './bosses'
 
 export type { CoverArena, CoverBoss, CoverOptions, PlacedPillars, Rect } from './cover'
-export { isFree, placeCoverPillars } from './cover'
+export { ANCHOR_PILLAR_CLEARANCE, isFree, placeCoverPillars } from './cover'
+
+export { PLACEMENT_ATTEMPTS } from './placement'
+
+export type { SpawnPoint, SpawnPointMap, SpawnPointOptions, SpawnRequest } from './spawnPoints'
+export { placeSpawnPoints, spawnPointKey } from './spawnPoints'
 
 export { ARENA_MIN_HEIGHT, ARENA_MIN_WIDTH, coverPillarCount, freeFloorArea, pillarFootprint } from './geometry'
 
-export { buildWaveRig } from './waves'
+export { buildWaveRig, scatterRequests } from './waves'
 
 export type { BossArenaResult } from './arena'
 export { buildBossArena } from './arena'

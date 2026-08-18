@@ -1,5 +1,12 @@
-import { BOSS_COVER_PATTERNS, DEFAULT_WAVE_MONSTER_MAX, DungeonParameters, defaultParameters } from './parameters'
-import type { BossOptions } from './parameters'
+import {
+  BOSS_COVER_PATTERNS,
+  BOSS_SPAWN_MODES,
+  DEFAULT_WAVE_MONSTER_MAX,
+  DungeonParameters,
+  defaultParameters,
+  isScatterMode
+} from './parameters'
+import type { BossOptions, BossSpawnMode } from './parameters'
 import { MONSTER_TYPES } from '../objects/monsterTypes'
 import { isLobbyCategory } from '../lobby/shops'
 import { TWEAK_FIELD_MAP, pruneTweaks } from '../tweak/overrides'
@@ -216,6 +223,19 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       }
       continue
     }
+    if (keyLower === 'bossspawn') {
+      // same per-field NaN guard as bossCover above — a malformed segment is
+      // reported and only that field keeps its default
+      const parts = value.split(',').map((s) => s.trim())
+      const fields = ['spacing', 'ringSpacing', 'clusters'] as const
+      for (let f = 0; f < fields.length; f++) {
+        if (parts.length <= f) break
+        const n = parseInt(parts[f], 10)
+        if (Number.isNaN(n)) result.unknownKeys.push(`${key} value "${parts[f]}"`)
+        else params.boss.arena.spawn[fields[f]] = n
+      }
+      continue
+    }
     const waveMatch = keyLower.match(/^bosswave(\d)$/)
     if (waveMatch) {
       const idx = parseInt(waveMatch[1], 10) - 1
@@ -223,11 +243,12 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
         result.unknownKeys.push(key)
         continue
       }
-      // four |-separated fields: monsters|defaultIntervalMs|monsterMax|intervalMs.
-      // The last two are optional on parse so the legacy two-field form still
-      // works. monsterMax is REBUILT from the parsed monster pool rather than
-      // merged onto whatever was there, which is what guarantees its keys
-      // always match the pool exactly.
+      // five |-separated fields:
+      // monsters|defaultIntervalMs|monsterMax|intervalMs|spawnMode.
+      // Everything after the first is optional on parse, so the legacy two-,
+      // three- and four-field forms all still work. monsterMax is REBUILT from
+      // the parsed monster pool rather than merged onto whatever was there,
+      // which is what guarantees its keys always match the pool exactly.
       const parts = value.split('|')
       const monsters = (parts[0] ?? '').split(',').map((s) => s.trim()).filter((s) => s !== '')
       params.boss.arena.waves[idx].monsters = monsters
@@ -266,6 +287,23 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
           overrides[id] = n
         }
         if (Object.keys(overrides).length > 0) params.boss.arena.waves[idx].intervalMs = overrides
+      }
+
+      // spawn modes, keyed like the two fields above. An unknown mode is
+      // reported and dropped rather than cast into the union; a key for a
+      // monster outside the parsed pool is dropped too, so the record can
+      // never disagree with `monsters`.
+      if (parts.length >= 5 && parts[4].trim() !== '') {
+        const modes: Record<string, BossSpawnMode> = {}
+        for (const entry of parts[4].split(',')) {
+          const [id, raw] = entry.split(':').map((s) => s.trim())
+          if (id === '' || raw === undefined || !monsters.includes(id) || !(BOSS_SPAWN_MODES as readonly string[]).includes(raw)) {
+            result.unknownKeys.push(`${key} spawnMode "${entry}"`)
+            continue
+          }
+          modes[id] = raw as BossSpawnMode
+        }
+        if (Object.keys(modes).length > 0) params.boss.arena.waves[idx].spawnMode = modes
       }
       continue
     }
@@ -410,11 +448,14 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
   lines.push(
     `bossCover=${params.boss.arena.cover.pattern},${params.boss.arena.cover.density},${params.boss.arena.cover.ringSpacing},${params.boss.arena.cover.clusters}`
   )
+  lines.push(
+    `bossSpawn=${params.boss.arena.spawn.spacing},${params.boss.arena.spawn.ringSpacing},${params.boss.arena.spawn.clusters}`
+  )
   for (let i = 0; i < params.boss.arena.waves.length; i++) {
     const wave = params.boss.arena.waves[i]
-    // fixed arity of four fields; monsterMax is always rebuilt from the
-    // monster pool (never merged), and the fourth field is left empty when
-    // there are no per-monster interval overrides.
+    // fixed arity of five fields; monsterMax is always rebuilt from the
+    // monster pool (never merged), and the fourth and fifth are left empty
+    // when there are no per-monster interval overrides or spawn modes.
     const monsterMax = wave.monsters
       .map((id) => `${id}:${wave.monsterMax[id] ?? DEFAULT_WAVE_MONSTER_MAX}`)
       .join(',')
@@ -426,7 +467,19 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
           .map(([id, ms]) => `${id}:${ms}`)
           .join(',')
       : ''
-    lines.push(`bossWave${i + 1}=${wave.monsters.join(',')}|${wave.defaultIntervalMs}|${monsterMax}|${overrides}`)
+    // fifth field, same sorted shape: only monsters actually on a non-default
+    // mode are written, so a campaign that never touched spawn modes
+    // serializes exactly as it did before they existed
+    const modes = wave.spawnMode
+      ? Object.entries(wave.spawnMode)
+          .filter(([id, mode]) => isScatterMode(mode) && wave.monsters.includes(id))
+          .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+          .map(([id, mode]) => `${id}:${mode}`)
+          .join(',')
+      : ''
+    lines.push(
+      `bossWave${i + 1}=${wave.monsters.join(',')}|${wave.defaultIntervalMs}|${monsterMax}|${overrides}|${modes}`
+    )
   }
 
   return lines.join('\r\n') + '\r\n'

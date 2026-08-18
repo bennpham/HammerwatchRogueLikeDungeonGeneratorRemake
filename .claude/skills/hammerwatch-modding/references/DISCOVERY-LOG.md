@@ -8,6 +8,66 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-17 — the north-wall projectile band applies to every spawned monster, not just anchor spawns
+**Tag:** [EMITTED] (the band itself is [VERIFIED] — see the 2026-08-16
+`SpawnObject` entry; what is unconfirmed is only that applying it to scatter
+points fixes the reported case in game)
+**Context:** Playtesting the scatter spawn modes (#21): the northern-most
+scattered `SpawnObject`s came out inside the north wall, the same symptom the
+fixed anchors had before #22 and the dragon had before #25.
+**Evidence:** The 2026-08-16 entry established that a monster spawned 2 tiles
+from the north wall fires into the wall band and every projectile is absorbed,
+and that y = 4 fires cleanly on a 32x42 arena. That fact is about *where a
+monster stands*, not about which code path put it there — but the fix landed
+only in `anchors.ts` (`NORTH_ANCHOR_INSET`) and, for the boss's static
+collider, in `bosses.ts` (`topWallBossY`). `spawnPoints.ts` (#21) drew
+candidates over the whole interior and filtered them through cover.ts's
+`isFree`, which has no north-band rule — a pillar in the top rows is only
+decoration — so a scattered monster could legally land at interior y = 0..3.
+**Impact:** `spawnPoints.ts` now filters through its own `isFreeSpawn`
+(`rect.y >= NORTH_ANCHOR_INSET && isFree(...)`) and each of the four patterns
+draws its y from the legal range, so the band costs no placement attempts. The
+requested count is still always the count that spawns — `padToCount` stacks the
+leftovers, and its anchor fallback already honours the band. The boss was left
+at `topWallBossY` (dragon y = 3): #25's collider math is a separate constraint
+and the reported bug was about the spawn nodes. The general rule for anything
+added later: **a north-band rule belongs to the monster, so every path that
+places one must apply it.**
+
+### 2026-08-17 — a one-shot scattered horde is a trigger wired straight to N `SpawnObject`s with `trigger-times: 1`
+**Tag:** [EMITTED] (derived from the [VERIFIED] 2026-08-10 `SpawnObject`
+semantics; this exact rig has not been loaded in game yet)
+**Context:** Issue #21 — the boss arena only ever spawned monsters from the 9
+fixed anchors on a `TimerTrigger`, and asked for a second shape: a monster's
+whole count placed across the arena and spawned once.
+**Evidence:** The 2026-08-10 entry established that a `SpawnObject` spawns
+exactly one actor per incoming trigger signal, that its position **is** the
+node position, and that `trigger-times` is a lifetime budget rather than a
+rate. Those three facts compose: a tier trigger connected directly to N
+`SpawnObject`s, each at its own placed point, spawns N actors in one go, with
+no `ToggleElement`/`TimerTrigger` in between at all. The budget is what makes
+it *one*-shot — tier 0's trigger is an `AreaTrigger` over the entrance shape,
+which fires again every time a player walks back over it, so the emitted nodes
+carry `trigger-times: 1` rather than the default `-1`:
+```xml
+<string name="type">SpawnObject</string>
+<bool name="enabled">True</bool>
+<int name="trigger-times">1</int>
+<float name="x">11</float>
+<float name="y">7</float>
+<string name="parameters">actors/bat_1.xml</string>
+```
+**Impact:** `src/generator/boss/spawnPoints.ts` places the points (the same
+four patterns cover pillars use, sharing cover.ts's rejection filter so a spawn
+never lands on the boss, the entrance, the alcove, an anchor or a pillar) and
+`boss/waves.ts` wires them. Monsters whose wreck keeps its collision
+(`corpseCollision === 'blocking'`, see the 2026-08-16 corpse entry) are refused
+this mode by validation: nine known wreck positions are survivable, wrecks
+anywhere are how an arena walls itself off. **Open question:** whether a player
+re-entering the entrance area mid-fight can re-fire tier 0 in a way the
+`trigger-times: 1` budget does not already cover — playtest before promoting
+this to [VERIFIED].
+
 ### 2026-08-16 — a wall-mounted actor must clear the wall band by its collision `offset`, not just its footprint
 **Tag:** [VERIFIED] (hand-patched in the game's own editor and played)
 **Context:** The dragon boss was unwinnable on every generated regular dungeon:

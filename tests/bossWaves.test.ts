@@ -3,7 +3,9 @@ import { GenerationContext } from '../src/generator/core/context'
 import { defaultParameters } from '../src/generator/config/parameters'
 import type { BossWave } from '../src/generator/config/parameters'
 import { anchors } from '../src/generator/boss/anchors'
-import { buildWaveRig } from '../src/generator/boss/waves'
+import { buildWaveRig, scatterRequests } from '../src/generator/boss/waves'
+import { spawnPointKey } from '../src/generator/boss/spawnPoints'
+import type { SpawnPoint, SpawnPointMap } from '../src/generator/boss/spawnPoints'
 import { NodeRectangleShape } from '../src/generator/objects/nodes'
 import type { NodeSpawnObject, NodeTimerTrigger } from '../src/generator/objects/nodes'
 import type { ScriptNode } from '../src/generator/objects/scriptNode'
@@ -12,11 +14,20 @@ function freshCtx(seed = 12345): GenerationContext {
   return new GenerationContext(defaultParameters(), seed)
 }
 
-function buildRig(ctx: GenerationContext, waves: BossWave[], monsterMultiplier = 1.0) {
+function buildRig(ctx: GenerationContext, waves: BossWave[], monsterMultiplier = 1.0, spawnPoints?: SpawnPointMap) {
   const anchorList = anchors(30, 40)
   const entranceShape = new NodeRectangleShape(ctx, 15, 38)
-  buildWaveRig(ctx, waves, monsterMultiplier, anchorList, entranceShape)
+  buildWaveRig(ctx, waves, monsterMultiplier, anchorList, entranceShape, spawnPoints)
   return { anchorList, entranceShape }
+}
+
+/** `count` distinct dummy points for one monster of one tier, as placeSpawnPoints would return them. */
+function points(count: number, startX = 5, y = 5): SpawnPoint[] {
+  return Array.from({ length: count }, (_, i) => ({ x: startX + i, y }))
+}
+
+function spawnMap(entries: Array<[number, string, SpawnPoint[]]>): SpawnPointMap {
+  return new Map(entries.map(([tier, key, pts]) => [spawnPointKey(tier, key), pts]))
 }
 
 function wave(monsters: string[], monsterMax: Record<string, number>, defaultIntervalMs = 3000, intervalMs?: Record<string, number>): BossWave {
@@ -362,5 +373,161 @@ describe('boss wave rig — variant keys (issue #20)', () => {
     buildRig(ctx, [wave(['bat1#0', 'archer1#2', 'tower_nova1'], { 'bat1#0': 4, 'archer1#2': 4, tower_nova1: 4 })])
 
     expect(nextTen(ctx)).toEqual(nextTen(freshCtx()))
+  })
+})
+
+describe('boss wave rig — scattered spawn modes (issue #21)', () => {
+  const scatterWave = (
+    monsters: string[],
+    monsterMax: Record<string, number>,
+    spawnMode: BossWave['spawnMode'],
+    defaultIntervalMs = 3000
+  ): BossWave => ({ monsters, monsterMax, defaultIntervalMs, spawnMode })
+
+  it('emits one one-shot SpawnObject per point, hanging straight off the tier trigger', () => {
+    const ctx = freshCtx()
+    buildRig(
+      ctx,
+      [scatterWave(['bat1'], { bat1: 4 }, { bat1: 'random' })],
+      1.0,
+      spawnMap([[0, 'bat1', points(4)]])
+    )
+
+    const spawns = nodesOfType(ctx, 'SpawnObject') as NodeSpawnObject[]
+    expect(spawns).toHaveLength(4)
+    expect(spawns.map((s) => s.triggerTimes)).toEqual([1, 1, 1, 1])
+    expect(spawns.map((s) => [s.x, s.y])).toEqual([
+      [5, 5],
+      [6, 5],
+      [7, 5],
+      [8, 5]
+    ])
+
+    // no timer rig at all for a tier of nothing but scattered monsters
+    expect(nodesOfType(ctx, 'TimerTrigger')).toHaveLength(0)
+    expect(nodesOfType(ctx, 'ToggleElement')).toHaveLength(0)
+
+    const areaTriggers = nodesOfType(ctx, 'AreaTrigger')
+    expect(areaTriggers).toHaveLength(1)
+    expect(areaTriggers[0].connections.map((c) => c.id).sort()).toEqual(spawns.map((s) => s.id).sort())
+    expect(connectionsResolve(ctx)).toBe(true)
+  })
+
+  it('mixes a scattered monster and a timed one in the same tier', () => {
+    const ctx = freshCtx()
+    buildRig(
+      ctx,
+      [scatterWave(['bat1', 'tick1'], { bat1: 3, tick1: 9 }, { bat1: 'gaussian' })],
+      1.0,
+      spawnMap([[0, 'bat1', points(3)]])
+    )
+
+    const spawns = nodesOfType(ctx, 'SpawnObject') as NodeSpawnObject[]
+    const bats = spawns.filter((s) => s.actorPath === 'actors/bat_1.xml')
+    const ticks = spawns.filter((s) => s.actorPath === 'actors/tick_1_small.xml')
+    expect(bats).toHaveLength(3) // one per scattered point
+    expect(ticks).toHaveLength(9) // one per anchor, unchanged
+
+    // exactly one timer, and only the timed monster hangs off it
+    const timers = nodesOfType(ctx, 'TimerTrigger')
+    expect(timers).toHaveLength(1)
+    expect(timers[0].connections.map((c) => c.id).sort()).toEqual(ticks.map((s) => s.id).sort())
+
+    const trigger = nodesOfType(ctx, 'AreaTrigger')[0]
+    const toggle = nodesOfType(ctx, 'ToggleElement')[0]
+    expect(trigger.connections.map((c) => c.id).sort()).toEqual([toggle.id, ...bats.map((b) => b.id)].sort())
+  })
+
+  it('a scattered monster ignores its interval override instead of forcing a second timer', () => {
+    const ctx = freshCtx()
+    buildRig(
+      ctx,
+      [
+        {
+          monsters: ['bat1', 'tick1'],
+          monsterMax: { bat1: 2, tick1: 9 },
+          defaultIntervalMs: 3000,
+          intervalMs: { bat1: 5000 },
+          spawnMode: { bat1: 'ring' }
+        }
+      ],
+      1.0,
+      spawnMap([[0, 'bat1', points(2)]])
+    )
+
+    const timers = nodesOfType(ctx, 'TimerTrigger') as NodeTimerTrigger[]
+    expect(timers.map((t) => t.intervalMs)).toEqual([3000])
+  })
+
+  it('a tier whose scattered monsters got no points emits no trigger at all', () => {
+    const ctx = freshCtx()
+    buildRig(ctx, [scatterWave(['bat1'], { bat1: 0 }, { bat1: 'random' })], 1.0, new Map())
+
+    expect(nodesOfType(ctx, 'AreaTrigger')).toHaveLength(0)
+    expect(nodesOfType(ctx, 'SpawnObject')).toHaveLength(0)
+    // no node may ever ship an empty connections array
+    expect(ctx.scriptNodes.every((n) => n.type === 'RectangleShape' || n.connections.length > 0)).toBe(true)
+  })
+
+  it('leaves the anchor rig byte-identical when no monster is scattered', () => {
+    const plain = freshCtx()
+    buildRig(plain, [wave(['bat1', 'tick1'], { bat1: 10, tick1: 10 })])
+
+    const withEmptyMap = freshCtx()
+    buildRig(withEmptyMap, [wave(['bat1', 'tick1'], { bat1: 10, tick1: 10 })], 1.0, new Map())
+
+    expect(withEmptyMap.scriptNodes.map((n) => n.getXML())).toEqual(plain.scriptNodes.map((n) => n.getXML()))
+  })
+
+  it('still draws from no RNG stream, points or not', () => {
+    const nextTen = (c: GenerationContext) => ({
+      rand: Array.from({ length: 10 }, () => c.rand.iRand(0, 1000)),
+      cosmetic: Array.from({ length: 10 }, () => c.cosmeticRand.iRand(0, 1000)),
+      boss: Array.from({ length: 10 }, () => c.bossRand.iRand(0, 1000))
+    })
+
+    const ctx = freshCtx()
+    buildRig(
+      ctx,
+      [scatterWave(['bat1'], { bat1: 6 }, { bat1: 'symmetric' })],
+      1.0,
+      spawnMap([[0, 'bat1', points(6)]])
+    )
+
+    expect(nextTen(ctx)).toEqual(nextTen(freshCtx()))
+  })
+})
+
+describe('scatterRequests', () => {
+  it('lists only scattered monsters, in tier then pool order, with counts scaled', () => {
+    const waves: BossWave[] = [
+      { monsters: ['bat1', 'tick1'], monsterMax: { bat1: 10, tick1: 10 }, defaultIntervalMs: 3000, spawnMode: { tick1: 'ring' } },
+      { monsters: ['maggot'], monsterMax: { maggot: 10 }, defaultIntervalMs: 3000 },
+      { monsters: ['slime', 'eye'], monsterMax: { slime: 5, eye: 7 }, defaultIntervalMs: 3000, spawnMode: { eye: 'gaussian', slime: 'random' } },
+      { monsters: [], monsterMax: {}, defaultIntervalMs: 3000 }
+    ]
+
+    expect(scatterRequests(waves, 2.0)).toEqual([
+      { tier: 0, key: 'tick1', mode: 'ring', count: 20 },
+      { tier: 2, key: 'slime', mode: 'random', count: 10 },
+      { tier: 2, key: 'eye', mode: 'gaussian', count: 14 }
+    ])
+  })
+
+  it('skips endless and zeroed monsters — neither has a one-shot meaning', () => {
+    const waves: BossWave[] = [
+      {
+        monsters: ['bat1', 'tick1', 'maggot'],
+        monsterMax: { bat1: -1, tick1: 0, maggot: 4 },
+        defaultIntervalMs: 3000,
+        spawnMode: { bat1: 'random', tick1: 'random', maggot: 'random' }
+      }
+    ]
+
+    expect(scatterRequests(waves, 1.0)).toEqual([{ tier: 0, key: 'maggot', mode: 'random', count: 4 }])
+  })
+
+  it('is empty for the stock waves, so a default campaign places no spawn points', () => {
+    expect(scatterRequests(defaultParameters().boss.arena.waves, 1.0)).toEqual([])
   })
 })
