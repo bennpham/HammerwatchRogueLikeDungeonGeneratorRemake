@@ -527,7 +527,19 @@ describe('scatterRequests', () => {
     expect(scatterRequests(waves, 1.0)).toEqual([{ tier: 0, key: 'maggot', mode: 'random', count: 4 }])
   })
 
-  it('is empty for the stock waves, so a default campaign places no spawn points', () => {
-    expect(scatterRequests(defaultParameters().boss.arena.waves, 1.0)).toEqual([])
+  it('covers the stock waves except their anchored tail', () => {
+    const waves = defaultParameters().boss.arena.waves
+    const requests = scatterRequests(waves, 1.0)
+
+    // every stock entry is scattered except the blocking-wreck towers, which
+    // validation forbids scattering
+    expect(requests.every((r) => r.mode === 'random')).toBe(true)
+    expect(requests.map((r) => r.key)).not.toContain('tower_nova1')
+    expect(requests).toHaveLength(waves.reduce((n, w) => n + w.monsters.length, 0) - 1)
+  })
+
+  it('is empty once every monster is back on the anchors mode', () => {
+    const waves = defaultParameters().boss.arena.waves.map((w) => ({ ...w, spawnMode: undefined }))
+    expect(scatterRequests(waves, 1.0)).toEqual([])
   })
 })

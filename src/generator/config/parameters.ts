@@ -262,12 +262,7 @@ export function defaultBossOptions(): BossOptions {
       // worm belong to the desert and krilith to the ice caves, so they are in
       // BOSS_IDS for the checkbox grid but out of the stock pool.
       bossPool: ['boss_knight', 'boss_lich', 'boss_dragon', 'boss_queen'],
-      waves: [
-        defaultWave(['bat1', 'tick1', 'maggot'], 4000),
-        defaultWave(['skeleton1', 'archer1', 'slime'], 3000),
-        defaultWave(['eye', 'wisp1', 'lich'], 2000),
-        defaultWave(['skeleton2', 'archer2', 'wisp2'], 1000)
-      ],
+      waves: castleWaves(),
       cover: {
         pattern: 'random',
         // density is the fraction of the free floor cover fills, so this is a
@@ -297,13 +292,114 @@ export function defaultBossOptions(): BossOptions {
 /** The stock per-monster max horde size a fresh wave starts every id at. */
 export const DEFAULT_WAVE_MONSTER_MAX = 10
 
-/** One wave whose monsters all use the shared interval, in nominal order. */
-function defaultWave(monsters: string[], defaultIntervalMs: number): BossWave {
+/** One `[variant key, max count]` entry of a stock wave. */
+export type WaveEntry = readonly [string, number]
+
+/**
+ * A stock wave built from two lists: `scattered` monsters, which are placed all
+ * at once across the arena on the `random` mode, and `timed` monsters, which
+ * stay on the nine anchors and trickle in on `defaultIntervalMs`.
+ *
+ * The split is not cosmetic. A monster whose wreck still blocks movement
+ * (the nova / frost / tracking towers — see actorCollision.ts) may not be
+ * scattered at all; validation rejects it, because a scattered wreck can wall
+ * the arena off. Those belong in `timed`, and that is the only reason the stock
+ * presets keep an anchored tail on some tiers.
+ *
+ * Pool order is `scattered` then `timed`, which is also the order spawnPoints.ts
+ * places them in — so it is fixed data, not an incidental of how this is called.
+ */
+export function scatterWave(
+  scattered: readonly WaveEntry[],
+  timed: readonly WaveEntry[],
+  defaultIntervalMs: number
+): BossWave {
+  const all = [...scattered, ...timed]
   return {
-    monsters,
-    monsterMax: Object.fromEntries(monsters.map((id) => [id, DEFAULT_WAVE_MONSTER_MAX])),
-    defaultIntervalMs
+    monsters: all.map(([key]) => key),
+    monsterMax: Object.fromEntries(all),
+    defaultIntervalMs,
+    spawnMode: Object.fromEntries(scattered.map(([key]) => [key, 'random' as BossSpawnMode]))
   }
+}
+
+/**
+ * The stock Castle wave line-up, one entry per tier (100 / 75 / 50 / 25).
+ *
+ * Almost everything is scattered: the tiers are big enough that trickling them
+ * through nine anchors would queue most of the horde behind the timer. The
+ * anchored tail is the blocking-wreck towers, which may not be scattered.
+ *
+ * The `id#n` keys are variant keys (see monsterTypes.ts): `#0` is the spawner
+ * prop, higher indices the elite tiers.
+ */
+function castleWaves(): BossWave[] {
+  return [
+    scatterWave(
+      [
+        ['bat1', 120],
+        ['bat2', 80],
+        ['maggot', 60],
+        ['maggot#2', 40],
+        ['maggot#3', 20],
+        ['tick1', 80],
+        ['tick1#2', 60],
+        ['tick1#0', 8],
+        ['tower_flower1_small', 12]
+      ],
+      [],
+      4000
+    ),
+    scatterWave(
+      [
+        ['archer1', 30],
+        ['archer2', 15],
+        ['skeleton1', 60],
+        ['skeleton1#2', 80],
+        ['slime', 120],
+        ['tower_archer1', 12],
+        ['mb_tick', 6],
+        ['mb_maggot', 2],
+        ['skeleton1#0', 6],
+        ['archer1#0', 6],
+        ['slime#0', 20]
+      ],
+      [],
+      3000
+    ),
+    scatterWave(
+      [
+        ['eye', 120],
+        ['eye#2', 80],
+        ['wisp1', 40],
+        ['wisp1#2', 20],
+        ['wisp2', 30],
+        ['lich#3', 30],
+        ['tower_flower1', 8],
+        ['tower_flower2', 4],
+        ['tower_flower3', 1],
+        ['mb_skeleton', 8],
+        ['mb_eye', 2]
+      ],
+      [],
+      2000
+    ),
+    scatterWave(
+      [
+        ['lich', 12],
+        ['lich#0', 24],
+        ['lich#2', 8],
+        ['mb_eye', 4],
+        ['mb_lich', 2],
+        ['tower_archer3', 8],
+        ['eye#0', 12],
+        ['archer2#0', 8],
+        ['skeleton2#0', 8]
+      ],
+      [['tower_nova1', 4]],
+      1000
+    )
+  ]
 }
 
 /**
