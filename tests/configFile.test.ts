@@ -135,10 +135,18 @@ describe('parameters.txt parsing', () => {
     original.boss.arena.maxHeight = 48
     original.boss.arena.bossPool = ['boss_dragon', 'boss_queen']
     original.boss.arena.cover = { pattern: 'ring', density: 0.6, ringSpacing: 5, clusters: 2 }
-    original.boss.arena.waves[0].defaultIntervalMs = 3500
-    original.boss.arena.waves[1].monsters = ['skeleton1', 'archer1']
-    original.boss.arena.waves[1].monsterMax = { skeleton1: 10, archer1: 10 }
-    original.boss.arena.waves[1].defaultIntervalMs = 2500
+    // waves set out in full rather than patched onto the stock ones, which are
+    // long and nearly all scattered — this test is about the wire format
+    original.boss.arena.waves[0] = {
+      monsters: ['bat1', 'tick1', 'maggot'],
+      monsterMax: { bat1: 10, tick1: 10, maggot: 10 },
+      defaultIntervalMs: 3500
+    }
+    original.boss.arena.waves[1] = {
+      monsters: ['skeleton1', 'archer1'],
+      monsterMax: { skeleton1: 10, archer1: 10 },
+      defaultIntervalMs: 2500
+    }
 
     const text = serializeParametersTxt(original)
     // the wire contract: fixed camelCase keys, and the four-field wave encoding
@@ -157,9 +165,12 @@ describe('parameters.txt parsing', () => {
 
   it('round-trips per-monster interval overrides and a -1 (endless) monsterMax', () => {
     const original = defaultParameters()
-    original.boss.arena.waves[2].monsters = ['eye', 'wisp1']
-    original.boss.arena.waves[2].monsterMax = { eye: -1, wisp1: 5 }
-    original.boss.arena.waves[2].intervalMs = { eye: 8000 }
+    original.boss.arena.waves[2] = {
+      monsters: ['eye', 'wisp1'],
+      monsterMax: { eye: -1, wisp1: 5 },
+      defaultIntervalMs: 2000,
+      intervalMs: { eye: 8000 }
+    }
 
     const parsed = parseParametersTxt(serializeParametersTxt(original))
     expect(parsed.params.boss).toEqual(original.boss)
@@ -191,7 +202,12 @@ describe('parameters.txt parsing', () => {
   it('round-trips the scatter spawn knobs and per-monster spawn modes', () => {
     const original = defaultParameters()
     original.boss.arena.spawn = { spacing: 3, ringSpacing: 6, clusters: 5 }
-    original.boss.arena.waves[0].spawnMode = { bat1: 'gaussian', maggot: 'ring' }
+    original.boss.arena.waves[0] = {
+      monsters: ['bat1', 'tick1', 'maggot'],
+      monsterMax: { bat1: 10, tick1: 10, maggot: 10 },
+      defaultIntervalMs: 4000,
+      spawnMode: { bat1: 'gaussian', maggot: 'ring' }
+    }
 
     const text = serializeParametersTxt(original)
     expect(text).toContain('bossSpawn=3,6,5')
@@ -205,7 +221,12 @@ describe('parameters.txt parsing', () => {
 
   it('writes no spawn-mode field while every monster is on the anchors mode', () => {
     const params = defaultParameters()
-    params.boss.arena.waves[0].spawnMode = { bat1: 'anchors' }
+    params.boss.arena.waves[0] = {
+      monsters: ['bat1', 'tick1', 'maggot'],
+      monsterMax: { bat1: 10, tick1: 10, maggot: 10 },
+      defaultIntervalMs: 4000,
+      spawnMode: { bat1: 'anchors' }
+    }
     expect(serializeParametersTxt(params)).toContain(
       'bossWave1=bat1,tick1,maggot|4000|bat1:10,tick1:10,maggot:10||\r\n'
     )
@@ -344,10 +365,12 @@ describe('parameters.txt — boss wave variant keys (issue #20)', () => {
   it('round-trips variant keys through the wave encoding', () => {
     // `#` has to survive the |, `,` and `:` separators of the wave grammar.
     const original = defaultParameters()
-    original.boss.arena.waves[0].monsters = ['bat1', 'bat1#0', 'archer1#2']
-    original.boss.arena.waves[0].monsterMax = { bat1: 10, 'bat1#0': 3, 'archer1#2': 5 }
-    original.boss.arena.waves[0].defaultIntervalMs = 4000
-    original.boss.arena.waves[0].intervalMs = { 'bat1#0': 5000 }
+    original.boss.arena.waves[0] = {
+      monsters: ['bat1', 'bat1#0', 'archer1#2'],
+      monsterMax: { bat1: 10, 'bat1#0': 3, 'archer1#2': 5 },
+      defaultIntervalMs: 4000,
+      intervalMs: { 'bat1#0': 5000 }
+    }
 
     const text = serializeParametersTxt(original)
     expect(text).toContain('bossWave1=bat1,bat1#0,archer1#2|4000|bat1:10,bat1#0:3,archer1#2:5|bat1#0:5000')

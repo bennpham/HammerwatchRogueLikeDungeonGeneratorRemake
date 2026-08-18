@@ -604,17 +604,42 @@ describe('boss validation', () => {
     }
     const result = validateParameters(p)
     expect(result.valid).toBe(true)
-    expect(fieldsOf(result.warnings)).toContain('boss.arena.waves.0.spawnMode.bat1')
+    expect(fieldsOf(result.warnings)).toContain('boss.arena.waves')
   })
 
-  it('warns, without blocking, about a big scatter and an interval it will ignore', () => {
+  it('counts the scatter budget across every tier, not per monster', () => {
+    // 40 modest scatters cost the floor exactly what one enormous one does, so
+    // the rule is a per-arena total: neither wave alone would trip a 2000-node
+    // threshold, together they do.
+    const arena = defaultParameters().boss.arena
+    const half = (max: number) => ({
+      monsters: ['bat1'],
+      monsterMax: { bat1: max },
+      defaultIntervalMs: 4000,
+      spawnMode: { bat1: 'random' as const }
+    })
+    const quiet = withBoss({
+      arena: { ...arena, waves: [half(900), half(900), half(0), half(0)] }
+    })
+    expect(fieldsOf(quiet.warnings)).not.toContain('boss.arena.waves')
+
+    const loud = withBoss({
+      arena: { ...arena, waves: [half(900), half(900), half(900), half(0)] }
+    })
+    expect(loud.valid).toBe(true)
+    expect(fieldsOf(loud.warnings)).toContain('boss.arena.waves')
+    expect(loud.warnings.find((w) => w.field === 'boss.arena.waves')?.message).toContain('2700')
+  })
+
+  it('warns, without blocking, about an interval a scattered monster will ignore', () => {
     const result = withWave0({
+      monsters: ['bat1', 'tick1', 'maggot'],
       monsterMax: { bat1: 80, tick1: 10, maggot: 10 },
       intervalMs: { bat1: 5000 },
       spawnMode: { bat1: 'random' }
     })
     expect(result.valid).toBe(true)
-    expect(fieldsOf(result.warnings).filter((f) => f === 'boss.arena.waves.0.spawnMode.bat1')).toHaveLength(2)
+    expect(fieldsOf(result.warnings).filter((f) => f === 'boss.arena.waves.0.spawnMode.bat1')).toHaveLength(1)
   })
 
   it('ignores a spawn mode left behind for a monster no longer in the pool', () => {

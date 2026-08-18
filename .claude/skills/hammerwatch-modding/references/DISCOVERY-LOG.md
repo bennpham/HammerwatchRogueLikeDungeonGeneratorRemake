@@ -8,6 +8,23 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-18 — a stock boss arena now emits ~1300 SpawnObject nodes
+**Tag:** [EMITTED] — generated and validated here, never opened in game.
+**Context:** The stock presets were rebuilt so almost every wave monster is on
+the `random` scatter mode with counts of 60-250 each, instead of trickling
+through the nine anchors.
+**Evidence:** `generateDungeon` on the three presets, seed 1234: `levels/boss.xml`
+is 931 KB / 1270 `SpawnObject` nodes (Castle), 855 KB / 1160 (Desert), 835 KB /
+991 (Bonus). Generation stays under 260 ms, and `spawnPoints.padToCount` keeps
+the emitted node count exactly equal to the configured budget — an arena has
+nowhere near 1300 free 2x2 footprints, so the surplus stacks on already-placed
+points rather than being dropped.
+**Impact:** Unknown whether the game or `LevelPacker.exe` is happy with a level
+this node-heavy; that is the next thing to check in game. The per-monster
+scatter warning (60) was replaced by a per-arena total (`BOSS_SCATTER_WARN =
+2000`) so the stock presets do not warn on open — if the game turns out to
+struggle, that number is the knob to lower.
+
 ### 2026-08-17 — mixed themes: the verified stacking mechanism, driven per region
 **Tag:** [EMITTED] for the 8 `x - mixed` themes; the mechanism they rely on is
 already [VERIFIED] by the 2026-08-16 tile-block-stacking entry below.

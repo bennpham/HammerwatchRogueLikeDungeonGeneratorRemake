@@ -315,12 +315,17 @@ function validateLobby(
 export const BOSS_GOLD_MAX = DIAMOND_VALUE * 42 * 2
 
 /**
- * Scattered spawn count that starts drawing a warning. A scattered monster is
- * one `SpawnObject` script node of its own — the anchor rig fits any horde in
- * at most 9 nodes, a scatter needs one per monster — so a big count quietly
- * turns into a big level. Advisory only — there is no upper limit.
+ * Scattered spawns per arena that start drawing a warning, counted across all
+ * four tiers. A scattered monster is one `SpawnObject` script node of its own —
+ * the anchor rig fits any horde in at most 9 nodes, a scatter needs one per
+ * monster — so a big scatter quietly turns into a big level.
+ *
+ * Counted per arena rather than per monster because the node budget is a
+ * property of the floor, not of one pool entry: the stock presets scatter
+ * 1000-1300 nodes spread over ~40 entries and none of them is remarkable on its
+ * own. Advisory only — there is no upper limit.
  */
-export const BOSS_SCATTER_WARN = 60
+export const BOSS_SCATTER_WARN = 2000
 
 /**
  * How many spawns a scattered monster actually emits — the same arithmetic
@@ -586,15 +591,25 @@ function validateBoss(
           message: `"${id}" in wave ${i + 1} is scattered, so its ${wave.intervalMs[id]} ms interval is ignored — scattered monsters all spawn at once.`
         })
       }
-
-      const count = scatterCount(wave.monsterMax[id], arena.monsterMultiplier)
-      if (count >= BOSS_SCATTER_WARN) {
-        warnings.push({
-          field,
-          message: `"${id}" in wave ${i + 1} scatters ${count} spawns, one script node each — that is a lot of nodes on one floor.`
-        })
-      }
     }
+  }
+
+  // The node budget belongs to the floor, so it is counted once across every
+  // tier rather than per pool entry — 40 modest scatters cost the same as one
+  // enormous one.
+  const scattered = arena.waves.reduce(
+    (total, wave) =>
+      total +
+      wave.monsters
+        .filter((id) => isScatterMode(waveSpawnMode(wave, id)))
+        .reduce((n, id) => n + scatterCount(wave.monsterMax[id], arena.monsterMultiplier), 0),
+    0
+  )
+  if (scattered >= BOSS_SCATTER_WARN) {
+    warnings.push({
+      field: 'boss.arena.waves',
+      message: `The four tiers scatter ${scattered} spawns in total, one script node each — that is a lot of nodes on one floor.`
+    })
   }
 
   // The arena's theme carries the same cosmetic caveat the dungeon's themes do

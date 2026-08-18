@@ -264,6 +264,13 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       const parts = value.split('|')
       const monsters = (parts[0] ?? '').split(',').map((s) => s.trim()).filter((s) => s !== '')
       params.boss.arena.waves[idx].monsters = monsters
+      // The line is the whole truth about this wave: the two optional records
+      // are cleared before they are re-read, so a file that omits them (or
+      // whose entries are all rejected) cannot leave the stock preset's
+      // per-monster intervals and spawn modes attached to a pool that no longer
+      // contains those monsters.
+      delete params.boss.arena.waves[idx].intervalMs
+      delete params.boss.arena.waves[idx].spawnMode
 
       if (parts.length >= 2 && parts[1].trim() !== '') {
         const ms = parseInt(parts[1].trim(), 10)

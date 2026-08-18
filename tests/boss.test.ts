@@ -21,6 +21,17 @@ function arenaOptions(overrides: Partial<BossOptions['arena']> = {}): BossOption
   return { ...defaultParameters().boss.arena, ...overrides }
 }
 
+/**
+ * The stock arena with every monster back on the anchors mode — the shape the
+ * waves had before the stock presets scattered them. Used by the tests about
+ * the timer rig and about the scatter knobs being inert, both of which are
+ * statements about anchored waves.
+ */
+function anchoredOptions(overrides: Partial<BossOptions['arena']> = {}): BossOptions['arena'] {
+  const arena = defaultParameters().boss.arena
+  return arenaOptions({ waves: arena.waves.map((w) => ({ ...w, spawnMode: undefined })), ...overrides })
+}
+
 function generateOk(params: DungeonParameters, seed: number): DungeonResult {
   const result = generateDungeon(params, seed)
   expect(result.ok, `generation failed: ${result.ok ? '' : result.errors.join(' ')}`).toBe(true)
@@ -392,7 +403,9 @@ describe('boss arena — id integrity', () => {
 
 describe('boss arena — waves reach the rig', () => {
   it('ships at least one TimerTrigger per non-empty wave, all shipping enabled=False', () => {
-    const { xml } = buildBossArena(freshCtx(4242), arenaOptions(), 0)
+    // anchored waves: a scattered monster is one-shot and needs no timer, and
+    // the stock waves scatter nearly everything
+    const { xml } = buildBossArena(freshCtx(4242), anchoredOptions(), 0)
     const timers = [...xml.matchAll(/<string name="type">TimerTrigger<\/string>/g)]
     expect(timers.length).toBeGreaterThanOrEqual(4)
 
@@ -427,8 +440,12 @@ describe('boss arena — scattered spawn modes (issue #21)', () => {
   it('leaves a stock arena byte-identical whatever the scatter knobs say', () => {
     // The knobs are inert until a monster is actually put on a scatter mode —
     // which is also what keeps every seed generated before this feature intact.
-    const stock = buildBossArena(freshCtx(4242), arenaOptions(), 0)
-    const retuned = buildBossArena(freshCtx(4242), arenaOptions({ spawn: { spacing: 5, ringSpacing: 9, clusters: 7 } }), 0)
+    const stock = buildBossArena(freshCtx(4242), anchoredOptions(), 0)
+    const retuned = buildBossArena(
+      freshCtx(4242),
+      anchoredOptions({ spawn: { spacing: 5, ringSpacing: 9, clusters: 7 } }),
+      0
+    )
     expect(retuned.xml).toBe(stock.xml)
   })
 
@@ -932,7 +949,10 @@ describe('boss arena — playtest round 2: world-extent alignment per alcove wal
 
 describe('boss arena — water base layer', () => {
   it('every block carries a water dataset before the theme dataset, with data-t all 1', () => {
-    const { xml } = buildBossArena(freshCtx(4242), arenaOptions(), 0)
+    // plain 'g', not the default 'g - mixed': a mixed theme adds an overlay
+    // dataset per region, and this test is about the water layer's position,
+    // not about how many theme datasets follow it
+    const { xml } = buildBossArena(freshCtx(4242), arenaOptions({ theme: 'g' }), 0)
     const blocks = tileBlocks(xml)
     expect(blocks.length).toBeGreaterThan(0)
 

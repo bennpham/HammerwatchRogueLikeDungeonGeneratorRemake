@@ -1,5 +1,5 @@
-import { defaultParameters } from './parameters'
-import type { DungeonParameters } from './parameters'
+import { defaultParameters, scatterWave } from './parameters'
+import type { BossWave, DungeonParameters } from './parameters'
 
 /**
  * A named starting point for a campaign: length, themes and per-floor monster
@@ -23,6 +23,147 @@ export interface CampaignPreset {
 }
 
 /**
+ * `defaultParameters()` with the boss arena re-pointed at a preset's own theme
+ * and boss line-up. Spread by hand rather than mutated, because `build()` must
+ * hand back a fresh object every call and `boss.arena` is two levels deep — a
+ * shallow `{...base, boss}` would otherwise share the arena between callers.
+ */
+function withBoss(theme: string, bossPool: string[], waves: BossWave[]): DungeonParameters['boss'] {
+  const boss = defaultParameters().boss
+  return { ...boss, arena: { ...boss.arena, theme, bossPool, waves } }
+}
+
+/**
+ * Desert's four wave tiers. Guards alone at 100%, mummies from 75% on, and the
+ * fire pillars/floaters only once the boss is at a quarter health. Every entry
+ * is scattered — nothing here leaves a blocking wreck, so nothing has to stay
+ * on the anchors.
+ */
+function desertWaves(): BossWave[] {
+  return [
+    scatterWave(
+      [
+        ['guard_desert', 120],
+        ['guard_desert_range', 60]
+      ],
+      [],
+      4000
+    ),
+    scatterWave(
+      [
+        ['guard_desert', 60],
+        ['guard_desert_range', 30],
+        ['mummy_desert', 80],
+        ['mummy_desert#2', 120],
+        ['mummy_ranged', 60],
+        ['mummy_desert#0', 4],
+        ['mummy_ranged#0', 2]
+      ],
+      [],
+      3000
+    ),
+    scatterWave(
+      [
+        ['mummy_desert', 120],
+        ['mummy_desert#2', 60],
+        ['mummy_desert#3', 40],
+        ['mummy_ranged', 40],
+        ['mummy_ranged#2', 60],
+        ['mummy_desert#0', 8],
+        ['mummy_ranged#0', 4],
+        ['spider', 13],
+        ['mb_mummy', 4]
+      ],
+      [],
+      2000
+    ),
+    scatterWave(
+      [
+        ['special_beheaded_kamikaze', 4],
+        ['mummy_desert#3', 80],
+        ['mummy_ranged#2', 60],
+        ['pillar_fire', 20],
+        ['floater_fire', 40],
+        ['spider', 40],
+        ['mb_mummy', 8],
+        ['lich_desert', 8],
+        ['lich_desert#0', 9],
+        ['lich_desert#2', 6]
+      ],
+      [],
+      1000
+    )
+  ]
+}
+
+/**
+ * Bonus's four wave tiers: the bonus-tileset skeletons and archers first, the
+ * castle roster escalating behind them. The anchored tails are the towers whose
+ * wrecks keep their collision and so cannot be scattered.
+ */
+function bonusWaves(): BossWave[] {
+  return [
+    scatterWave(
+      [
+        ['bonus_archer1', 120],
+        ['bonus_skeleton1', 250],
+        ['bonus_skeleton1#0', 16]
+      ],
+      [],
+      4000
+    ),
+    scatterWave(
+      [
+        ['archer1', 40],
+        ['archer2', 10],
+        ['archer3', 10],
+        ['skeleton1', 80],
+        ['skeleton1#2', 60],
+        ['tower_archer1', 16],
+        ['skeleton1#0', 12],
+        ['archer1#0', 6]
+      ],
+      [],
+      3000
+    ),
+    scatterWave(
+      [
+        ['skeleton2', 60],
+        ['skeleton2#2', 80],
+        ['skeleton2#3', 40],
+        ['skeleton3', 20],
+        ['lich#3', 30],
+        ['archer2', 15],
+        ['archer3', 25],
+        ['mb_skeleton', 8],
+        ['tower_archer3', 8],
+        ['archer2#0', 6],
+        ['skeleton2#0', 12]
+      ],
+      [['tower_nova1', 4]],
+      2000
+    ),
+    scatterWave(
+      [
+        ['special_beheaded_kamikaze', 4],
+        ['lich', 6],
+        ['lich#0', 12],
+        ['lich#2', 8],
+        ['mb_eye', 6],
+        ['mb_lich', 2],
+        ['mb_doomspawn', 4],
+        ['tower_banner1', 16]
+      ],
+      [
+        ['tower_static_frost', 1],
+        ['tower_tracking1', 4]
+      ],
+      1000
+    )
+  ]
+}
+
+/**
  * The presets, in dropdown order. `castle` is `defaultParameters()` verbatim,
  * so the first entry is always what the app opens with.
  */
@@ -30,13 +171,15 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
   {
     id: 'castle',
     label: 'Castle (default)',
-    description: '7 floors through the castle themes — four act floors, then three boss rushes.',
+    description:
+      '7 floors through the mixed castle themes — four act floors, then three boss rushes.',
     build: () => defaultParameters()
   },
   {
     id: 'desert',
     label: 'Desert',
-    description: '5 floors of Temple of the Sun mobs, ending on a mummy mini-boss rush.',
+    description:
+      '5 floors of Temple of the Sun mobs, a mummy mini-boss rush, then Anubis or the worm.',
     // The two outdoor floors are guards only: they mob the party in numbers but
     // barely scratch it, so the opening reads as busy rather than dangerous. The
     // mummies arrive with the indoor themes on floor 3, which is where the
@@ -44,7 +187,8 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
     build: () => ({
       ...defaultParameters(),
       levels: 5,
-      themes: ['h', 'h', 'i', 'i', 'i'],
+      themes: ['h', 'h', 'i', 'i_symbols', 'i_mixed'],
+      boss: withBoss('i_mixed', ['boss_anubis', 'boss_worm'], desertWaves()),
       levelMonsters: [
         ['guard_desert', 'guard_desert_range'],
         ['guard_desert', 'guard_desert_range', 'tower_archer1', 'tower_archer3'],
@@ -85,11 +229,17 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
   {
     id: 'bonus',
     label: 'Bonus Gauntlet',
-    description: '5 floors of the bonus tilesets, escalating from bonus mobs to a mixed boss floor.',
+    description:
+      '5 floors of the bonus tilesets, escalating from bonus mobs to a mixed boss floor.',
     build: () => ({
       ...defaultParameters(),
       levels: 5,
       themes: ['bonus1', 'bonus2', 'bonus3', 'bonus4', 'bonus5'],
+      boss: withBoss(
+        'g_mixed',
+        ['boss_knight', 'boss_lich', 'boss_krilith', 'boss_dragon'],
+        bonusWaves()
+      ),
       levelMonsters: [
         ['bonus_archer1', 'bonus_skeleton1'],
         ['archer1', 'archer2', 'skeleton1', 'skeleton2'],
