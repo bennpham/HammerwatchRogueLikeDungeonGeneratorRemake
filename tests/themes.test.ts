@@ -473,6 +473,52 @@ describe('mixed themes — the plain floor and its overlays varied per region', 
     expect(sawExtra).toBe(true)
   })
 
+  // The Boss tab's "Floor pattern" control. Forcing a kind must change the
+  // floor and nothing else, so the same seed keeps its cover, monsters and
+  // tile variants — only the arrangement of the palette moves.
+  it('honours a forced arena floor pattern, changing only the floor', () => {
+    const build = (floorPattern: string) => {
+      const params = defaultParameters()
+      params.boss.enabled = true
+      params.boss.arena.theme = 'g_mixed'
+      params.boss.arena.floorPattern = floorPattern as typeof params.boss.arena.floorPattern
+      const result = generateDungeon(params, 4242)
+      expect(result.ok).toBe(true)
+      return (result as DungeonResult).files.find((f) => f.path === 'levels/boss.xml')!.content
+    }
+
+    const checker = build('checker')
+    const bandsH = build('bandsH')
+    expect(checker).not.toBe(bandsH)
+    expect(build('checker')).toBe(checker)
+
+    // everything below the tilemap is untouched by the choice
+    const belowTilemap = (xml: string) => xml.slice(xml.indexOf('<dictionary name="doodads">'))
+    expect(belowTilemap(bandsH)).toBe(belowTilemap(checker))
+
+    // and one of them is what the seed would have rolled on its own
+    const random = build('random')
+    const kinds = ['checker', 'bandsH', 'bandsV', 'bandsDiag', 'rings', 'diamond', 'cross', 'triangle']
+    expect(kinds.map(build)).toContain(random)
+    // a dozen full campaigns; same reason boss.test.ts's every-theme sweep is
+    // given room beyond the 5s default
+  }, 30_000)
+
+  it('ignores the floor pattern for a theme with no palette', () => {
+    const build = (floorPattern: string) => {
+      const params = defaultParameters()
+      params.boss.enabled = true
+      params.boss.arena.theme = 'g'
+      params.boss.arena.floorPattern = floorPattern as typeof params.boss.arena.floorPattern
+      const result = generateDungeon(params, 4242)
+      expect(result.ok).toBe(true)
+      return (result as DungeonResult).files.find((f) => f.path === 'levels/boss.xml')!.content
+    }
+    // a plain theme takes no pattern draws at all, so the knob cannot move it
+    expect(build('checker')).toBe(build('random'))
+    expect(build('rings')).toBe(build('random'))
+  })
+
   it('draws no RNG in the arena for a theme without a palette', () => {
     const run = (theme: string) => {
       const params = defaultParameters()

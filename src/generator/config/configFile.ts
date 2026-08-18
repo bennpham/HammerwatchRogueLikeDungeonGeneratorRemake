@@ -1,12 +1,13 @@
 import {
   BOSS_COVER_PATTERNS,
+  BOSS_FLOOR_PATTERNS,
   BOSS_SPAWN_MODES,
   DEFAULT_WAVE_MONSTER_MAX,
   DungeonParameters,
   defaultParameters,
   isScatterMode
 } from './parameters'
-import type { BossOptions, BossSpawnMode } from './parameters'
+import type { BossFloorPattern, BossOptions, BossSpawnMode } from './parameters'
 import { MONSTER_TYPES } from '../objects/monsterTypes'
 import { isLobbyCategory } from '../lobby/shops'
 import { TWEAK_FIELD_MAP, pruneTweaks } from '../tweak/overrides'
@@ -168,6 +169,17 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     }
     if (keyLower === 'bosstheme') {
       params.boss.arena.theme = value
+      continue
+    }
+    if (keyLower === 'bossfloorpattern') {
+      // same guard as bosscover's pattern segment: an unrecognized name is
+      // reported and the field keeps its default, rather than casting an
+      // arbitrary string into the union
+      if (!(BOSS_FLOOR_PATTERNS as readonly string[]).includes(value)) {
+        result.unknownKeys.push(`${key} value "${value}"`)
+      } else {
+        params.boss.arena.floorPattern = value as BossFloorPattern
+      }
       continue
     }
     if (keyLower === 'bosswidth') {
@@ -442,6 +454,7 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
   lines.push(`bossGold=${params.boss.prep.startingGold}`)
   lines.push(`bossShops=${params.boss.prep.shopCategories.join(' ')}`)
   lines.push(`bossTheme=${params.boss.arena.theme}`)
+  lines.push(`bossFloorPattern=${params.boss.arena.floorPattern}`)
   lines.push(`bossWidth=${params.boss.arena.minWidth},${params.boss.arena.maxWidth}`)
   lines.push(`bossHeight=${params.boss.arena.minHeight},${params.boss.arena.maxHeight}`)
   lines.push(`bossPool=${params.boss.arena.bossPool.join(',')}`)

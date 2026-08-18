@@ -366,7 +366,13 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   // draw in the build, and only for a mixed theme: a plain or paired theme draws
   // nothing and its arenas stay byte-identical to what they were.
   const pattern =
-    themeDef.mixed === undefined ? null : pickArenaPattern(ctx.bossRand, themeDef.mixed.length)
+    themeDef.mixed === undefined
+      ? null
+      : pickArenaPattern(
+          ctx.bossRand,
+          themeDef.mixed.length,
+          arena.floorPattern === 'random' ? undefined : arena.floorPattern
+        )
 
   return {
     xml: getArenaXML(ctx, tileArray, gridWidth, gridHeight, themeDef, originX, originY, width, height, pattern),

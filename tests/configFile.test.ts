@@ -91,6 +91,23 @@ describe('parameters.txt parsing', () => {
     expect(parsed.unknownKeys).toEqual([])
   })
 
+  it('round-trips a forced arena floor pattern', () => {
+    const original = defaultParameters()
+    original.boss.arena.theme = 'g_mixed'
+    original.boss.arena.floorPattern = 'bandsDiag'
+
+    const parsed = parseParametersTxt(serializeParametersTxt(original))
+
+    expect(parsed.params.boss.arena.floorPattern).toBe('bandsDiag')
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('reports an unknown floor pattern and keeps the default', () => {
+    const parsed = parseParametersTxt('bossFloorPattern=spiral')
+    expect(parsed.params.boss.arena.floorPattern).toBe('random')
+    expect(parsed.unknownKeys).toEqual(['bossFloorPattern value "spiral"'])
+  })
+
   it('round-trips lockFinalRoom as 1/0', () => {
     const original = defaultParameters()
     expect(serializeParametersTxt(original)).toContain('lockFinalRoom=1')

@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   ARENA_PATTERN_KINDS,
+  isShapePattern,
   patternVariant,
   pickArenaPattern
 } from '../src/generator/boss/arenaPattern'
 import type { ArenaPattern, ArenaPatternKind } from '../src/generator/boss/arenaPattern'
+import { BOSS_FLOOR_PATTERNS } from '../src/generator/config/parameters'
 import { Rand } from '../src/generator/core/rand'
 
 const W = 33
@@ -105,14 +107,48 @@ describe('arena patterns', () => {
     expect(pickArenaPattern(new Rand(31337), 3)).toEqual(pickArenaPattern(new Rand(31337), 3))
   })
 
-  // A shape whose inside and outside are the same slot is a plain floor.
-  it('never rolls a shape whose two slots collide', () => {
-    const stream = new Rand(99)
-    for (let i = 0; i < 300; i++) {
-      const p = pickArenaPattern(stream, 3)
-      if (['diamond', 'cross', 'triangle'].includes(p.kind)) {
-        expect(p.inside, `draw ${i}`).not.toBe(p.outside)
+  // A shape whose inside and outside are the same slot paints a uniform floor,
+  // which is the one outcome that makes the whole feature invisible. The
+  // two-slot case is the one that regressed: `(inside % (slots - 1)) + 1` is
+  // always 1 when slots is 2, which is exactly `inside`.
+  it('never rolls a shape whose two slots collide, at any palette size', () => {
+    for (let slots = 2; slots <= 4; slots++) {
+      const stream = new Rand(99)
+      for (let i = 0; i < 300; i++) {
+        const p = pickArenaPattern(stream, slots)
+        if (isShapePattern(p.kind)) {
+          expect(p.inside, `slots=${slots} draw ${i}`).not.toBe(p.outside)
+        }
       }
     }
+  })
+
+  // Choosing a pattern in the Boss tab must change only the pattern: the roll
+  // still happens and is discarded, so every later bossRand consumer — cover,
+  // monsters, tile variants — sees the identical stream.
+  it('takes the same number of draws whether or not a kind is forced', () => {
+    for (const kind of ARENA_PATTERN_KINDS) {
+      const free = new Rand(4242)
+      const forced = new Rand(4242)
+      pickArenaPattern(free, 3)
+      pickArenaPattern(forced, 3, kind)
+      expect(free.nextFloat(), kind).toBe(forced.nextFloat())
+    }
+  })
+
+  it('honours a forced kind and leaves everything else as rolled', () => {
+    for (const kind of ARENA_PATTERN_KINDS) {
+      const rolled = pickArenaPattern(new Rand(777), 3)
+      const forced = pickArenaPattern(new Rand(777), 3, kind)
+      expect(forced.kind).toBe(kind)
+      expect(forced.scale).toBe(rolled.scale)
+      expect(forced.inside).toBe(rolled.inside)
+      expect(forced.outside).toBe(rolled.outside)
+    }
+  })
+
+  // config/ spells the list out rather than importing boss/ at runtime.
+  it('keeps BOSS_FLOOR_PATTERNS in sync with the kinds', () => {
+    expect([...BOSS_FLOOR_PATTERNS]).toEqual(['random', ...ARENA_PATTERN_KINDS])
   })
 })
