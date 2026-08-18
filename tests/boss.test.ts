@@ -932,7 +932,10 @@ describe('boss arena — playtest round 2: world-extent alignment per alcove wal
 
 describe('boss arena — water base layer', () => {
   it('every block carries a water dataset before the theme dataset, with data-t all 1', () => {
-    const { xml } = buildBossArena(freshCtx(4242), arenaOptions(), 0)
+    // plain 'g', not the default 'g - mixed': a mixed theme adds an overlay
+    // dataset per region, and this test is about the water layer's position,
+    // not about how many theme datasets follow it
+    const { xml } = buildBossArena(freshCtx(4242), arenaOptions({ theme: 'g' }), 0)
     const blocks = tileBlocks(xml)
     expect(blocks.length).toBeGreaterThan(0)
 

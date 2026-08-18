@@ -239,8 +239,8 @@ export const BOSS_IDS = [
 /**
  * The default boss options: feature on, a prep room that sells every column
  * *including* power (extra lives matter more right before a boss than at the
- * start of a run) with no gold on the floor, a castle-themed arena 24–32 ×
- * 32–44 with all seven bosses in the pool, random cover, and four waves whose
+ * start of a run) with no gold on the floor, a `g - mixed` arena 24–32 × 32–44
+ * with the four castle bosses in the pool, random cover, and four waves whose
  * shared intervals tighten as the fight goes on.
  */
 export function defaultBossOptions(): BossOptions {
@@ -252,13 +252,16 @@ export function defaultBossOptions(): BossOptions {
       startingGold: 0
     },
     arena: {
-      theme: 'g',
+      theme: 'g_mixed',
       floorPattern: 'random',
       minWidth: 24,
       maxWidth: 32,
       minHeight: 32,
       maxHeight: 44,
-      bossPool: [...BOSS_IDS],
+      // The castle default fights the four castle-flavoured bosses; anubis and
+      // worm belong to the desert and krilith to the ice caves, so they are in
+      // BOSS_IDS for the checkbox grid but out of the stock pool.
+      bossPool: ['boss_knight', 'boss_lich', 'boss_dragon', 'boss_queen'],
       waves: [
         defaultWave(['bat1', 'tick1', 'maggot'], 4000),
         defaultWave(['skeleton1', 'archer1', 'slime'], 3000),

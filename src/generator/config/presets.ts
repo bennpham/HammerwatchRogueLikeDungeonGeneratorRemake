@@ -23,6 +23,17 @@ export interface CampaignPreset {
 }
 
 /**
+ * `defaultParameters()` with the boss arena re-pointed at a preset's own theme
+ * and boss line-up. Spread by hand rather than mutated, because `build()` must
+ * hand back a fresh object every call and `boss.arena` is two levels deep — a
+ * shallow `{...base, boss}` would otherwise share the arena between callers.
+ */
+function withBoss(theme: string, bossPool: string[]): DungeonParameters['boss'] {
+  const boss = defaultParameters().boss
+  return { ...boss, arena: { ...boss.arena, theme, bossPool } }
+}
+
+/**
  * The presets, in dropdown order. `castle` is `defaultParameters()` verbatim,
  * so the first entry is always what the app opens with.
  */
@@ -38,7 +49,7 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
     id: 'desert',
     label: 'Desert',
     description:
-      '5 floors of Temple of the Sun mobs, ending on a mixed-tileset mummy mini-boss rush.',
+      '5 floors of Temple of the Sun mobs, a mummy mini-boss rush, then Anubis or the worm.',
     // The two outdoor floors are guards only: they mob the party in numbers but
     // barely scratch it, so the opening reads as busy rather than dangerous. The
     // mummies arrive with the indoor themes on floor 3, which is where the
@@ -47,6 +58,7 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
       ...defaultParameters(),
       levels: 5,
       themes: ['h', 'h', 'i', 'i_symbols', 'i_mixed'],
+      boss: withBoss('i_mixed', ['boss_anubis', 'boss_worm']),
       levelMonsters: [
         ['guard_desert', 'guard_desert_range'],
         ['guard_desert', 'guard_desert_range', 'tower_archer1', 'tower_archer3'],
@@ -87,11 +99,13 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
   {
     id: 'bonus',
     label: 'Bonus Gauntlet',
-    description: '5 floors of the bonus tilesets, escalating from bonus mobs to a mixed boss floor.',
+    description:
+      '5 floors of the bonus tilesets, escalating from bonus mobs to a mixed boss floor.',
     build: () => ({
       ...defaultParameters(),
       levels: 5,
       themes: ['bonus1', 'bonus2', 'bonus3', 'bonus4', 'bonus5'],
+      boss: withBoss('g_mixed', ['boss_knight', 'boss_lich', 'boss_krilith', 'boss_dragon']),
       levelMonsters: [
         ['bonus_archer1', 'bonus_skeleton1'],
         ['archer1', 'archer2', 'skeleton1', 'skeleton2'],
