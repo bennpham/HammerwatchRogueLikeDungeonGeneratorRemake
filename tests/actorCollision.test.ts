@@ -78,12 +78,25 @@ describe('corpse collision registry', () => {
     expect(missing).toEqual([])
   })
 
-  it('flags every spawner variant as role spawner and gives it a corpse value', () => {
+  it('gives every spawner variant a corpse value', () => {
     const spawners = MONSTER_TYPES.flatMap(monsterVariants).filter((v) => v.role === 'spawner')
     expect(spawners.length).toBeGreaterThan(0)
     for (const v of spawners) {
-      expect(v.actorPath.startsWith('actors/spawners/')).toBe(true)
-      expect(v.corpse).toBeDefined()
+      expect(v.corpse, v.actorPath).toBeDefined()
     }
+  })
+
+  /**
+   * The converse of the rule above: role is not derivable from the folder, so a
+   * spawner outside actors/spawners/ has to be listed by hand in monsterTypes.
+   * Pinning the exception list keeps that opt-in visible — a new hive-shaped
+   * actor that nobody registers shows up here rather than silently landing
+   * among the creatures.
+   */
+  it('keeps slime_1_host as the only spawner outside actors/spawners/', () => {
+    const odd = MONSTER_TYPES.flatMap(monsterVariants)
+      .filter((v) => v.role === 'spawner' && !v.actorPath.startsWith('actors/spawners/'))
+      .map((v) => v.actorPath)
+    expect(odd).toEqual(['actors/slime_1_host.xml'])
   })
 })

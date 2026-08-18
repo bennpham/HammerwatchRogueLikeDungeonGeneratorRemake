@@ -143,7 +143,7 @@ describe('variant grouping for the picker', () => {
     }
   })
 
-  it('gives the Spawners group the 13 spawner props the dungeon already places', () => {
+  it('gives the Spawners group the 14 spawner props the dungeon already places', () => {
     expect(monsterVariantsInGroup('Spawners').map((v) => v.actorPath)).toEqual([
       'actors/spawners/archer_1.xml',
       'actors/spawners/archer_2.xml',
@@ -157,8 +157,22 @@ describe('variant grouping for the picker', () => {
       'actors/spawners/mummy_ranged_1.xml',
       'actors/spawners/skeleton_1.xml',
       'actors/spawners/skeleton_2.xml',
+      // The one spawner outside actors/spawners/ — a static hive, sorted here
+      // by its variant key (slime#0), not by its path.
+      'actors/slime_1_host.xml',
       'actors/spawners/tick_1.xml',
       'actors/spawners/wisp_1.xml'
     ])
+  })
+
+  it('splits the slime host off from the slime it spawns', () => {
+    const [host, spawn] = monsterVariants(monsterTypeById('slime'))
+    expect(host.key).toBe('slime#0')
+    expect(host.role).toBe('spawner')
+    expect(variantGroup(host)).toBe('Spawners')
+    // The bare id is still the walker, so no saved pool changes meaning.
+    expect(spawn.key).toBe('slime')
+    expect(spawn.actorPath).toBe('actors/slime_1_spawn.xml')
+    expect(variantGroup(spawn)).toBe('Classic')
   })
 })
