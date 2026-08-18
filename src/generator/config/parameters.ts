@@ -305,8 +305,10 @@ function defaultWave(monsters: string[], defaultIntervalMs: number): BossWave {
 
 /**
  * The built-in default is the "Castle" campaign preset — 7 floors of castle
- * themes a..g. See config/presets.ts for the other two presets, which override
- * only `levels`, `themes` and `levelMonsters` on top of this.
+ * themes a..g, each in its `- mixed` variant, so every floor varies its tileset
+ * region by region and the boss floor lands on `g - mixed`. See config/presets.ts
+ * for the other two presets, which override only `levels`, `themes` and
+ * `levelMonsters` on top of this.
  *
  * Floors 1-4 are ordinary act mobs; 5-7 are boss rushes, which is why every
  * mini-boss (`mb_*`) lives there and nowhere earlier.
@@ -324,7 +326,7 @@ export function defaultParameters(): DungeonParameters {
     mapHeight: 60,
     edgePadding: 2,
     roomPadding: 2,
-    themes: ['a', 'b', 'c', 'd', 'e', 'f', 'g'],
+    themes: ['a_mixed', 'b_mixed', 'c_mixed', 'd_mixed', 'e_mixed', 'f_mixed', 'g_mixed'],
     monsterMultiplier: 1.0,
     goldMultiplier: 1.1,
     foodMultiplier: 1.2,

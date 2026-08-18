@@ -30,13 +30,15 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
   {
     id: 'castle',
     label: 'Castle (default)',
-    description: '7 floors through the castle themes — four act floors, then three boss rushes.',
+    description:
+      '7 floors through the mixed castle themes — four act floors, then three boss rushes.',
     build: () => defaultParameters()
   },
   {
     id: 'desert',
     label: 'Desert',
-    description: '5 floors of Temple of the Sun mobs, ending on a mummy mini-boss rush.',
+    description:
+      '5 floors of Temple of the Sun mobs, ending on a mixed-tileset mummy mini-boss rush.',
     // The two outdoor floors are guards only: they mob the party in numbers but
     // barely scratch it, so the opening reads as busy rather than dangerous. The
     // mummies arrive with the indoor themes on floor 3, which is where the
@@ -44,7 +46,7 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
     build: () => ({
       ...defaultParameters(),
       levels: 5,
-      themes: ['h', 'h', 'i', 'i', 'i'],
+      themes: ['h', 'h', 'i', 'i_symbols', 'i_mixed'],
       levelMonsters: [
         ['guard_desert', 'guard_desert_range'],
         ['guard_desert', 'guard_desert_range', 'tower_archer1', 'tower_archer3'],
