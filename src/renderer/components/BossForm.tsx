@@ -619,10 +619,24 @@ function WaveEditor({ wave, index, issues, onWaveChange }: WaveEditorProps) {
             // A wreck that keeps its collision is permanent geometry, so
             // scattering it can wall the arena off — validation refuses it and
             // the options are disabled here so it never gets picked by hand.
+            // `disabled` alone says "no" without saying why, and it is nearly
+            // invisible on this theme, so the restriction is also spelled out
+            // twice in words: a badge on the name line for the closed row, and
+            // an optgroup label for the open dropdown.
             const blocks = corpseCollision(resolveActorPath(id)) === 'blocking'
             return (
               <label key={id} className={fieldIssues.length > 0 ? 'max-item field-error' : 'max-item'}>
-                <span>{id}</span>
+                <span className="max-item-name">
+                  <span className="max-item-id">{id}</span>
+                  {blocks && (
+                    <span
+                      className="pool-badge blocks"
+                      title="Leaves a wreck that still blocks movement — scattering those can wall the arena off, so only the anchors mode is allowed"
+                    >
+                      anchors only
+                    </span>
+                  )}
+                </span>
                 <input
                   type="number"
                   min={-1}
@@ -640,11 +654,20 @@ function WaveEditor({ wave, index, issues, onWaveChange }: WaveEditorProps) {
                   }
                   onChange={(e) => setSpawnMode(id, e.target.value as BossSpawnMode)}
                 >
-                  {BOSS_SPAWN_MODES.map((m) => (
-                    <option key={m} value={m} disabled={blocks && isScatterMode(m)}>
+                  {BOSS_SPAWN_MODES.filter((m) => !blocks || !isScatterMode(m)).map((m) => (
+                    <option key={m} value={m}>
                       {m}
                     </option>
                   ))}
+                  {blocks && (
+                    <optgroup label="Unavailable — wreck blocks the arena">
+                      {BOSS_SPAWN_MODES.filter(isScatterMode).map((m) => (
+                        <option key={m} value={m} disabled>
+                          {m}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
                 {fieldIssues.map((issue, i) => (
                   <span key={i} className="field-message">

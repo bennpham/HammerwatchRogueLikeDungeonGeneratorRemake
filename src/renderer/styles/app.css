@@ -361,6 +361,12 @@ select:focus {
   padding: 4px 10px 10px;
 }
 
+/* Same reason the boss-wave pool-checkboxes are wider: an "anchors only" badge
+   rides beside the id here, and 140px columns crowd it off the row. */
+.boss-wave .max-grid {
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+}
+
 .max-item {
   display: flex;
   flex-direction: column;
@@ -369,11 +375,42 @@ select:focus {
   color: var(--text-dim);
 }
 
+/* The monster name shares its line with the badge, so a long variant key
+   (`mummy_ranged#0`) must clip rather than push the badge out of the column. */
+.max-item-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.max-item-id {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* The spawn-mode picker sits under a monster's max count in a boss wave, so it
    is sized to match that number input rather than the form's full-size selects. */
 .max-item .spawn-mode {
   padding: 3px 6px;
   font-size: 11px;
+  /* Chromium sizes a select to its widest option, and the optgroup label is far
+     wider than any mode name. Pin the closed control to its column; the open
+     popup is free to be wider, which is exactly what the label needs. */
+  width: 100%;
+  min-width: 0;
+}
+
+/* Backstop only — the badge and the optgroup label carry the message. Chromium
+   is the only engine here, so these actually apply. */
+.max-item .spawn-mode optgroup {
+  color: var(--error);
+  font-style: normal;
+}
+
+.max-item .spawn-mode option:disabled {
+  color: var(--text-dim);
 }
 
 /* ---- right panel ---- */
