@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BOSS_COVER_DENSITY_MAX, defaultParameters } from '../src/generator/config/parameters'
+import { BOSS_COVER_DENSITY_MAX, BOSS_DEATH_WAVE, BOSS_WAVE_COUNT, defaultParameters } from '../src/generator/config/parameters'
 import { GOLD_SAFETY_MAX, validateParameters } from '../src/generator/config/validation'
 
 const fieldsOf = (issues: Array<{ field: string }>) => issues.map((i) => i.field)
@@ -326,6 +326,62 @@ describe('boss validation', () => {
     expect(result.valid).toBe(true)
   })
 
+  it('requires exactly BOSS_WAVE_COUNT waves — the four health tiers plus boss death', () => {
+    const arena = defaultParameters().boss.arena
+    expect(arena.waves).toHaveLength(BOSS_WAVE_COUNT)
+
+    const short = withBoss({ arena: { ...arena, waves: arena.waves.slice(0, 4) } })
+    expect(fieldsOf(short.errors)).toContain('boss.arena.waves')
+    expect(short.valid).toBe(false)
+
+    const long = withBoss({ arena: { ...arena, waves: [...arena.waves, arena.waves[0]] } })
+    expect(fieldsOf(long.errors)).toContain('boss.arena.waves')
+  })
+
+  it('says nothing about an empty boss-death tier, but still flags an empty health tier', () => {
+    // The death tier ships empty, so warning about it would put a message on
+    // every stock run. An empty health tier is still a mistake worth naming.
+    const arena = defaultParameters().boss.arena
+    const quiet = withBoss({ arena })
+    expect(fieldsOf(quiet.warnings)).not.toContain(`boss.arena.waves.${BOSS_DEATH_WAVE}.monsters`)
+
+    const emptied = withBoss({
+      arena: { ...arena, waves: arena.waves.map((w, i) => (i === 1 ? { ...w, monsters: [], monsterMax: {}, spawnMode: undefined } : w)) }
+    })
+    expect(fieldsOf(emptied.warnings)).toContain('boss.arena.waves.1.monsters')
+  })
+
+  it('accepts an endless count in the boss-death tier without comment', () => {
+    const arena = defaultParameters().boss.arena
+    const result = withBoss({
+      arena: {
+        ...arena,
+        waves: arena.waves.map((w, i) =>
+          i === BOSS_DEATH_WAVE ? { monsters: ['eye'], monsterMax: { eye: -1 }, defaultIntervalMs: 2000 } : w
+        )
+      }
+    })
+    expect(result.valid).toBe(true)
+    expect(fieldsOf(result.errors)).not.toContain(`boss.arena.waves.${BOSS_DEATH_WAVE}.monsterMax.eye`)
+    expect(fieldsOf(result.warnings)).not.toContain(`boss.arena.waves.${BOSS_DEATH_WAVE}.monsterMax.eye`)
+  })
+
+  it('applies the ordinary per-wave rules to the boss-death tier too', () => {
+    const arena = defaultParameters().boss.arena
+    const result = withBoss({
+      arena: {
+        ...arena,
+        waves: arena.waves.map((w, i) =>
+          i === BOSS_DEATH_WAVE
+            ? { monsters: ['not_a_monster'], monsterMax: { not_a_monster: 4 }, defaultIntervalMs: 10 }
+            : w
+        )
+      }
+    })
+    expect(fieldsOf(result.errors)).toContain(`boss.arena.waves.${BOSS_DEATH_WAVE}.monsters`)
+    expect(fieldsOf(result.errors)).toContain(`boss.arena.waves.${BOSS_DEATH_WAVE}.defaultIntervalMs`)
+  })
+
   it('treats an absent boss object as off, not invalid', () => {
     const p = defaultParameters()
     delete (p as Partial<typeof p>).boss
@@ -636,12 +692,12 @@ describe('boss validation', () => {
       spawnMode: { bat1: 'random' as const }
     })
     const quiet = withBoss({
-      arena: { ...arena, waves: [half(900), half(900), half(0), half(0)] }
+      arena: { ...arena, waves: [half(900), half(900), half(0), half(0), half(0)] }
     })
     expect(fieldsOf(quiet.warnings)).not.toContain('boss.arena.waves')
 
     const loud = withBoss({
-      arena: { ...arena, waves: [half(900), half(900), half(900), half(0)] }
+      arena: { ...arena, waves: [half(900), half(900), half(900), half(0), half(0)] }
     })
     expect(loud.valid).toBe(true)
     expect(fieldsOf(loud.warnings)).toContain('boss.arena.waves')

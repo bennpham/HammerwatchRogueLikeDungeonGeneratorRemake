@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  BOSS_DEATH_WAVE,
+  BOSS_WAVE_COUNT,
   CAMPAIGN_PRESETS,
   DEFAULT_PRESET_ID,
   campaignPresetById,
@@ -18,6 +20,17 @@ describe('campaign presets', () => {
     expect(new Set(ids).size).toBe(ids.length)
     expect(ids).toEqual(['castle', 'desert', 'bonus'])
     expect(ids[0]).toBe(DEFAULT_PRESET_ID)
+  })
+
+  it('gives every preset the full set of wave tiers, with the boss-death one empty', () => {
+    for (const preset of CAMPAIGN_PRESETS) {
+      const waves = preset.build().boss.arena.waves
+      expect(waves, preset.id).toHaveLength(BOSS_WAVE_COUNT)
+      // Empty by design: a populated death tier would move every saved seed's
+      // arena, because its scatter points are extra bossRand draws.
+      expect(waves[BOSS_DEATH_WAVE].monsters, preset.id).toEqual([])
+      expect(waves[BOSS_DEATH_WAVE].spawnMode, preset.id).toBeUndefined()
+    }
   })
 
   it('resolves by id, and reports an unknown id rather than guessing', () => {

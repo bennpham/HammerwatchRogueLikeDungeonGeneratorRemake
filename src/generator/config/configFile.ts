@@ -2,6 +2,7 @@ import {
   BOSS_COVER_PATTERNS,
   BOSS_FLOOR_PATTERNS,
   BOSS_SPAWN_MODES,
+  BOSS_WAVE_COUNT,
   DEFAULT_WAVE_MONSTER_MAX,
   DungeonParameters,
   defaultParameters,
@@ -251,7 +252,7 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     const waveMatch = keyLower.match(/^bosswave(\d)$/)
     if (waveMatch) {
       const idx = parseInt(waveMatch[1], 10) - 1
-      if (idx < 0 || idx >= 4) {
+      if (idx < 0 || idx >= BOSS_WAVE_COUNT) {
         result.unknownKeys.push(key)
         continue
       }
@@ -261,6 +262,10 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       // three- and four-field forms all still work. monsterMax is REBUILT from
       // the parsed monster pool rather than merged onto whatever was there,
       // which is what guarantees its keys always match the pool exactly.
+      //
+      // A file written before the boss-death tier existed carries bossWave1..4
+      // only; the fifth tier is simply never visited and keeps the empty pool
+      // the defaults gave it, which is exactly what that file described.
       const parts = value.split('|')
       const monsters = (parts[0] ?? '').split(',').map((s) => s.trim()).filter((s) => s !== '')
       params.boss.arena.waves[idx].monsters = monsters

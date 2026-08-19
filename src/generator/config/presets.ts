@@ -34,10 +34,11 @@ function withBoss(theme: string, bossPool: string[], waves: BossWave[]): Dungeon
 }
 
 /**
- * Desert's four wave tiers. Guards alone at 100%, mummies from 75% on, and the
+ * Desert's wave tiers. Guards alone at 100%, mummies from 75% on, and the
  * fire pillars/floaters only once the boss is at a quarter health. Every entry
  * is scattered — nothing here leaves a blocking wreck, so nothing has to stay
- * on the anchors.
+ * on the anchors. The trailing boss-death tier is empty, like every preset's —
+ * see BOSS_DEATH_WAVE in parameters.ts.
  */
 function desertWaves(): BossWave[] {
   return [
@@ -92,14 +93,17 @@ function desertWaves(): BossWave[] {
       ],
       [],
       1000
-    )
+    ),
+    // boss death — empty by default, see BOSS_DEATH_WAVE
+    scatterWave([], [], 1000)
   ]
 }
 
 /**
- * Bonus's four wave tiers: the bonus-tileset skeletons and archers first, the
+ * Bonus's wave tiers: the bonus-tileset skeletons and archers first, the
  * castle roster escalating behind them. The anchored tails are the towers whose
- * wrecks keep their collision and so cannot be scattered.
+ * wrecks keep their collision and so cannot be scattered. The trailing
+ * boss-death tier is empty, like every preset's — see BOSS_DEATH_WAVE.
  */
 function bonusWaves(): BossWave[] {
   return [
@@ -159,7 +163,9 @@ function bonusWaves(): BossWave[] {
         ['tower_tracking1', 4]
       ],
       1000
-    )
+    ),
+    // boss death — empty by default, see BOSS_DEATH_WAVE
+    scatterWave([], [], 1000)
   ]
 }
 

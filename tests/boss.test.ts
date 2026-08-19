@@ -1299,3 +1299,62 @@ describe('boss arena — the dragon sits on floor, not in the north wall', () =>
     })
   }
 })
+
+describe('boss arena — the boss-death wave tier', () => {
+  /** Every `Boss Died` GlobalEventTrigger in an arena's emitted scripting. */
+  function bossDiedTriggers(xml: string): number {
+    return xml.split('<string name="parameters">Boss Died</string>').length - 1
+  }
+
+  it('a stock arena carries exactly one Boss Died trigger — the win chain\'s', () => {
+    // The death tier ships empty, so it contributes no trigger of its own. This
+    // is the guard on that default: a second one here means the empty tier
+    // started emitting nodes, and every saved seed's arena moved with it.
+    for (const seed of [1, 4242, 999999]) {
+      const { xml } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
+      expect(bossDiedTriggers(xml)).toBe(1)
+    }
+  })
+
+  it('a filled death tier adds its own trigger alongside the win chain', () => {
+    const arena = arenaOptions()
+    const waves = arena.waves.map((w, i) =>
+      i === arena.waves.length - 1
+        ? { monsters: ['eye'], monsterMax: { eye: 6 }, defaultIntervalMs: 2000 }
+        : w
+    )
+    const { xml } = buildBossArena(freshCtx(4242), arenaOptions({ waves }), 0)
+
+    expect(bossDiedTriggers(xml)).toBe(2)
+    expect(allIds(xml).length).toBeGreaterThan(0)
+    expect(badIntArray(xml)).toBeNull()
+  })
+
+  it('filling the death tier does not disturb the geometry drawn before it', () => {
+    // The death tier's scatter points are the LAST bossRand draws of the build,
+    // so everything drawn earlier — the arena rectangle, its cover pillars, the
+    // food clusters — has to land in exactly the same place. Only the scripting
+    // (and, on a mixed theme, the floor-pattern roll that follows the spawn
+    // points) may move.
+    const arena = arenaOptions()
+    const filled = arena.waves.map((w, i) =>
+      i === arena.waves.length - 1
+        ? {
+            monsters: ['eye'],
+            monsterMax: { eye: 6 },
+            defaultIntervalMs: 2000,
+            spawnMode: { eye: 'random' as const }
+          }
+        : w
+    )
+
+    const doodads = (xml: string) => xml.slice(xml.indexOf('<array name="doodads">'), xml.indexOf('<array name="actors">'))
+
+    const before = buildBossArena(freshCtx(4242), arena, 0).xml
+    const after = buildBossArena(freshCtx(4242), arenaOptions({ waves: filled }), 0).xml
+
+    expect(doodads(before).length).toBeGreaterThan(100) // the slice is real, not an empty match
+    expect(doodads(after)).toBe(doodads(before))
+    expect(bossDiedTriggers(after)).toBe(2)
+  })
+})

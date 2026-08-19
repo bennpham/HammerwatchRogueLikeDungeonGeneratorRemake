@@ -51,7 +51,12 @@ const THEME_GROUPS = THEME_DEFS.reduce<[string, (typeof THEME_DEFS)[number][]][]
   return groups
 }, [])
 
-const WAVE_LABELS = ['100%', '75%', '50%', '25%']
+/**
+ * Whole section titles, not just the threshold: the last tier is keyed to the
+ * boss dying rather than to a health percentage, so "Tier boss dead" would read
+ * as a fifth threshold that does not exist.
+ */
+const WAVE_LABELS = ['Tier 100%', 'Tier 75%', 'Tier 50%', 'Tier 25%', 'After the boss dies']
 
 export function BossForm({ params, issues, onChange }: BossFormProps) {
   const [subTab, setSubTab] = useState<'prep' | 'room'>('prep')
@@ -384,10 +389,12 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
       <Section title="Waves" defaultOpen>
         <p className="hint">
           Each health threshold switches its tier's spawners on and never off — by 25% health all four
-          are running at once. A tier only stops once its own monster budgets run out.
+          are running at once. A tier only stops once its own monster budgets run out. The last tier
+          fires when the boss dies: the fight is over, but the campaign is not, and it spawns into the
+          walk to the orb. It is empty unless you fill it.
         </p>
         {arena.waves.map((wave, i) => (
-          <Subsection key={i} title={`Tier ${WAVE_LABELS[i] ?? i + 1}`} badge={`${wave.monsters.length} monster(s)`}>
+          <Subsection key={i} title={WAVE_LABELS[i] ?? `Tier ${i + 1}`} badge={`${wave.monsters.length} monster(s)`}>
             <WaveEditor wave={wave} index={i} issues={issues} onWaveChange={(patch) => setWave(i, patch)} />
           </Subsection>
         ))}

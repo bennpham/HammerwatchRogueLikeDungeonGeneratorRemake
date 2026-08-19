@@ -543,3 +543,111 @@ describe('scatterRequests', () => {
     expect(scatterRequests(waves, 1.0)).toEqual([])
   })
 })
+
+describe('boss wave rig — the boss-death tier', () => {
+  /** The four health tiers plus a death tier, so indices line up with the real thing. */
+  function fiveTiers(death: BossWave): BossWave[] {
+    return [
+      wave(['bat1'], { bat1: 10 }),
+      wave(['tick1'], { tick1: 10 }),
+      wave(['maggot'], { maggot: 10 }),
+      wave(['slime'], { slime: 10 }),
+      death
+    ]
+  }
+
+  it('wires tier 4 to a GlobalEventTrigger on "Boss Died"', () => {
+    const ctx = freshCtx()
+    buildRig(ctx, fiveTiers(wave(['eye'], { eye: 6 })))
+
+    const globalNames = nodesOfType(ctx, 'GlobalEventTrigger').map(
+      (n) => (n as unknown as { eventName: string }).eventName
+    )
+    expect(globalNames.sort()).toEqual(['Boss 25%', 'Boss 50%', 'Boss 75%', 'Boss Died'])
+    expect(connectionsResolve(ctx)).toBe(true)
+  })
+
+  it('the death tier drives the same toggle -> timer -> SpawnObject chain as a health tier', () => {
+    const ctx = freshCtx()
+    buildRig(ctx, fiveTiers(wave(['eye'], { eye: 9 }, 2500)))
+
+    const deathTrigger = nodesOfType(ctx, 'GlobalEventTrigger').find(
+      (n) => (n as unknown as { eventName: string }).eventName === 'Boss Died'
+    )
+    expect(deathTrigger).toBeDefined()
+
+    const toggle = ctx.scriptNodes.find(
+      (n) => n.type === 'ToggleElement' && deathTrigger!.connections.some((c) => c.id === n.id)
+    )
+    expect(toggle).toBeDefined()
+
+    const timer = ctx.scriptNodes.find(
+      (n) => n.type === 'TimerTrigger' && (toggle as unknown as { element: number }).element === n.id
+    ) as NodeTimerTrigger | undefined
+    expect(timer).toBeDefined()
+    expect(timer!.intervalMs).toBe(2500)
+    expect(timer!.enabled).toBe(false)
+
+    // 9 across 9 anchors is one each
+    expect(timer!.connections).toHaveLength(9)
+  })
+
+  it('an empty death tier emits nothing at all — the shipped default costs no nodes', () => {
+    const ctx = freshCtx()
+    buildRig(ctx, fiveTiers(wave([], {})))
+
+    const globalNames = nodesOfType(ctx, 'GlobalEventTrigger').map(
+      (n) => (n as unknown as { eventName: string }).eventName
+    )
+    expect(globalNames).not.toContain('Boss Died')
+
+    // and the four health tiers are untouched by its presence
+    expect(globalNames.sort()).toEqual(['Boss 25%', 'Boss 50%', 'Boss 75%'])
+  })
+
+  it('scatters the death tier off its own trigger, one-shot, with no timer', () => {
+    const ctx = freshCtx()
+    const death: BossWave = {
+      monsters: ['eye'],
+      monsterMax: { eye: 3 },
+      defaultIntervalMs: 3000,
+      spawnMode: { eye: 'random' }
+    }
+    buildRig(ctx, [wave([], {}), wave([], {}), wave([], {}), wave([], {}), death], 1.0, spawnMap([[4, 'eye', points(3)]]))
+
+    expect(nodesOfType(ctx, 'TimerTrigger')).toHaveLength(0)
+    expect(nodesOfType(ctx, 'ToggleElement')).toHaveLength(0)
+
+    const trigger = nodesOfType(ctx, 'GlobalEventTrigger')
+    expect(trigger).toHaveLength(1)
+    expect((trigger[0] as unknown as { eventName: string }).eventName).toBe('Boss Died')
+
+    const spawns = nodesOfType(ctx, 'SpawnObject') as NodeSpawnObject[]
+    expect(spawns).toHaveLength(3)
+    expect(spawns.every((s) => s.triggerTimes === 1)).toBe(true)
+    expect(trigger[0].connections).toHaveLength(3)
+  })
+
+  it('scatterRequests puts the death tier last, so it cannot move the earlier tiers draws', () => {
+    const scattered = (max: number): BossWave => ({
+      monsters: ['bat1'],
+      monsterMax: { bat1: max },
+      defaultIntervalMs: 3000,
+      spawnMode: { bat1: 'random' }
+    })
+    const withDeath = scatterRequests(
+      [scattered(2), scattered(3), scattered(4), scattered(5), scattered(6)],
+      1.0
+    )
+    const withoutDeath = scatterRequests([scattered(2), scattered(3), scattered(4), scattered(5)], 1.0)
+
+    expect(withDeath.slice(0, 4)).toEqual(withoutDeath)
+    expect(withDeath[4]).toEqual({ tier: 4, key: 'bat1', mode: 'random', count: 6 })
+  })
+
+  it('the stock death tier is empty, so it requests no spawn points', () => {
+    const waves = defaultParameters().boss.arena.waves
+    expect(waves[waves.length - 1].monsters).toEqual([])
+    expect(scatterRequests(waves, 1.0).some((r) => r.tier === waves.length - 1)).toBe(false)
+  })
+})
