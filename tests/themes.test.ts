@@ -656,6 +656,10 @@ describe('generating with a bonus theme', () => {
   // over-range overlay and false-alarm on a legitimate one. Matching on the
   // tileset rather than on dataset position is what lets this cover the mixed
   // themes too, whose stack height varies block by block.
+  // Explicit timeout: this generates a whole campaign for every entry in
+  // THEME_DEFS, so it runs ~5s on its own and longer when the suite saturates
+  // the CPU. The default 5s made it flake under load rather than catch a
+  // regression, and adding a theme makes it slower still.
   it('never emits a floor index above the tileset variant count', () => {
     for (const def of THEME_DEFS) {
       const limits = new Map<string, number>([[def.tilemap, def.tiles]])
@@ -685,7 +689,7 @@ describe('generating with a bonus theme', () => {
         expect(max, `${def.id} dataset ${tileset}`).toBeLessThanOrEqual(limit!)
       }
     }
-  })
+  }, 30000)
 })
 
 describe('theme h — desert outdoors', () => {

@@ -204,16 +204,14 @@ stock player tweak are all **on by default**:
 | `bossWave1…5` | see defaults | Waves 1–4 are the health tiers (100/75/50/25%); **wave 5 fires when the boss dies**, spawning a last stand into the walk to the orb. Each is `monsters\|defaultIntervalMs\|monsterMax\|intervalMs\|spawnMode`, the last three being comma-separated `id:value` pairs. Tiers switch on and never off, so by 25% all four health tiers are spawning at once. A monster's pool entry may be a variant key (`lich#2`, `slime#0`); an empty wave is legal and emits nothing |
 | `bossSpawnMode` per monster | `anchors` | Inside a `bossWaveN` line. `anchors` trickles the horde in on a timer from the nine spawn anchors; `random` / `ring` / `gaussian` / `symmetric` scatter it across the arena and spawn it **all at once**, ignoring the intervals. A monster whose wreck still blocks movement (the nova/frost/tracking towers) may not be scattered — it could wall the arena off |
 | `bossSpawn` | `2,4,3` | `spacing,ringSpacing,clusters` for the scatter modes; separate from `bossCover` so pillars and monsters can be spaced differently |
+| `bossMonsterMultiplier` | 1.0 | Scales every wave's max counts (an endless `-1` stays endless). Separate from the dungeon's `monsterMultiplier` |
+| `bossFoodMultiplier` | 1.2 | Scales the arena's health/mana pickups |
 | `player.<class>.<group>.<field>` | — | Player balance overrides emitted to `tweak/*.xml`; only values that differ from stock are written |
 | `player.shared.remove.life` | 1 | Ships on by default — removes the repeatable extra-life shop upgrade |
 
 Whatever the arena's cover settings, a connectivity pass guarantees the boss,
 all nine spawn anchors and the alcove stay reachable from the entrance; pillars
 that would wall something off are pruned.
-
-The arena's own monster and food multipliers live on the **Boss** tab only —
-they are not `parameters.txt` keys, so an exported file leaves them at their
-defaults (1.0 and 1.2).
 
 A pool entry may name a **variant** rather than a plain type: `lich#2` is the
 elite lich, `slime#0` the slime hive, `bat1#0` the bats spawner. The bare id

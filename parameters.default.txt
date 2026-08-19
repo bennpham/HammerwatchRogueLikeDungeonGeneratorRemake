@@ -70,6 +70,11 @@ bossCover=random,0.08,4,3
 # deliberately separate from bossCover so pillars and monsters can be spaced
 # differently. Ignored while every monster is on the default anchors mode.
 bossSpawn=2,4,3
+# The arena's own multipliers, separate from the dungeon's monsterMultiplier /
+# foodMultiplier: bossMonsterMultiplier scales every wave's max counts (an
+# endless -1 stays endless), bossFoodMultiplier the arena's health/mana pickups.
+bossMonsterMultiplier=1.000000
+bossFoodMultiplier=1.200000
 # bossWave1..5 is monsters|defaultIntervalMs|monsterMax|intervalMs|spawnMode.
 # Waves 1-4 are the boss's health tiers (100/75/50/25%); wave 5 fires when the
 # boss DIES, spawning a last stand into the walk to the orb. Tiers switch on and

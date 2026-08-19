@@ -278,6 +278,32 @@ describe('parameters.txt parsing', () => {
     expect(parsed.unknownKeys).toEqual([])
   })
 
+  it('round-trips the arena multipliers, which are not the dungeon\'s', () => {
+    const original = defaultParameters()
+    original.boss.arena.monsterMultiplier = 2.5
+    original.boss.arena.foodMultiplier = 0
+    // the dungeon's own multipliers stay put — the whole point of separate keys
+    original.monsterMultiplier = 1.0
+    original.foodMultiplier = 1.2
+
+    const text = serializeParametersTxt(original)
+    expect(text).toContain('bossMonsterMultiplier=2.500000')
+    expect(text).toContain('bossFoodMultiplier=0.000000')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.params.boss).toEqual(original.boss)
+    expect(parsed.params.monsterMultiplier).toBe(1.0)
+    expect(parsed.params.foodMultiplier).toBe(1.2)
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('reports a malformed arena multiplier instead of writing NaN', () => {
+    const parsed = parseParametersTxt('bossMonsterMultiplier=lots\nbossFoodMultiplier=1.5\n')
+    expect(parsed.unknownKeys).toEqual(['bossMonsterMultiplier value "lots"'])
+    expect(parsed.params.boss.arena.monsterMultiplier).toBe(1.0)
+    expect(parsed.params.boss.arena.foodMultiplier).toBe(1.5)
+  })
+
   it('writes no spawn-mode field while every monster is on the anchors mode', () => {
     const params = defaultParameters()
     params.boss.arena.waves[0] = {

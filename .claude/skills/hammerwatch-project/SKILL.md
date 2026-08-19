@@ -193,8 +193,8 @@ reference/hammerwatch-tweak-stats.md
 | `arena.waves` | 5 populated tiers | exactly `BOSS_WAVE_COUNT`; see *Boss finale* |
 | `arena.cover` | `random`, 0.08, 4, 3 | `density` is the fraction of free floor filled and is capped at `BOSS_COVER_DENSITY_MAX` (0.25) |
 | `arena.spawn` | spacing 2, ring 4, clusters 3 | tuning for the scatter modes only; deliberately separate from `cover` |
-| `arena.monsterMultiplier` | 1.0 | scales each tier's `monsterMax`; `-1`/endless stays endless |
-| `arena.foodMultiplier` | 1.2 | scales the arena's health/mana pickup clusters |
+| `arena.monsterMultiplier` | 1.0 | scales each tier's `monsterMax`; `-1`/endless stays endless. `bossMonsterMultiplier` in `parameters.txt`, separate from the dungeon's |
+| `arena.foodMultiplier` | 1.2 | scales the arena's health/mana pickup clusters; `bossFoodMultiplier` in `parameters.txt` |
 
 ### Campaign presets
 

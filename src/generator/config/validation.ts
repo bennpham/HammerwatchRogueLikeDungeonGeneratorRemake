@@ -559,6 +559,17 @@ function validateBoss(
     errors.push({ field: 'boss.arena.cover.clusters', message: 'Cluster count must be a whole number ≥ 1.' })
   }
 
+  // the arena's own multipliers, same rule as the dungeon's — a negative one
+  // would drive scaledMax below the -1 endless sentinel and every horde to 0
+  for (const [field, value] of [
+    ['boss.arena.monsterMultiplier', arena.monsterMultiplier],
+    ['boss.arena.foodMultiplier', arena.foodMultiplier]
+  ] as Array<[string, number]>) {
+    if (!(Number.isFinite(value) && value >= 0)) {
+      errors.push({ field, message: 'Multiplier must be ≥ 0.' })
+    }
+  }
+
   // the scatter modes' own knobs — same shape as cover's, deliberately separate
   // so pillars and monsters can be spaced differently
   if (!Number.isInteger(arena.spawn.spacing) || arena.spawn.spacing < 1) {
