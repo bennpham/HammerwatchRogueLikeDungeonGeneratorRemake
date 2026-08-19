@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react'
 import {
+  GOLD_SAFETY_MAX,
   LOBBY_DIAMOND_SLOTS,
   LOBBY_DIAMOND_VALUE,
-  LOBBY_GOLD_MAX,
   LOBBY_VENDORS,
   diamondCount,
   lobbyCategoryCounts
@@ -76,7 +76,7 @@ export function LobbyForm({ params, issues, onChange }: LobbyFormProps) {
             onChange={(startingGold) => set({ startingGold })}
             issues={issues}
             min={0}
-            max={LOBBY_GOLD_MAX}
+            max={GOLD_SAFETY_MAX}
             step={LOBBY_DIAMOND_VALUE}
             title={`Each ${LOBBY_DIAMOND_VALUE} is one red diamond`}
           />

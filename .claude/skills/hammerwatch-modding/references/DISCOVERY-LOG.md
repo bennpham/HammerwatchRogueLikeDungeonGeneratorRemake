@@ -8,6 +8,27 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-18 — the starting-gold caps are gone; deeper stacks are a product decision, not a verified one
+**Tag:** [UNVERIFIED] beyond two deep — the removal is a product decision by the
+project owner, not a new in-game observation.
+**Context:** `LOBBY_GOLD_MAX` (12000 = 500 x 12 slots x 2) and `BOSS_GOLD_MAX`
+(42000 = 500 x 42 slots x 2) blocked starting gold above two diamonds per
+authored floor slot, because two deep was the deepest stack anyone had watched
+pay out (2026-07-30/31 entries below).
+**Evidence:** Those caps were a conservative guess, never a game limit. Placement
+never runs out of room: `diamondArray` in `src/generator/levelTemplate/surgery.ts`
+walks the slot list round-robin (`slots[i % slots.length]`) with unique item ids,
+so gold past the slot count stacks deeper on the same spots rather than spilling
+outside the room. There is no "no space left" failure mode to protect against.
+**Impact:** Both caps are deleted, with no warning tier replacing them —
+`lobby.startingGold` and `boss.prep.startingGold` are now only required to be a
+whole number >= 0 and a multiple of 500. The single remaining bound is
+`GOLD_SAFETY_MAX` in `src/generator/config/validation.ts` (5,000,000 = 10,000
+diamonds), which exists purely so a typed typo is rejected instead of emitting
+millions of `<item>` nodes and hanging the generator; it is explicitly not a game
+limit. **Stacks deeper than two per slot remain unconfirmed in game** — if a deep
+stack is ever found to swallow diamonds, this entry is where to record it.
+
 ### 2026-08-18 — the wall overhang sealed ~10% of generated dungeon floors
 **Tag:** [VERIFIED] — reported in game (seed 431297690, floor 6: the exit room
 could not be entered), then reproduced from the emitted XML.

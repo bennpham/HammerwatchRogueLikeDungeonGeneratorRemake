@@ -9,10 +9,12 @@ import {
 } from '../src/generator/bossprep'
 import { ALL_LOBBY_CATEGORIES, LOBBY_VENDORS } from '../src/generator/lobby/shops'
 import { defaultParameters } from '../src/generator/config/parameters'
-import { BOSS_GOLD_MAX } from '../src/generator/config/validation'
 import { DIAMOND_VALUE } from '../src/generator/levelTemplate/surgery'
 import type { BossOptions } from '../src/generator/config/parameters'
 import { allIds, badIntArray } from './xmlHelpers'
+
+/** Five diamonds deep on every authored slot — well past what the old cap allowed. */
+const DEEP_GOLD = BOSSPREP_DIAMOND_VALUE * BOSSPREP_DIAMOND_SLOTS.length * 5
 
 function prepOptions(patch: Partial<BossOptions['prep']> = {}): BossOptions['prep'] {
   return { ...defaultParameters().boss.prep, ...patch }
@@ -32,15 +34,6 @@ describe('boss prep — importer derivation', () => {
 
   it('reuses the shared per-diamond value', () => {
     expect(BOSSPREP_DIAMOND_VALUE).toBe(DIAMOND_VALUE)
-  })
-})
-
-describe('boss prep — gold ceiling', () => {
-  // BOSS_GOLD_MAX in validation.ts was hardcoded ahead of this importer
-  // landing (Phase 3.5 had to assume 42 slots). This is the pin that would
-  // catch the two ever drifting apart.
-  it('matches DIAMOND_VALUE * BOSSPREP_DIAMOND_SLOTS.length * 2', () => {
-    expect(BOSS_GOLD_MAX).toBe(DIAMOND_VALUE * BOSSPREP_DIAMOND_SLOTS.length * 2)
   })
 })
 
@@ -135,8 +128,8 @@ describe('boss prep — starting gold', () => {
     expect(xml).not.toContain('items/valuable_diamond_red.xml')
   })
 
-  it('stacks past the 42 authored slots, two deep at the cap', () => {
-    const xml = prepXML({ startingGold: BOSS_GOLD_MAX })
+  it('stacks past the 42 authored slots rather than spilling outside the room', () => {
+    const xml = prepXML({ startingGold: DEEP_GOLD })
     const placed = [...xml.matchAll(/<vec2>(-?[\d.]+) (-?[\d.]+)<\/vec2>/g)]
       .map((m) => `${Number(m[1])},${Number(m[2])}`)
 
@@ -145,20 +138,21 @@ describe('boss prep — starting gold', () => {
     for (const slot of placed) {
       if (counts.has(slot)) counts.set(slot, (counts.get(slot) ?? 0) + 1)
     }
-    expect([...counts.values()]).toEqual(BOSSPREP_DIAMOND_SLOTS.map(() => 2))
+    expect([...counts.values()]).toEqual(BOSSPREP_DIAMOND_SLOTS.map(() => 5))
+    expect(placed).toHaveLength(DEEP_GOLD / BOSSPREP_DIAMOND_VALUE)
   })
 })
 
 describe('boss prep — id integrity', () => {
   it('keeps every id in the file unique across doodads / actors / items / scripting', () => {
-    const xml = prepXML({ startingGold: BOSS_GOLD_MAX })
+    const xml = prepXML({ startingGold: DEEP_GOLD })
     const elementIds = [...xml.matchAll(/<dictionary>\s*<int name="id">(-?\d+)<\/int>/g)].map((m) =>
       Number(m[1])
     )
     const itemIds = [...xml.matchAll(/<array><int>(\d+)<\/int><vec2>/g)].map((m) => Number(m[1]))
     const all = [...elementIds, ...itemIds]
     expect(new Set(all).size).toBe(all.length)
-    expect(itemIds).toHaveLength(BOSS_GOLD_MAX / BOSSPREP_DIAMOND_VALUE)
+    expect(itemIds).toHaveLength(DEEP_GOLD / BOSSPREP_DIAMOND_VALUE)
   })
 })
 
@@ -166,9 +160,9 @@ describe('boss prep — int-arr safety', () => {
   // LevelPacker.exe parses every <int-arr> body with Int32.Parse and dies on
   // an empty one — see tests/lobby.test.ts for the full history. This is the
   // general form: any empty or non-integer int-arr, in any stall configuration,
-  // at the minimum and maximum starting gold.
-  it('never emits an empty or non-integer int-arr, at startingGold 0 and at the max', () => {
-    for (const gold of [0, BOSS_GOLD_MAX]) {
+  // at the minimum starting gold and at a deeply stacked one.
+  it('never emits an empty or non-integer int-arr, at startingGold 0 and stacked deep', () => {
+    for (const gold of [0, DEEP_GOLD]) {
       expect(badIntArray(prepXML({ startingGold: gold })), `startingGold ${gold}`).toBeNull()
     }
 

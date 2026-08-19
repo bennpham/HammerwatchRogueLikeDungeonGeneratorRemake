@@ -28,7 +28,7 @@ export { CAMPAIGN_PRESETS, DEFAULT_PRESET_ID, campaignPresetById } from './confi
 export type { CampaignPreset } from './config/presets'
 export { validateParameters } from './config/validation'
 export type { ValidationResult, ValidationIssue } from './config/validation'
-export { BOSS_GOLD_MAX } from './config/validation'
+export { GOLD_SAFETY_MAX } from './config/validation'
 export type { BossDef, BossId } from './boss'
 export { BOSS_DEF_LIST } from './boss'
 export { parseParametersTxt, serializeParametersTxt } from './config/configFile'
@@ -37,7 +37,6 @@ export {
   ALL_LOBBY_CATEGORIES,
   LOBBY_DIAMOND_SLOTS,
   LOBBY_DIAMOND_VALUE,
-  LOBBY_GOLD_MAX,
   LOBBY_LEVEL_ID,
   LOBBY_LEVEL_PATH,
   LOBBY_VENDORS,

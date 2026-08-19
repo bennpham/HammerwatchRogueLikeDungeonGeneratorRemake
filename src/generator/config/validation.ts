@@ -19,9 +19,8 @@ import {
   resolveActorPath
 } from '../objects/monsterTypes'
 import { corpseCollision } from '../objects/actorCollision'
-import { LOBBY_DIAMOND_VALUE, LOBBY_GOLD_MAX } from '../lobby/build'
+import { LOBBY_DIAMOND_VALUE } from '../lobby/build'
 import { ALL_LOBBY_CATEGORIES, isLobbyCategory, lobbyCategoryCounts, vendorOfCategory } from '../lobby/shops'
-import { LOBBY_DIAMOND_SLOTS } from '../lobby/template'
 import { DIAMOND_VALUE } from '../levelTemplate/surgery'
 import { ARENA_MIN_HEIGHT, ARENA_MIN_WIDTH, freeFloorArea } from '../boss/geometry'
 import { scaledMax } from '../boss/waves'
@@ -247,6 +246,15 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
  * so its rules are about what the template can physically carry rather than
  * about layout feasibility.
  */
+/**
+ * Not a game limit. The lobby and the boss prep room stack diamonds round-robin
+ * over their authored slots without bound, so any amount of starting gold fits —
+ * it just piles deeper on the same spots. This ceiling exists only so a typed
+ * typo (`99999999999`) is rejected instead of emitting millions of `<item>`
+ * nodes and hanging the generator.
+ */
+export const GOLD_SAFETY_MAX = DIAMOND_VALUE * 10_000
+
 function validateLobby(
   p: DungeonParameters,
   errors: ValidationIssue[],
@@ -266,10 +274,10 @@ function validateLobby(
       field: 'lobby.startingGold',
       message: `Starting gold must be a multiple of ${LOBBY_DIAMOND_VALUE} — each ${LOBBY_DIAMOND_VALUE} is one red diamond.`
     })
-  } else if (gold > LOBBY_GOLD_MAX) {
+  } else if (gold > GOLD_SAFETY_MAX) {
     errors.push({
       field: 'lobby.startingGold',
-      message: `Starting gold cannot exceed ${LOBBY_GOLD_MAX} — that is ${LOBBY_DIAMOND_SLOTS.length * 2} diamonds, the deepest stack confirmed to pay out in game.`
+      message: `Starting gold cannot exceed ${GOLD_SAFETY_MAX} — not a game limit, just the point past which the diamond pile is too large to emit.`
     })
   }
 
@@ -306,13 +314,6 @@ function validateLobby(
     })
   }
 }
-
-/**
- * The 42 authored prep-room diamond slots, two deep — same reasoning as
- * LOBBY_GOLD_MAX (see BOSSPREP_DIAMOND_SLOTS.length in boss-tab.md §3, which
- * Phase 4 pins this against once the template import lands).
- */
-export const BOSS_GOLD_MAX = DIAMOND_VALUE * 42 * 2
 
 /**
  * Scattered spawns per arena that start drawing a warning, counted across all
@@ -513,10 +514,10 @@ function validateBoss(
       field: 'boss.prep.startingGold',
       message: `Starting gold must be a multiple of ${DIAMOND_VALUE} — each ${DIAMOND_VALUE} is one red diamond.`
     })
-  } else if (gold > BOSS_GOLD_MAX) {
+  } else if (gold > GOLD_SAFETY_MAX) {
     errors.push({
       field: 'boss.prep.startingGold',
-      message: `Starting gold cannot exceed ${BOSS_GOLD_MAX} — that is 42 diamonds, two deep, mirroring LOBBY_GOLD_MAX.`
+      message: `Starting gold cannot exceed ${GOLD_SAFETY_MAX} — not a game limit, just the point past which the diamond pile is too large to emit.`
     })
   }
 

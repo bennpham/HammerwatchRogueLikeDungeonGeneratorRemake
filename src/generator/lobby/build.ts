@@ -25,13 +25,6 @@ export { diamondCount }
 export const LOBBY_DIAMOND_VALUE = DIAMOND_VALUE
 
 /**
- * The deepest stack of diamonds anyone has actually watched pay out: two per
- * slot over the 12 authored slots ([VERIFIED] 2026-07-30). Validation caps
- * `startingGold` here rather than at a number nobody has stood on.
- */
-export const LOBBY_GOLD_MAX = LOBBY_DIAMOND_VALUE * LOBBY_DIAMOND_SLOTS.length * 2
-
-/**
  * The dungeon floor the lobby's teleport lands on.
  *
  * The lobby ships as level id `"lobby"` precisely so this is the only id that

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { BOSS_COVER_DENSITY_MAX, defaultParameters } from '../src/generator/config/parameters'
-import { validateParameters } from '../src/generator/config/validation'
-import { LOBBY_GOLD_MAX } from '../src/generator/lobby'
+import { GOLD_SAFETY_MAX, validateParameters } from '../src/generator/config/validation'
 
 const fieldsOf = (issues: Array<{ field: string }>) => issues.map((i) => i.field)
 
@@ -254,9 +253,19 @@ describe('lobby validation', () => {
     expect(withLobby({ startingGold: 500.5 }).valid).toBe(false)
   })
 
-  it('rejects gold past the stack depth anyone has actually confirmed', () => {
-    expect(withLobby({ startingGold: LOBBY_GOLD_MAX }).valid).toBe(true)
-    const over = withLobby({ startingGold: LOBBY_GOLD_MAX + 500 })
+  it('accepts gold far past what the authored slots hold — it stacks', () => {
+    expect(withLobby({ startingGold: 12_000 }).valid).toBe(true)
+    expect(withLobby({ startingGold: 12_500 }).valid).toBe(true)
+    expect(withLobby({ startingGold: 50_000 }).valid).toBe(true)
+    expect(withLobby({ startingGold: GOLD_SAFETY_MAX }).valid).toBe(true)
+  })
+
+  it('does not warn about deep gold either', () => {
+    expect(withLobby({ startingGold: 50_000 }).warnings).toEqual([])
+  })
+
+  it('rejects gold past the safety ceiling, so a typo cannot hang the generator', () => {
+    const over = withLobby({ startingGold: GOLD_SAFETY_MAX + 500 })
     expect(over.valid).toBe(false)
     expect(fieldsOf(over.errors)).toContain('lobby.startingGold')
   })
@@ -486,8 +495,16 @@ describe('boss validation', () => {
     expect(fieldsOf(result.errors)).toContain('boss.prep.startingGold')
   })
 
-  it('rejects starting gold over the max', () => {
-    const result = withBoss({ prep: { ...defaultParameters().boss.prep, startingGold: 100000 } })
+  it('accepts starting gold far past the authored prep slots — it stacks', () => {
+    const result = withBoss({ prep: { ...defaultParameters().boss.prep, startingGold: 100_000 } })
+    expect(result.valid).toBe(true)
+    expect(fieldsOf(result.warnings)).not.toContain('boss.prep.startingGold')
+  })
+
+  it('rejects starting gold past the safety ceiling', () => {
+    const result = withBoss({
+      prep: { ...defaultParameters().boss.prep, startingGold: GOLD_SAFETY_MAX + 500 }
+    })
     expect(result.valid).toBe(false)
     expect(fieldsOf(result.errors)).toContain('boss.prep.startingGold')
   })
