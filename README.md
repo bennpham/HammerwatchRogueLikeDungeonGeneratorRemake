@@ -178,7 +178,7 @@ The optional levels add their own keys. All of them are omitted from a stock
 | Parameter | Default | Meaning |
 | --- | --- | --- |
 | `lobby` | 1 | Start the campaign in a hub level instead of on floor 0 |
-| `lobbyGold` | 10000 | Starting gold, a multiple of 500 (one red diamond each), capped at 12000 |
+| `lobbyGold` | 10000 | Starting gold, a multiple of 500 (one red diamond each). Past the 12 floor spots the diamonds stack |
 | `lobbyShops` | all 21 columns | Space-separated shop columns the lobby stalls sell |
 | `boss` | 0 | Append a prep room and a boss arena after the final floor |
 | `bossGold` | 0 | Gold paid out in the prep room, same 500-multiple rule |

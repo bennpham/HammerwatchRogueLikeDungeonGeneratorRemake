@@ -4,9 +4,9 @@ import {
   BOSS_COVER_PATTERNS,
   BOSS_DEF_LIST,
   BOSS_FLOOR_PATTERNS,
-  BOSS_GOLD_MAX,
   BOSS_SPAWN_MODES,
   DEFAULT_WAVE_MONSTER_MAX,
+  GOLD_SAFETY_MAX,
   LOBBY_DIAMOND_VALUE,
   LOBBY_VENDORS,
   MONSTER_VARIANT_GROUPS,
@@ -139,7 +139,7 @@ function PrepTab({ params, prep, issues, setPrep }: PrepTabProps) {
             onChange={(startingGold) => setPrep({ startingGold })}
             issues={issues}
             min={0}
-            max={BOSS_GOLD_MAX}
+            max={GOLD_SAFETY_MAX}
             step={LOBBY_DIAMOND_VALUE}
             title={`Each ${LOBBY_DIAMOND_VALUE} is one red diamond`}
           />

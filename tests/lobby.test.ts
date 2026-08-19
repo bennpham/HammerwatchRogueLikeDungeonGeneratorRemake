@@ -3,7 +3,6 @@ import {
   ALL_LOBBY_CATEGORIES,
   LOBBY_DIAMOND_SLOTS,
   LOBBY_DIAMOND_VALUE,
-  LOBBY_GOLD_MAX,
   LOBBY_LEVEL_ID,
   LOBBY_LEVEL_PATH,
   LOBBY_VENDORS,
@@ -19,6 +18,9 @@ import {
 import type { DungeonParameters, DungeonResult, LobbyOptions } from '../src/generator'
 import { LOBBY_ASSETS } from '../src/generator/lobby/assets'
 import { allIds, badIntArray } from './xmlHelpers'
+
+/** Five diamonds deep on every authored slot — well past what the old cap allowed. */
+const DEEP_GOLD = LOBBY_DIAMOND_VALUE * LOBBY_DIAMOND_SLOTS.length * 5
 
 function generateOk(params: DungeonParameters, seed: number): DungeonResult {
   const result = generateDungeon(params, seed)
@@ -127,7 +129,7 @@ describe('lobby — campaign wiring', () => {
   // non-integer int-arr, in any emitted file, in any stall configuration.
   it('never emits an empty or non-integer int-arr, which LevelPacker cannot parse', () => {
     // one full campaign covers the dungeon levels and the default lobby
-    for (const file of generateOk(withLobby({ enabled: true, startingGold: LOBBY_GOLD_MAX }), 555).files) {
+    for (const file of generateOk(withLobby({ enabled: true, startingGold: DEEP_GOLD }), 555).files) {
       if (file.encoding === 'base64') continue
       expect(badIntArray(file.content), file.path).toBeNull()
     }
@@ -221,8 +223,8 @@ describe('lobby — starting gold', () => {
     expect(xml).not.toContain('items/valuable_diamond_red.xml')
   })
 
-  it('stacks past the authored slots, two deep at the cap', () => {
-    const xml = lobbyXML({ startingGold: LOBBY_GOLD_MAX })
+  it('stacks past the authored slots rather than spilling outside the room', () => {
+    const xml = lobbyXML({ startingGold: DEEP_GOLD })
     const placed = [...xml.matchAll(/<vec2>(-?[\d.]+) (-?[\d.]+)<\/vec2>/g)]
       .map((m) => `${Number(m[1])},${Number(m[2])}`)
 
@@ -231,11 +233,27 @@ describe('lobby — starting gold', () => {
     for (const slot of placed) {
       if (counts.has(slot)) counts.set(slot, (counts.get(slot) ?? 0) + 1)
     }
-    expect([...counts.values()]).toEqual(LOBBY_DIAMOND_SLOTS.map(() => 2))
+    expect([...counts.values()]).toEqual(LOBBY_DIAMOND_SLOTS.map(() => 5))
+    // nothing landed anywhere but an authored slot
+    expect(placed).toHaveLength(DEEP_GOLD / LOBBY_DIAMOND_VALUE)
+  })
+
+  // the interesting case is a count that is not a whole multiple of the slots:
+  // the round-robin has to leave the first few spots one deeper, not overflow
+  it('spreads a partial extra round over the first slots', () => {
+    const slots = LOBBY_DIAMOND_SLOTS.length
+    const xml = lobbyXML({ startingGold: LOBBY_DIAMOND_VALUE * (slots + 2) })
+    const placed = [...xml.matchAll(/<vec2>(-?[\d.]+) (-?[\d.]+)<\/vec2>/g)].map(
+      (m) => `${Number(m[1])},${Number(m[2])}`
+    )
+    const counts = LOBBY_DIAMOND_SLOTS.map(
+      ([x, y]) => placed.filter((slot) => slot === `${x},${y}`).length
+    )
+    expect(counts).toEqual(LOBBY_DIAMOND_SLOTS.map((_, i) => (i < 2 ? 2 : 1)))
   })
 
   it('keeps every id in the file unique', () => {
-    const xml = lobbyXML({ startingGold: LOBBY_GOLD_MAX })
+    const xml = lobbyXML({ startingGold: DEEP_GOLD })
     // ids appear once as an element id and, for LevelStart, once more inside
     // its parameters — so compare against the element ids only. buildLobby
     // finds an element by exactly this pattern, so a duplicate would not just
@@ -246,7 +264,7 @@ describe('lobby — starting gold', () => {
     const itemIds = [...xml.matchAll(/<array><int>(\d+)<\/int><vec2>/g)].map((m) => Number(m[1]))
     const all = [...elementIds, ...itemIds]
     expect(new Set(all).size).toBe(all.length)
-    expect(itemIds).toHaveLength(LOBBY_GOLD_MAX / LOBBY_DIAMOND_VALUE)
+    expect(itemIds).toHaveLength(DEEP_GOLD / LOBBY_DIAMOND_VALUE)
   })
 })
 
