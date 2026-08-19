@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0]
+
+### Added
+
+- **Boss tab** — full campaign endpoint with three stages:
+  - **Prep room** — a safe zone where the party gathers before facing the boss, with healing stations and light to recover from dungeon runs. Selectable with `bossprep` parameter.
+  - **Boss arena** — a tailored combat space where all monster tiers can spawn as mini-bosses, configurable difficulty via scatter spawn modes (wall clusters, arena centre, arena edges) and wave timing. Includes pillars for cover and mixed theming.
+  - **Victory condition** — win by defeating the boss, with the arena wired into the generation pipeline so campaigns play through from dungeon entrance to final victory.
+  - Three new parameters: `boss` (enable/disable), `bossprep` (enable/disable), and `bossRoomTheme` (selectable theme for the arena).
+  - `bossMonsterMultiplier` and `bossFoodMultiplier` for scaling monster spawns and food drops specific to the boss fight.
+
+- **Alt-tileset overlay themes (c-tiles, d-carpet, f-frozen, etc.)** — visual variety by layering alternate tilesets on top of the base theme, giving players more themed progression within a campaign without creating new monster pools.
+
+- **Mixed themes** — per-region and per-pattern floor mixing, allowing campaigns to blend two themes on the same floor for visual depth and variety. Controlled via `mixedThemes` parameter.
+
+- **Reachability validation test** — ensures every generated dungeon floor is completeable by flood-filling from entrance to exit/orb/portal, accounting for wall art's two-row overhang. Rejected floors are automatically re-rolled up to 60 attempts.
+
+- **Monster picker UI improvements**:
+  - Collapsible monster groups for better organization in the picker.
+  - Count hint (`#N`) showing how many of each type are in the current pool.
+  - Paste/copy pools for easier sharing of monster configurations.
+  - Slime variants regrouped for clarity.
+
+- **Boss wave spawn modes** — scattered one-shot spawners with preset pools and arena themes, offering variety in how monsters enter the boss fight.
+
+### Changed
+
+- **Money cap removed from lobbies** — starting gold is now uncapped, allowing campaigns to gift any amount of gold in the lobby. Previously capped at 12,000 per player.
+
+- **Boss arena preset tuned** — the "boss death" monster tier in arena waves now has balanced difficulty progression matching the updated presets.
+
+### Fixed
+
+- **Northern spawn stuck in north wall** — boss arena north wall no longer traps spawners, ensuring safe monster entry from all directions.
+
+- **Dragon boss spawning inside wall** — dragon positioning corrected to avoid collision with the north wall during its spawn animation.
+
+### Notes
+
+- The boss arena is fully playable in game (Hammerwatch 1.41). All monster tiers spawn, corpse passability allows free movement through defeated enemies, and the victory condition lands the player back in the main menu. The arena scales from a 5-monster gauntlet to a complex multi-tier challenge depending on campaign settings.
+  - Do note you might want to kill off the monsters while fighting the boss vs ganking the boss in one go causing a giant spawn to rush to extraction otherwise it's you vs lag
+- Monster pool tiers now include a dedicated boss-arena tier, keeping early-dungeon and boss-fight difficulty separate so campaigns can tune the endgame independent of lobby and regular floors.
+
+
+
 ## [0.3.0]
 
 ### Added
