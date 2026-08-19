@@ -8,6 +8,27 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-19 — spawning monsters off `Boss Died` is emitted but not yet played
+**Tag:** [UNVERIFIED] for the spawn behaviour; the trigger itself stays
+[VERIFIED] from the 2026-08-10 entry below.
+**Context:** The boss arena gained a fifth wave tier keyed to the engine's
+`Boss Died` event, so a campaign can spawn a last stand into the walk from the
+dead boss to the orb (`src/generator/boss/waves.ts`, `TIER_EVENT_NAMES`).
+**Evidence:** That `GlobalEventTrigger "Boss Died"` fires for a bare boss actor
+is already verified in game (2026-08-10). What is **not** observed is whether
+`SpawnObject` nodes hanging off it still produce actors once the boss is dead —
+the shipped campaigns only ever use `Boss Died` to open doors and end the level,
+never to spawn. It is plausible the engine keeps spawning normally (a
+`SpawnObject` has no dependency on the boss), and equally plausible that
+whatever tears the fight down suppresses it.
+**Impact:** The tier ships **empty in every preset**, so nothing about the stock
+campaign depends on the answer — a stock arena emits exactly the one `Boss Died`
+trigger the win chain has always had, and every existing seed is byte-identical
+(verified by diffing all three presets x seeds 1/42/12345 before and after).
+Only a user who fills the tier can be affected. Promote this to [VERIFIED] once
+someone packs a campaign with a filled death tier, kills the boss and reports
+whether the wave appears.
+
 ### 2026-08-18 — the starting-gold caps are gone; deeper stacks are a product decision, not a verified one
 **Tag:** [UNVERIFIED] beyond two deep — the removal is a product decision by the
 project owner, not a new in-game observation.

@@ -82,8 +82,9 @@ have only been observed in the *editor's* XML dialect. See §2.
 | Boss choice | Multi-select pool of all seven bosses; the seed picks one. |
 | Boss state | Live from level load. No dormancy, no `ToggleImmortality`. |
 | First wave | An `AreaTrigger` (`trigger-times -1`) over the entrance. Waves 2–4 use `GlobalEventTrigger` on `Boss 75%` / `Boss 50%` / `Boss 25%`. |
-| Wave config | Four tiers (100/75/50/25), each with **its own monster pool, its own per-monster max-count table and its own spawn intervals**. A max count of `-1` means endless. |
-| Wave escalation | **Stacking.** Each tier switches its own spawner on and never switches the previous one off, so by 25% all four are running. A tier still burns out on its own once its `SpawnObject` budgets are spent. |
+| Wave config | Five tiers — 100/75/50/25 and boss death — each with **its own monster pool, its own per-monster max-count table and its own spawn intervals**. A max count of `-1` means endless. |
+| Boss-death wave | A fifth tier on `GlobalEventTrigger "Boss Died"`, the same event the win chain listens to. The fight is over but the campaign is not: it spawns into the walk to the orb behind the opened alcove. **Empty in every preset** — filling it adds scatter draws to `ctx.bossRand`, which would move existing seeds' arenas. |
+| Wave escalation | **Stacking.** Each tier switches its own spawner on and never switches the previous one off, so by 25% all four health tiers are running. A tier still burns out on its own once its `SpawnObject` budgets are spent. |
 | Spawn rate | **Per monster.** Each wave has a default interval; individual monsters can override it, because a miniboss wants a long interval where trash wants a short one. The override table lives behind an "Advanced" disclosure. |
 | Arena theme | One dropdown over the existing `THEME_DEFS` registry, independent of the dungeon's per-floor themes. |
 | Prep coins | Authored diamond slots reusing the lobby's 500-gold-per-diamond scheme, **default 0**. |
@@ -215,7 +216,8 @@ the same section order as `Level.getXML()`.
   tier 100%  AreaTrigger(entrance RectangleShape, event 0, types 1) ─┐
   tier  75%  GlobalEventTrigger "Boss 75%" ─────────────────────────┤
   tier  50%  GlobalEventTrigger "Boss 50%" ─────────────────────────┼─> ToggleElement{state: 0}
-  tier  25%  GlobalEventTrigger "Boss 25%" ─────────────────────────┘            │
+  tier  25%  GlobalEventTrigger "Boss 25%" ─────────────────────────┤            │
+  tier death GlobalEventTrigger "Boss Died" ────────────────────────┘            │
                                                                                  v
                        TimerTrigger(intervalMs, enabled=False, trigger-times -1)
                                      — one per DISTINCT interval within the tier

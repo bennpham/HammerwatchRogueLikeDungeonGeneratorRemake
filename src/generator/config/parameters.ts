@@ -163,7 +163,11 @@ export interface BossOptions {
     maxHeight: number
     /** ids of the end-boss actors the seed may pick from */
     bossPool: string[]
-    /** exactly 4 waves, in order 100 / 75 / 50 / 25 */
+    /**
+     * exactly BOSS_WAVE_COUNT waves: the four health tiers 100 / 75 / 50 / 25,
+     * then BOSS_DEATH_WAVE — the pool that spawns when the boss dies, while the
+     * player is walking to the orb that ends the campaign.
+     */
     waves: BossWave[]
     cover: {
       pattern: (typeof BOSS_COVER_PATTERNS)[number]
@@ -289,6 +293,26 @@ export function defaultBossOptions(): BossOptions {
   }
 }
 
+/**
+ * How many spawn tiers a boss arena has: the four health thresholds
+ * (100 / 75 / 50 / 25) plus the boss-death tier. Validation enforces the exact
+ * count, and configFile.ts bounds `bossWaveN` by it, so the array length is
+ * never in doubt anywhere downstream.
+ */
+export const BOSS_WAVE_COUNT = 5
+
+/**
+ * Index of the boss-death tier — the last one. It is keyed to the engine's
+ * `Boss Died` event rather than a health threshold, which is the only thing
+ * that distinguishes it from the four tiers above: every other mechanism
+ * (max counts, intervals, spawn modes, scatter points) treats it identically.
+ *
+ * It ships EMPTY in every preset. An empty tier emits no script nodes and
+ * requests no scatter points, so a stock arena is byte-identical to what it was
+ * before this tier existed.
+ */
+export const BOSS_DEATH_WAVE = BOSS_WAVE_COUNT - 1
+
 /** The stock per-monster max horde size a fresh wave starts every id at. */
 export const DEFAULT_WAVE_MONSTER_MAX = 10
 
@@ -299,6 +323,11 @@ export type WaveEntry = readonly [string, number]
  * A stock wave built from two lists: `scattered` monsters, which are placed all
  * at once across the arena on the `random` mode, and `timed` monsters, which
  * stay on the nine anchors and trickle in on `defaultIntervalMs`.
+ *
+ * With nothing scattered, `spawnMode` is left off entirely rather than set to an
+ * empty record — that is what an untouched wave looks like, and it is what
+ * configFile.ts reproduces when it parses a line with no spawn-mode field, so
+ * the two would otherwise disagree on a round trip.
  *
  * The split is not cosmetic. A monster whose wreck still blocks movement
  * (the nova / frost / tracking towers — see actorCollision.ts) may not be
@@ -315,16 +344,20 @@ export function scatterWave(
   defaultIntervalMs: number
 ): BossWave {
   const all = [...scattered, ...timed]
-  return {
+  const wave: BossWave = {
     monsters: all.map(([key]) => key),
     monsterMax: Object.fromEntries(all),
-    defaultIntervalMs,
-    spawnMode: Object.fromEntries(scattered.map(([key]) => [key, 'random' as BossSpawnMode]))
+    defaultIntervalMs
   }
+  if (scattered.length > 0) {
+    wave.spawnMode = Object.fromEntries(scattered.map(([key]) => [key, 'random' as BossSpawnMode]))
+  }
+  return wave
 }
 
 /**
- * The stock Castle wave line-up, one entry per tier (100 / 75 / 50 / 25).
+ * The stock Castle wave line-up, one entry per tier (100 / 75 / 50 / 25, then
+ * boss death). The death tier is deliberately empty — see BOSS_DEATH_WAVE.
  *
  * Almost everything is scattered: the tiers are big enough that trickling them
  * through nine anchors would queue most of the horde behind the timer. The
@@ -398,7 +431,9 @@ function castleWaves(): BossWave[] {
       ],
       [['tower_nova1', 4]],
       1000
-    )
+    ),
+    // boss death — empty by default, see BOSS_DEATH_WAVE
+    scatterWave([], [], 1000)
   ]
 }
 

@@ -1,9 +1,11 @@
 import {
   BOSS_COVER_DENSITY_MAX,
   BOSS_COVER_PATTERNS,
+  BOSS_DEATH_WAVE,
   BOSS_FLOOR_PATTERNS,
   BOSS_IDS,
   BOSS_SPAWN_MODES,
+  BOSS_WAVE_COUNT,
   DungeonParameters,
   THEMES,
   isScatterMode,
@@ -390,9 +392,12 @@ function validateBoss(
     }
   }
 
-  // exactly 4 waves
-  if (arena.waves.length !== 4) {
-    errors.push({ field: 'boss.arena.waves', message: 'Exactly 4 waves are required (100/75/50/25).' })
+  // exactly BOSS_WAVE_COUNT waves
+  if (arena.waves.length !== BOSS_WAVE_COUNT) {
+    errors.push({
+      field: 'boss.arena.waves',
+      message: `Exactly ${BOSS_WAVE_COUNT} waves are required (100/75/50/25 and boss death).`
+    })
   }
 
   // per-wave errors, indexed by wave so a NumberField can anchor to the tier
@@ -571,7 +576,10 @@ function validateBoss(
   // per-wave warnings, same indexing as the errors above
   for (let i = 0; i < arena.waves.length; i++) {
     const wave = arena.waves[i]
-    if (wave.monsters.length === 0) {
+    // An empty health tier is a mistake worth naming. An empty boss-death tier
+    // is the shipped default, so warning about it would put a message on every
+    // stock run.
+    if (wave.monsters.length === 0 && i !== BOSS_DEATH_WAVE) {
       warnings.push({
         field: `boss.arena.waves.${i}.monsters`,
         message: `Wave ${i + 1} has an empty monster pool — nothing will spawn at this tier.`
@@ -609,7 +617,7 @@ function validateBoss(
   if (scattered >= BOSS_SCATTER_WARN) {
     warnings.push({
       field: 'boss.arena.waves',
-      message: `The four tiers scatter ${scattered} spawns in total, one script node each — that is a lot of nodes on one floor.`
+      message: `The waves scatter ${scattered} spawns in total, one script node each — that is a lot of nodes on one floor.`
     })
   }
 

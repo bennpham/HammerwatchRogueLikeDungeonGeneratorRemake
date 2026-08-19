@@ -4,7 +4,7 @@
  * here already exists in objects/nodes.ts and self-registers on
  * `ctx.scriptNodes` via ScriptNode's constructor).
  *
- * Shape, repeated once per tier (100% / 75% / 50% / 25%):
+ * Shape, repeated once per tier (100% / 75% / 50% / 25% / boss death):
  *
  *   trigger ─> ToggleElement{state: 0} ─> TimerTrigger(enabled=False)
  *                                              │
@@ -19,10 +19,18 @@
  * downstream element (`element` is one id, not an array), so "one toggle per
  * timer" is the only way to switch on more than one timer per tier.
  *
+ * Tier 4 is the boss-death tier: same rig, but its GlobalEventTrigger listens
+ * for `Boss Died` rather than a health threshold. The fight is not over at that
+ * point — arena.ts's win chain hangs its own separate `Boss Died` trigger off
+ * the same event to open the alcove seals, and the campaign only ends when the
+ * player reaches the orb behind them, so this tier spawns into that walk. Two
+ * GlobalEventTrigger nodes on one event is ordinary (the shipped campaign
+ * levels do it); nothing here needs to know about the win chain's node.
+ *
  * Nothing ever disables a timer: once a tier's trigger fires, its timers run
  * until their SpawnObject budgets are exhausted, and lower tiers keep firing
- * as health drops further, so at 25% health all four tiers are spawning at
- * once (boss-tab.md, boss-tab-handoff.md item 6).
+ * as health drops further, so at 25% health all four health tiers are spawning
+ * at once (boss-tab.md, boss-tab-handoff.md item 6).
  *
  * A monster on a *scatter* spawn mode (issue #21) skips that whole rig: it
  * gets no toggle and no timer, and its SpawnObjects — one per monster, at
@@ -65,11 +73,13 @@ import type { SpawnPointMap, SpawnRequest } from './spawnPoints'
 import { spawnPointKey } from './spawnPoints'
 
 /**
- * GlobalEventTrigger names for tiers 75/50/25 — index 0 (the 100% tier) is
- * triggered by the entrance AreaTrigger instead, so this array is offset by
- * one from the tier index (`TIER_EVENT_NAMES[tier - 1]`).
+ * GlobalEventTrigger names for tiers 75/50/25 and the boss-death tier — index 0
+ * (the 100% tier) is triggered by the entrance AreaTrigger instead, so this
+ * array is offset by one from the tier index (`TIER_EVENT_NAMES[tier - 1]`).
+ * Every string here is an engine event verified to fire for a bare boss actor;
+ * see the modding skill's DISCOVERY-LOG.
  */
-const TIER_EVENT_NAMES = ['Boss 75%', 'Boss 50%', 'Boss 25%'] as const
+const TIER_EVENT_NAMES = ['Boss 75%', 'Boss 50%', 'Boss 25%', 'Boss Died'] as const
 
 /**
  * Splits `total` round-robin across `anchorCount` slots: the first
@@ -126,8 +136,9 @@ export function scatterRequests(waves: readonly BossWave[], monsterMultiplier: n
 }
 
 /**
- * Builds the full wave rig for all of `waves` (exactly 4 tiers, 100/75/50/25
- * — enforced by validation.ts, not re-checked here) and wires every timed
+ * Builds the full wave rig for all of `waves` (exactly BOSS_WAVE_COUNT tiers,
+ * 100/75/50/25 then boss death — enforced by validation.ts, not re-checked
+ * here) and wires every timed
  * SpawnObject onto `anchorList` (the 9 fixed-order anchors from anchors.ts).
  *
  * `entranceShape` is the arena's entrance RectangleShape, built and

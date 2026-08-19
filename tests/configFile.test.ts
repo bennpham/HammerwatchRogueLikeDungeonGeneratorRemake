@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseParametersTxt, serializeParametersTxt } from '../src/generator/config/configFile'
-import { defaultParameters } from '../src/generator/config/parameters'
+import { BOSS_DEATH_WAVE, BOSS_WAVE_COUNT, defaultParameters } from '../src/generator/config/parameters'
 import {
   SHOP_PRICE_MAX,
   applyCostPolicy,
@@ -187,6 +187,41 @@ describe('parameters.txt parsing', () => {
       expect(parsed.params.boss.arena.waves[0].monsterMax[id]).not.toBeUndefined()
     }
     expect(parsed.params.boss.arena.waves[0].monsterMax).toEqual(original.boss.arena.waves[0].monsterMax)
+  })
+
+  it('round-trips the boss-death tier as bossWave5', () => {
+    const original = defaultParameters()
+    original.boss.arena.waves[BOSS_DEATH_WAVE] = {
+      monsters: ['eye', 'wisp1'],
+      monsterMax: { eye: 12, wisp1: -1 },
+      defaultIntervalMs: 1500,
+      intervalMs: { wisp1: 6000 },
+      spawnMode: { eye: 'ring' }
+    }
+
+    const text = serializeParametersTxt(original)
+    expect(text).toContain('bossWave5=eye,wisp1|1500|eye:12,wisp1:-1|wisp1:6000|eye:ring')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.params.boss).toEqual(original.boss)
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('leaves the boss-death tier empty for a file written before it existed', () => {
+    // A parameters.txt from an older build carries bossWave1..4 and nothing
+    // else. That file described a fight with no death wave, and that is exactly
+    // what it must still describe.
+    const parsed = parseParametersTxt('bossWave1=bat1|4000\nbossWave2=tick1|3000\nbossWave3=eye|2000\nbossWave4=lich|1000\n')
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.boss.arena.waves).toHaveLength(BOSS_WAVE_COUNT)
+    expect(parsed.params.boss.arena.waves[BOSS_DEATH_WAVE].monsters).toEqual([])
+    expect(parsed.params.boss.arena.waves[BOSS_DEATH_WAVE].monsterMax).toEqual({})
+  })
+
+  it('reports a bossWave beyond the last tier instead of writing off the end of the array', () => {
+    const parsed = parseParametersTxt('bossWave6=bat1|4000\n')
+    expect(parsed.unknownKeys).toEqual(['bossWave6'])
+    expect(parsed.params.boss.arena.waves).toHaveLength(BOSS_WAVE_COUNT)
   })
 
   it('still parses the legacy two-field bosswave form', () => {
