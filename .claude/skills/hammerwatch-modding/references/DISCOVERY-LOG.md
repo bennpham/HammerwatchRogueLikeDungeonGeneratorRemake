@@ -8,6 +8,28 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-18 — the wall overhang sealed ~10% of generated dungeon floors
+**Tag:** [VERIFIED] — reported in game (seed 431297690, floor 6: the exit room
+could not be entered), then reproduced from the emitted XML.
+**Context:** The 2026-08-12 entry below established that `*_x_t_dn` art is three
+tiles tall and buries the two rows under a wall tile. That fact had only ever
+been applied to the boss arena's alcove; the dungeon floors never modelled it.
+**Evidence:** Flood-filling `data-t` on the reported floor finds one connected
+component holding both `LevelStart` and `LevelExitArea` — the tilemap says the
+floor is fine. Its two halves meet through a single neck at x 58-62 whose floor
+rows are 14-17, but the wall mass at row 13 buries rows 14 and 15, and the exit
+room only touches the neck at row 14. Scanning the 8 campaigns already installed
+in `editor/` with an overhang-aware fill: 0/39 floors blocked modelling 0 rows,
+1/39 modelling 1 row (exactly the reported floor), **4/39 modelling 2** — the
+value the collider actually has (40px on a 16px tile).
+**Impact:** `src/generator/map/reachability.ts` now rejects such a floor and the
+existing 60-attempt retry re-rolls it; ~6% of first rolls are discarded, and a
+70-floor sweep of freshly generated campaigns scans clean. Seeds that previously
+shipped a sealed floor now produce a different dungeon from that floor on — the
+re-roll consumes the layout stream. Anything that must be walkable in a
+generated level needs **three clear rows below the nearest wall above it**, not
+just floor in the tilemap.
+
 ### 2026-08-18 — a stock boss arena now emits ~1300 SpawnObject nodes
 **Tag:** [EMITTED] — generated and validated here, never opened in game.
 **Context:** The stock presets were rebuilt so almost every wave monster is on

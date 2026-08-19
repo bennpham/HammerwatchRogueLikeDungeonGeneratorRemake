@@ -27,6 +27,9 @@ import { coverPillarCount, pillarFootprint } from './geometry'
 import { BOSS_COVER_PATTERNS } from '../config/parameters'
 import type { Rect } from './placement'
 import { PLACEMENT_ATTEMPTS, footprintRect, nextGaussian, overlaps, pointOnPerimeter } from './placement'
+// shared with the dungeon floors' reachability pass — one flood fill, so the
+// arena's connectivity guarantee and the floor check can never drift apart
+import { floodFill } from '../map/reachability'
 
 export type { Rect }
 
@@ -344,40 +347,6 @@ function buildBlockedMask(arena: CoverArena, rects: readonly Rect[]): Uint8Array
   rasterizeRect(bossRect, width, height, blocked)
   for (const r of rects) rasterizeRect(r, width, height, blocked)
   return blocked
-}
-
-/** 4-way flood fill from `start`, bounded by the grid's own cell count. */
-function floodFill(blocked: Uint8Array, width: number, height: number, start: { x: number; y: number }): Uint8Array {
-  const visited = new Uint8Array(width * height)
-  const sx = clamp(Math.round(start.x), 0, width - 1)
-  const sy = clamp(Math.round(start.y), 0, height - 1)
-  const startIdx = sx + sy * width
-  if (blocked[startIdx]) return visited
-
-  const stack: number[] = [startIdx]
-  visited[startIdx] = 1
-  const maxSteps = width * height // every cell visited at most once
-
-  for (let steps = 0; stack.length > 0 && steps < maxSteps; steps++) {
-    const idx = stack.pop() as number
-    const x = idx % width
-    const y = Math.trunc(idx / width)
-    const neighbours: Array<[number, number]> = [
-      [x - 1, y],
-      [x + 1, y],
-      [x, y - 1],
-      [x, y + 1]
-    ]
-    for (const [nx, ny] of neighbours) {
-      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue
-      const nIdx = nx + ny * width
-      if (visited[nIdx] || blocked[nIdx]) continue
-      visited[nIdx] = 1
-      stack.push(nIdx)
-    }
-  }
-
-  return visited
 }
 
 /**
