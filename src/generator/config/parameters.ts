@@ -243,7 +243,7 @@ export const BOSS_IDS = [
 /**
  * The default boss options: feature on, a prep room that sells every column
  * *including* power (extra lives matter more right before a boss than at the
- * start of a run) with no gold on the floor, a `g - mixed` arena 24–32 × 32–44
+ * start of a run) and 20000 gold on the floor, a `g - mixed` arena 24–32 × 32–44
  * with the four castle bosses in the pool, random cover, and four waves whose
  * shared intervals tighten as the fight goes on.
  */
@@ -253,7 +253,9 @@ export function defaultBossOptions(): BossOptions {
     prep: {
       // unlike the lobby, power is on by default — see the interface comment
       shopCategories: [...ALL_LOBBY_CATEGORIES],
-      startingGold: 0
+      // the last shop before the boss, so the party arrives able to actually
+      // spend at it — 40 red diamonds on the prep floor
+      startingGold: 20000
     },
     arena: {
       theme: 'g_mixed',
@@ -307,9 +309,10 @@ export const BOSS_WAVE_COUNT = 5
  * that distinguishes it from the four tiers above: every other mechanism
  * (max counts, intervals, spawn modes, scatter points) treats it identically.
  *
- * It ships EMPTY in every preset. An empty tier emits no script nodes and
- * requests no scatter points, so a stock arena is byte-identical to what it was
- * before this tier existed.
+ * Every preset now ships it populated — the arena keeps fighting while the
+ * player walks to the orb. An EMPTY tier is still legal and emits no script
+ * nodes and requests no scatter points; clearing it is how a campaign gets the
+ * old quiet walk back.
  */
 export const BOSS_DEATH_WAVE = BOSS_WAVE_COUNT - 1
 
@@ -357,7 +360,7 @@ export function scatterWave(
 
 /**
  * The stock Castle wave line-up, one entry per tier (100 / 75 / 50 / 25, then
- * boss death). The death tier is deliberately empty — see BOSS_DEATH_WAVE.
+ * boss death). The death tier is a lich send-off — see BOSS_DEATH_WAVE.
  *
  * Almost everything is scattered: the tiers are big enough that trickling them
  * through nine anchors would queue most of the horde behind the timer. The
@@ -404,12 +407,12 @@ function castleWaves(): BossWave[] {
       [
         ['eye', 120],
         ['eye#2', 80],
-        ['wisp1', 40],
-        ['wisp1#2', 20],
-        ['wisp2', 30],
-        ['lich#3', 30],
-        ['tower_flower1', 8],
-        ['tower_flower2', 4],
+        ['wisp1', 30],
+        ['wisp1#2', 10],
+        ['wisp2', 20],
+        ['lich#3', 20],
+        ['tower_flower1', 6],
+        ['tower_flower2', 3],
         ['tower_flower3', 1],
         ['mb_skeleton', 8],
         ['mb_eye', 2]
@@ -419,11 +422,11 @@ function castleWaves(): BossWave[] {
     ),
     scatterWave(
       [
-        ['lich', 12],
-        ['lich#0', 24],
+        ['lich', 4],
+        ['lich#0', 8],
         ['lich#2', 8],
         ['mb_eye', 4],
-        ['mb_lich', 2],
+        ['mb_lich', 1],
         ['tower_archer3', 8],
         ['eye#0', 12],
         ['archer2#0', 8],
@@ -432,8 +435,19 @@ function castleWaves(): BossWave[] {
       [['tower_nova1', 4]],
       1000
     ),
-    // boss death — empty by default, see BOSS_DEATH_WAVE
-    scatterWave([], [], 1000)
+    // boss death — the arena keeps fighting after the kill, see BOSS_DEATH_WAVE.
+    // tower_static_frost is anchored because its wreck blocks.
+    scatterWave(
+      [
+        ['lich#2', 16],
+        ['lich', 6],
+        ['lich#0', 10],
+        ['mb_lich', 2],
+        ['mb_doomspawn', 4]
+      ],
+      [['tower_static_frost', 4]],
+      1000
+    )
   ]
 }
 

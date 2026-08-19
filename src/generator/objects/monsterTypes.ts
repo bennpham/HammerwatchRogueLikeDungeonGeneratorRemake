@@ -298,6 +298,39 @@ export function isKnownMonsterKey(key: string): boolean {
 }
 
 /**
+ * What a variant actually does in game, for the pool pickers' tooltips. Keyed
+ * by canonical variant key; `monsterNote` falls back to the bare id, so a note
+ * written once on `tick2` covers `tick2#0` as well.
+ *
+ * Only the ones whose name gives nothing away are listed — the four liches all
+ * read as "lich" in the picker, and nothing about `tick2` says "gold". Anything
+ * missing here simply has no note.
+ */
+export const MONSTER_NOTES: Record<string, string> = {
+  // lich tiers are [lich_1, lich_1_elite, lich_2, lich_3], defaultTier 1 —
+  // so the bare key is the elite, not the plain one.
+  lich: 'elite heat-seeking orb shooter',
+  'lich#0': 'heat-seeking orb shooter',
+  'lich#2': 'frost spitter',
+  'lich#3': 'necromancer',
+  // lich_desert tiers are [lich_desert_1, lich_desert_2, lich_desert_3].
+  lich_desert: 'lich_desert_2 — fire and daze; the daze inverts your controls, the worst of the three',
+  'lich_desert#0': 'lich_desert_1 — ice spammer',
+  'lich_desert#2': 'lich_desert_3 — healer',
+  tick2: 'golden tick — drops a lot of gold'
+}
+
+/**
+ * The note for a pool key, falling back to the bare id's note so a type-wide
+ * note covers every tier. Undefined when nothing is written for it.
+ */
+export function monsterNote(key: string): string | undefined {
+  const note = MONSTER_NOTES[key]
+  if (note !== undefined) return note
+  return MONSTER_NOTES[parseMonsterKey(key).id]
+}
+
+/**
  * Display groups for a variant picker. Spawners get their own group rather than
  * sitting inside the group of the monster they spit out — they are static
  * buildings, like the towers they sit next to (issue #20). Membership follows

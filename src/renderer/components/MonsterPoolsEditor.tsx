@@ -1,5 +1,5 @@
 import React from 'react'
-import { MONSTER_GROUPS, monsterTypesInGroup } from '../../generator'
+import { MONSTER_GROUPS, monsterNote, monsterTypesInGroup } from '../../generator'
 import type { DungeonParameters, ValidationIssue } from '../../generator'
 import { MonsterFilterBar, useMonsterFilter } from './MonsterFilterBar'
 import { PoolGroup } from './PoolGroup'
@@ -77,7 +77,11 @@ export function MonsterPoolsEditor({ params, issues, onChange }: MonsterPoolsEdi
                           <label
                             key={t.id}
                             className={off ? 'pool-checkbox off-filter' : 'pool-checkbox'}
-                            title={off ? 'In this pool, but hidden by the current filter' : undefined}
+                            title={
+                              off
+                                ? 'In this pool, but hidden by the current filter'
+                                : monsterNote(t.id)
+                            }
                           >
                             <input
                               type="checkbox"
