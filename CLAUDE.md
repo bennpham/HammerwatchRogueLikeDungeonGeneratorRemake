@@ -30,9 +30,12 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    All I/O lives in `src/main/**`.
 2. **Determinism.** Same params + same seed ⇒ byte-identical output. Never
    introduce `Math.random()`, `Date.now()`, or `Object` iteration order
-   dependence into the generator. Cosmetic randomness draws from
-   `ctx.cosmeticRand`, layout randomness from `ctx.rand` — never mix the two
-   or the layout stream shifts and every existing seed changes.
+   dependence into the generator. Three streams, never mixed: layout randomness
+   draws from `ctx.rand`, cosmetic (floor tiles, overlay and mixed palettes)
+   from `ctx.cosmeticRand`, and everything in the boss arena from
+   `ctx.bossRand`. Mixing them shifts the streams after and every existing seed
+   changes. A path with nothing to draw must return *before* touching a
+   stream.
 3. **No unbounded loops.** Every retry loop in the port is bounded
    (`MAX_LEVEL_ATTEMPTS = 60`, 1000/2000-attempt inner loops). The original
    retried forever; that is a bug we fixed, not a behaviour to restore.
@@ -41,13 +44,20 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    `tests/validation.test.ts`. New parameters need new rules and new tests.
 5. **`parameters.txt` compatibility.** The original file format keeps working
    as an import/override. Unknown keys are reported, never fatal.
-6. **Player tweaks stay out of the RNG.** `src/generator/tweak/**` emits the
-   game's `tweak/*.xml` balance files and draws no random values; it runs
-   after every level is built. Clearing every tweak emits no `tweak/` folder
-   at all, and turning any tweak on or off must leave a seed's dungeon
-   byte-identical — the balance files are the only thing that may change.
-   Note the defaults are no longer empty: `defaultParameters()` ships
-   `player.shared.remove.life`, so a stock run emits exactly one tweak file.
+6. **The optional layers never move a seed's dungeon.**
+   `src/generator/tweak/**`, `lobby/**` and `bossprep/**` draw **no** random
+   values and run after every level is built; `boss/**` draws only from
+   `ctx.bossRand`. Turning any of them on or off must leave every
+   `levels/level*.xml` byte-identical — only which extra files exist may
+   change, and clearing every tweak emits no `tweak/` folder at all. The stock
+   defaults are not empty any more: `defaultParameters()` ships the lobby on,
+   the boss on, and `player.shared.remove.life`, so a stock run emits a lobby,
+   a prep room, an arena and exactly one tweak file.
+7. **A floor the player cannot finish is invalid.** `map/reachability.ts`
+   flood-fills with the wall art's two-row overhang modelled (`OVERHANG_ROWS`)
+   and rejects a floor unless the entrance reaches the exit/orb/portal and
+   every key; the bounded retry loop re-rolls it. Never relax the check, or
+   model fewer rows, to make a floor pass.
 
 ## Commands
 

@@ -22,6 +22,8 @@ orchestrator.
 | Campaign packs but doesn't appear in game | Wrong destination folder or a bad asset path | §C |
 | Campaign loads but a class/difficulty is broken in game | Player tweak values, not level generation | §E |
 | Renderer blank / React error | UI bug | §D |
+| Floor looks open in the preview but the exit can't be reached in game | The three-tile wall overhang — `reachability.ts` should have re-rolled that floor. A **real bug**, not a validation gap | §B |
+| Arena walled off by dead towers / boss unreachable | A blocking-wreck monster on a scatter mode, or cover pruning | §F |
 | `Generate a dungeon first.` on export | User flow, not a bug | — |
 
 ## §A — Parameter-constraint failures (most common)
@@ -46,8 +48,11 @@ Constraints enforced today (`src/generator/config/validation.ts`):
 | `maxRoomSize + 2 + 2*edgePadding ≤ mapHeight` | heights roll to `size+2` |
 | **`maxPassageWidth ≤ minRoomSize`** | wider corridors put doors outside the room — crashed the original |
 | **`maxRoomSize ≥ 7`** | the stair prefab is 6 tiles wide |
-| `themes.length ≥ levels`, each in `a b c d e f g i` | short list → index out of bounds |
+| `themes.length ≥ levels`, each an id in `THEME_DEFS` | short list → index out of bounds. Valid ids are the bases `a`–`i` and `bonus1`–`bonus5`, each base's overlay pairings (`c_tiles`, `d_carpet`, …) and its `_mixed` palette — the stock campaign is `a_mixed`…`g_mixed`. Never hard-code the list; read `config/themes.ts` |
 | `levelMonsters.length ≥ levels`, none empty, all ids known | short/empty pool → index out of bounds |
+| lobby/prep `startingGold`: whole ≥ 0, multiple of 500, ≤ `GOLD_SAFETY_MAX` | one diamond per 500. The old 12000/42000 caps are **gone**; `GOLD_SAFETY_MAX` (5,000,000) only stops a typo emitting millions of item nodes |
+| lobby/prep `shopCategories` all real columns | see `ALL_LOBBY_CATEGORIES` |
+| the whole boss block | see §F |
 | chances in `[0,1]`; multipliers ≥ 0 | |
 | every `monsterMax` an integer ≥ 0 | |
 | every `playerTweaks` value finite | see §E |
@@ -57,7 +62,10 @@ Constraints enforced today (`src/generator/config/validation.ts`):
 | difficulty multipliers ≥ 0 | |
 
 Warnings (non-blocking): room-area-vs-map capacity heuristic; map dimensions
-not multiples of 20; `max-health` above 10000.
+not multiples of 20; a theme's own `cosmeticWarning` (theme `h` for the arena);
+`max-health` above 10000; lobby/prep columns left with nothing to sell; an
+empty *health* wave tier; a scattered monster's ignored interval; an arena
+scattering ≥ `BOSS_SCATTER_WARN` (2000) spawns.
 
 **Known gaps — likely causes of a §A report.** Confirm before "fixing":
 
@@ -96,6 +104,16 @@ or the work is merely enormous (see the missing upper bounds in §A).
 
 A hang is never fixed by raising a bound. Fix the input validation or the
 loop's exit condition.
+
+**A floor that generates but cannot be walked is a §B-class bug, not a hang.**
+`map/reachability.ts` flood-fills the finished grid with the wall overhang
+modelled (`OVERHANG_ROWS = 2`: the two rows under any wall mass are dead space,
+because the lettered wall art is three tiles tall) and rejects a floor unless
+the entrance reaches the exit/orb/portal and every key; the 60-attempt loop
+then re-rolls it. ~6% of first rolls are discarded this way. So a report of
+"the tilemap looks open but I can't get through" means the check missed a case
+— reproduce with the seed, extend the check, and never relax it or model fewer
+rows to make a floor pass.
 
 ## §C — Packer / install failures
 
@@ -270,6 +288,35 @@ Quick-fix scope here is the same as §A: a validation rule plus a case in
 `tests/tweak.test.ts` or `tests/validation.test.ts`. **Editing `baseline.ts` is
 an escalation** — it is a transcription of the real game files, and changing a
 number there silently ships wrong balance to every user.
+
+## §F — Boss arena and the optional levels
+
+The arena is the only generated geometry outside the floor loop
+(`src/generator/boss/`), and it draws from **`ctx.bossRand`**, a third stream.
+The lobby and prep room draw nothing at all. Consequence for triage: turning
+any of them on or off must leave every `levels/level*.xml` byte-identical for a
+seed. If a report says a dungeon floor changed when the boss was toggled, that
+is an RNG-stream leak — escalate, do not patch.
+
+| Symptom | Cause |
+| --- | --- |
+| "The arena is impassable" | `cover.density` — it is the fraction of *free floor*, so 0.25 (`BOSS_COVER_DENSITY_MAX`) is already dense. Validation errors above the cap; below it, `pruneForConnectivity` still guarantees the boss, all nine anchors and the alcove stay reachable. |
+| "The arena walled itself off mid-fight" | A monster whose wreck keeps its collision (nova / frost / tracking towers — `objects/actorCollision.ts`) on a scatter mode. Validation rejects that combination; if one got through, the roster data is wrong, not the placer. |
+| "Nothing spawns at a tier" | Empty pool, or every `monsterMax` scaled to 0 by `arena.monsterMultiplier`. An empty *health* tier warns; an empty **death** tier does not — it is legal, and that is how a campaign gets the quiet walk to the orb. |
+| "The interval I set does nothing" | The monster is on a scatter mode: scattered spawns are one-shot, so both `defaultIntervalMs` and the per-monster override are ignored. Warned about, not an error. |
+| "All the waves spawn at once late in the fight" | Working as designed. Tiers switch on and never off — no timer is ever disabled — so at 25% health all four health tiers are running. |
+| "The death tier spawned nothing in game" | Check the pool is non-empty first. The mechanism itself is `[VERIFIED 2026-08-19]`: `SpawnObject` off `Boss Died` does fire after the boss dies. |
+| Endless (`-1`) rejected | Only on a scatter mode — a one-shot spawn has no endless budget. `-1` is fine on `anchors`, and is never scaled by the multiplier. |
+| Huge boss level / slow pack | Each scattered spawn is its own `SpawnObject` node; the stock presets emit ~1300. Validation warns at `BOSS_SCATTER_WARN` (2000). Not an error — there is no hard limit. |
+| "Starting gold was rejected" | Whole number, multiple of 500, ≤ `GOLD_SAFETY_MAX`. The old 12000/42000 caps were removed — deeper diamond stacks are supported. |
+
+Arena constraints beyond the wave rules: `min ≤ max` on both axes,
+`minWidth ≥ ARENA_MIN_WIDTH` (14) and `minHeight ≥ ARENA_MIN_HEIGHT` (18),
+non-empty `bossPool` of known `BOSS_IDS`, exactly `BOSS_WAVE_COUNT` (5) waves,
+intervals 100..60000 ms, wave pool entries valid **variant keys** (`bat1#0`,
+`archer1#2` — a non-canonical spelling of a pinned tier is its own error),
+`monsterMax ≥ -1`, a `BOSS_SPAWN_MODES` name, and integers ≥ 1 for every
+`cover.*` / `spawn.*` spacing and cluster knob.
 
 ## Where the logs and state live
 

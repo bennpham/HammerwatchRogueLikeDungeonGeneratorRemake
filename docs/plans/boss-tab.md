@@ -1,9 +1,14 @@
 # Boss tab — a pre-fight prep room and a generated boss arena
 
-> **Status: design complete, not implemented.** The nine open research items
-> this document shipped with have all been answered on a real install
-> (2026-08-10). Every mechanic below is verified in game except where the text
-> says otherwise. See "Verified mechanics" for the evidence.
+> **Status: SHIPPED** (PRs #17, #20–#33). This document is the design record,
+> kept for the reasoning behind each decision; the code is the current truth.
+> Notable changes since it was written: the arena has **five** wave tiers, not
+> four — a fifth fires on `Boss Died` (verified in game 2026-08-19) — monsters
+> can be **scattered** across the arena instead of trickling from the nine
+> anchors, arena themes include the `_mixed` palettes with geometric floor
+> patterns, and the starting-gold caps were removed. The nine open research
+> items this document shipped with were all answered on a real install
+> (2026-08-10); see "Verified mechanics".
 
 ## Context
 

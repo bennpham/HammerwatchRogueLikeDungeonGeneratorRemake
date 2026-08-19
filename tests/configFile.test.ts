@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { parseParametersTxt, serializeParametersTxt } from '../src/generator/config/configFile'
 import { BOSS_DEATH_WAVE, BOSS_WAVE_COUNT, defaultParameters } from '../src/generator/config/parameters'
@@ -8,6 +10,28 @@ import {
   applySkillUnlocks,
   pruneTweaks
 } from '../src/generator/tweak'
+
+describe('parameters.default.txt', () => {
+  // The shipped file documents the defaults, so a default that changes without
+  // it is a lie in the repo's most user-facing config. Reading a repo file is
+  // fine here: the purity rule binds src/generator, not the test runner.
+  const content = readFileSync(
+    fileURLToPath(new URL('../parameters.default.txt', import.meta.url)),
+    'utf8'
+  )
+
+  it('parses back to defaultParameters() with nothing unrecognized', () => {
+    const parsed = parseParametersTxt(content)
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params).toEqual(defaultParameters())
+  })
+
+  it('documents the install path and the cleanup flag', () => {
+    const parsed = parseParametersTxt(content)
+    expect(parsed.path).toBeDefined()
+    expect(parsed.cleanupFiles).toBe(true)
+  })
+})
 
 describe('parameters.txt parsing', () => {
   it('overrides only the keys present in the file', () => {

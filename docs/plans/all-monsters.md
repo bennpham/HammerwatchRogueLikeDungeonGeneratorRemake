@@ -1,7 +1,10 @@
 # All monsters — roster audit against the game's actor folder
 
-**Status: drafted, not implemented.** This document is the audit plus the spec to
-hand an implementer; no code in this PR.
+**Status: IMPLEMENTED — historical.** The audit's work items all landed:
+`skeleton_3` and `tower_battlement_empty` are in `monsterTypes.ts`, and the
+phantom `tower_battlement_archer_2` reference is gone. The roster has since
+grown variant keys (`lich#2`, `slime#0`) on top of this. Kept as the record of
+how the roster was checked against the game's actor folder.
 
 Compared against `<HW>/editor/assetsExtract/actors/` on 2026-07-30.
 
