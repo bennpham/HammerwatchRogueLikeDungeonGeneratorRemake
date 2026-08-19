@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { parseParametersTxt, serializeParametersTxt } from '../src/generator/config/configFile'
 import { BOSS_DEATH_WAVE, BOSS_WAVE_COUNT, defaultParameters } from '../src/generator/config/parameters'
@@ -8,6 +10,28 @@ import {
   applySkillUnlocks,
   pruneTweaks
 } from '../src/generator/tweak'
+
+describe('parameters.default.txt', () => {
+  // The shipped file documents the defaults, so a default that changes without
+  // it is a lie in the repo's most user-facing config. Reading a repo file is
+  // fine here: the purity rule binds src/generator, not the test runner.
+  const content = readFileSync(
+    fileURLToPath(new URL('../parameters.default.txt', import.meta.url)),
+    'utf8'
+  )
+
+  it('parses back to defaultParameters() with nothing unrecognized', () => {
+    const parsed = parseParametersTxt(content)
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params).toEqual(defaultParameters())
+  })
+
+  it('documents the install path and the cleanup flag', () => {
+    const parsed = parseParametersTxt(content)
+    expect(parsed.path).toBeDefined()
+    expect(parsed.cleanupFiles).toBe(true)
+  })
+})
 
 describe('parameters.txt parsing', () => {
   it('overrides only the keys present in the file', () => {
@@ -252,6 +276,32 @@ describe('parameters.txt parsing', () => {
     const parsed = parseParametersTxt(text)
     expect(parsed.params.boss).toEqual(original.boss)
     expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('round-trips the arena multipliers, which are not the dungeon\'s', () => {
+    const original = defaultParameters()
+    original.boss.arena.monsterMultiplier = 2.5
+    original.boss.arena.foodMultiplier = 0
+    // the dungeon's own multipliers stay put — the whole point of separate keys
+    original.monsterMultiplier = 1.0
+    original.foodMultiplier = 1.2
+
+    const text = serializeParametersTxt(original)
+    expect(text).toContain('bossMonsterMultiplier=2.500000')
+    expect(text).toContain('bossFoodMultiplier=0.000000')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.params.boss).toEqual(original.boss)
+    expect(parsed.params.monsterMultiplier).toBe(1.0)
+    expect(parsed.params.foodMultiplier).toBe(1.2)
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('reports a malformed arena multiplier instead of writing NaN', () => {
+    const parsed = parseParametersTxt('bossMonsterMultiplier=lots\nbossFoodMultiplier=1.5\n')
+    expect(parsed.unknownKeys).toEqual(['bossMonsterMultiplier value "lots"'])
+    expect(parsed.params.boss.arena.monsterMultiplier).toBe(1.0)
+    expect(parsed.params.boss.arena.foodMultiplier).toBe(1.5)
   })
 
   it('writes no spawn-mode field while every monster is on the anchors mode', () => {

@@ -621,6 +621,23 @@ describe('boss validation', () => {
     expect(fieldsOf(result.errors)).toContain('boss.arena.spawn.clusters')
   })
 
+  it('rejects a negative arena multiplier', () => {
+    const result = withBoss({
+      arena: { ...defaultParameters().boss.arena, monsterMultiplier: -1, foodMultiplier: -0.5 }
+    })
+    expect(fieldsOf(result.errors)).toContain('boss.arena.monsterMultiplier')
+    expect(fieldsOf(result.errors)).toContain('boss.arena.foodMultiplier')
+  })
+
+  it('accepts 0 for both arena multipliers', () => {
+    // 0 is a real setting: no waves, no food. Only negatives are nonsense.
+    const result = withBoss({
+      arena: { ...defaultParameters().boss.arena, monsterMultiplier: 0, foodMultiplier: 0 }
+    })
+    expect(fieldsOf(result.errors)).not.toContain('boss.arena.monsterMultiplier')
+    expect(fieldsOf(result.errors)).not.toContain('boss.arena.foodMultiplier')
+  })
+
   it('rejects an unknown spawn mode', () => {
     const result = withWave0({ spawnMode: { bat1: 'spiral' as never } })
     expect(fieldsOf(result.errors)).toContain('boss.arena.waves.0.spawnMode.bat1')

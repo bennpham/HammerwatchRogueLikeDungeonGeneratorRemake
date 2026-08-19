@@ -8,26 +8,29 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
-### 2026-08-19 — spawning monsters off `Boss Died` is emitted but not yet played
-**Tag:** [UNVERIFIED] for the spawn behaviour; the trigger itself stays
-[VERIFIED] from the 2026-08-10 entry below.
+### 2026-08-19 — monsters spawned off `Boss Died` do appear; the death tier works
+**Tag:** [VERIFIED] — played in game. Supersedes the open question this entry
+was first filed with.
 **Context:** The boss arena gained a fifth wave tier keyed to the engine's
 `Boss Died` event, so a campaign can spawn a last stand into the walk from the
 dead boss to the orb (`src/generator/boss/waves.ts`, `TIER_EVENT_NAMES`).
 **Evidence:** That `GlobalEventTrigger "Boss Died"` fires for a bare boss actor
-is already verified in game (2026-08-10). What is **not** observed is whether
-`SpawnObject` nodes hanging off it still produce actors once the boss is dead —
-the shipped campaigns only ever use `Boss Died` to open doors and end the level,
-never to spawn. It is plausible the engine keeps spawning normally (a
-`SpawnObject` has no dependency on the boss), and equally plausible that
-whatever tears the fight down suppresses it.
-**Impact:** The tier ships **empty in every preset**, so nothing about the stock
-campaign depends on the answer — a stock arena emits exactly the one `Boss Died`
-trigger the win chain has always had, and every existing seed is byte-identical
-(verified by diffing all three presets x seeds 1/42/12345 before and after).
-Only a user who fills the tier can be affected. Promote this to [VERIFIED] once
-someone packs a campaign with a filled death tier, kills the boss and reports
-whether the wave appears.
+was already verified (2026-08-10 entry below), but only ever for opening doors
+and ending the level — no shipped campaign spawns off it. Packed a campaign with
+a filled death tier, killed the boss, and the wave spawned: `SpawnObject` nodes
+hanging off `Boss Died` keep producing actors after the boss is dead. Nothing in
+the fight teardown suppresses them, and they run concurrently with the win chain
+that destroys the alcove seals — the player fights the send-off on the way to
+the orb, which is the intended shape.
+**Impact:** The tier is a first-class wave, not a speculative one. All three
+presets now ship it **populated** (castle: a lich send-off; desert: fire pillars
+and floaters; bonus: the 25% line-up plus wisps — see `BOSS_DEATH_WAVE` in
+`src/generator/config/parameters.ts`). Clearing it is still legal and is how a
+campaign gets the old quiet walk back: an empty tier emits no script nodes and
+requests no scatter points. Every mechanism the health tiers have applies here
+unchanged — max counts (including `-1`/endless), per-monster intervals, scatter
+spawn modes, the `bossWave5` line in `parameters.txt`, and the wave editor in
+the Boss tab.
 
 ### 2026-08-18 — the starting-gold caps are gone; deeper stacks are a product decision, not a verified one
 **Tag:** [UNVERIFIED] beyond two deep — the removal is a product decision by the

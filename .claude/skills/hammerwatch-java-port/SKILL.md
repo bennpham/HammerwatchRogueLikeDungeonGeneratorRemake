@@ -21,6 +21,10 @@ roster** — that modified pair, not the vanilla one, is what this port follows.
 | `ConfigFile` | `config/configFile.ts` | `parameters.txt` parse/serialize |
 | — (no equivalent) | `config/validation.ts` | **new**: the original had no validation |
 | — (no equivalent) | `tweak/**` | **new**: player balance files. No Java counterpart at all — see divergence 7 |
+| — (no equivalent) | `lobby/**`, `bossprep/**`, `levelTemplate/**` | **new**: hand-authored levels edited by id. RNG-free — see divergence 9 |
+| — (no equivalent) | `boss/**` | **new**: the generated arena. Its own RNG stream — see divergence 9 |
+| — (no equivalent) | `map/reachability.ts` | **new**: rejects a floor the player cannot finish — see divergence 10 |
+| — (no equivalent) | `map/tilemapOverlay.ts`, theme overlays/palettes in `config/themes.ts` | **new**: extra floor tileset layers — see divergence 9 |
 | `Level` | `map/level.ts` | |
 | `Room` | `map/room.ts` | |
 | `Passage` | `map/passage.ts` | |
@@ -56,7 +60,9 @@ Rules:
 - A guard like `if (x) rand.iRand(...)` inside a loop that used to be
   unconditional is a draw-order change. So is short-circuiting `&&`.
 - `ctx.cosmeticRand` (seed + 1) exists precisely so floor-tile variants don't
-  consume from the layout stream. Keep it that way.
+  consume from the layout stream. Keep it that way. `ctx.bossRand` (seed + 2)
+  does the same job for the boss arena, which is generated after every floor so
+  it can draw as much as it likes without touching either stream above it.
 - `tests/rand.test.ts` holds reference vectors from `java.util.Random`. If you
   touch `rand.ts`, that suite is the proof.
 
@@ -112,6 +118,34 @@ These are intentional. Do not "fix" them back.
    `Math.min(tier, tiers.length - 1)` **after** the `while`, deliberately not
    inside it: the number of `fRand` draws is untouched, so **no seed moves**.
    Only single-tier types' XML changes, and their old output was broken.
+
+9. **Whole feature areas with no Java counterpart.** `lobby/**`,
+   `bossprep/**`, `levelTemplate/**`, `boss/**`, theme overlay/mixed palettes
+   and monster variant keys (`bat1#0`) are additions, not ports; the Java tool
+   knows nothing about any of them and there is nothing to diff against. What
+   matters for parity is only which stream each one draws from:
+   - `lobby/**`, `bossprep/**`, `tweak/**` — **no draws at all**, applied after
+     the level loop.
+   - `boss/**` — draws freely, but only from `ctx.bossRand` (seed + 2). The
+     arena is built after every floor for exactly that reason.
+   - theme overlays and mixed palettes — `ctx.cosmeticRand` on a dungeon floor,
+     `ctx.bossRand` in the arena, and **zero draws** when the theme has neither
+     (the early return in `overlayDataset` / `mixedDatasets` is load-bearing).
+   - monster variant keys — `resolveActorPath` maps a key to an actor path with
+     no draw. Only the dungeon's `Monster.createRolled` rolls a tier, and its
+     draw order is unchanged.
+
+   So a seed's dungeon floors are byte-identical whether these features are on
+   or off. That property is asserted in the suites; a change that breaks it is
+   a parity regression even though the Java tool has no opinion on the feature.
+10. **Reachability re-rolls, and therefore moves seeds.** `map/reachability.ts`
+   rejects a floor whose exit, orb or keys the player cannot walk to once the
+   wall art's two-row overhang is modelled — something the original never
+   checked. The rejection feeds the ordinary 60-attempt retry, which consumes
+   the layout stream, so ~6% of first rolls are discarded and a seed generated
+   before this landed can produce a different dungeon from the offending floor
+   on. That was a deliberate, announced break: the alternative was shipping
+   campaigns that cannot be completed.
 
 ## Verified parity status
 

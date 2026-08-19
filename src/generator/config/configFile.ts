@@ -187,6 +187,21 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       }
       continue
     }
+    if (keyLower === 'bossmonstermultiplier' || keyLower === 'bossfoodmultiplier') {
+      // The arena's own multipliers, kept out of the global monsterMultiplier /
+      // foodMultiplier so a hectic arena does not imply a hectic dungeon.
+      // Same NaN guard as every other numeric boss key: report and keep the
+      // default rather than writing a NaN into the params.
+      const n = parseFloat(value)
+      if (Number.isNaN(n)) {
+        result.unknownKeys.push(`${key} value "${value}"`)
+      } else if (keyLower === 'bossmonstermultiplier') {
+        params.boss.arena.monsterMultiplier = n
+      } else {
+        params.boss.arena.foodMultiplier = n
+      }
+      continue
+    }
     if (keyLower === 'bosswidth') {
       const parts = value.split(',').map((s) => parseInt(s.trim(), 10))
       if (parts.length === 2 && !parts.some(Number.isNaN)) {
@@ -494,6 +509,9 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
   lines.push(
     `bossSpawn=${params.boss.arena.spawn.spacing},${params.boss.arena.spawn.ringSpacing},${params.boss.arena.spawn.clusters}`
   )
+  // six decimals, matching the global multipliers above
+  lines.push(`bossMonsterMultiplier=${params.boss.arena.monsterMultiplier.toFixed(6)}`)
+  lines.push(`bossFoodMultiplier=${params.boss.arena.foodMultiplier.toFixed(6)}`)
   for (let i = 0; i < params.boss.arena.waves.length; i++) {
     const wave = params.boss.arena.waves[i]
     // fixed arity of five fields; monsterMax is always rebuilt from the

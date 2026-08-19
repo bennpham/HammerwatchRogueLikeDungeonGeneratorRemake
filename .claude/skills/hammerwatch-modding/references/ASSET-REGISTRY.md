@@ -452,6 +452,48 @@ Two rules the emitter must keep, both in `map/tilemapOverlay.ts`:
    shifts `cosmeticRand` for every plain theme and silently changes the floor of
    every dungeon ever generated from an existing seed.
 
+### Mixed themes — one palette, several surfaces per level `[EMITTED]`
+
+A `x - mixed` theme is the same base theme with a **palette** instead of a single
+overlay: `ThemeDef.mixed = [null, ...that base's curated overlays]`, slot 0 being
+the plain base floor. `overlay` and `mixed` are mutually exclusive — a mixed def
+must leave `overlay` unset, or `overlayDataset` fires too and paints one variant
+over everything. Built by `mixedOf` in `config/themes.ts`, only for a base with
+at least one curated overlay, so every mixed palette has something to mix. The
+mixed entry is listed after that base's pairings, so the dropdown reads
+`c`, `c - tiles`, `c - tiles dirt`, `c - mixed`, `d`, …
+
+Who assigns the slots differs by level kind, and that is the whole feature:
+
+- **Dungeon floors** (`map/level.ts`) roll one slot per *region* — each room and
+  each corridor — so a level reads as a carpeted hall into a dirt-floored vault
+  rather than one uniform sheet.
+- **The boss arena** (`boss/arenaPattern.ts`) is a single open rectangle with no
+  regions to divide, so it lays the palette out in a geometric pattern instead:
+  `BOSS_FLOOR_PATTERNS` = `random`, `checker`, `bandsH`, `bandsV`, `bandsDiag`,
+  `rings`, `diamond`, `cross`, `triangle`, chosen by `bossFloorPattern`
+  (`random` lets the seed pick).
+
+`mixedDatasets` in `map/tilemapOverlay.ts` emits one masked dataset per palette
+overlay that some cell in the block landed on. Three rules it must keep:
+
+1. **The masks are disjoint**, so unlike the paired-theme case the tilesets'
+   relative `level` attributes do not matter — no two ever compete for a cell.
+   Slot 0 emits nothing; those cells are the base layer showing through.
+2. **A block where no cell landed on a slot emits no dataset for it.** Otherwise
+   the XML multiplies by the palette length for no visual gain. The consequence:
+   the number of draws taken varies per block with the region layout —
+   deterministic, but not a fixed count.
+3. **No `mixed` palette ⇒ zero draws**, checked before touching the stream, same
+   as `overlayDataset`. Hoisting a draw above that check shifts `cosmeticRand`
+   and changes the floor of every dungeon ever generated from an existing seed.
+
+Mixed floors draw from `ctx.cosmeticRand` on a dungeon floor and `ctx.bossRand`
+in the arena — never `ctx.rand`. The stock campaign now defaults to
+`a_mixed…g_mixed` with a `g_mixed` arena, so this is the *common* path, not an
+exotic one. Still `[EMITTED]`: generated and validated here, not yet inspected
+in game.
+
 ### Theme `h` — desert outdoors
 
 **Supersedes the earlier "there is no usable theme `h`" entry, which was a false
@@ -563,6 +605,13 @@ and the four `_v2` corners.
 | `ShopArea` | vendor area; carries the vendor doodad type | shop type |
 | `GameEnd` | ends the campaign (final floor orb) | — |
 | `RespawnPlayers` | plain script node, no parameters | — |
+| `SpawnObject` | spawns an actor, up to `count` times | actor path, `count` (`-1` = endless) |
+| `GlobalEventTrigger` | fires on an engine event by name | `parameters` = the event string |
+| `TimerTrigger` | repeating timer driving a spawn chain | interval ms |
+| `DestroyObject` | destroys another node's target (the alcove seals) | element id |
+
+The last four are the boss arena's rig (`src/generator/boss/waves.ts`,
+`boss/arena.ts`); the dungeon floors emit none of them.
 
 **`GameEnd` and item-watching `ObjectEventTrigger` are `[VERIFIED]` working**
 (2026-08-12, a full generated campaign completed on the orb). Both look
@@ -571,6 +620,18 @@ them, and all 60 of their `Destroyed` triggers watch a *doodad*, never an item.
 The orb item is also a solid collider (`<collision static="true">`, radius 5),
 so it is bumped into rather than walked through. None of that stops the rig
 firing — if an orb seems unreachable, suspect its placement, not its wiring.
+
+### `Boss Died` drives spawns, not just doors `[VERIFIED 2026-08-19]`
+
+The engine's boss events — `Activate Boss`, `Boss 75%`, `Boss 50%`, `Boss 25%`,
+`Boss Died` — are readable by a `GlobalEventTrigger` on a bare boss actor
+(2026-08-10). `Boss Died` additionally drives **spawning**: `SpawnObject` nodes
+hanging off it still produce actors after the boss is dead, concurrently with
+the win chain that destroys the alcove seals. Played in game with a filled death
+tier; the send-off wave fights the player on the walk to the orb. That is why
+the arena has five wave tiers, not four (`BOSS_DEATH_WAVE`), and why all three
+presets ship the fifth populated. The shipped campaigns only ever use
+`Boss Died` to open a door and end a level, so this is not inferable from them.
 
 ## Prefab object sets
 

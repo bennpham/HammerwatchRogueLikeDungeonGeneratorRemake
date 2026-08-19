@@ -17,8 +17,8 @@ objects — each of which places rooms, connects them with passages, assigns
 special rooms, rasterizes a wall grid, pattern-matches wall doodads, and
 serializes itself into Hammerwatch's XML dialect — and returns an array of
 `{path, content}` files (`info.xml`, `levels.xml`, `levels/levelN.xml`, plus
-`tweak/*.xml` when the user edited player balance) plus per-floor preview
-geometry. Electron's main process does everything else:
+`levels/lobby.xml`, `levels/bossprep.xml` + `levels/boss.xml` and `tweak/*.xml`
+for whichever optional layers are on) plus per-floor preview geometry. Electron's main process does everything else:
 writes those files into `<Hammerwatch>/editor/<name>/`, runs
 `LevelPacker.exe`, moves the resulting `.hwm` into `<Hammerwatch>/levels/`.
 The renderer is a thin React form + canvas preview talking over a typed
@@ -42,13 +42,32 @@ src/
 │   ├── xml/              XMLDictionary/Array/Int/Float/Bool/String/IntArray
 │   ├── map/              level.ts, room.ts, passage.ts, tile.ts,
 │   │                     wallPattern.ts, posDir.ts, reachability.ts
-│   ├── objects/          monsterTypes.ts (roster data), monster.ts, item.ts,
-│   │                     doodad.ts, nodes.ts, scriptNode.ts, objectSet.ts
+│   │                     (overhang-aware flood fill), tilemapOverlay.ts
+│   │                     (overlay + mixed floor datasets)
+│   ├── objects/          monsterTypes.ts (roster data + variants), monster.ts,
+│   │                     item.ts, doodad.ts, nodes.ts, scriptNode.ts,
+│   │                     objectSet.ts, actorCollision.ts (which wrecks block)
+│   ├── levelTemplate/    surgery.ts — shared id-targeted edits for the three
+│   │                     hand-authored levels (lobby, prep room, and the
+│   │                     arena's borrowed rig)
 │   ├── lobby/            the prebuilt starting level — NOT generated geometry
 │   │   ├── template.ts   the lobby XML verbatim (generated + committed)
 │   │   ├── assets.ts     custom files it references, base64 when binary
 │   │   ├── shops.ts      the five vendor stalls and their shop columns
 │   │   └── build.ts      buildLobby() — four surgical edits, no RNG
+│   ├── bossprep/         the prep room between the last floor and the arena —
+│   │                     same template+surgery shape as the lobby, no RNG
+│   ├── boss/             the GENERATED arena — the only new geometry since the
+│   │   │                 port, and the only consumer of ctx.bossRand
+│   │   ├── arena.ts      buildBossArena() — the assembler
+│   │   ├── geometry.ts   arena minimums, pillar footprints, free-floor area
+│   │   ├── anchors.ts    the nine spawn anchors (N/S/E/W/corners/centre)
+│   │   ├── bosses.ts     BOSS_DEFS — the seven end bosses and their alcoves
+│   │   ├── cover.ts      pillar patterns + the connectivity prune
+│   │   ├── spawnPoints.ts scatter-mode spawn placement
+│   │   ├── arenaPattern.ts geometric floor patterns for a `- mixed` arena
+│   │   ├── placement.ts  shared rect/perimeter/gaussian helpers
+│   │   └── waves.ts      the five-tier spawn rig (health tiers + Boss Died)
 │   ├── tweak/            player balance (tweak/*.xml) — NOT level generation
 │   │   ├── types.ts      TweakFile/TweakParam/TweakUpgrade, PlayerTweaks
 │   │   ├── baseline.ts   full stock transcription of the 9 game tweak files
@@ -62,13 +81,21 @@ src/
 ├── main/                 index.ts (window), ipc.ts (handlers + last-result
 │                         cache), packer.ts (write/pack/install), settings.ts
 ├── preload/              contextBridge → window.api
-├── renderer/             App.tsx (Dungeon|Player and Preview|Loadout tabs),
-│                         components/{ParameterForm, PlayerForm, QuickSetup,
+├── renderer/             App.tsx (Dungeon|Player|Lobby|Boss and
+│                         Preview|Loadout tabs), components/{ParameterForm,
+│                         PlayerForm, QuickSetup, LobbyForm, BossForm,
 │                         LevelPreview, LoadoutSheet, MonsterPoolsEditor,
-│                         MonsterMaxTable, OutputPanel, fields}, styles/app.css
+│                         PoolGroup, PoolTextField, MonsterFilterBar,
+│                         MonsterMaxTable, InfoTip, OutputPanel, fields},
+│                         styles/app.css
 └── shared/ipc.ts         types shared across the bridge
-tests/                    vitest: rand, configFile, validation, generation,
-                          packer, tweak, tweakChains, tweakBulk
+tests/                    vitest, 28 files: rand, context, configFile,
+                          validation, generation, reachability, themes (+ a
+                          snapshot), presets, monsters, monsterVariants,
+                          doodad, nodes, objectSet, actorCollision, xmlHelpers,
+                          lobby, bossprep, boss, bossWaves, bossCover,
+                          bossGeometry, bossSpawnPoints, bosses, anchors,
+                          arenaPattern, packer, tweak, tweakChains, tweakBulk
 reference/original-java/  the Java original (read-only reference)
 reference/hammerwatch-tweak-stats.md
                           human-readable tables of the same stock balance data
@@ -84,14 +111,20 @@ reference/hammerwatch-tweak-stats.md
 2. **Determinism.** `(params, seed)` ⇒ byte-identical files. Forbidden inside
    the generator: `Math.random()`, `Date`, `crypto`, iteration over an object
    whose key order isn't fixed, `Array.sort` without a total comparator.
-3. **Two RNG streams, never mixed.** `ctx.rand` drives layout and population
-   (this is the stream that must match the Java original). `ctx.cosmeticRand`
-   (seed + 1) drives only floor-tile variants. Drawing a cosmetic value from
-   `ctx.rand` shifts the layout stream and silently changes every saved seed.
+3. **Three RNG streams, never mixed.** `ctx.rand` (seed) drives layout and
+   population — the stream that must match the Java original.
+   `ctx.cosmeticRand` (seed + 1) drives floor-tile variants, overlay tilesets
+   and mixed-palette slots. `ctx.bossRand` (seed + 2) drives everything in the
+   boss arena, which is generated after the floors precisely so it can draw as
+   much as it likes. Drawing from the wrong stream shifts the ones after it and
+   silently changes every saved seed. A module with nothing to draw must return
+   **before** touching a stream, not draw and discard (`overlayDataset`,
+   `mixedDatasets`).
 4. **Bounded loops.** `MAX_LEVEL_ATTEMPTS = 60` in `generator/index.ts`; 1000
    attempts for room placement and passage connection, 2000 for special-room
-   assignment in `level.ts`. Never make a loop unbounded, and never raise a
-   bound to "fix" a layout that validation should have rejected.
+   assignment in `level.ts`; `PLACEMENT_ATTEMPTS = 40` per arena rect. Never
+   make a loop unbounded, and never raise a bound to "fix" a layout that
+   validation should have rejected.
 5. **Validate, don't crash.** New parameters need a rule in `validation.ts`
    and a case in `tests/validation.test.ts`. Validation returns
    `{errors, warnings, valid}`; errors block generation and render inline in
@@ -103,13 +136,24 @@ reference/hammerwatch-tweak-stats.md
    in `src/main/ipc.ts` and are *stripped* from the renderer response; the
    renderer only ever receives previews. Don't send megabytes of XML over the
    bridge.
-8. **Tweaks and the lobby never touch the RNG.** `src/generator/tweak/**` draws no random
+8. **Tweaks, the lobby and the prep room never touch the RNG.** `src/generator/tweak/**` draws no random
    values and is called *after* every level is built. A stock run (no player
    edits) must emit exactly the files it emitted before the feature existed —
    no `tweak/` folder at all. Adding a tweak field must not change any seed's
-   dungeon. The same holds for `src/generator/lobby/**`: it is applied after the
-   level loop, draws no random values, and a seed's `levels/level*.xml` must be
-   byte-identical whether the lobby is on or off.
+   dungeon. The same holds for `src/generator/lobby/**` and
+   `src/generator/bossprep/**`: applied after the level loop, no random values,
+   and a seed's `levels/level*.xml` must be byte-identical whether they are on
+   or off. `src/generator/boss/**` is the exception that proves the rule — it
+   *does* draw, but only from `ctx.bossRand`, so turning the boss on or off
+   still leaves every dungeon floor byte-identical.
+9. **A floor the player cannot finish is invalid.** `map/reachability.ts`
+   flood-fills the finished grid and rejects a floor unless the entrance
+   reaches the exit (or orb/portal) and every key. Tile connectivity is not
+   enough: lettered wall pieces are three tiles tall, so the two rows under any
+   wall mass are dead space (`OVERHANG_ROWS = 2`) and a corridor that meets a
+   room only inside that band is sealed in game while looking open in the
+   tilemap. The fix for a sealed floor is the existing re-roll — never loosen
+   the check, and never model fewer than `OVERHANG_ROWS` rows.
 
 ## Parameters (the app's whole surface)
 
@@ -124,21 +168,45 @@ reference/hammerwatch-tweak-stats.md
 | `minRoomCount`–`maxRoomCount` | 12–15 | ≥ 2 |
 | `minPassageWidth`–`maxPassageWidth` | 3–6 | **`maxPassageWidth` ≤ `minRoomSize`** or doors land outside rooms |
 | `edgePadding` / `roomPadding` | 2 / 2 | ≥ 0 |
-| `themes` | `a,b,c,d,e,f,g` | one per level, from `a b c d e f g h i` or `bonus1`–`bonus5`; registry in `config/themes.ts` |
+| `themes` | `a_mixed`…`g_mixed` | one per level; any id in `THEME_DEFS` — bases `a`–`i`, `bonus1`–`bonus5`, each base's overlay pairings (`c_tiles`) and its `_mixed` palette. Registry in `config/themes.ts`; see *Themes* below |
+| `lockFinalRoom` | `true` | final floor only: the orb sits behind a gold door, and that floor gets one gold key per gold door so the key can't be spent wrong |
 | `shopChance` / `vaultChance` / `lockChance` / `keyChance` | 1.0 / 0.3 / 0.8 / 1.0 | 0–1 inclusive |
 | `monsterMultiplier` / `goldMultiplier` / `foodMultiplier` | 1.0 / 1.1 / 1.2 | ≥ 0 |
 | `levelMonsters[i]` | see defaults | non-empty; ids must exist in `MONSTER_TYPES`; repeat an id to weight it |
 | `monsterMax[id]` | per-type | integer ≥ 0; **0 disables the type entirely** |
-| `playerTweaks` | `{}` | sparse `Record<lowercase key, number>` of player-balance overrides; empty = no `tweak/` folder. See below |
-| `lobby` | on, 10000 gold, all columns but `power` | prebuilt starting level: `enabled`, `startingGold` (multiple of 500, ≤ 12000), `shopCategories`. `enabled: false` reproduces the pre-lobby campaign exactly |
+| `playerTweaks` | `{ 'player.shared.remove.life': 1 }` | sparse `Record<lowercase key, number>` of player-balance overrides; empty = no `tweak/` folder. See below |
+| `lobby` | on, 10000 gold, all 21 columns | prebuilt starting level: `enabled`, `startingGold` (whole multiple of 500, no upper cap beyond `GOLD_SAFETY_MAX`), `shopCategories`. `enabled: false` reproduces the pre-lobby campaign exactly |
+| `boss` | **on** | the finale, two appended levels. See the sub-table below and *Boss finale* |
+
+`BossOptions` (`config/parameters.ts`), defaults from `defaultBossOptions()`:
+
+| Field | Default | Notes |
+| --- | --- | --- |
+| `enabled` | `true` | off reproduces the pre-boss campaign; the final floor keeps its own orb room |
+| `prep.shopCategories` | all 21, `power` included | same full set as the lobby; buyable lives are safe because the stock `player.shared.remove.life` tweak deletes that upgrade |
+| `prep.startingGold` | 20000 | whole multiple of 500, one red diamond each |
+| `arena.theme` | `g_mixed` | any `THEME_DEFS` id, independent of the floors' themes |
+| `arena.floorPattern` | `random` | one of `BOSS_FLOOR_PATTERNS`; only meaningful for a `- mixed` theme |
+| `arena.minWidth`–`maxWidth` | 24–32 | ≥ `ARENA_MIN_WIDTH` (14) |
+| `arena.minHeight`–`maxHeight` | 32–44 | ≥ `ARENA_MIN_HEIGHT` (18) |
+| `arena.bossPool` | the 4 castle bosses | non-empty subset of `BOSS_IDS` (7); the seed picks one per campaign |
+| `arena.waves` | 5 populated tiers | exactly `BOSS_WAVE_COUNT`; see *Boss finale* |
+| `arena.cover` | `random`, 0.08, 4, 3 | `density` is the fraction of free floor filled and is capped at `BOSS_COVER_DENSITY_MAX` (0.25) |
+| `arena.spawn` | spacing 2, ring 4, clusters 3 | tuning for the scatter modes only; deliberately separate from `cover` |
+| `arena.monsterMultiplier` | 1.0 | scales each tier's `monsterMax`; `-1`/endless stays endless. `bossMonsterMultiplier` in `parameters.txt`, separate from the dungeon's |
+| `arena.foodMultiplier` | 1.2 | scales the arena's health/mana pickup clusters; `bossFoodMultiplier` in `parameters.txt` |
 
 ### Campaign presets
 
-`config/presets.ts` holds `CAMPAIGN_PRESETS` — `castle` (7 floors, `a`–`g`;
-identical to `defaultParameters()`), `desert` (5 floors, `h,h,i,i,i`) and
-`bonus` (5 floors, `bonus1`–`bonus5`). A preset overrides only `levels`,
-`themes` and `levelMonsters`; `monsterMax` and everything else stay at the
-global defaults, so the caps keep bounding horde sizes. `build()` must return a
+`config/presets.ts` holds `CAMPAIGN_PRESETS` — `castle` (7 floors,
+`a_mixed`–`g_mixed`; identical to `defaultParameters()`), `desert` (5 floors,
+`h,h,i,i_symbols,i_mixed`) and `bonus` (5 floors, `bonus1`–`bonus5`). A preset
+overrides `levels`, `themes`, `levelMonsters` and — via the `withBoss` helper —
+the arena's `theme`, `bossPool` and `waves`; `monsterMax` and everything else
+stay at the global defaults, so the caps keep bounding horde sizes. `withBoss`
+spreads two levels deep on purpose: a shallow `{...base, boss}` would share one
+`arena` object between callers. All three presets ship the boss-death tier
+**populated**. `build()` must return a
 fresh object every call and draw no random values — the header dropdown in
 `App.tsx` calls it to replace the whole parameter set. Changing a preset's pools
 is a content change, not an RNG change: it does not move any seed generated with
@@ -180,6 +248,92 @@ Plus two app settings that are *not* generator parameters:
 
 Failure of any floor after 60 attempts returns a friendly `DungeonError`
 suggesting fewer/smaller rooms, narrower passages, or a larger map.
+
+## Themes (`config/themes.ts`)
+
+Three kinds of theme id, all built from the same `BASE_THEME_DEFS`:
+
+- **base** — `a`–`i`, `bonus1`–`bonus5`. One tileset, `tiles` floor variants.
+- **overlay pairing** — `overlayOf(base, file)` spreads the base and sets
+  `overlay: {tilemap, tiles}`, a second tileset drawn over the floor at full
+  coverage (`c_tiles`, `d_carpet`, `f_frozen`, …). Draw order is the `level`
+  attribute in the tileset's own XML, not the dataset order.
+- **mixed** — `mixedOf(base)` sets `mixed: [null, ...that base's overlays]`,
+  slot 0 being the plain base. Mutually exclusive with `overlay`. On a dungeon
+  floor each room and each corridor rolls one slot, so a level reads as several
+  related surfaces; the arena, having no regions, lays the palette out in a
+  geometric pattern (`BOSS_FLOOR_PATTERNS`, `boss/arenaPattern.ts`).
+
+`THEME_DEFS` is derived by flat-mapping each base to `[base, ...overlays,
+mixed]`, which is also the dropdown order the renderer's `<optgroup>`s follow.
+Emission lives in `map/tilemapOverlay.ts` (`overlayDataset`, `mixedDatasets`),
+shared by dungeon floors and the arena so the two cannot drift. Two rules:
+the extra layers' `data-a` is the 0/255 floor mask (never a flat 255, or the
+art paints over the void), and a theme with no overlay/palette must return
+**before drawing anything** — hoisting a draw above that check moves every
+existing seed's floor. The stock campaign is `a_mixed`…`g_mixed`, so mixed is
+the common path.
+
+## Monster variants (`objects/monsterTypes.ts`)
+
+A pool entry is a **variant key**, not a bare monster id: `variantKey(type,
+tier)` produces `bat1#0` (the bats spawner), `archer1#2` (the elite archer).
+The bare id stays canonical for the type's pinned tier, which is what keeps
+every pre-variant `parameters.txt`, preset and saved config parsing unchanged —
+`slime` and `slime#<pinned>` are the same monster, and validation rejects
+writing both. `monsterVariants()` / `monsterVariantsInGroup()` drive the pool
+pickers; `MONSTER_VARIANT_GROUPS` adds a `Spawners` group on top of
+`MONSTER_GROUPS`, membership by `MonsterVariant.role` rather than actor folder.
+
+Where the key resolves differs by level kind, and this is load-bearing: the
+dungeon rolls a tier upward with `upgradeChance` (`Monster.createRolled`,
+consuming `ctx.rand`), while the arena's `resolveActorPath` maps a key to one
+actor path with **no draw** — the wave rig is structure, not a roll.
+
+## Boss finale (`bossprep/` + `boss/`)
+
+Two levels appended after the last floor when `boss.enabled`. The final floor's
+orb room becomes a portal, so there is exactly one way to win.
+
+- **Prep room** (`bossprep/`) — the lobby's shop rig again, via
+  `levelTemplate/surgery.ts`: hand-authored XML edited by id, no RNG.
+- **Arena** (`boss/arena.ts`) — generated, but not a `Level`: no rooms, no
+  passages. It reuses `Tile`, `Doodad`, `Item`, `Monster`, `ObjectSet` and the
+  XML layer and emits the same section order. **Fixed `ctx.bossRand` draw
+  order**: width, height, boss pick, alcove wall, cover pillars, food clusters,
+  then scatter spawn points last — last precisely because an all-`anchors`
+  campaign makes no draws there, which is what kept older arenas
+  byte-identical. Reordering these is a breaking change for every arena seed.
+
+**Waves.** Exactly `BOSS_WAVE_COUNT` (5) tiers: the health thresholds 100 / 75
+/ 50 / 25, then `BOSS_DEATH_WAVE`, keyed to the engine's `Boss Died` event
+instead. Tiers switch on and never off — no timer is ever disabled, a tier
+stops only when its `SpawnObject` budgets run out — so by 25% all four health
+tiers spawn at once. The death tier spawns into the walk from the dead boss to
+the orb; that spawns do fire after death is `[VERIFIED]` in game (2026-08-19).
+An empty tier emits no nodes and requests no scatter points, which is how a
+campaign gets the quiet walk back.
+
+**Spawn modes** (`waveSpawnMode`, `isScatterMode`). Default `anchors`: the
+monster trickles in on a timer from the nine anchors, split round-robin.
+The four scatter modes (`random`, `ring`, `gaussian`, `symmetric`) skip the
+toggle/timer rig entirely — one `SpawnObject{trigger-times: 1}` per monster,
+hung straight off the tier trigger, so the group appears at once and both
+interval fields are ignored. Two constraints that must not be relaxed:
+
+- A monster whose **wreck still blocks movement** (the nova / frost / tracking
+  towers — `objects/actorCollision.ts`) may not be scattered; validation
+  rejects it, because a scattered wreck can wall the arena off. That is the
+  only reason the stock presets keep an anchored tail on some tiers.
+- `monsterMax` `-1` means **endless** and is never scaled by
+  `arena.monsterMultiplier` and never scattered (a one-shot spawn has no
+  meaning for an endless budget).
+
+**Cover** (`boss/cover.ts`). `density` is the fraction of *free floor* filled,
+capped at `BOSS_COVER_DENSITY_MAX` (0.25) — the original 0.5 playtested as
+physically impassable. Whatever the pattern, `pruneForConnectivity` guarantees
+the boss, all nine anchors and the alcove stay reachable from the entrance;
+pillars that would wall something off are removed.
 
 ## Player tweaks (`src/generator/tweak/`)
 
@@ -306,11 +460,16 @@ same `GeneratedFile[]` the levels produce.
   import is types-only. Comments explain *why* (especially parity decisions),
   not *what*.
 - **Every generator change needs a test.** `tests/` covers RNG parity vectors,
-  `parameters.txt` round-tripping, the validation matrix, fixed-seed generation
-  (determinism, bounds, entrance/exit/orb presence, XML sections), and the
-  tweak layer (baseline integrity, whole-file emission, no-change-no-file,
-  loadout ceilings, and the bulk knobs' stat-group coverage and derive
-  round-trip).
+  `parameters.txt` round-tripping (including that `parameters.default.txt`
+  parses back to `defaultParameters()`), the validation matrix, fixed-seed
+  generation (determinism, bounds, entrance/exit/orb presence, XML sections),
+  reachability, theme snapshots, the arena (geometry, anchors, cover
+  connectivity, spawn points, wave rig, floor patterns), and the tweak layer
+  (baseline integrity, whole-file emission, no-change-no-file, loadout
+  ceilings, and the bulk knobs' stat-group coverage and derive round-trip).
+- **An optional level's on/off switch must not move the dungeon.** The suites
+  assert it directly: flipping `lobby`, `boss` or any tweak leaves every
+  `levels/level*.xml` byte-identical for a seed.
 - **Changing the RNG draw order is a breaking change.** It invalidates every
   seed users have saved. If a fix requires it, say so explicitly in the PR
   body — do not slip it in.
@@ -321,9 +480,12 @@ same `GeneratedFile[]` the levels produce.
 ## Review bar for returned work
 
 Reject or fix a diff that: imports Node APIs into `src/generator`; adds
-unseeded randomness; changes RNG draw order without flagging it; adds a
-parameter without a validation rule; adds an unbounded loop; sends file
-contents through IPC; or lands generator behaviour without a test.
+unseeded randomness; changes RNG draw order without flagging it; draws arena
+randomness from `ctx.rand`/`ctx.cosmeticRand` instead of `ctx.bossRand`; draws
+before the early return in a no-op theme path; adds a parameter without a
+validation rule; adds an unbounded loop; sends file contents through IPC;
+weakens `reachability.ts` instead of letting a bad floor re-roll; or lands
+generator behaviour without a test.
 
 Tweak-specific: reject a diff that hand-writes a `TweakFieldDef` instead of
 deriving it from `baseline.ts`; mutates `TWEAK_BASELINE` in place (`applyTweaks`

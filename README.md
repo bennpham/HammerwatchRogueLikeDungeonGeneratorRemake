@@ -65,7 +65,14 @@ For each floor, seeded by the campaign seed (same seed → same dungeon):
 5. **Walls** — rooms and corridors are rasterized into a wall/floor grid, and
    a 3×5 pattern matcher picks the right themed wall piece (corner, T-piece,
    cap, cross…) for every wall tile.
-6. **XML** — the tile grid (in 20×20 blocks), doodads, actors, items and
+6. **Reachability** — the finished grid is flood-filled and the floor is
+   thrown away unless the player can actually walk from the entrance to the
+   exit (or orb) and to every key. Floor in the tilemap is not enough: themed
+   wall sprites are three tiles tall, so the two rows beneath any wall are
+   dead space, and a corridor that meets a room only inside that band is
+   sealed in game while looking open on the map. About 6% of first rolls are
+   discarded here and re-rolled.
+7. **XML** — the tile grid (in 20×20 blocks), doodads, actors, items and
    script nodes (level start/exit triggers, shop area, end-game trigger) are
    serialized into Hammerwatch's level XML dialect.
 
@@ -77,17 +84,21 @@ up front and keeps every retry loop bounded.
 ### The optional levels
 
 Three additions sit outside the floor loop above. None of them draw from the
-dungeon's RNG stream, so turning any of them on or off leaves a seed's floors
-**byte-identical** — they can only add or remove levels, never reshuffle one.
+dungeon's RNG stream — the arena draws from a third seeded stream of its own,
+the lobby, prep room and tweaks draw nothing — so turning any of them on or off
+leaves a seed's floors **byte-identical**; they can only add or remove levels,
+never reshuffle one. The lobby and the boss finale are **on by default**.
 
 - **Lobby** — a hand-authored hub the campaign starts in, with vendor stalls
   for the shop columns you pick, a configurable pile of starting gold, and a
   portal to floor 0.
 - **Boss finale** — two levels appended after the last floor. A **prep room**
   (shops, a diamond payout, a portal) leads into a **boss arena**: a walled
-  room with one boss, spawners that switch on as its health crosses each
-  threshold, scattered cover pillars, and a sealed alcove holding the victory
-  orb. Killing the boss destroys the alcove seals; touching the orb ends the
+  room with one boss, five monster waves — four keyed to the boss's health
+  (100 / 75 / 50 / 25%, switching on and never off) and a fifth that spawns
+  the moment the boss *dies* — scattered cover pillars, and a sealed alcove
+  holding the victory orb. Killing the boss destroys the alcove seals; the
+  death wave fights you on the walk to the orb, and touching the orb ends the
   game. With the boss on, the final floor's orb room is replaced by the
   portal, so there is exactly one way to win.
 - **Player tweaks** — `tweak/*.xml` overrides for class stats, upgrade costs
@@ -102,8 +113,10 @@ boss disabled, finishing on the dungeon's own orb room. Several facts about the
 game's level format were only discoverable that way and are recorded in
 `.claude/skills/hammerwatch-modding/references/`, notably that tilemap block
 origins must be multiples of 20 (the engine snaps them), that themed wall
-sprites are three tiles tall and overhang downward, and that destroying a wall
-doodad does not create ground beneath it.
+sprites are three tiles tall and overhang downward (which is why floors are
+now reachability-checked), that monsters spawned off the engine's `Boss Died`
+event really do appear after the kill, and that destroying a wall doodad does
+not create ground beneath it.
 
 ## Using the app
 
@@ -111,7 +124,8 @@ doodad does not create ground beneath it.
    `editor/` and `levels/`. It's saved for next time.
 2. **Tweak parameters** in the left panel, across four tabs — **Dungeon**
    (floors, rooms, monsters), **Player** (class stats, upgrade costs, shop
-   contents), **Lobby** (the starting hub) and **Boss** (the finale). Invalid
+   contents), **Lobby** (the starting hub) and **Boss** (the arena, its waves
+   and its spawn modes). Invalid
    combinations show inline errors and disable the Generate button, with an
    explanation of what to fix; purely cosmetic caveats show as warnings and
    still generate.
@@ -159,7 +173,7 @@ User-data folder: `%APPDATA%/hammerwatch-roguelike-dungeon-generator` (Windows),
 | `minPassageWidth`, `maxPassageWidth` | 3–6 | Corridor width range; max must be ≤ `minRoomSize` |
 | `edgePadding` | 2 | Empty border around the map |
 | `roomPadding` | 2 | Minimum gap between rooms |
-| `themes` | `a,b,c,d,e,f,g` | Tileset per level: `a`–`d` classic, `e`–`g` castle, `h`–`i` desert (`h` outdoors, `i` indoors), plus `bonus1`–`bonus5` |
+| `themes` | `a_mixed,b_mixed,c_mixed,d_mixed,e_mixed,f_mixed,g_mixed` | Tileset per level. Bases: `a`–`d` classic, `e`–`g` castle, `h`–`i` desert (`h` outdoors, `i` indoors), plus `bonus1`–`bonus5`. Most bases also offer **overlay** variants that layer a second tileset over the floor (`c_tiles`, `d_carpet`, `f_frozen`, …) and a **`_mixed`** variant that varies the surface room by room — that is the default |
 | `shopChance` | 1.0 | Chance per floor of a shop |
 | `vaultChance` | 0.3 | Chance per floor of a locked treasure vault |
 | `lockChance` | 0.8 | Chance per floor of an extra locked room (with a powerup) |
@@ -171,29 +185,37 @@ User-data folder: `%APPDATA%/hammerwatch-roguelike-dungeon-generator` (Windows),
 | `monsters0…N` | see defaults | Monster pool per floor (repeat an id to weight it) |
 | `max<Monster>` | see defaults | Horde-size cap per monster type; 0 disables the type |
 
-The optional levels add their own keys. All of them are omitted from a stock
-`parameters.txt` except the two the app now ships on by default (`lobby`,
-`player.shared.remove.life`):
+The optional levels add their own keys. The lobby, the boss finale and the one
+stock player tweak are all **on by default**:
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
 | `lobby` | 1 | Start the campaign in a hub level instead of on floor 0 |
-| `lobbyGold` | 10000 | Starting gold, a multiple of 500 (one red diamond each). Past the 12 floor spots the diamonds stack |
+| `lobbyGold` | 10000 | Starting gold, a multiple of 500 (one red diamond each). Past the 12 floor spots the diamonds simply stack on the same spots — there is no upper cap beyond a safety limit that stops a typo emitting millions of items |
 | `lobbyShops` | all 21 columns | Space-separated shop columns the lobby stalls sell |
-| `boss` | 0 | Append a prep room and a boss arena after the final floor |
-| `bossGold` | 0 | Gold paid out in the prep room, same 500-multiple rule |
+| `boss` | 1 | Append a prep room and a boss arena after the final floor |
+| `bossGold` | 20000 | Gold paid out in the prep room, same 500-multiple rule |
 | `bossShops` | all 21 columns | Shop columns the prep-room stalls sell |
-| `bossTheme` | `g` | Tileset for the arena — any dungeon theme (`h` warns: its cliff art needs a thicker wall band and overlapping corners to stay sealed) |
+| `bossTheme` | `g_mixed` | Tileset for the arena — any dungeon theme, independent of the floors' (`h` warns: its cliff art needs a thicker wall band and overlapping corners to stay sealed) |
+| `bossFloorPattern` | `random` | How a `_mixed` arena theme arranges its floor palette: `random`, `checker`, `bandsH`, `bandsV`, `bandsDiag`, `rings`, `diamond`, `cross`, `triangle`. Ignored by every other theme |
 | `bossWidth`, `bossHeight` | 24–32, 32–44 | Arena size range in tiles |
-| `bossPool` | all seven | Comma-separated boss ids; the seed picks one per campaign |
+| `bossPool` | the 4 castle bosses | Comma-separated boss ids out of the seven; the seed picks one per campaign |
 | `bossCover` | `random,0.08,4,3` | `pattern,density,ringSpacing,clusters`. Pattern is `random`/`ring`/`gaussian`/`symmetric`; **density is capped at 0.25** — it is the fraction of free floor filled with pillars, and denser than that leaves nowhere to fight |
-| `bossWave1…4` | see defaults | One wave per health tier (100/75/50/25%), as `monsters\|defaultIntervalMs\|monsterMax\|intervalMs`. Tiers switch on and never off, so by 25% all four are spawning at once |
+| `bossWave1…5` | see defaults | Waves 1–4 are the health tiers (100/75/50/25%); **wave 5 fires when the boss dies**, spawning a last stand into the walk to the orb. Each is `monsters\|defaultIntervalMs\|monsterMax\|intervalMs\|spawnMode`, the last three being comma-separated `id:value` pairs. Tiers switch on and never off, so by 25% all four health tiers are spawning at once. A monster's pool entry may be a variant key (`lich#2`, `slime#0`); an empty wave is legal and emits nothing |
+| `bossSpawnMode` per monster | `anchors` | Inside a `bossWaveN` line. `anchors` trickles the horde in on a timer from the nine spawn anchors; `random` / `ring` / `gaussian` / `symmetric` scatter it across the arena and spawn it **all at once**, ignoring the intervals. A monster whose wreck still blocks movement (the nova/frost/tracking towers) may not be scattered — it could wall the arena off |
+| `bossSpawn` | `2,4,3` | `spacing,ringSpacing,clusters` for the scatter modes; separate from `bossCover` so pillars and monsters can be spaced differently |
+| `bossMonsterMultiplier` | 1.0 | Scales every wave's max counts (an endless `-1` stays endless). Separate from the dungeon's `monsterMultiplier` |
+| `bossFoodMultiplier` | 1.2 | Scales the arena's health/mana pickups |
 | `player.<class>.<group>.<field>` | — | Player balance overrides emitted to `tweak/*.xml`; only values that differ from stock are written |
 | `player.shared.remove.life` | 1 | Ships on by default — removes the repeatable extra-life shop upgrade |
 
 Whatever the arena's cover settings, a connectivity pass guarantees the boss,
 all nine spawn anchors and the alcove stay reachable from the entrance; pillars
 that would wall something off are pruned.
+
+A pool entry may name a **variant** rather than a plain type: `lich#2` is the
+elite lich, `slime#0` the slime hive, `bat1#0` the bats spawner. The bare id
+always means that type's standard variant, so older configs keep working.
 
 Monster ids include the classic set (`bat1`, `tick1`, `maggot`, `slime`,
 `skeleton1/2/3`, `archer1/2/3`, `eye`, `wisp1/2`, `lich`), the desert set
@@ -216,7 +238,8 @@ list with actor files is in `src/generator/objects/monsterTypes.ts`.
 │   │   ├── xml/            Hammerwatch XML dialect building blocks
 │   │   │                   (dictionary/array/int/float/bool/string/int-arr)
 │   │   ├── map/            Level assembly: rooms, passages, tile grid,
-│   │   │                   wall pattern matching
+│   │   │                   wall pattern matching, reachability, floor
+│   │   │                   tileset overlays
 │   │   ├── objects/        Things placed on levels: monsters (roster data +
 │   │   │                   class), items, doodads, script nodes, prefab
 │   │   │                   object sets (stairs, shop, orb)
@@ -259,7 +282,7 @@ Design notes:
 ```bash
 npm install          # once
 npm run dev          # launch the app with hot reload
-npm test             # run the generator test suite (505 tests)
+npm test             # run the generator test suite (787 tests)
 npm run typecheck    # strict TypeScript across main/preload/renderer/generator
 npm run build        # typecheck + production build into out/
 npm run dist         # build a distributable for the current platform

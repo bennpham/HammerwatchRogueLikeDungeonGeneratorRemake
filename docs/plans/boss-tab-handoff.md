@@ -1,5 +1,10 @@
 # Boss tab — implementation handoff
 
+> **Status: COMPLETE — historical.** Every phase below shipped (PRs #17,
+> #20–#33). Kept as the record of the execution order and its acceptance bars;
+> for what the arena does *now*, read `.claude/skills/hammerwatch-project`
+> and `src/generator/boss/`.
+
 Task spec for an implementing agent. The design lives in
 [`boss-tab.md`](boss-tab.md) — **read it first, in full.** This file is the
 execution order, the acceptance bar for each phase, and the things that will
