@@ -58,6 +58,7 @@ export {
   defaultTier,
   isKnownMonsterKey,
   monsterCategories,
+  monsterNote,
   monsterTypeById,
   monsterTypesInGroup,
   monsterVariants,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { GenerationContext } from '../src/generator/core/context'
-import { defaultParameters } from '../src/generator/config/parameters'
+import { defaultParameters, waveSpawnMode } from '../src/generator/config/parameters'
 import type { BossWave } from '../src/generator/config/parameters'
 import { anchors } from '../src/generator/boss/anchors'
 import { buildWaveRig, scatterRequests } from '../src/generator/boss/waves'
@@ -535,7 +535,12 @@ describe('scatterRequests', () => {
     // validation forbids scattering
     expect(requests.every((r) => r.mode === 'random')).toBe(true)
     expect(requests.map((r) => r.key)).not.toContain('tower_nova1')
-    expect(requests).toHaveLength(waves.reduce((n, w) => n + w.monsters.length, 0) - 1)
+    expect(requests.map((r) => r.key)).not.toContain('tower_static_frost')
+    const anchored = waves.reduce(
+      (n, w) => n + w.monsters.filter((key) => waveSpawnMode(w, key) === 'anchors').length,
+      0
+    )
+    expect(requests).toHaveLength(waves.reduce((n, w) => n + w.monsters.length, 0) - anchored)
   })
 
   it('is empty once every monster is back on the anchors mode', () => {
@@ -645,9 +650,18 @@ describe('boss wave rig — the boss-death tier', () => {
     expect(withDeath[4]).toEqual({ tier: 4, key: 'bat1', mode: 'random', count: 6 })
   })
 
-  it('the stock death tier is empty, so it requests no spawn points', () => {
+  it('the stock death tier is populated, and its scatters come after every other tier', () => {
     const waves = defaultParameters().boss.arena.waves
-    expect(waves[waves.length - 1].monsters).toEqual([])
-    expect(scatterRequests(waves, 1.0).some((r) => r.tier === waves.length - 1)).toBe(false)
+    const last = waves.length - 1
+    expect(waves[last].monsters.length).toBeGreaterThan(0)
+
+    const requests = scatterRequests(waves, 1.0)
+    const deathAt = requests.findIndex((r) => r.tier === last)
+    expect(deathAt).toBeGreaterThanOrEqual(0)
+    // every death-tier request sits at the end of the list, so populating the
+    // tier cannot shift the draws the earlier tiers make
+    expect(requests.slice(deathAt).every((r) => r.tier === last)).toBe(true)
+    // the anchored tower stays out of the scatter list
+    expect(requests.some((r) => r.key === 'tower_static_frost')).toBe(false)
   })
 })

@@ -12,7 +12,14 @@ import {
   validateParameters,
   THEMES
 } from '../src/generator'
-import { isKnownMonsterId, monsterTypeById } from '../src/generator/objects/monsterTypes'
+import {
+  isKnownMonsterId,
+  isKnownMonsterKey,
+  monsterTypeById,
+  resolveActorPath
+} from '../src/generator/objects/monsterTypes'
+import { corpseCollision } from '../src/generator/objects/actorCollision'
+import { isScatterMode, waveSpawnMode } from '../src/generator/config/parameters'
 
 describe('campaign presets', () => {
   it('has unique ids and the castle preset first', () => {
@@ -22,14 +29,31 @@ describe('campaign presets', () => {
     expect(ids[0]).toBe(DEFAULT_PRESET_ID)
   })
 
-  it('gives every preset the full set of wave tiers, with the boss-death one empty', () => {
+  it('gives every preset the full set of wave tiers, including a populated boss-death one', () => {
     for (const preset of CAMPAIGN_PRESETS) {
       const waves = preset.build().boss.arena.waves
       expect(waves, preset.id).toHaveLength(BOSS_WAVE_COUNT)
-      // Empty by design: a populated death tier would move every saved seed's
-      // arena, because its scatter points are extra bossRand draws.
-      expect(waves[BOSS_DEATH_WAVE].monsters, preset.id).toEqual([])
-      expect(waves[BOSS_DEATH_WAVE].spawnMode, preset.id).toBeUndefined()
+      // The arena keeps fighting after the kill, so this tier ships full. Its
+      // scatter points are extra bossRand draws, which is why every saved
+      // seed's arena moved when it was filled in.
+      expect(waves[BOSS_DEATH_WAVE].monsters.length, preset.id).toBeGreaterThan(0)
+    }
+  })
+
+  it('only puts scatter-safe monsters on a scatter mode, in every tier of every preset', () => {
+    for (const preset of CAMPAIGN_PRESETS) {
+      for (const [i, wave] of preset.build().boss.arena.waves.entries()) {
+        for (const key of wave.monsters) {
+          expect(isKnownMonsterKey(key), `${preset.id} wave ${i}: ${key}`).toBe(true)
+          expect(wave.monsterMax[key], `${preset.id} wave ${i}: ${key}`).toBeGreaterThan(0)
+          if (corpseCollision(resolveActorPath(key)) === 'blocking') {
+            // a scattered wreck can wall the arena off — validation rejects it
+            expect(isScatterMode(waveSpawnMode(wave, key)), `${preset.id} wave ${i}: ${key}`).toBe(
+              false
+            )
+          }
+        }
+      }
     }
   })
 

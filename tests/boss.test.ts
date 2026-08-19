@@ -1306,12 +1306,24 @@ describe('boss arena — the boss-death wave tier', () => {
     return xml.split('<string name="parameters">Boss Died</string>').length - 1
   }
 
-  it('a stock arena carries exactly one Boss Died trigger — the win chain\'s', () => {
-    // The death tier ships empty, so it contributes no trigger of its own. This
-    // is the guard on that default: a second one here means the empty tier
-    // started emitting nodes, and every saved seed's arena moved with it.
+  it('a stock arena carries two Boss Died triggers — the win chain and the death tier', () => {
+    // The death tier ships populated, so it has a trigger of its own alongside
+    // the win chain's.
     for (const seed of [1, 4242, 999999]) {
       const { xml } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
+      expect(bossDiedTriggers(xml)).toBe(2)
+    }
+  })
+
+  it('clearing the death tier drops back to the win chain\'s trigger alone', () => {
+    // An empty tier emits nothing at all, which is how a campaign gets the
+    // quiet walk to the orb back.
+    const arena = arenaOptions()
+    arena.waves = arena.waves.map((w, i) =>
+      i === arena.waves.length - 1 ? { monsters: [], monsterMax: {}, defaultIntervalMs: 1000 } : w
+    )
+    for (const seed of [1, 4242, 999999]) {
+      const { xml } = buildBossArena(freshCtx(seed), arena, 0)
       expect(bossDiedTriggers(xml)).toBe(1)
     }
   })

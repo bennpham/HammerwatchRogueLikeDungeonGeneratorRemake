@@ -17,6 +17,7 @@ import {
   getTheme,
   isScatterMode,
   lobbyCategoryCounts,
+  monsterNote,
   monsterVariantsInGroup,
   resolveActorPath,
   waveSpawnMode
@@ -516,6 +517,12 @@ interface WaveEditorProps {
 }
 
 /** One health-tier's monster pool, max-count table and spawn interval — the MonsterPoolsEditor/MonsterMaxTable idiom, but scoped to a single wave instead of the whole dungeon. */
+/** ` — <note>` for a variant that has a behaviour note, empty string otherwise. */
+function noteSuffix(key: string): string {
+  const note = monsterNote(key)
+  return note ? ` — ${note}` : ''
+}
+
 function WaveEditor({ wave, index, issues, onWaveChange }: WaveEditorProps) {
   const filter = useMonsterFilter()
   // Session-only, like the act filter — nothing here reaches DungeonParameters,
@@ -638,10 +645,10 @@ function WaveEditor({ wave, index, issues, onWaveChange }: WaveEditorProps) {
                         off
                           ? 'In this wave, but hidden by the current filter'
                           : v.tier === defaultTier(v.type)
-                            ? `${v.actorPath} — the ordinary ${v.type.id}`
+                            ? `${v.actorPath} — the ordinary ${v.type.id}${noteSuffix(v.key)}`
                             : `${v.actorPath} — tier ${v.tier} of ${v.type.id}, ${
                                 v.role === 'spawner' ? 'a spawner building' : 'a creature'
-                              }`
+                              }${noteSuffix(v.key)}`
                       }
                     >
                       <input

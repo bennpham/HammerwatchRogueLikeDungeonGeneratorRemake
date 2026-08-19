@@ -35,10 +35,10 @@ function withBoss(theme: string, bossPool: string[], waves: BossWave[]): Dungeon
 
 /**
  * Desert's wave tiers. Guards alone at 100%, mummies from 75% on, and the
- * fire pillars/floaters only once the boss is at a quarter health. Every entry
- * is scattered — nothing here leaves a blocking wreck, so nothing has to stay
- * on the anchors. The trailing boss-death tier is empty, like every preset's —
- * see BOSS_DEATH_WAVE in parameters.ts.
+ * fire pillars/floaters held back until the boss is dead. Every entry is
+ * scattered — nothing here leaves a blocking wreck, so nothing has to stay on
+ * the anchors. The boss-death tier is the send-off: kamikazes, fire and all
+ * three desert liches at once — see BOSS_DEATH_WAVE in parameters.ts.
  */
 function desertWaves(): BossWave[] {
   return [
@@ -83,27 +83,36 @@ function desertWaves(): BossWave[] {
         ['special_beheaded_kamikaze', 4],
         ['mummy_desert#3', 80],
         ['mummy_ranged#2', 60],
-        ['pillar_fire', 20],
-        ['floater_fire', 40],
-        ['spider', 40],
+        ['spider', 60],
         ['mb_mummy', 8],
-        ['lich_desert', 8],
-        ['lich_desert#0', 9],
-        ['lich_desert#2', 6]
+        ['lich_desert#0', 4],
+        ['lich_desert#2', 24]
       ],
       [],
       1000
     ),
-    // boss death — empty by default, see BOSS_DEATH_WAVE
-    scatterWave([], [], 1000)
+    // boss death — the fire pillars and floaters wait for the kill, see BOSS_DEATH_WAVE
+    scatterWave(
+      [
+        ['special_beheaded_kamikaze', 40],
+        ['pillar_fire', 30],
+        ['floater_fire', 60],
+        ['spider', 30],
+        ['lich_desert', 6],
+        ['lich_desert#0', 6],
+        ['lich_desert#2', 6]
+      ],
+      [],
+      1000
+    )
   ]
 }
 
 /**
  * Bonus's wave tiers: the bonus-tileset skeletons and archers first, the
  * castle roster escalating behind them. The anchored tails are the towers whose
- * wrecks keep their collision and so cannot be scattered. The trailing
- * boss-death tier is empty, like every preset's — see BOSS_DEATH_WAVE.
+ * wrecks keep their collision and so cannot be scattered. The boss-death tier
+ * replays the 25% line-up with wisps on top — see BOSS_DEATH_WAVE.
  */
 function bonusWaves(): BossWave[] {
   return [
@@ -150,13 +159,13 @@ function bonusWaves(): BossWave[] {
     scatterWave(
       [
         ['special_beheaded_kamikaze', 4],
-        ['lich', 6],
-        ['lich#0', 12],
-        ['lich#2', 8],
-        ['mb_eye', 6],
-        ['mb_lich', 2],
-        ['mb_doomspawn', 4],
-        ['tower_banner1', 16]
+        ['lich', 4],
+        ['lich#0', 8],
+        ['lich#2', 12],
+        ['mb_eye', 4],
+        ['mb_lich', 1],
+        ['mb_doomspawn', 2],
+        ['tower_banner1', 8]
       ],
       [
         ['tower_static_frost', 1],
@@ -164,8 +173,25 @@ function bonusWaves(): BossWave[] {
       ],
       1000
     ),
-    // boss death — empty by default, see BOSS_DEATH_WAVE
-    scatterWave([], [], 1000)
+    // boss death — the same line-up plus wisps, see BOSS_DEATH_WAVE
+    scatterWave(
+      [
+        ['lich', 4],
+        ['lich#0', 12],
+        ['lich#2', 8],
+        ['mb_eye', 4],
+        ['mb_lich', 2],
+        ['mb_doomspawn', 4],
+        ['tower_banner1', 8],
+        ['wisp1', 30],
+        ['wisp1#2', 10]
+      ],
+      [
+        ['tower_static_frost', 1],
+        ['tower_tracking1', 4]
+      ],
+      1000
+    )
   ]
 }
 

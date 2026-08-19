@@ -1,5 +1,6 @@
 import {
   BOSS_COVER_PATTERNS,
+  BOSS_DEATH_WAVE,
   BOSS_FLOOR_PATTERNS,
   BOSS_SPAWN_MODES,
   BOSS_WAVE_COUNT,
@@ -77,6 +78,9 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   const result: ParsedConfig = { params, unknownKeys: [] }
   /** highest N seen in a `monstersN=` key, or -1 if the file declared no pools */
   let highestPoolIndex = -1
+  /** whether the file carried any `bossWaveN=` line, and whether one was the death tier */
+  let sawAnyWave = false
+  let sawDeathWave = false
 
   const intKeys: Record<string, (v: number) => void> = {
     levels: (v) => (params.levels = v),
@@ -266,6 +270,8 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       // A file written before the boss-death tier existed carries bossWave1..4
       // only; the fifth tier is simply never visited and keeps the empty pool
       // the defaults gave it, which is exactly what that file described.
+      sawAnyWave = true
+      if (idx === BOSS_DEATH_WAVE) sawDeathWave = true
       const parts = value.split('|')
       const monsters = (parts[0] ?? '').split(',').map((s) => s.trim()).filter((s) => s !== '')
       params.boss.arena.waves[idx].monsters = monsters
@@ -382,6 +388,18 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   // while `levels` stays short, then silently appended if the user raises it.
   if (highestPoolIndex >= 0) {
     params.levelMonsters.length = highestPoolIndex + 1
+  }
+
+  // A file written before the boss-death tier existed carries bossWave1..4 and
+  // nothing else. It described a fight that stops when the boss dies, so the
+  // stock death tier the defaults supplied is dropped rather than inherited —
+  // otherwise importing an old file would silently add a wave it never had.
+  if (sawAnyWave && !sawDeathWave) {
+    const death = params.boss.arena.waves[BOSS_DEATH_WAVE]
+    death.monsters = []
+    death.monsterMax = {}
+    delete death.intervalMs
+    delete death.spawnMode
   }
 
   return result
