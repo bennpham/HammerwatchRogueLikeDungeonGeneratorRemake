@@ -577,7 +577,7 @@ function InvulnerabilityEditor({ invuln, issues, onChange }: InvulnerabilityEdit
             }}
             title="Give 75%, 50% and 25% their own window lengths"
           />
-          <div className="field-grid" style={{ marginBottom: '0.75rem' }}>
+          <div className="field-grid invuln-fields">
             {perThreshold ? (
               invuln.seconds.map((seconds, i) => (
                 <NumberField
@@ -609,6 +609,7 @@ function InvulnerabilityEditor({ invuln, issues, onChange }: InvulnerabilityEdit
             checked={invuln.countdown}
             onChange={(countdown) => onChange({ ...invuln, countdown })}
             title="Announce a ticking M:SS countdown for the length of each window (one script node per second)"
+            className="field-grid-footer"
           />
         </>
       )}
