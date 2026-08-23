@@ -776,3 +776,57 @@ describe('boss arena theme warning', () => {
     expect(fieldsOf(result.warnings)).not.toContain('boss.arena.theme')
   })
 })
+
+describe('boss invulnerability validation', () => {
+  const withInvuln = (patch: Partial<ReturnType<typeof defaultParameters>['boss']['arena']['invulnerability']>) => {
+    const p = defaultParameters()
+    const arena = p.boss.arena
+    p.boss = { ...p.boss, arena: { ...arena, invulnerability: { ...arena.invulnerability, ...patch } } }
+    return validateParameters(p)
+  }
+
+  it('accepts the stock 30-second windows without comment', () => {
+    const result = withInvuln({})
+    expect(result.errors).toEqual([])
+    expect(fieldsOf(result.warnings).filter((f) => f.startsWith('boss.arena.invulnerability'))).toEqual([])
+  })
+
+  it('requires one window per health threshold', () => {
+    const result = withInvuln({ seconds: [30, 30] })
+    expect(fieldsOf(result.errors)).toContain('boss.arena.invulnerability.seconds')
+    expect(result.valid).toBe(false)
+  })
+
+  it('rejects a negative, fractional or over-long window, naming the threshold', () => {
+    expect(fieldsOf(withInvuln({ seconds: [-1, 30, 30] }).errors)).toContain('boss.arena.invulnerability.seconds.0')
+    expect(fieldsOf(withInvuln({ seconds: [30, 1.5, 30] }).errors)).toContain('boss.arena.invulnerability.seconds.1')
+    expect(fieldsOf(withInvuln({ seconds: [30, 30, 301] }).errors)).toContain('boss.arena.invulnerability.seconds.2')
+  })
+
+  it('accepts 0 as "no window at this threshold"', () => {
+    const result = withInvuln({ seconds: [0, 30, 0] })
+    expect(result.errors).toEqual([])
+    expect(result.valid).toBe(true)
+  })
+
+  it('warns when the feature is on but every window is 0', () => {
+    const result = withInvuln({ seconds: [0, 0, 0] })
+    expect(result.valid).toBe(true) // still a legal campaign, just a pointless switch
+    expect(fieldsOf(result.warnings)).toContain('boss.arena.invulnerability.seconds')
+  })
+
+  it('warns about the node cost of a very long countdown', () => {
+    const result = withInvuln({ seconds: [120, 120, 120] })
+    expect(result.valid).toBe(true)
+    expect(fieldsOf(result.warnings)).toContain('boss.arena.invulnerability.countdown')
+    // the toggles alone are cheap — the warning is about the per-second ticks
+    expect(fieldsOf(withInvuln({ seconds: [120, 120, 120], countdown: false }).warnings)).not.toContain(
+      'boss.arena.invulnerability.countdown'
+    )
+  })
+
+  it('stays quiet while the feature is off', () => {
+    const result = withInvuln({ enabled: false, seconds: [0, 0, 0] })
+    expect(fieldsOf(result.warnings)).not.toContain('boss.arena.invulnerability.seconds')
+  })
+})

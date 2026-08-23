@@ -18,5 +18,7 @@ export { ARENA_MIN_HEIGHT, ARENA_MIN_WIDTH, coverPillarCount, freeFloorArea, pil
 
 export { buildWaveRig, scatterRequests } from './waves'
 
+export { buildInvulnerabilityRig, formatCountdown } from './invulnerability'
+
 export type { BossArenaResult } from './arena'
 export { buildBossArena } from './arena'

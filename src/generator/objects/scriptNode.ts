@@ -16,6 +16,7 @@ export type NodeTypeName =
   | 'GlobalEventTrigger'
   | 'TimerTrigger'
   | 'DestroyObject'
+  | 'ToggleImmortality'
 
 /**
  * Base scripting node (ported from ScriptNode.java). Most subclasses override
@@ -29,6 +30,13 @@ export class ScriptNode extends XMLObject {
   triggerTimes = -1
   connections: ScriptNode[] = []
 
+  /**
+   * Per-connection delays in milliseconds, or `null` while every connection was
+   * made without one — the overwhelmingly common case, and the one that has to
+   * keep emitting the legacy `delays` line below byte-for-byte.
+   */
+  private delaysMs: number[] | null = null
+
   constructor(
     ctx: GenerationContext,
     public x: number,
@@ -40,8 +48,20 @@ export class ScriptNode extends XMLObject {
     ctx.scriptNodes.push(this)
   }
 
-  connectTo(n: ScriptNode): void {
+  /**
+   * Connects to `n`, optionally after `delayMs` milliseconds.
+   *
+   * Passing a delay — at any point, even on the tenth connection — switches this
+   * node into real-delay mode for good: connections already made are back-filled
+   * with 0 and every later one records its own value (0 when omitted). A node
+   * that is never given a delay stays in legacy mode and its XML is unchanged.
+   */
+  connectTo(n: ScriptNode, delayMs?: number): void {
+    if (delayMs !== undefined && this.delaysMs === null) {
+      this.delaysMs = this.connections.map(() => 0)
+    }
     this.connections.push(n)
+    if (this.delaysMs !== null) this.delaysMs.push(delayMs ?? 0)
   }
 
   protected getParametersDict(): XMLDictionary {
@@ -73,8 +93,20 @@ export class ScriptNode extends XMLObject {
     if (this.connections.length > 0) {
       const ids = this.connections.map((c) => c.id)
       dict.addData(new XMLIntArray('connections', ids))
-      // the original passed the ids array for delays too — kept for output parity
-      dict.addData(new XMLIntArray('delays', ids))
+      if (this.delaysMs === null) {
+        // the original passed the ids array for delays too — kept for output parity
+        dict.addData(new XMLIntArray('delays', ids))
+      } else {
+        // Real delays go out under BOTH names. The generator has always written
+        // `delays` (a verbatim id copy, which the engine evidently ignores or
+        // rounds off to nothing visible), while the game's own editor writes
+        // `connection-delays` with true milliseconds — see the DISCOVERY-LOG's
+        // dialect note. Which key the engine actually honours in a *generated*
+        // level is unverified, so a node that genuinely needs its timing to land
+        // ships the same true values under each. [EMITTED] 2026-08-22
+        dict.addData(new XMLIntArray('delays', this.delaysMs))
+        dict.addData(new XMLIntArray('connection-delays', this.delaysMs))
+      }
     }
 
     return dict.getXML()

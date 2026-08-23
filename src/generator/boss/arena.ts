@@ -72,6 +72,7 @@ import type { AlcoveWall, BossId } from './bosses'
 import { isFree, placeCoverPillars } from './cover'
 import type { CoverArena, Rect } from './cover'
 import { buildWaveRig, scatterRequests } from './waves'
+import { buildInvulnerabilityRig } from './invulnerability'
 import { placeSpawnPoints } from './spawnPoints'
 
 /**
@@ -299,7 +300,9 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   // fires the "Boss ..." global events for any actor under actors/boss_*/. A
   // one-off MonsterTypeDef (never added to MONSTER_TYPES) lets Monster's
   // existing getXML() emit the {id, type, x, y} shape unchanged. ---
-  Monster.create(
+  // The returned instance is kept for its id: the invulnerability rig's
+  // ToggleImmortality nodes target the boss ACTOR, not a script node.
+  const bossActor = Monster.create(
     ctx,
     bossLocal.x,
     bossLocal.y,
@@ -382,6 +385,11 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   )
 
   buildWaveRig(ctx, arena.waves, arena.monsterMultiplier, anchorList, entranceShape, spawnPoints)
+
+  // --- invulnerability windows: independent of the wave tiers, but built after
+  // them so turning the feature on only ever APPENDS nodes — every wave-rig id
+  // stays where it was. Draws no random values. ---
+  buildInvulnerabilityRig(ctx, arena.invulnerability, bossActor.id, entranceShape.x, entranceShape.y)
 
   // --- win chain: Boss Died -> DestroyObject(seals) -> the wall opens ->
   // the existing Orb prefab's own ObjectEventTrigger -> GameEnd fires when the

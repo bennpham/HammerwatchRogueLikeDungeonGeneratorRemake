@@ -2,6 +2,7 @@ import {
   BOSS_COVER_PATTERNS,
   BOSS_DEATH_WAVE,
   BOSS_FLOOR_PATTERNS,
+  BOSS_INVULN_COUNT,
   BOSS_SPAWN_MODES,
   BOSS_WAVE_COUNT,
   DEFAULT_WAVE_MONSTER_MAX,
@@ -170,6 +171,34 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       for (const bad of wanted.filter((c) => !isLobbyCategory(c))) {
         result.unknownKeys.push(`${key} value "${bad}"`)
       }
+      continue
+    }
+    if (keyLower === 'bossinvuln') {
+      // `off` (or a bare 0) turns the feature off and leaves the window lengths
+      // alone, so toggling it in a file and back does not lose the numbers. One
+      // value sets all three thresholds; three set them individually. Same
+      // per-field NaN guard as bossCover: a malformed segment is reported and
+      // only that field keeps its default.
+      if (value.toLowerCase() === 'off') {
+        params.boss.arena.invulnerability.enabled = false
+        continue
+      }
+      params.boss.arena.invulnerability.enabled = true
+      const parts = value.split(',').map((s) => s.trim()).filter((s) => s !== '')
+      const seconds = [...params.boss.arena.invulnerability.seconds]
+      for (let i = 0; i < BOSS_INVULN_COUNT; i++) {
+        // one value means "same for every threshold"
+        const raw = parts.length === 1 ? parts[0] : parts[i]
+        if (raw === undefined) break
+        const n = parseInt(raw, 10)
+        if (Number.isNaN(n)) result.unknownKeys.push(`${key} value "${raw}"`)
+        else seconds[i] = n
+      }
+      params.boss.arena.invulnerability.seconds = seconds
+      continue
+    }
+    if (keyLower === 'bossinvulncountdown') {
+      params.boss.arena.invulnerability.countdown = value === '1'
       continue
     }
     if (keyLower === 'bosstheme') {
@@ -509,6 +538,15 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
   lines.push(
     `bossSpawn=${params.boss.arena.spawn.spacing},${params.boss.arena.spawn.ringSpacing},${params.boss.arena.spawn.clusters}`
   )
+  // `off` keeps the window lengths out of the file entirely when the feature is
+  // disabled — importing it back leaves them at their defaults, which is what a
+  // file that never mentions them does too.
+  lines.push(
+    `bossInvuln=${
+      params.boss.arena.invulnerability.enabled ? params.boss.arena.invulnerability.seconds.join(',') : 'off'
+    }`
+  )
+  lines.push(`bossInvulnCountdown=${params.boss.arena.invulnerability.countdown ? 1 : 0}`)
   // six decimals, matching the global multipliers above
   lines.push(`bossMonsterMultiplier=${params.boss.arena.monsterMultiplier.toFixed(6)}`)
   lines.push(`bossFoodMultiplier=${params.boss.arena.foodMultiplier.toFixed(6)}`)

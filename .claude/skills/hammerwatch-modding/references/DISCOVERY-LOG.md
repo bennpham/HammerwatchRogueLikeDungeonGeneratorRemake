@@ -8,6 +8,56 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-22 — `ToggleImmortality`, the countdown `AnnounceText`, and how a node carries real delays
+**Tag:** [VERIFIED] for the three node schemas below; [EMITTED] for the dual
+delay-key emission, which has not yet been loaded in game.
+**Context:** The boss arena gained invulnerability windows — on each of `Boss
+75%`, `Boss 50%` and `Boss 25%` the boss goes immortal for a configurable number
+of seconds while a countdown ticks down, then damage lands again
+(`src/generator/boss/invulnerability.ts`). It exists because a fully upgraded
+party can burst a boss down fast enough that all three thresholds fire in the
+same second, which both skips the fight and switches every wave tier's spawners
+on at once — the arena floods and the framerate collapses.
+**Evidence:** The rig is copied from a level built by hand in the game's own
+editor and played:
+`<Steam>/steamapps/common/Hammerwatch/editor/pht6_quiky_dreadmann_mansion/levels/test_boss_invinc.xml`.
+
+1. **`ToggleImmortality`** takes the same parameter dictionary as
+   `ToggleElement` — `{state, element: {static: [id]}}` — but `element` holds an
+   **actor** id, not a script-node id. Polarity is inverted the same way
+   `ToggleElement`'s is: **`state: 0` turns immortality ON, `state: 1` clears
+   it.** Also present in the shipped `campaign/levels/level_boss_4.xml` (nodes
+   at lines 2925 and 3562), where the pair targets the dragon's actor id, and in
+   `campaign2/levels/level_boss_1.xml` and `level_hub.xml`.
+2. **A countdown tick is an ordinary `AnnounceText`** with
+   `{text: "0:30", time: 1000, type: 2}`. `type: 2` is the timer-line style;
+   `type: 0` is the centred banner the generator's win text already used.
+   `time` is how long the text stays up, so 1000 makes consecutive ticks meet
+   end to end with no gap and no overlap.
+3. **The whole countdown is one trigger's fan-out, not a chain.** A single
+   `GlobalEventTrigger "Boss 75%"` connects to every node of the window at once
+   and staggers them purely through its delay array — immortality-on at 0, one
+   `AnnounceText` per second, immortality-off at the window length. Nothing
+   re-triggers anything.
+4. **Delay-key dialect, now load-bearing.** The 2026-08-08 dialect note recorded
+   that hand-authored levels write `connection-delays` (real values) while this
+   generator writes `delays` (a verbatim copy of `connections`, Java-original
+   parity). Until now nothing in the port depended on a delay actually being
+   honoured, so which key the *engine* reads in a generated level was never
+   settled — and reading the shipped files cannot settle it, because the
+   generator's nonsense values are all small enough to be invisible either way.
+   `ScriptNode.connectTo(node, delayMs)` therefore switches a node into
+   real-delay mode and emits the **same true millisecond values under both
+   names**. Nodes that never take a delay are untouched and still ship the
+   legacy `delays` line byte-for-byte, so no existing level moved.
+**Impact:** `NodeToggleImmortality` in `objects/nodes.ts`; per-connection delays
+in `objects/scriptNode.ts`; the rig in `boss/invulnerability.ts`, built after the
+wave rig so switching it on only appends nodes. Default is on, 30 seconds on
+every threshold, countdown on, for every preset.
+**Open:** whether the engine honours `delays`, `connection-delays`, or both, in
+a generated level. Play a packed campaign, watch a threshold, and promote this
+entry — if only one key works, the other can be dropped from real-delay nodes.
+
 ### 2026-08-22 — only the numeric floors revived a dead player; lobby, prep room and arena did not
 **Tag:** [VERIFIED] for the bug (reproduced in co-op in game); [EMITTED] for the fix.
 **Context:** A playtest report — one player died on a dungeon floor, the other

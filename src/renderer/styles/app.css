@@ -1124,3 +1124,14 @@ button.primary:hover:not(:disabled) {
   font-size: 12px;
   color: var(--text-dim);
 }
+
+/*
+ * The invulnerability windows: two toggles with the duration field(s) between
+ * them. The grid sits shoulder to shoulder with a .bool-field on each side, so
+ * it needs the same 10px row gap the grid uses internally on both edges —
+ * .field-grid-footer already gives the toggle below it that gap, this gives the
+ * grid the matching one above.
+ */
+.invuln-fields {
+  margin-top: 10px;
+}

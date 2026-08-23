@@ -52,6 +52,38 @@ export class NodeToggleElement extends ScriptNode {
   }
 }
 
+/**
+ * Makes an ACTOR immortal, or takes it back. Same `{state, element:{static:[id]}}`
+ * parameter shape as NodeToggleElement, and the same polarity: `state: 0` turns
+ * immortality ON, `state: 1` turns it off.
+ *
+ * `element` holds an **actor** id, not a script-node id — hence setTarget(id)
+ * rather than a connectToElement(node). [VERIFIED] 2026-08-22 against the
+ * shipped campaign/levels/level_boss_4.xml, where the pair points at the
+ * dragon's actor id.
+ */
+export class NodeToggleImmortality extends ScriptNode {
+  state = 0 // 0 = immortal
+  element = 0
+
+  constructor(ctx: GenerationContext, x: number, y: number) {
+    super(ctx, x, y, 'ToggleImmortality')
+  }
+
+  setTarget(actorId: number): void {
+    this.element = actorId
+  }
+
+  protected getParametersDict(): XMLDictionary {
+    const d = new XMLDictionary('parameters')
+    d.addData(new XMLInt('state', this.state))
+    const eDict = new XMLDictionary('element')
+    eDict.addData(new XMLIntArray('static', [this.element]))
+    d.addData(eDict)
+    return d
+  }
+}
+
 /** Ported from NodeAnnounceText.java */
 export class NodeAnnounceText extends ScriptNode {
   text = 'You win!!!'

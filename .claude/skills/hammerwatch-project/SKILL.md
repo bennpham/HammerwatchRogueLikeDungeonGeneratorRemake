@@ -94,6 +94,7 @@ tests/                    vitest, 28 files: rand, context, configFile,
                           snapshot), presets, monsters, monsterVariants,
                           doodad, nodes, objectSet, actorCollision, xmlHelpers,
                           lobby, bossprep, boss, bossWaves, bossCover,
+                          bossInvulnerability,
                           bossGeometry, bossSpawnPoints, bosses, anchors,
                           arenaPattern, packer, tweak, tweakChains, tweakBulk
 reference/original-java/  the Java original (read-only reference)
@@ -193,6 +194,7 @@ reference/hammerwatch-tweak-stats.md
 | `arena.waves` | 5 populated tiers | exactly `BOSS_WAVE_COUNT`; see *Boss finale* |
 | `arena.cover` | `random`, 0.08, 4, 3 | `density` is the fraction of free floor filled and is capped at `BOSS_COVER_DENSITY_MAX` (0.25) |
 | `arena.spawn` | spacing 2, ring 4, clusters 3 | tuning for the scatter modes only; deliberately separate from `cover` |
+| `arena.invulnerability` | on, `[30, 30, 30]`, countdown on | seconds of boss immortality per health threshold (`BOSS_INVULN_THRESHOLDS`: 75/50/25%); 0 disables one threshold, `bossInvuln` / `bossInvulnCountdown` in `parameters.txt`. Independent of `waves` — see *Boss finale* |
 | `arena.monsterMultiplier` | 1.0 | scales each tier's `monsterMax`; `-1`/endless stays endless. `bossMonsterMultiplier` in `parameters.txt`, separate from the dungeon's |
 | `arena.foodMultiplier` | 1.2 | scales the arena's health/mana pickup clusters; `bossFoodMultiplier` in `parameters.txt` |
 
@@ -320,6 +322,21 @@ tiers spawn at once. The death tier spawns into the walk from the dead boss to
 the orb; that spawns do fire after death is `[VERIFIED]` in game (2026-08-19).
 An empty tier emits no nodes and requests no scatter points, which is how a
 campaign gets the quiet walk back.
+
+**Invulnerability windows** (`boss/invulnerability.ts`). Independent of the
+waves and built after them, so switching them on only ever appends nodes. On
+each of `BOSS_INVULN_THRESHOLDS` (75/50/25%) one `GlobalEventTrigger` fans out
+to a `ToggleImmortality{state: 0}` at delay 0, one `AnnounceText` per second of
+countdown, and a `ToggleImmortality{state: 1}` at the end of the window —
+`state: 0` is immortal, the same inverted polarity `ToggleElement` uses, and
+`element` is the boss's **actor** id. Default 30s on every threshold; 0 disables
+one; the whole feature can be switched off. Draws no RNG.
+
+This is the only rig in the repo that needs **real per-connection delays**:
+`ScriptNode.connectTo(node, delayMs)` opts a node into writing true
+milliseconds under both `delays` and `connection-delays`. Every other node keeps
+the Java original's `delays` line (a verbatim copy of `connections`) untouched —
+see the DISCOVERY-LOG for why both names are written.
 
 **Spawn modes** (`waveSpawnMode`, `isScatterMode`). Default `anchors`: the
 monster trickles in on a timer from the nine anchors, split round-robin.

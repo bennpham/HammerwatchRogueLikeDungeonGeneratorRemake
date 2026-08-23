@@ -134,6 +134,16 @@ function itemEntries(xml: string): { id: number; type: string; x: number; y: num
   ].map((m) => ({ id: Number(m[1]), type: m[2], x: Number(m[3]), y: Number(m[4]) }))
 }
 
+/**
+ * The `state` of every node of `type`, in document order. ToggleElement and
+ * ToggleImmortality share a parameter shape, so an assertion about one has to
+ * say which it means.
+ */
+function toggleStates(xml: string, type: 'ToggleElement' | 'ToggleImmortality'): number[] {
+  const re = new RegExp(`<string name="type">${type}</string>[^]*?<int name="state">([0-9]+)</int>`, 'g')
+  return [...xml.matchAll(re)].map((m) => Number(m[1]))
+}
+
 function destroyObjectTargets(xml: string): number[] {
   const match = /<string name="type">DestroyObject<\/string>[\s\S]*?<int-arr name="static">([^<]*)<\/int-arr>/.exec(xml)
   if (match === null) return []
@@ -485,9 +495,11 @@ describe('boss arena — scattered spawn modes (issue #21)', () => {
     const { xml } = buildBossArena(freshCtx(4242), scattered('gaussian'), 0)
     expect(xml).not.toContain('<string name="type">TimerTrigger</string>')
     // the only ToggleElement left is the arrival-respawn rig's own self-disable
-    // (state 1); the wave rig's enable-the-timer toggle (state 0) is gone
-    expect(xml.match(/<string name="type">ToggleElement<\/string>/g)).toHaveLength(1)
-    expect(xml).not.toContain('<int name="state">0</int>')
+    // (state 1); the wave rig's enable-the-timer toggle (state 0) is gone.
+    // Read off each ToggleElement's own state rather than the document's — the
+    // invulnerability rig also ships state-0 nodes, but they are
+    // ToggleImmortality, nothing to do with the timer rig.
+    expect(toggleStates(xml, 'ToggleElement')).toEqual([1])
     // the tier still fires — the AreaTrigger over the entrance is what starts it
     expect(xml).toContain('<string name="type">AreaTrigger</string>')
   })
@@ -1410,4 +1422,90 @@ describe('boss arena — arrival respawn', () => {
       buildBossArena(freshCtx(4242), arenaOptions(), 0).xml
     )
   })
+})
+
+describe('boss arena — invulnerability windows', () => {
+  // The rig's own node-level behaviour lives in bossInvulnerability.test.ts;
+  // these are the arena-level statements: that it reaches the emitted level, is
+  // pointed at the right actor, and cannot disturb anything else.
+  it('reaches boss.xml pointed at the boss actor, bracketing every threshold', () => {
+    const { xml } = buildBossArena(freshCtx(4242), arenaOptions(), 0)
+    const toggles = nodesOfType(xml, 'ToggleImmortality')
+    expect(toggles).toHaveLength(6) // on and off, per threshold
+    expect(toggleStates(xml, 'ToggleImmortality')).toEqual([0, 1, 0, 1, 0, 1])
+
+    const boss = bossActor(xml)
+    for (const toggle of toggles) {
+      expect(toggle.body).toContain(`<int-arr name="static">${boss.id}</int-arr>`)
+    }
+
+    // 31 ticks a window: 0:30 down to 0:00 inclusive
+    expect(nodesOfType(xml, 'AnnounceText')).toHaveLength(93)
+  })
+
+  it('gives each threshold trigger real connection delays that end on the window', () => {
+    const { xml } = buildBossArena(freshCtx(4242), arenaOptions(), 0)
+    for (const event of ['Boss 75%', 'Boss 50%', 'Boss 25%']) {
+      // Two triggers listen on each threshold — the wave tier's and this rig's.
+      // Only one carries real delays; the wave rig still ships the legacy
+      // `delays` line and no `connection-delays` at all.
+      const triggers = nodesOfType(xml, 'GlobalEventTrigger').filter((n) =>
+        n.body.includes(`<string name="parameters">${event}</string>`)
+      )
+      expect(triggers, event).toHaveLength(2)
+      const delayed = triggers.filter((n) => n.body.includes('connection-delays'))
+      expect(delayed, event).toHaveLength(1)
+
+      const ms = /<int-arr name="connection-delays">([^<]*)<\/int-arr>/
+        .exec(delayed[0].body)![1]
+        .split(' ')
+        .map(Number)
+      // immortality on at 0, the last tick and immortality off on the window
+      expect(ms[0], event).toBe(0)
+      expect(ms[ms.length - 1], event).toBe(30_000)
+      // one connection per delay, and strictly non-decreasing
+      expect(ms).toHaveLength(33)
+      expect([...ms].sort((a, b) => a - b)).toEqual(ms)
+    }
+  })
+
+  it('turning it off removes every node of the rig and nothing else', () => {
+    const on = buildBossArena(freshCtx(4242), arenaOptions(), 0).xml
+    const off = buildBossArena(
+      freshCtx(4242),
+      arenaOptions({ invulnerability: { enabled: false, seconds: [30, 30, 30], countdown: true } }),
+      0
+    ).xml
+
+    expect(nodesOfType(off, 'ToggleImmortality')).toHaveLength(0)
+    expect(nodesOfType(off, 'AnnounceText')).toHaveLength(0)
+    // the rig is built last, so everything before it — tilemap, doodads,
+    // actors, items, and the whole wave rig — is untouched
+    expect(off.slice(0, off.indexOf('<dictionary name="scripting">'))).toBe(
+      on.slice(0, on.indexOf('<dictionary name="scripting">'))
+    )
+    expect(badIntArray(on)).toBeNull()
+  })
+
+  it('moves no dungeon floor when it is switched on or off', () => {
+    // Invariant 6: the optional layers never move a seed's dungeon. This one
+    // draws no random values from any stream, so only boss.xml may differ.
+    const on = defaultParameters()
+    const off = defaultParameters()
+    off.boss.arena.invulnerability = { ...off.boss.arena.invulnerability, enabled: false }
+
+    for (const seed of [1, 4242]) {
+      const a = generateOk(on, seed)
+      const b = generateOk(off, seed)
+
+      // every emitted file but the arena is byte-identical
+      const others = (r: DungeonResult) => r.files.filter((f) => f.path !== 'levels/boss.xml')
+      expect(others(a).some((f) => /^levels\/level\d+\.xml$/.test(f.path)), `seed ${seed}`).toBe(true)
+      expect(others(b), `seed ${seed}`).toEqual(others(a))
+      expect(b.levels, `seed ${seed}`).toEqual(a.levels)
+
+      const arena = (r: DungeonResult) => r.files.find((f) => f.path === 'levels/boss.xml')!.content
+      expect(arena(b), `seed ${seed}`).not.toBe(arena(a))
+    }
+  }, 60_000)
 })

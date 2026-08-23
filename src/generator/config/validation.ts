@@ -4,8 +4,11 @@ import {
   BOSS_DEATH_WAVE,
   BOSS_FLOOR_PATTERNS,
   BOSS_IDS,
+  BOSS_INVULN_COUNT,
+  BOSS_INVULN_THRESHOLDS,
   BOSS_SPAWN_MODES,
   BOSS_WAVE_COUNT,
+  MAX_BOSS_INVULN_SECONDS,
   DungeonParameters,
   THEMES,
   isScatterMode,
@@ -331,6 +334,13 @@ function validateLobby(
 export const BOSS_SCATTER_WARN = 2000
 
 /**
+ * Countdown ticks (one AnnounceText node per second, summed across all three
+ * windows) past which the arena is warned about node count. Same spirit as
+ * BOSS_SCATTER_WARN: not a limit, a nudge.
+ */
+const BOSS_COUNTDOWN_NODE_WARN = 200
+
+/**
  * How many spawns a scattered monster actually emits — the same arithmetic
  * `buildWaveRig` applies, imported rather than re-derived so a message can
  * never quote a number the generator disagrees with. Endless (`-1`) has its
@@ -582,7 +592,47 @@ function validateBoss(
     errors.push({ field: 'boss.arena.spawn.clusters', message: 'Spawn cluster count must be a whole number ≥ 1.' })
   }
 
+  // the invulnerability windows — one per health threshold, 0 disabling that one
+  const invuln = arena.invulnerability
+  if (!Array.isArray(invuln.seconds) || invuln.seconds.length !== BOSS_INVULN_COUNT) {
+    errors.push({
+      field: 'boss.arena.invulnerability.seconds',
+      message: `Boss invulnerability needs exactly ${BOSS_INVULN_COUNT} window lengths, one per health threshold (${BOSS_INVULN_THRESHOLDS.join(', ')}).`
+    })
+  } else {
+    for (let i = 0; i < invuln.seconds.length; i++) {
+      const s = invuln.seconds[i]
+      if (!Number.isInteger(s) || s < 0 || s > MAX_BOSS_INVULN_SECONDS) {
+        errors.push({
+          field: `boss.arena.invulnerability.seconds.${i}`,
+          message: `The ${BOSS_INVULN_THRESHOLDS[i]} window must be a whole number of seconds between 0 (off) and ${MAX_BOSS_INVULN_SECONDS}.`
+        })
+      }
+    }
+  }
+
   if (!boss.enabled || errors.length > before) return
+
+  // Both of these are shape-dependent, so they only run once the rules above
+  // have confirmed the array is the right length and every entry is sane.
+  if (invuln.enabled && invuln.seconds.every((s) => s === 0)) {
+    warnings.push({
+      field: 'boss.arena.invulnerability.seconds',
+      message: 'Boss invulnerability is on but every window is 0 seconds — no threshold will pause the fight.'
+    })
+  }
+  // The countdown emits one AnnounceText node per second per window. That is
+  // cheap next to the scatter budget below, but a 300s window on all three
+  // thresholds is 900 nodes for a timer nobody is reading by then.
+  if (invuln.enabled && invuln.countdown) {
+    const tickNodes = invuln.seconds.reduce((sum, s) => sum + (s > 0 ? s + 1 : 0), 0)
+    if (tickNodes > BOSS_COUNTDOWN_NODE_WARN) {
+      warnings.push({
+        field: 'boss.arena.invulnerability.countdown',
+        message: `The countdown adds ${tickNodes} script nodes (one per second, per window). Consider shorter windows, or turning the countdown off.`
+      })
+    }
+  }
 
   // per-wave warnings, same indexing as the errors above
   for (let i = 0; i < arena.waves.length; i++) {
