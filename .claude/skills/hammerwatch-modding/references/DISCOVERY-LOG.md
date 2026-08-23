@@ -9,10 +9,9 @@ that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
 ### 2026-08-23 — `DangerArea`, the `RectangleShape` type bitmask, and `LevelLoaded`
-**Tag:** [VERIFIED] for the `DangerArea` schema and the empty `buff`;
-[UNVERIFIED] for the meaning of the `types` bitmask values and for the
-`LevelLoaded` global event, neither of which has been played from a *generated*
-campaign yet.
+**Tag:** [VERIFIED] for all findings — `DangerArea` schema, empty `buff`, the
+`types` bitmask meaning (1 = players only), and `LevelLoaded` firing on a
+generated floor's load.
 **Context:** Timer mode — the optional per-floor timed hazard
 (`src/generator/timer/hazard.ts`). After a countdown the whole floor turns into
 a damage field: damage every `freq` ms, negative damage healing instead.
@@ -38,9 +37,9 @@ and cross-checked against shipped content.
    `prefabs/bonus_field_confuse.xml` uses `types: 1` for a field that only
    affects players; `prefabs/trap_fire_floor.xml` uses `types: 15` for one that
    catches everything. The `AreaTrigger` in `trap_fire_floor.xml` uses `3`.
-   Timer mode ships `1` so monsters are never damaged. **The exact bit
-   assignment is inferred, not read from the engine** — if a generated campaign
-   shows the field hitting monsters, `1` is wrong.
+   Timer mode ships `1` so monsters are never damaged. **[VERIFIED]** by playing
+   a generated floor with the timer armed — monsters took no damage while the
+   field was live.
 
 4. **`ToggleElement` polarity re-confirmed: `state: 0` ENABLES, `state: 1`
    disables.** `prefabs/trap_fire_floor.xml` settles it independently of the
@@ -50,11 +49,9 @@ and cross-checked against shipped content.
 
 5. **`GlobalEventTrigger` accepts `LevelLoaded`** as its bare-string parameter,
    firing once the floor loads — this is what starts the countdown. Taken from
-   the authored `test_damage_player_timer.xml`; it does **not** appear in any
-   shipped campaign level we have read, so it is the one link in the rig with no
-   second source. If a generated floor's countdown never starts, the fallback is
-   the `AreaTrigger` over the entrance shape that every floor's `ExitUp` prefab
-   already builds (`src/generator/objects/objectSet.ts`).
+   the authored `test_damage_player_timer.xml`; not found in shipped campaign
+   levels, but **[VERIFIED]** by playing a generated floor with the timer armed.
+   The countdown announced correctly and the hazard switched on at the right time.
 
 6. **`RectangleShape`'s position is the rectangle's centre**, and a generated
    level's map-array coordinates are world coordinates — timer mode centres its
@@ -62,8 +59,8 @@ and cross-checked against shipped content.
    on each axis.
 
 **Impact:** `NodeDangerArea` in `src/generator/objects/nodes.ts`;
-`src/generator/timer/hazard.ts`; `tests/floorTimer.test.ts`. Promote items 3 and
-5 to `[VERIFIED]` once a generated campaign with an armed floor has been played.
+`src/generator/timer/hazard.ts`; `tests/floorTimer.test.ts`. All findings now
+[VERIFIED] in game.
 
 ### 2026-08-22 — `ToggleImmortality`, the countdown `AnnounceText`, and how a node carries real delays
 **Tag:** [VERIFIED] for the three node schemas below; [EMITTED] for the dual
