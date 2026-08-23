@@ -515,3 +515,50 @@ describe('parameters.txt — boss invulnerability', () => {
     expect(parsed.params.boss.arena.invulnerability).toEqual({ enabled: true, seconds: [30, 30, 30], countdown: true })
   })
 })
+
+describe('timerN — per-floor timer mode', () => {
+  it('writes no timer line at all while every floor is off', () => {
+    const text = serializeParametersTxt(defaultParameters())
+    expect(text).not.toMatch(/^timer\d+=/m)
+  })
+
+  it('writes one line per armed floor and round-trips it', () => {
+    const params = defaultParameters()
+    const timers = params.levelTimers!
+    timers[0] = { enabled: true, seconds: 90, damage: 4, freqMs: 500, countdown: true }
+    timers[3] = { enabled: true, seconds: 30, damage: -2, freqMs: 2000, countdown: false }
+
+    const text = serializeParametersTxt(params)
+    expect(text).toContain('timer0=1|90|4|500|1')
+    expect(text).toContain('timer3=1|30|-2|2000|0')
+    expect(text).not.toContain('timer1=')
+
+    const reparsed = parseParametersTxt(text)
+    expect(reparsed.unknownKeys).toEqual([])
+    expect(reparsed.params.levelTimers).toEqual(timers)
+  })
+
+  it('leaves a file written before timer mode existed entirely on the defaults', () => {
+    const parsed = parseParametersTxt('levels=7\nlobby=1')
+    expect(parsed.params.levelTimers?.every((t) => !t.enabled)).toBe(true)
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('reports a malformed segment and keeps only that field at its default', () => {
+    const parsed = parseParametersTxt('levels=2\ntimer0=1|nope|5|250|1')
+    expect(parsed.params.levelTimers?.[0]).toEqual({
+      enabled: true,
+      seconds: 180,
+      damage: 5,
+      freqMs: 250,
+      countdown: true
+    })
+    expect(parsed.unknownKeys).toEqual(['timer0 seconds "nope"'])
+  })
+
+  it('pads unmentioned floors with a disabled timer', () => {
+    const parsed = parseParametersTxt('levels=4\ntimer2=1|10|1|100|1')
+    expect(parsed.params.levelTimers).toHaveLength(4)
+    expect(parsed.params.levelTimers?.map((t) => t.enabled)).toEqual([false, false, true, false])
+  })
+})

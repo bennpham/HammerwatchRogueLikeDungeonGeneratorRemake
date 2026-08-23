@@ -8,6 +8,63 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-23 — `DangerArea`, the `RectangleShape` type bitmask, and `LevelLoaded`
+**Tag:** [VERIFIED] for the `DangerArea` schema and the empty `buff`;
+[UNVERIFIED] for the meaning of the `types` bitmask values and for the
+`LevelLoaded` global event, neither of which has been played from a *generated*
+campaign yet.
+**Context:** Timer mode — the optional per-floor timed hazard
+(`src/generator/timer/hazard.ts`). After a countdown the whole floor turns into
+a damage field: damage every `freq` ms, negative damage healing instead.
+**Evidence:** The rig is copied from a level built by hand in the game's own
+editor,
+`<Steam>/steamapps/common/Hammerwatch/editor/pht6_quiky_dreadmann_mansion/levels/test_damage_player_timer.xml`,
+and cross-checked against shipped content.
+
+1. **`DangerArea`** carries a parameter dictionary in this exact order:
+   `{damage: int, shape: {static: [shapeId]}, freq: int, buff: string}`.
+   `freq` is milliseconds between applications. It is a *node*, so a
+   `ToggleElement` can switch it on and off like any other element. Present in
+   the shipped `campaign/levels/level_2.xml`, `level_boss_1.xml` and the
+   prefabs `trap_fire_floor.xml`, `bonus_field_confuse.xml`,
+   `trap_flies.xml`, `trap_block_falling.xml`, `trap_floor_drain_onoff.xml`.
+
+2. **An empty `buff` is valid.** `<string name="buff"></string>` is what the
+   shipped `campaign/levels/level_2.xml` writes for a pure-damage field — the
+   element is present and empty, not omitted. The generator emits it that way;
+   buff selection is a later feature.
+
+3. **`RectangleShape`'s `types` is an entity-type bitmask, not a count.**
+   `prefabs/bonus_field_confuse.xml` uses `types: 1` for a field that only
+   affects players; `prefabs/trap_fire_floor.xml` uses `types: 15` for one that
+   catches everything. The `AreaTrigger` in `trap_fire_floor.xml` uses `3`.
+   Timer mode ships `1` so monsters are never damaged. **The exact bit
+   assignment is inferred, not read from the engine** — if a generated campaign
+   shows the field hitting monsters, `1` is wrong.
+
+4. **`ToggleElement` polarity re-confirmed: `state: 0` ENABLES, `state: 1`
+   disables.** `prefabs/trap_fire_floor.xml` settles it independently of the
+   boss work — the enter-area branch (`AreaTrigger` event 0 → activate doodad)
+   ends in `state: 0`, and the exit branch (event 1 → deactivate) ends in
+   `state: 1`, both pointed at the same disabled `DangerArea`.
+
+5. **`GlobalEventTrigger` accepts `LevelLoaded`** as its bare-string parameter,
+   firing once the floor loads — this is what starts the countdown. Taken from
+   the authored `test_damage_player_timer.xml`; it does **not** appear in any
+   shipped campaign level we have read, so it is the one link in the rig with no
+   second source. If a generated floor's countdown never starts, the fallback is
+   the `AreaTrigger` over the entrance shape that every floor's `ExitUp` prefab
+   already builds (`src/generator/objects/objectSet.ts`).
+
+6. **`RectangleShape`'s position is the rectangle's centre**, and a generated
+   level's map-array coordinates are world coordinates — timer mode centres its
+   covering shape on `(mapWidth / 2, mapHeight / 2)` and oversizes it by 2 tiles
+   on each axis.
+
+**Impact:** `NodeDangerArea` in `src/generator/objects/nodes.ts`;
+`src/generator/timer/hazard.ts`; `tests/floorTimer.test.ts`. Promote items 3 and
+5 to `[VERIFIED]` once a generated campaign with an armed floor has been played.
+
 ### 2026-08-22 — `ToggleImmortality`, the countdown `AnnounceText`, and how a node carries real delays
 **Tag:** [VERIFIED] for the three node schemas below; [EMITTED] for the dual
 delay-key emission, which has not yet been loaded in game.

@@ -1,9 +1,10 @@
 import React from 'react'
-import { THEME_DEFS } from '../../generator'
+import { THEME_DEFS, defaultFloorTimer } from '../../generator'
 import type { DungeonParameters, ValidationIssue } from '../../generator'
 import { BoolField, NumberField, Section } from './fields'
 import { MonsterPoolsEditor } from './MonsterPoolsEditor'
 import { MonsterMaxTable } from './MonsterMaxTable'
+import { FloorTimerEditor } from './FloorTimerEditor'
 
 /** Themes bucketed by their registry group, in registry order. */
 const THEME_GROUPS = THEME_DEFS.reduce<[string, (typeof THEME_DEFS)[number][]][]>((groups, def) => {
@@ -24,7 +25,7 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
     onChange({ ...params, [key]: value })
   }
 
-  /** Changing the level count resizes the per-level theme + monster lists. */
+  /** Changing the level count resizes the per-level theme, monster and timer lists. */
   const setLevels = (levels: number) => {
     const next = { ...params, levels }
     if (Number.isInteger(levels) && levels >= 1 && levels <= 50) {
@@ -35,6 +36,10 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
       const pools = params.levelMonsters.map((p) => [...p])
       while (pools.length < levels) pools.push([...(pools[pools.length - 1] ?? ['bat1'])])
       next.levelMonsters = pools.slice(0, Math.max(levels, 1))
+
+      const timers = (params.levelTimers ?? []).map((t) => ({ ...t }))
+      while (timers.length < levels) timers.push({ ...(timers[timers.length - 1] ?? defaultFloorTimer()) })
+      next.levelTimers = timers.slice(0, Math.max(levels, 1))
     }
     onChange(next)
   }
@@ -142,6 +147,10 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
 
       <Section title="Monster max counts">
         <MonsterMaxTable params={params} onChange={onChange} />
+      </Section>
+
+      <Section title="Timer mode" badge={(params.levelTimers ?? []).slice(0, params.levels).some((t) => t.enabled) ? 'on' : undefined}>
+        <FloorTimerEditor params={params} issues={issues} onChange={onChange} />
       </Section>
     </div>
   )

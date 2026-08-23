@@ -1,4 +1,4 @@
-import { defaultParameters, scatterWave } from './parameters'
+import { defaultFloorTimer, defaultParameters, scatterWave } from './parameters'
 import type { BossWave, DungeonParameters } from './parameters'
 
 /**
@@ -219,6 +219,7 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
     build: () => ({
       ...defaultParameters(),
       levels: 5,
+      levelTimers: Array.from({ length: 5 }, () => defaultFloorTimer()),
       themes: ['h', 'h', 'i', 'i_symbols', 'i_mixed'],
       boss: withBoss('i_mixed', ['boss_anubis', 'boss_worm'], desertWaves()),
       levelMonsters: [
@@ -266,6 +267,7 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
     build: () => ({
       ...defaultParameters(),
       levels: 5,
+      levelTimers: Array.from({ length: 5 }, () => defaultFloorTimer()),
       themes: ['bonus1', 'bonus2', 'bonus3', 'bonus4', 'bonus5'],
       boss: withBoss(
         'g_mixed',
