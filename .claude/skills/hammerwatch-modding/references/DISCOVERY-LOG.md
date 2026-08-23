@@ -74,17 +74,33 @@ and cross-checked against shipped content and the extracted asset folder.
    switches it on at the end of a countdown. A buff aura has no trigger at all,
    so `buildFloorBuffRig` sets it back to true — it has to arrive live.
 
-7. **One shape per distinct target, not one per buff.** Buffs on the same floor
+7. **A buff field can be swapped mid-fight by toggling two of them. [EMITTED]**
+   The boss arena's per-tier buffs (`src/generator/boss/waveBuffs.ts`) rely on
+   this: each threshold's `GlobalEventTrigger` fans out to a
+   `ToggleElement{state: 1}` on the outgoing field and a `{state: 0}` on the
+   incoming one, so exactly one arena-wide aura is live at a time. Same
+   inverted polarity as everywhere else. The 100% tier's field carries no
+   trigger at all — it ships `enabled: True` and *is* the opening state.
+
+   Not yet run in game. The risk worth naming: a buff already applied to an
+   entity presumably runs out its own `duration` after its field is switched
+   off, so the swap is not instant — the outgoing buff should linger for up to
+   its duration (2–5s for most). That is acceptable for the feature and is why
+   the short-duration assets above are the crisp choice for a tier buff.
+
+8. **One shape per distinct target, not one per buff.** Buffs on the same floor
    aiming at the same target share a `RectangleShape`, so three player-facing
    buffs cost four nodes rather than six. The shapes are created lazily in
    first-use order, so a floor's ids depend only on its own buff list.
 
 **Impact:** `src/generator/objects/buffTypes.ts` (new),
+`src/generator/boss/waveBuffs.ts` (new),
 `src/generator/buffs/field.ts` (new), `src/generator/map/coverShape.ts` (new —
 the covering-rectangle helper timer mode and buffs now share),
 `BUFF_TARGET_TYPES`/`FloorBuff`/`levelBuffs` in `config/parameters.ts`,
 `validateLevelBuffs` in `config/validation.ts`, the `buffN=` key in
-`config/configFile.ts`, `tests/floorBuffs.test.ts`.
+`config/configFile.ts`, `tests/floorBuffs.test.ts`,
+`tests/bossWaveBuffs.test.ts`.
 
 ### 2026-08-24 — `ChangeDoodadState`, and `need-sync` is about *change*, not collision
 **Tag:** [VERIFIED] for the schema and the `need-sync` rule — both read off the

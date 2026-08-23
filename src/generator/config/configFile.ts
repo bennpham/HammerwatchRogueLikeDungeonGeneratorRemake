@@ -11,7 +11,9 @@ import {
   defaultFloorBuffs,
   defaultFloorTimer,
   defaultParameters,
-  isScatterMode
+  isScatterMode,
+  waveBuff,
+  waveBuffTarget
 } from './parameters'
 import type { BossFloorPattern, BossOptions, BossSpawnMode, BuffTarget, FloorBuff } from './parameters'
 import { MONSTER_TYPES } from '../objects/monsterTypes'
@@ -321,6 +323,35 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       }
       continue
     }
+    // bossWaveBuffN=<id>:<target> — one line per tier carrying an arena buff,
+    // written only for those tiers. Must be tested BEFORE the bossWaveN branch:
+    // `bosswavebuff1` would otherwise never match anything, since that branch's
+    // pattern is anchored and would simply fall through to unknownKeys.
+    const waveBuffMatch = keyLower.match(/^bosswavebuff(\d)$/)
+    if (waveBuffMatch) {
+      const idx = parseInt(waveBuffMatch[1], 10) - 1
+      if (idx < 0 || idx >= BOSS_WAVE_COUNT) {
+        result.unknownKeys.push(key)
+        continue
+      }
+      const trimmed = value.trim()
+      const colon = trimmed.indexOf(':')
+      const id = (colon === -1 ? trimmed : trimmed.slice(0, colon)).trim()
+      const target = (colon === -1 ? 'players' : trimmed.slice(colon + 1).trim()) as BuffTarget
+
+      if (buffById(id) === undefined) {
+        result.unknownKeys.push(`${key} buff "${id}"`)
+        continue
+      }
+      if (!BUFF_TARGETS.includes(target)) {
+        result.unknownKeys.push(`${key} target "${target}"`)
+        continue
+      }
+      params.boss.arena.waves[idx].buff = id
+      params.boss.arena.waves[idx].buffTarget = target
+      continue
+    }
+
     const waveMatch = keyLower.match(/^bosswave(\d)$/)
     if (waveMatch) {
       const idx = parseInt(waveMatch[1], 10) - 1
@@ -712,6 +743,12 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
     lines.push(
       `bossWave${i + 1}=${wave.monsters.join(',')}|${wave.defaultIntervalMs}|${monsterMax}|${overrides}|${modes}`
     )
+    // A separate key rather than a sixth field on the line above: appending one
+    // would put a trailing `|` on every stock export, so a file written before
+    // wave buffs existed would no longer round-trip to the same bytes.
+    if (waveBuff(wave) !== '') {
+      lines.push(`bossWaveBuff${i + 1}=${waveBuff(wave)}:${waveBuffTarget(wave)}`)
+    }
   }
 
   return lines.join('\r\n') + '\r\n'

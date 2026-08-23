@@ -13,6 +13,7 @@ import {
   MAX_BOSS_INVULN_SECONDS,
   MONSTER_VARIANT_GROUPS,
   THEME_DEFS,
+  buffById,
   corpseCollision,
   defaultTier,
   diamondCount,
@@ -22,6 +23,8 @@ import {
   monsterNote,
   monsterVariantsInGroup,
   resolveActorPath,
+  waveBuff,
+  waveBuffTarget,
   waveSpawnMode
 } from '../../generator'
 import type {
@@ -35,6 +38,7 @@ import type {
   ValidationIssue
 } from '../../generator'
 import { BoolField, NumberField, Section, Subsection, ToggleGroup } from './fields'
+import { BuffPicker } from './BuffPicker'
 import { InfoTip } from './InfoTip'
 import { MonsterFilterBar, useMonsterFilter } from './MonsterFilterBar'
 import { PoolGroup } from './PoolGroup'
@@ -238,6 +242,21 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
     arena.waves.flatMap((wave) => wave.monsters.map((id) => waveSpawnMode(wave, id)).filter(isScatterMode))
   )
 
+  /**
+   * Gives every later tier this tier's buff and target. Copying the *previous*
+   * tier is the common setup — the buffs replace one another, so a fight that
+   * wants one aura for its whole second half has to repeat it on each tier that
+   * would otherwise clear it.
+   */
+  const copyWaveBuffDown = (index: number) => {
+    const source = arena.waves[index]
+    setArena({
+      waves: arena.waves.map((wave, i) =>
+        i > index ? { ...wave, buff: waveBuff(source), buffTarget: waveBuffTarget(source) } : wave
+      )
+    })
+  }
+
   const toggleBoss = (id: string, on: boolean) => {
     const next = new Set(arena.bossPool)
     if (on) next.add(id)
@@ -416,6 +435,53 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
               {issue.message}
             </p>
           ))}
+      </Section>
+
+      <Section
+        title="Wave buffs"
+        badge={arena.waves.some((w) => waveBuff(w) !== '') ? 'on' : undefined}
+      >
+        <p className="hint">
+          Each tier's buff covers the whole arena and <strong>replaces</strong> the previous tier's,
+          so exactly one is ever live — the fight reads as phases rather than as a growing pile of
+          debuffs. The 100% buff is on from the moment the fight starts. Pick who it catches: a buff
+          aimed at the horde never touches the party, and vice versa. No tier carries one by default.
+        </p>
+        {arena.waves.map((wave, i) => (
+          <Subsection
+            key={i}
+            title={WAVE_LABELS[i] ?? `Tier ${i + 1}`}
+            badge={buffById(waveBuff(wave))?.label ?? 'none'}
+          >
+            <BuffPicker
+              buff={waveBuff(wave)}
+              target={waveBuffTarget(wave)}
+              onChange={(change) => setWave(i, change)}
+              allowNone
+            />
+            {issues
+              .filter(
+                (issue) =>
+                  issue.field === `boss.arena.waves.${i}.buff` ||
+                  issue.field === `boss.arena.waves.${i}.buffTarget`
+              )
+              .map((issue, k) => (
+                <p key={k} className="field-message">
+                  {issue.message}
+                </p>
+              ))}
+            {i < arena.waves.length - 1 && (
+              <button
+                type="button"
+                className="copy-down"
+                onClick={() => copyWaveBuffDown(i)}
+                title="Give every later tier this same buff and target"
+              >
+                Copy to tiers below
+              </button>
+            )}
+          </Subsection>
+        ))}
       </Section>
 
       <Section title="Cover">

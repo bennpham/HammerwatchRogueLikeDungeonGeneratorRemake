@@ -76,7 +76,9 @@ src/
 │   │   ├── spawnPoints.ts scatter-mode spawn placement
 │   │   ├── arenaPattern.ts geometric floor patterns for a `- mixed` arena
 │   │   ├── placement.ts  shared rect/perimeter/gaussian helpers
-│   │   └── waves.ts      the five-tier spawn rig (health tiers + Boss Died)
+│   │   ├── waves.ts      the five-tier spawn rig (health tiers + Boss Died)
+│   │   └── waveBuffs.ts  one arena-wide buff field per tier; they replace one
+│   │                     another rather than stacking
 │   ├── tweak/            player balance (tweak/*.xml) — NOT level generation
 │   │   ├── types.ts      TweakFile/TweakParam/TweakUpgrade, PlayerTweaks
 │   │   ├── baseline.ts   full stock transcription of the 9 game tweak files
@@ -99,12 +101,13 @@ src/
 │                         BuffPicker, InfoTip, OutputPanel, fields},
 │                         styles/app.css
 └── shared/ipc.ts         types shared across the bridge
-tests/                    vitest, 31 files: rand, context, configFile,
+tests/                    vitest, 32 files: rand, context, configFile,
                           validation, generation, reachability, themes (+ a
                           snapshot), presets, monsters, monsterVariants,
                           doodad, nodes, objectSet, actorCollision, xmlHelpers,
                           lobby, bossprep, boss, bossWaves, bossCover,
-                          bossInvulnerability, floorTimer, floorBuffs,
+                          bossInvulnerability, bossWaveBuffs,
+                          floorTimer, floorBuffs,
                           bossGeometry, bossSpawnPoints, bosses, anchors,
                           arenaPattern, packer, tweak, tweakChains, tweakBulk
 reference/original-java/  the Java original (read-only reference)
@@ -212,6 +215,7 @@ reference/hammerwatch-tweak-stats.md
 | `arena.minHeight`–`maxHeight` | 32–44 | ≥ `ARENA_MIN_HEIGHT` (18) |
 | `arena.bossPool` | the 4 castle bosses | non-empty subset of `BOSS_IDS` (7); the seed picks one per campaign |
 | `arena.waves` | 5 populated tiers | exactly `BOSS_WAVE_COUNT`; see *Boss finale* |
+| `arena.waves[i].buff` / `.buffTarget` | absent / none | one arena-wide buff per tier, aimed at `players`/`monsters`/`both`. Tiers **replace** one another rather than stacking. `bossWaveBuffN` in `parameters.txt`. See *Buffs per boss wave tier* |
 | `arena.cover` | `random`, 0.08, 4, 3 | `density` is the fraction of free floor filled and is capped at `BOSS_COVER_DENSITY_MAX` (0.25) |
 | `arena.spawn` | spacing 2, ring 4, clusters 3 | tuning for the scatter modes only; deliberately separate from `cover` |
 | `arena.invulnerability` | on, `[30, 30, 30]`, countdown on | seconds of boss immortality per health threshold (`BOSS_INVULN_THRESHOLDS`: 75/50/25%); 0 disables one threshold, `bossInvuln` / `bossInvulnCountdown` in `parameters.txt`. Independent of `waves` — see *Boss finale* |
@@ -357,6 +361,32 @@ when their floor is unconfigured, which is what stops one moving the other's.
 floors carrying at least one** — a stock export has no `buff` line at all. An
 omitted `:target` parses as `players`; an unknown id or target lands in
 `unknownKeys` and the rest of the line still parses.
+
+### Buffs per boss wave tier (`boss/waveBuffs.ts`)
+
+The same aura, per arena health tier. Each of the five `BossWave`s may carry a
+`buff` and a `buffTarget`, both optional so every wave literal written before
+the feature still compiles.
+
+Where this differs from everything else in the arena: the tiers **replace** one
+another rather than accumulating. Tier 0's field ships `enabled: True` — it *is*
+the opening state and has no trigger at all. Every later tier with a buff gets a
+`GlobalEventTrigger(TIER_EVENT_NAMES[tier - 1])` fanning out to a
+`ToggleElement{state: 1}` on the previous field and a `{state: 0}` on its own.
+"The previous field" is the nearest **earlier tier that actually carries a
+buff**, not `tier - 1`: a campaign buffing only 100% and 25% needs the 25%
+trigger to clear the 100% field, and there is no tier-2 field to name.
+
+`TIER_EVENT_NAMES` is exported from `waves.ts` and shared, so the two rigs
+cannot drift on the event strings. Built in `arena.ts` after `buildWaveRig` and
+`buildInvulnerabilityRig`, draws from **no** stream — `ctx.bossRand` included —
+so the arena's fixed draw order is untouched and no arena seed moves.
+
+`parameters.txt` carries `bossWaveBuffN=<id>:<target>` on its **own key**, not
+as a sixth `bossWaveN` field: appending one would put a trailing `|` on every
+stock export and break byte-compatibility with files written before the
+feature. Its parse branch must be tested **before** `bossWaveN`'s, or
+`bosswavebuff1` falls through to `unknownKeys`.
 
 ## Timer mode (`src/generator/timer/`)
 

@@ -79,7 +79,7 @@ import { spawnPointKey } from './spawnPoints'
  * Every string here is an engine event verified to fire for a bare boss actor;
  * see the modding skill's DISCOVERY-LOG.
  */
-const TIER_EVENT_NAMES = ['Boss 75%', 'Boss 50%', 'Boss 25%', 'Boss Died'] as const
+export const TIER_EVENT_NAMES = ['Boss 75%', 'Boss 50%', 'Boss 25%', 'Boss Died'] as const
 
 /**
  * Splits `total` round-robin across `anchorCount` slots: the first

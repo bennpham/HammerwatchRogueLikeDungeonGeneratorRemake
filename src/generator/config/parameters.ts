@@ -382,6 +382,28 @@ export interface BossWave {
    * spawns once, not on a timer.
    */
   spawnMode?: Record<string, BossSpawnMode>
+  /**
+   * A BUFF_DEFS id for this tier's arena-wide buff field, or '' / absent for
+   * none. Optional so every wave literal written before the feature keeps
+   * compiling, and absent everywhere leaves the arena byte-identical.
+   *
+   * Independent of the tier's monsters: an otherwise empty tier may still carry
+   * a buff, and a populated tier need not. Tiers *replace* one another — see
+   * boss/waveBuffs.ts.
+   */
+  buff?: string
+  /** Who this tier's buff catches. Defaults to `players`. */
+  buffTarget?: BuffTarget
+}
+
+/** The buff `wave` applies, or '' for none. */
+export function waveBuff(wave: BossWave): string {
+  return wave.buff ?? ''
+}
+
+/** Who `wave`'s buff catches — the stored target, or `players`. */
+export function waveBuffTarget(wave: BossWave): BuffTarget {
+  return wave.buffTarget ?? 'players'
 }
 
 /** The spawn mode `wave` uses for `id` — the stored one, or `anchors`. */

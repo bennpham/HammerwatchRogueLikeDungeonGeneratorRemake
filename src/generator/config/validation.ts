@@ -19,7 +19,9 @@ import {
   DungeonParameters,
   THEMES,
   isScatterMode,
-  waveSpawnMode
+  waveSpawnMode,
+  waveBuff,
+  waveBuffTarget
 } from './parameters'
 import { getTheme } from './themes'
 import {
@@ -493,6 +495,24 @@ function validateBoss(
       }
     }
 
+    // The tier's arena-wide buff. Absent or '' means none, which is the
+    // pre-feature default and never invalid; the target is only meaningful
+    // once a buff is actually named.
+    if (waveBuff(wave) !== '') {
+      if (buffById(waveBuff(wave)) === undefined) {
+        errors.push({
+          field: `boss.arena.waves.${i}.buff`,
+          message: `"${waveBuff(wave)}" is not a buff the game ships.`
+        })
+      }
+      if (!BUFF_TARGETS.includes(waveBuffTarget(wave))) {
+        errors.push({
+          field: `boss.arena.waves.${i}.buffTarget`,
+          message: `"${waveBuffTarget(wave)}" is not a buff target — use ${BUFF_TARGETS.join(', ')}.`
+        })
+      }
+    }
+
     // Spawn modes. A key for a monster that is no longer in the pool is
     // ignored rather than reported — the parser and the form both rebuild the
     // record from the pool, so a stale key is housekeeping, not user error.
@@ -665,6 +685,26 @@ function validateBoss(
         field: `boss.arena.waves.${i}.monsters`,
         message: `Wave ${i + 1} has an empty monster pool — nothing will spawn at this tier.`
       })
+    }
+
+    if (waveBuff(wave) !== '' && buffById(waveBuff(wave)) !== undefined) {
+      // The boss is already dead by this tier, so a buff aimed at the horde has
+      // only whatever that tier itself spawns to land on.
+      if (i === BOSS_DEATH_WAVE && waveBuffTarget(wave) === 'monsters' && wave.monsters.length === 0) {
+        warnings.push({
+          field: `boss.arena.waves.${i}.buffTarget`,
+          message:
+            'The after-the-boss-dies buff catches monsters, but that tier spawns none — nothing will be buffed on the walk to the orb.'
+        })
+      }
+      // Same reasoning as the per-floor warning: aiming a strengthener at the
+      // party is legitimate, so this only fires the other way round.
+      if (BUFF_HELPFUL_IDS.includes(waveBuff(wave)) && waveBuffTarget(wave) !== 'players') {
+        warnings.push({
+          field: `boss.arena.waves.${i}.buffTarget`,
+          message: `Wave ${i + 1}: "${waveBuff(wave)}" strengthens whatever it catches, and this one catches ${waveBuffTarget(wave)}.`
+        })
+      }
     }
 
     for (const id of wave.monsters) {

@@ -37,6 +37,8 @@ export {
   MAX_TIMER_DAMAGE,
   TIMER_COUNTDOWN_NODE_WARN,
   isScatterMode,
+  waveBuff,
+  waveBuffTarget,
   waveSpawnMode
 } from './config/parameters'
 export { BUFF_DEFS, BUFF_GROUPS, BUFF_HELPFUL_IDS, buffById } from './objects/buffTypes'

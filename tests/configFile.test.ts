@@ -537,6 +537,77 @@ describe('parameters.txt — boss invulnerability', () => {
   })
 })
 
+describe('bossWaveBuffN — per-tier arena buffs', () => {
+  it('writes no wave-buff line at all while no tier carries one', () => {
+    const text = serializeParametersTxt(defaultParameters())
+    expect(text).not.toMatch(/^bossWaveBuff\d=/m)
+  })
+
+  it('writes one line per buffed tier and round-trips it', () => {
+    const params = defaultParameters()
+    params.boss.arena.waves = params.boss.arena.waves.map((w, i) => {
+      if (i === 0) return { ...w, buff: 'bloodlust', buffTarget: 'monsters' as const }
+      if (i === 3) return { ...w, buff: 'frost', buffTarget: 'players' as const }
+      return w
+    })
+
+    const text = serializeParametersTxt(params)
+    expect(text).toContain('bossWaveBuff1=bloodlust:monsters')
+    expect(text).toContain('bossWaveBuff4=frost:players')
+    expect(text).not.toContain('bossWaveBuff2=')
+
+    const reparsed = parseParametersTxt(text)
+    expect(reparsed.unknownKeys).toEqual([])
+    expect(reparsed.params.boss.arena.waves[0].buff).toBe('bloodlust')
+    expect(reparsed.params.boss.arena.waves[0].buffTarget).toBe('monsters')
+    expect(reparsed.params.boss.arena.waves[3].buff).toBe('frost')
+    expect(reparsed.params.boss.arena.waves[1].buff).toBeUndefined()
+  })
+
+  it('leaves the bossWaveN lines byte-identical — no trailing sixth field', () => {
+    // The buff rides its own key precisely so an export written before the
+    // feature still round-trips to the same bytes.
+    const params = defaultParameters()
+    const before = serializeParametersTxt(params)
+      .split('\r\n')
+      .filter((l) => /^bossWave\d=/.test(l))
+
+    params.boss.arena.waves = params.boss.arena.waves.map((w) => ({
+      ...w,
+      buff: 'frost',
+      buffTarget: 'both' as const
+    }))
+    const after = serializeParametersTxt(params)
+      .split('\r\n')
+      .filter((l) => /^bossWave\d=/.test(l))
+
+    expect(after).toEqual(before)
+  })
+
+  it('reports an unknown buff id and leaves the tier alone', () => {
+    const parsed = parseParametersTxt('bossWaveBuff2=no_such_buff:players')
+    expect(parsed.params.boss.arena.waves[1].buff).toBeUndefined()
+    expect(parsed.unknownKeys).toEqual(['bossWaveBuff2 buff "no_such_buff"'])
+  })
+
+  it('reports an unknown target and leaves the tier alone', () => {
+    const parsed = parseParametersTxt('bossWaveBuff2=frost:everyone')
+    expect(parsed.params.boss.arena.waves[1].buff).toBeUndefined()
+    expect(parsed.unknownKeys).toEqual(['bossWaveBuff2 target "everyone"'])
+  })
+
+  it('reports a tier index outside the wave count', () => {
+    const parsed = parseParametersTxt('bossWaveBuff9=frost:players')
+    expect(parsed.unknownKeys).toEqual(['bossWaveBuff9'])
+  })
+
+  it('defaults an omitted target to players', () => {
+    const parsed = parseParametersTxt('bossWaveBuff1=frost')
+    expect(parsed.params.boss.arena.waves[0].buffTarget).toBe('players')
+    expect(parsed.unknownKeys).toEqual([])
+  })
+})
+
 describe('buffN — per-floor buff auras', () => {
   it('writes no buff line at all while every floor is empty', () => {
     const text = serializeParametersTxt(defaultParameters())

@@ -73,6 +73,7 @@ import { isFree, placeCoverPillars } from './cover'
 import type { CoverArena, Rect } from './cover'
 import { buildWaveRig, scatterRequests } from './waves'
 import { buildInvulnerabilityRig } from './invulnerability'
+import { buildWaveBuffRig } from './waveBuffs'
 import { placeSpawnPoints } from './spawnPoints'
 
 /**
@@ -390,6 +391,11 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   // them so turning the feature on only ever APPENDS nodes — every wave-rig id
   // stays where it was. Draws no random values. ---
   buildInvulnerabilityRig(ctx, arena.invulnerability, bossActor.id, entranceShape.x, entranceShape.y)
+
+  // --- per-tier buff fields: independent of both rigs above and built after
+  // them, for the same reason — turning them on only ever APPENDS nodes, so no
+  // existing arena seed moves. Draws no random values. ---
+  buildWaveBuffRig(ctx, arena.waves, width, height, entranceShape.x, entranceShape.y)
 
   // --- win chain: Boss Died -> DestroyObject(seals) -> the wall opens ->
   // the existing Orb prefab's own ObjectEventTrigger -> GameEnd fires when the
