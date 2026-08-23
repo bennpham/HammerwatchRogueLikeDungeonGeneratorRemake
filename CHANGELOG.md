@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Boss invulnerability windows.** Every time the boss's health crosses 75%, 50% or 25% it becomes immortal for a configurable stretch — 30 seconds on every threshold by default, on every preset — while a `M:SS` countdown ticks down on screen. It solves two problems at once: a fully upgraded party could burst a boss down before the fight it was carrying ever happened, and because the three thresholds then fired within the same second, every wave tier's spawners switched on at once and the arena flooded badly enough to drop the game to a crawl. A new **Boss invulnerability** section sits between **Boss** and **Waves** in the Boss tab: one duration field by default, or one per threshold behind a "Set per threshold" switch; 0 seconds disables a single threshold and the section can be turned off entirely. In `parameters.txt` this is `bossInvuln` (`30,30,30`, a single value for all three, or `off`) and `bossInvulnCountdown`. Generated dungeon floors are byte-identical with it on or off — only `levels/boss.xml` changes.
+
 ### Fixed
 
 - **Dead players stayed dead in the lobby, the boss prep room and the boss arena.** Only the numeric dungeon floors revived a player who died on the way in, so a co-op partner who died on the last floor arrived in the prep room dead and could not shop before the boss fight. All three rooms now emit the same one-shot `RespawnPlayers` rig the floors have always used — an `AreaTrigger` over the spawn point fires it once on arrival and a `ToggleElement` immediately disables the trigger, so dying mid-fight is still permanent. Generated dungeon floors are byte-identical; only the three extra level files change.

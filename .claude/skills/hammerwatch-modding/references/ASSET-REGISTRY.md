@@ -600,7 +600,7 @@ and the four `_v2` corners.
 | `RectangleShape` | area geometry other nodes attach to | width/height |
 | `AreaTrigger` | fires when players enter a shape | `event`, `types`, `shape` |
 | `ToggleElement` | enable/disable another node (used to one-shot the level banner) | `state`, `element` |
-| `AnnounceText` | on-screen text | `text`, `time`, `textType` |
+| `AnnounceText` | on-screen text; `textType` 0 = centred banner, 2 = timer line | `text`, `time`, `textType` |
 | `ObjectEventTrigger` | fires on an item event (orb pickup) | item id |
 | `ShopArea` | vendor area; carries the vendor doodad type | shop type |
 | `GameEnd` | ends the campaign (final floor orb) | — |
@@ -609,9 +609,26 @@ and the four `_v2` corners.
 | `GlobalEventTrigger` | fires on an engine event by name | `parameters` = the event string |
 | `TimerTrigger` | repeating timer driving a spawn chain | interval ms |
 | `DestroyObject` | destroys another node's target (the alcove seals) | element id |
+| `ToggleImmortality` | makes an **actor** immortal, or takes it back | `state` (0 = immortal), `element` = actor id |
 
-The last four are the boss arena's rig (`src/generator/boss/waves.ts`,
-`boss/arena.ts`); the dungeon floors emit none of them.
+The last five are the boss arena's rig (`src/generator/boss/waves.ts`,
+`boss/invulnerability.ts`, `boss/arena.ts`); the dungeon floors emit none of
+them.
+
+### Connection delays `[VERIFIED 2026-08-22 for the schema, EMITTED for ours]`
+
+A node staggers its own fan-out; there is no delay node. Both delay array names
+appear in the wild and are the same length as `connections`:
+
+- `connection-delays` — real milliseconds. What the game's editor writes.
+- `delays` — what this generator has always written, holding a verbatim copy of
+  `connections` (Java-original parity, harmless because nothing depended on it).
+
+`ScriptNode.connectTo(node, delayMs)` opts a node into real delays and writes the
+true values under **both** names, because which one the engine honours in a
+*generated* level is still unverified. Nodes that never take a delay keep the
+legacy line exactly as before. The invulnerability countdown is the first and
+only user (`src/generator/boss/invulnerability.ts`).
 
 **`GameEnd` and item-watching `ObjectEventTrigger` are `[VERIFIED]` working**
 (2026-08-12, a full generated campaign completed on the orb). Both look

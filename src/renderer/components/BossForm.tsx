@@ -5,10 +5,12 @@ import {
   BOSS_DEF_LIST,
   BOSS_FLOOR_PATTERNS,
   BOSS_SPAWN_MODES,
+  DEFAULT_BOSS_INVULN_SECONDS,
   DEFAULT_WAVE_MONSTER_MAX,
   GOLD_SAFETY_MAX,
   LOBBY_DIAMOND_VALUE,
   LOBBY_VENDORS,
+  MAX_BOSS_INVULN_SECONDS,
   MONSTER_VARIANT_GROUPS,
   THEME_DEFS,
   corpseCollision,
@@ -387,6 +389,14 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
           ))}
       </Section>
 
+      <Section title="Boss invulnerability" badge={invulnBadge(arena.invulnerability)}>
+        <InvulnerabilityEditor
+          invuln={arena.invulnerability}
+          issues={issues}
+          onChange={(invulnerability) => setArena({ invulnerability })}
+        />
+      </Section>
+
       <Section title="Waves" defaultOpen>
         <p className="hint">
           Each health threshold switches its tier's spawners on and never off — by 25% health all four
@@ -507,6 +517,112 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
 function bossLabel(id: string): string {
   const name = id.replace(/^boss_/, '')
   return name.charAt(0).toUpperCase() + name.slice(1)
+}
+
+type Invulnerability = BossOptions['arena']['invulnerability']
+
+/** Section-header summary: `off`, `30s`, or the three windows spelled out. */
+function invulnBadge(invuln: Invulnerability): string {
+  if (!invuln.enabled || invuln.seconds.every((s) => s <= 0)) return 'off'
+  const [first] = invuln.seconds
+  if (invuln.seconds.every((s) => s === first)) return `${first}s`
+  return invuln.seconds.map((s) => `${s}s`).join(' / ')
+}
+
+/** Short label per threshold — the same order as BOSS_INVULN_THRESHOLDS. */
+const INVULN_LABELS = ['At 75% health', 'At 50% health', 'At 25% health']
+
+interface InvulnerabilityEditorProps {
+  invuln: Invulnerability
+  issues: ValidationIssue[]
+  onChange: (invuln: Invulnerability) => void
+}
+
+/**
+ * The invulnerability windows. One duration field drives all three thresholds
+ * unless "Set per threshold" is on — that switch is view state only, seeded from
+ * whether the stored windows already differ, because the params always carry the
+ * full array either way.
+ */
+function InvulnerabilityEditor({ invuln, issues, onChange }: InvulnerabilityEditorProps) {
+  const [perThreshold, setPerThreshold] = useState(!invuln.seconds.every((s) => s === invuln.seconds[0]))
+
+  const setAll = (seconds: number) => onChange({ ...invuln, seconds: invuln.seconds.map(() => seconds) })
+  const setOne = (index: number, seconds: number) =>
+    onChange({ ...invuln, seconds: invuln.seconds.map((s, i) => (i === index ? seconds : s)) })
+
+  return (
+    <>
+      <p className="hint">
+        Every time the boss's health crosses 75%, 50% or 25% it goes immortal for this long. A fully
+        upgraded party can otherwise burst the boss down before the fight happens — and firing all
+        three thresholds at once switches every wave tier's spawners on in the same frame, which
+        floods the arena and tanks the framerate. 0 seconds turns off that one threshold.
+      </p>
+      <BoolField
+        label="Boss invulnerability"
+        checked={invuln.enabled}
+        onChange={(enabled) => onChange({ ...invuln, enabled })}
+      />
+      {invuln.enabled && (
+        <>
+          <BoolField
+            label="Set per threshold"
+            checked={perThreshold}
+            onChange={(on) => {
+              setPerThreshold(on)
+              // collapsing back to one field has to actually re-level the three
+              // stored windows, or the badge and the single field disagree
+              if (!on) setAll(invuln.seconds[0] ?? DEFAULT_BOSS_INVULN_SECONDS)
+            }}
+            title="Give 75%, 50% and 25% their own window lengths"
+          />
+          <div className="field-grid">
+            {perThreshold ? (
+              invuln.seconds.map((seconds, i) => (
+                <NumberField
+                  key={i}
+                  label={INVULN_LABELS[i] ?? `Threshold ${i + 1}`}
+                  field={`boss.arena.invulnerability.seconds.${i}`}
+                  value={seconds}
+                  onChange={(v) => setOne(i, v)}
+                  issues={issues}
+                  min={0}
+                  max={MAX_BOSS_INVULN_SECONDS}
+                />
+              ))
+            ) : (
+              <NumberField
+                label="Duration (seconds)"
+                field="boss.arena.invulnerability.seconds.0"
+                value={invuln.seconds[0] ?? DEFAULT_BOSS_INVULN_SECONDS}
+                onChange={setAll}
+                issues={issues}
+                min={0}
+                max={MAX_BOSS_INVULN_SECONDS}
+                title="Applied to all three health thresholds"
+              />
+            )}
+          </div>
+          <BoolField
+            label="Show countdown"
+            checked={invuln.countdown}
+            onChange={(countdown) => onChange({ ...invuln, countdown })}
+            title="Announce a ticking M:SS countdown for the length of each window (one script node per second)"
+          />
+        </>
+      )}
+      {issues
+        .filter(
+          (i) => i.field === 'boss.arena.invulnerability.seconds' || i.field === 'boss.arena.invulnerability.countdown'
+        )
+        .map((issue, i) => (
+          <p key={i} className="field-message">
+            {issue.message}
+          </p>
+        ))}
+    </>
+  )
 }
 
 interface WaveEditorProps {

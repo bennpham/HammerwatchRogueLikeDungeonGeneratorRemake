@@ -70,6 +70,17 @@ bossCover=random,0.08,4,3
 # deliberately separate from bossCover so pillars and monsters can be spaced
 # differently. Ignored while every monster is on the default anchors mode.
 bossSpawn=2,4,3
+# Boss invulnerability: at 75%, 50% and 25% health the boss goes immortal for
+# this many seconds, with a ticking countdown announced to the party. It stops a
+# fully upgraded party bursting the boss down before the fight happens, and it
+# keeps the three thresholds from firing in the same frame — which would switch
+# every wave tier on at once and flood the arena. One value sets all three
+# thresholds; three set them separately; 0 disables that one threshold; `off`
+# disables the feature entirely.
+bossInvuln=30,30,30
+# 0 keeps the immortality windows but drops the countdown announcements (one
+# script node per second, per window).
+bossInvulnCountdown=1
 # The arena's own multipliers, separate from the dungeon's monsterMultiplier /
 # foodMultiplier: bossMonsterMultiplier scales every wave's max counts (an
 # endless -1 stays endless), bossFoodMultiplier the arena's health/mana pickups.

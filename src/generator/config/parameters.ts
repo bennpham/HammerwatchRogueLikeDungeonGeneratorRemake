@@ -189,6 +189,31 @@ export interface BossOptions {
       /** seeded cluster centres for the `gaussian` mode */
       clusters: number
     }
+    /**
+     * Temporary boss immortality on each health threshold (75/50/25%), with an
+     * optional per-second countdown announced to the party.
+     *
+     * Two problems, one mechanism: a fully upgraded party can burst a boss down
+     * fast enough that all three thresholds fire in the same second, which both
+     * ends the fight before any of the wave design is seen and switches every
+     * wave tier's spawners on at once (the arena floods and the framerate dies).
+     * Holding the boss immortal for a fixed window forces the thresholds apart.
+     *
+     * Independent of `waves`: a threshold gets a window whether or not its tier
+     * has any monsters in it.
+     */
+    invulnerability: {
+      enabled: boolean
+      /**
+       * One window length in seconds per threshold, in BOSS_INVULN_THRESHOLDS
+       * order (75%, 50%, 25%). 0 disables that one threshold. The GUI drives all
+       * three from a single field unless "set per threshold" is on, but the
+       * stored shape is always the full array.
+       */
+      seconds: number[]
+      /** announce a ticking M:SS countdown for the length of each window */
+      countdown: boolean
+    }
     /** scales each wave tier's monsterMax (except -1/endless, which stays endless) */
     monsterMultiplier: number
     /** scales the sparse health/mana pickup clusters scattered around the arena */
@@ -289,6 +314,13 @@ export function defaultBossOptions(): BossOptions {
         ringSpacing: 4,
         clusters: 3
       },
+      // 30 seconds on every threshold, countdown on. Long enough that a burst
+      // party cannot skip a tier, short enough that a slow fight barely notices.
+      invulnerability: {
+        enabled: true,
+        seconds: BOSS_INVULN_THRESHOLDS.map(() => DEFAULT_BOSS_INVULN_SECONDS),
+        countdown: true
+      },
       monsterMultiplier: 1.0,
       foodMultiplier: 1.2
     }
@@ -302,6 +334,31 @@ export function defaultBossOptions(): BossOptions {
  * never in doubt anywhere downstream.
  */
 export const BOSS_WAVE_COUNT = 5
+
+/**
+ * The health thresholds that can carry an invulnerability window, as the engine
+ * event names that fire them.
+ *
+ * These are deliberately their own list rather than a slice of waves.ts's
+ * TIER_EVENT_NAMES: the two features are independent, the wave array also has a
+ * 100% tier (fired by an area trigger, not an event) and a `Boss Died` tier, and
+ * neither of those can hold a window — one fires before the fight, the other
+ * after the boss is already dead.
+ */
+export const BOSS_INVULN_THRESHOLDS = ['Boss 75%', 'Boss 50%', 'Boss 25%'] as const
+
+/** How many invulnerability windows an arena has — one per health threshold. */
+export const BOSS_INVULN_COUNT = BOSS_INVULN_THRESHOLDS.length
+
+/** Stock window length, in seconds, applied to every threshold and every preset. */
+export const DEFAULT_BOSS_INVULN_SECONDS = 30
+
+/**
+ * Longest window a single threshold may hold. The countdown emits one
+ * AnnounceText node per second, so this is also the per-threshold node cost;
+ * validation warns well below the cap.
+ */
+export const MAX_BOSS_INVULN_SECONDS = 300
 
 /**
  * Index of the boss-death tier — the last one. It is keyed to the engine's

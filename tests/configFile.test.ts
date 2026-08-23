@@ -159,6 +159,7 @@ describe('parameters.txt parsing', () => {
     original.boss.arena.maxHeight = 48
     original.boss.arena.bossPool = ['boss_dragon', 'boss_queen']
     original.boss.arena.cover = { pattern: 'ring', density: 0.6, ringSpacing: 5, clusters: 2 }
+    original.boss.arena.invulnerability = { enabled: true, seconds: [30, 45, 60], countdown: false }
     // waves set out in full rather than patched onto the stock ones, which are
     // long and nearly all scattered — this test is about the wire format
     original.boss.arena.waves[0] = {
@@ -176,6 +177,8 @@ describe('parameters.txt parsing', () => {
     // the wire contract: fixed camelCase keys, and the four-field wave encoding
     expect(text).toContain('bossGold=2500')
     expect(text).toContain('bossCover=ring,0.6,5,2')
+    expect(text).toContain('bossInvuln=30,45,60')
+    expect(text).toContain('bossInvulnCountdown=0')
     expect(text).toContain('bossWave1=bat1,tick1,maggot|3500|bat1:10,tick1:10,maggot:10|')
 
     const parsed = parseParametersTxt(text)
@@ -472,5 +475,43 @@ describe('parameters.txt — boss wave variant keys (issue #20)', () => {
 
     const text = serializeParametersTxt(original)
     expect(serializeParametersTxt(parseParametersTxt(text).params)).toBe(text)
+  })
+})
+
+describe('parameters.txt — boss invulnerability', () => {
+  it('writes `off` and keeps the window lengths out of the file entirely', () => {
+    const original = defaultParameters()
+    original.boss.arena.invulnerability.enabled = false
+    const text = serializeParametersTxt(original)
+    expect(text).toContain('bossInvuln=off')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.params.boss.arena.invulnerability.enabled).toBe(false)
+    // the lengths come back at their defaults, exactly as for a file that never
+    // mentioned them
+    expect(parsed.params.boss.arena.invulnerability.seconds).toEqual([30, 30, 30])
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('reads one value as "same for every threshold"', () => {
+    const parsed = parseParametersTxt('bossInvuln=45')
+    expect(parsed.params.boss.arena.invulnerability).toEqual({ enabled: true, seconds: [45, 45, 45], countdown: true })
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('reports a malformed segment and keeps that one threshold at its default', () => {
+    const parsed = parseParametersTxt('bossInvuln=10,nope,20')
+    expect(parsed.params.boss.arena.invulnerability.seconds).toEqual([10, 30, 20])
+    expect(parsed.unknownKeys).toEqual(['bossInvuln value "nope"'])
+  })
+
+  it('reads the countdown flag', () => {
+    expect(parseParametersTxt('bossInvulnCountdown=0').params.boss.arena.invulnerability.countdown).toBe(false)
+    expect(parseParametersTxt('bossInvulnCountdown=1').params.boss.arena.invulnerability.countdown).toBe(true)
+  })
+
+  it('leaves a legacy file with no invulnerability keys on the stock windows', () => {
+    const parsed = parseParametersTxt('boss=1\nbossGold=500')
+    expect(parsed.params.boss.arena.invulnerability).toEqual({ enabled: true, seconds: [30, 30, 30], countdown: true })
   })
 })
