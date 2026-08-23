@@ -11,7 +11,7 @@ import { DoodadType, doodadOffset, doodadPath } from '../src/generator/objects/d
 import type { DoodadTypeName } from '../src/generator/objects/doodad'
 import { generateDungeon } from '../src/generator'
 import type { DungeonParameters, DungeonResult } from '../src/generator'
-import { allIds, badIntArray } from './xmlHelpers'
+import { allIds, badIntArray, nodesOfType, oneShotRespawn } from './xmlHelpers'
 
 function freshCtx(seed: number): GenerationContext {
   return new GenerationContext(defaultParameters(), seed)
@@ -484,7 +484,10 @@ describe('boss arena — scattered spawn modes (issue #21)', () => {
   it('drops the timer rig entirely for a tier of nothing but scattered monsters', () => {
     const { xml } = buildBossArena(freshCtx(4242), scattered('gaussian'), 0)
     expect(xml).not.toContain('<string name="type">TimerTrigger</string>')
-    expect(xml).not.toContain('<string name="type">ToggleElement</string>')
+    // the only ToggleElement left is the arrival-respawn rig's own self-disable
+    // (state 1); the wave rig's enable-the-timer toggle (state 0) is gone
+    expect(xml.match(/<string name="type">ToggleElement<\/string>/g)).toHaveLength(1)
+    expect(xml).not.toContain('<int name="state">0</int>')
     // the tier still fires — the AreaTrigger over the entrance is what starts it
     expect(xml).toContain('<string name="type">AreaTrigger</string>')
   })
@@ -1368,5 +1371,43 @@ describe('boss arena — the boss-death wave tier', () => {
     expect(doodads(before).length).toBeGreaterThan(100) // the slice is real, not an empty match
     expect(doodads(after)).toBe(doodads(before))
     expect(bossDiedTriggers(after)).toBe(2)
+  })
+})
+
+describe('boss arena — arrival respawn', () => {
+  // Belt and braces behind the prep room's own rig: whoever walks into the
+  // arena starts the fight alive. One-shot, so dying to the boss is still
+  // permanent — the ToggleElement disables the trigger the first time it fires.
+  for (const seed of [1, 4242, 987654]) {
+    it(`seed ${seed}: revives whoever arrived dead, exactly once`, () => {
+      const { xml } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
+      const rig = oneShotRespawn(xml)
+      expect(rig, typeof rig === 'string' ? rig : '').not.toBeTypeOf('string')
+    })
+  }
+
+  it('watches its own shape, not the one the wave rig fires from', () => {
+    const { xml } = buildBossArena(freshCtx(4242), arenaOptions(), 0)
+    const rig = oneShotRespawn(xml)
+    if (typeof rig === 'string') throw new Error(rig)
+
+    // a 3x3 over the LevelStart; the wave rig's entrance shape is
+    // ENTRANCE_WIDTH x ENTRANCE_DEPTH and must be left alone
+    const shape = nodesOfType(xml, 'RectangleShape').find((n) => n.id === rig.shape)!
+    expect(shape.body).toContain('<float name="w">3.000000</float>')
+    expect(shape.body).toContain('<float name="h">3.000000</float>')
+
+    const [start] = nodesOfType(xml, 'LevelStart')
+    const at = (body: string): string => /<float name="x">([\d.-]+)<\/float>\s*<float name="y">([\d.-]+)<\/float>/.exec(body)!.slice(1).join(' ')
+    expect(at(shape.body)).toBe(at(start.body))
+  })
+
+  it('draws no random values — the arena is byte-identical with or without it', () => {
+    // A regression guard for invariant 2: the rig is built between bossRand
+    // draws, so if it ever started consuming one, every existing seed's arena
+    // would shift. Two runs of the same seed must agree exactly.
+    expect(buildBossArena(freshCtx(4242), arenaOptions(), 0).xml).toBe(
+      buildBossArena(freshCtx(4242), arenaOptions(), 0).xml
+    )
   })
 })

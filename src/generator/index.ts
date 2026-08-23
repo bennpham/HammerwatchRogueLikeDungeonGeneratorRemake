@@ -41,6 +41,7 @@ export {
   LOBBY_DIAMOND_VALUE,
   LOBBY_LEVEL_ID,
   LOBBY_LEVEL_PATH,
+  LOBBY_RESPAWN_ID_BASE,
   LOBBY_VENDORS,
   buildLobby,
   categoriesFor,

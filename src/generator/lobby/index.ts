@@ -2,6 +2,7 @@ export { LOBBY_ASSETS } from './assets'
 export {
   LOBBY_DIAMOND_VALUE,
   LOBBY_EXIT_TARGET,
+  LOBBY_RESPAWN_ID_BASE,
   buildLobby,
   diamondCount
 } from './build'

@@ -8,6 +8,39 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-22 — only the numeric floors revived a dead player; lobby, prep room and arena did not
+**Tag:** [VERIFIED] for the bug (reproduced in co-op in game); [EMITTED] for the fix.
+**Context:** A playtest report — one player died on a dungeon floor, the other
+took the red portal, and the dead player arrived in the boss prep room still
+dead, unable to shop for the boss fight.
+**Evidence:** Every generated `level*.xml` carries a four-node rig emitted by
+the `ExitUp` prefab (`src/generator/objects/objectSet.ts`) at the entrance
+stairs: `RectangleShape` → `AreaTrigger` → { `AnnounceText`,
+`RespawnPlayers`, `ToggleElement` }. The `ToggleElement` carries
+`state 1` (disable) and its `element` is the **AreaTrigger's own id**, so
+the trigger fires once on arrival and switches itself off — that is what stops
+an infinite respawn loop. Confirmed in an installed campaign at
+`levels/level6.xml` (ids 9/10/11/12/13). The three hand-authored / generated
+non-dungeon levels — `lobby.xml`, `bossprep.xml`, `boss.xml` — contained
+no `RespawnPlayers` node at all, so nothing ever revived a player who arrived
+in them dead.
+**Impact:** All three now emit the same rig, minus the `AnnounceText`, over a
+3x3 area centred on the level's `LevelStart` (wider than the floors' 1x1 so a
+player who materializes slightly off the start tile still crosses it). The two
+template levels get it inserted at build time by `respawnOnEntryNodes()` /
+`insertNodes()` in `src/generator/levelTemplate/surgery.ts` — **not** by
+hand-editing `template.ts`, which `scripts/import-*-assets.mjs` regenerates
+— at id base 9000. The arena builds it programmatically in `boss/arena.ts`.
+Still `[EMITTED]`: the emitted rig has not itself been loaded in game yet.
+
+**Dialect note, worth remembering on its own** (`[VERIFIED]` by reading both
+kinds of file): the *hand-authored* templates, saved by the game's own editor,
+write a node's position as `<vec2 name="pos">x y</vec2>` and its delays as
+`connection-delays` (zeros), while the *generated* levels write a
+`<float name="x">`/`<float name="y">` pair and a `delays` int-arr that is
+a verbatim copy of `connections` (Java-original parity). Anything inserted
+into a template must follow the template's dialect, not the generator's.
+
 ### 2026-08-19 — monsters spawned off `Boss Died` do appear; the death tier works
 **Tag:** [VERIFIED] — played in game. Supersedes the open question this entry
 was first filed with.

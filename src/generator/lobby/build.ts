@@ -11,8 +11,11 @@ import {
   DIAMOND_VALUE,
   diamondArray,
   diamondCount,
+  insertNodes,
+  levelStartPos,
   removeElement,
   replaceInElement,
+  respawnOnEntryNodes,
   setItems
 } from '../levelTemplate/surgery'
 
@@ -34,9 +37,18 @@ export const LOBBY_DIAMOND_VALUE = DIAMOND_VALUE
 export const LOBBY_EXIT_TARGET = '0'
 
 /**
+ * The first of the four ids the respawn rig allocates.
+ *
+ * Above everything the authored template uses and below the diamonds'
+ * `LOBBY_ITEM_ID_BASE`, so neither the rig nor the payout can collide with the
+ * template or with each other.
+ */
+export const LOBBY_RESPAWN_ID_BASE = 9000
+
+/**
  * Apply the user's lobby options to the committed template.
  *
- * Four surgical edits and nothing else — no RNG (neither `ctx.rand` nor
+ * Surgical edits and nothing else — no RNG (neither `ctx.rand` nor
  * `ctx.cosmeticRand` is even in scope here), no theme substitution, and no
  * round trip through `src/generator/xml/`. The template is treated as opaque
  * text located by the element ids it was generated with, so replacing it with a
@@ -80,6 +92,11 @@ export function buildLobby(options: LobbyOptions): string {
     `<string name="level">${LOBBY_EXIT_TARGET}</string>`,
     'lobby'
   )
+
+  // the same arrival net the dungeon floors and the prep room carry — nobody
+  // should be stuck dead in a room whose whole point is shopping
+  const [startX, startY] = levelStartPos(xml, 'lobby')
+  xml = insertNodes(xml, respawnOnEntryNodes(LOBBY_RESPAWN_ID_BASE, startX, startY), 'lobby')
 
   return setItems(
     xml,

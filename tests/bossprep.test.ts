@@ -4,6 +4,7 @@ import {
   BOSSPREP_DIAMOND_VALUE,
   BOSSPREP_EXIT_NODE_ID,
   BOSSPREP_EXIT_TARGET,
+  BOSSPREP_RESPAWN_ID_BASE,
   buildBossPrep,
   diamondCount
 } from '../src/generator/bossprep'
@@ -11,7 +12,7 @@ import { ALL_LOBBY_CATEGORIES, LOBBY_VENDORS } from '../src/generator/lobby/shop
 import { defaultParameters } from '../src/generator/config/parameters'
 import { DIAMOND_VALUE } from '../src/generator/levelTemplate/surgery'
 import type { BossOptions } from '../src/generator/config/parameters'
-import { allIds, badIntArray } from './xmlHelpers'
+import { allIds, badIntArray, nodesOfType, oneShotRespawn } from './xmlHelpers'
 
 /** Five diamonds deep on every authored slot — well past what the old cap allowed. */
 const DEEP_GOLD = BOSSPREP_DIAMOND_VALUE * BOSSPREP_DIAMOND_SLOTS.length * 5
@@ -169,6 +170,40 @@ describe('boss prep — int-arr safety', () => {
     for (const shopCategories of [[], ['power'], ALL_LOBBY_CATEGORIES.filter((c) => !c.startsWith('misc'))]) {
       const label = `boss prep with shops [${shopCategories.join(' ')}]`
       expect(badIntArray(prepXML({ shopCategories })), label).toBeNull()
+    }
+  })
+})
+
+describe('boss prep — arrival respawn', () => {
+  // The bug this rig exists for: a co-op player who died on the last dungeon
+  // floor used to arrive in the prep room dead, unable to spend a coin before
+  // the boss fight, because the surviving player took the portal for both.
+  it('revives whoever arrived dead, exactly once', () => {
+    const rig = oneShotRespawn(prepXML())
+    expect(rig, typeof rig === 'string' ? rig : '').not.toBeTypeOf('string')
+    expect(rig).toEqual({
+      shape: BOSSPREP_RESPAWN_ID_BASE,
+      trigger: BOSSPREP_RESPAWN_ID_BASE + 1,
+      respawn: BOSSPREP_RESPAWN_ID_BASE + 2,
+      disable: BOSSPREP_RESPAWN_ID_BASE + 3
+    })
+  })
+
+  it('watches the room the players actually land in', () => {
+    const xml = prepXML()
+    // the rig sits on the LevelStart, wherever the authored template put it
+    const [start] = nodesOfType(xml, 'LevelStart')
+    const pos = /<vec2 name="pos">(-?[\d.]+ -?[\d.]+)<\/vec2>/.exec(start.body)?.[1]
+    expect(pos).toBeDefined()
+    const shape = nodesOfType(xml, 'RectangleShape').find((n) => n.id === BOSSPREP_RESPAWN_ID_BASE)
+    expect(shape?.body).toContain(`<vec2 name="pos">${pos}</vec2>`)
+    expect(shape?.body).toContain('<float name="w">3</float>')
+  })
+
+  it('survives every shop configuration', () => {
+    for (const shopCategories of [[], ['power'], [...ALL_LOBBY_CATEGORIES]]) {
+      const label = `boss prep with shops [${shopCategories.join(' ')}]`
+      expect(oneShotRespawn(prepXML({ shopCategories })), label).not.toBeTypeOf('string')
     }
   })
 })

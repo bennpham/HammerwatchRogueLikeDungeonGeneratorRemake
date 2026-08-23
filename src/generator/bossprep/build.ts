@@ -11,8 +11,11 @@ import {
   DIAMOND_VALUE,
   diamondArray,
   diamondCount,
+  insertNodes,
+  levelStartPos,
   removeElement,
   replaceInElement,
+  respawnOnEntryNodes,
   setItems
 } from '../levelTemplate/surgery'
 
@@ -33,9 +36,18 @@ export const BOSSPREP_DIAMOND_VALUE = DIAMOND_VALUE
 export const BOSSPREP_EXIT_TARGET = 'boss'
 
 /**
+ * The first of the four ids the respawn rig allocates.
+ *
+ * Above everything the authored template uses and below the diamonds'
+ * `BOSSPREP_ITEM_ID_BASE`, so neither the rig nor the payout can collide with
+ * the template or with each other.
+ */
+export const BOSSPREP_RESPAWN_ID_BASE = 9000
+
+/**
  * Apply the user's boss-prep options to the committed template.
  *
- * Identical shape to buildLobby() — four surgical edits, no RNG (neither
+ * Identical shape to buildLobby() — surgical edits only, no RNG (neither
  * ctx.rand nor ctx.cosmeticRand nor ctx.bossRand is even in scope here), no
  * theme substitution, no round trip through src/generator/xml/. The only
  * differences from the lobby are which template it edits and what the exit
@@ -79,6 +91,11 @@ export function buildBossPrep(options: BossOptions['prep']): string {
     `<string name="level">${BOSSPREP_EXIT_TARGET}</string>`,
     'bossprep'
   )
+
+  // a player who died on the last dungeon floor arrives here dead and, without
+  // this, stays dead through the whole shopping stop and into the boss fight
+  const [startX, startY] = levelStartPos(xml, 'bossprep')
+  xml = insertNodes(xml, respawnOnEntryNodes(BOSSPREP_RESPAWN_ID_BASE, startX, startY), 'bossprep')
 
   return setItems(
     xml,
