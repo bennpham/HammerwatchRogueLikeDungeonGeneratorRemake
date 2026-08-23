@@ -577,7 +577,7 @@ function InvulnerabilityEditor({ invuln, issues, onChange }: InvulnerabilityEdit
             }}
             title="Give 75%, 50% and 25% their own window lengths"
           />
-          <div className="field-grid">
+          <div className="field-grid" style={{ marginBottom: '0.75rem' }}>
             {perThreshold ? (
               invuln.seconds.map((seconds, i) => (
                 <NumberField
