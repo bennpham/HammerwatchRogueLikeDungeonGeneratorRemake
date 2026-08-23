@@ -46,6 +46,9 @@ const DIAMOND_ITEM = 'items/valuable_diamond_red.xml'
 /** ids at or above this are buildBossPrep's to allocate for diamonds */
 const DIAMOND_ID_BASE = 10000
 
+/** ids buildBossPrep allocates for the arrival-respawn rig (BOSSPREP_RESPAWN_ID_BASE in build.ts) */
+const RESPAWN_ID_BASE = 9000
+
 /** The body of `<dictionary name="x">` / `<array name="x">`, brackets excluded. */
 function section(xml, tag, name) {
   const open = `<${tag} name="${name}">`
@@ -167,6 +170,15 @@ function deriveMeta(xml) {
   }
   if (slots.length === 0) throw new Error(`level places no ${DIAMOND_ITEM} to use as diamond slots`)
   slots.sort((a, b) => a[1] - b[1] || a[0] - b[0])
+
+  // buildBossPrep also inserts the four-node arrival-respawn rig at a fixed id base,
+  // which an authored level must therefore stay below
+  const overRig = [...xml.matchAll(/<int name="id">(\d+)<\/int>/g)]
+    .map((m) => Number(m[1]))
+    .filter((id) => id >= RESPAWN_ID_BASE)
+  if (overRig.length > 0) {
+    throw new Error(`level uses id ${Math.max(...overRig)}, at or above the respawn rig's ${RESPAWN_ID_BASE}`)
+  }
 
   // buildBossPrep allocates diamond ids from a base rather than reusing the
   // authored ones, so the base has to clear everything the file already uses

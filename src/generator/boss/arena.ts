@@ -48,7 +48,15 @@ import type { DoodadTypeName } from '../objects/doodad'
 import { Item, ItemType } from '../objects/item'
 import { Monster } from '../objects/monster'
 import { ObjectSet } from '../objects/objectSet'
-import { NodeDestroyObject, NodeGlobalEventTrigger, NodeLevelStart, NodeRectangleShape } from '../objects/nodes'
+import {
+  NodeAreaTrigger,
+  NodeDestroyObject,
+  NodeGlobalEventTrigger,
+  NodeLevelStart,
+  NodeRectangleShape,
+  NodeToggleElement
+} from '../objects/nodes'
+import { ScriptNode } from '../objects/scriptNode'
 import { getTheme, THEME_DEFS } from '../config/themes'
 import type { ThemeDef } from '../config/themes'
 import { XMLArray, XMLDictionary, XMLInt, XMLIntArray, XMLString } from '../xml'
@@ -65,6 +73,13 @@ import { isFree, placeCoverPillars } from './cover'
 import type { CoverArena, Rect } from './cover'
 import { buildWaveRig, scatterRequests } from './waves'
 import { placeSpawnPoints } from './spawnPoints'
+
+/**
+ * Side of the square the arrival-respawn trigger watches, centred on the
+ * LevelStart. Wider than the dungeon floors' 1x1 rig so a living player who
+ * materializes slightly off the exact start tile still crosses it.
+ */
+const RESPAWN_AREA_SIZE = 3
 
 /**
  * Placement attempts per food pickup before giving up on that one slot —
@@ -335,6 +350,24 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   const entranceShape = new NodeRectangleShape(ctx, entranceRect.x + entranceRect.width / 2, entranceRect.y + entranceRect.height / 2)
   entranceShape.width = ENTRANCE_WIDTH
   entranceShape.height = ENTRANCE_DEPTH
+
+  // --- arrival respawn: the same one-shot rig every dungeon floor's ExitUp
+  // prefab carries, minus its AnnounceText. The ToggleElement's element is the
+  // trigger's own id, so it fires once on arrival and never again — dying
+  // mid-fight is still permanent. Its shape is its own, deliberately not
+  // entranceShape: that one is sized for the wave rig's tier-0 trigger. Draws
+  // no random values, so ctx.bossRand is untouched. ---
+  const respawnShape = new NodeRectangleShape(ctx, midX, height - 1)
+  respawnShape.width = RESPAWN_AREA_SIZE
+  respawnShape.height = RESPAWN_AREA_SIZE
+
+  const respawnTrigger = new NodeAreaTrigger(ctx, midX, height - 1)
+  respawnTrigger.connectToShape(respawnShape)
+  respawnTrigger.connectTo(new ScriptNode(ctx, midX, height - 1, 'RespawnPlayers'))
+
+  const disableRespawn = new NodeToggleElement(ctx, midX, height - 1)
+  disableRespawn.connectToElement(respawnTrigger)
+  respawnTrigger.connectTo(disableRespawn)
 
   // --- scattered spawn points: the last ctx.bossRand draws of the arena, and
   // none at all while every monster is on the default `anchors` mode. The rig

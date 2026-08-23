@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { generateDungeon, defaultParameters, DungeonResult } from '../src/generator'
+import { oneShotRespawn } from './xmlHelpers'
 
 function generateOk(seed: number, mutate?: (p: ReturnType<typeof defaultParameters>) => void): DungeonResult {
   const params = defaultParameters()
@@ -254,6 +255,19 @@ describe('generateDungeon', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.errors[0]).toContain('Could not generate')
+    }
+  })
+})
+
+describe('dungeon floors — arrival respawn', () => {
+  // The rig the ExitUp prefab has always emitted, now pinned: it is what
+  // revives a co-op player who died on the previous floor, and the lobby, the
+  // prep room and the boss arena all copy it. Nothing asserted on it before.
+  it('gives every floor a one-shot respawn at the entrance stairs', () => {
+    const result = generateOk(31337)
+    for (const file of result.files.filter((f) => /^levels\/level\d+\.xml$/.test(f.path))) {
+      const rig = oneShotRespawn(file.content)
+      expect(rig, typeof rig === 'string' ? `${file.path}: ${rig}` : '').not.toBeTypeOf('string')
     }
   })
 })

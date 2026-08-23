@@ -54,7 +54,7 @@ src/
 │   │   ├── template.ts   the lobby XML verbatim (generated + committed)
 │   │   ├── assets.ts     custom files it references, base64 when binary
 │   │   ├── shops.ts      the five vendor stalls and their shop columns
-│   │   └── build.ts      buildLobby() — four surgical edits, no RNG
+│   │   └── build.ts      buildLobby() — surgical edits only, no RNG
 │   ├── bossprep/         the prep room between the last floor and the arena —
 │   │                     same template+surgery shape as the lobby, no RNG
 │   ├── boss/             the GENERATED arena — the only new geometry since the
@@ -297,6 +297,13 @@ orb room becomes a portal, so there is exactly one way to win.
 
 - **Prep room** (`bossprep/`) — the lobby's shop rig again, via
   `levelTemplate/surgery.ts`: hand-authored XML edited by id, no RNG.
+- Both templates, and the arena, also carry the **one-shot arrival respawn**
+  every dungeon floor's `ExitUp` prefab emits — an `AreaTrigger` over the
+  spawn point firing `RespawnPlayers` plus a `ToggleElement` that disables the
+  trigger. Without it a player who died on the last floor arrives dead and
+  cannot shop. The two templates get it inserted at build time by
+  `respawnOnEntryNodes()`/`insertNodes()` (ids from 9000), never by editing
+  `template.ts`, which the import scripts regenerate.
 - **Arena** (`boss/arena.ts`) — generated, but not a `Level`: no rooms, no
   passages. It reuses `Tile`, `Doodad`, `Item`, `Monster`, `ObjectSet` and the
   XML layer and emits the same section order. **Fixed `ctx.bossRand` draw

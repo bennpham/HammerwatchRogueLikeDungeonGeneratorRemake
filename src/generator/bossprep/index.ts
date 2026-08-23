@@ -1,6 +1,7 @@
 export {
   BOSSPREP_DIAMOND_VALUE,
   BOSSPREP_EXIT_TARGET,
+  BOSSPREP_RESPAWN_ID_BASE,
   buildBossPrep,
   diamondCount
 } from './build'

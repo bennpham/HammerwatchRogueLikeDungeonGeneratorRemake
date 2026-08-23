@@ -95,6 +95,9 @@ const IDS = {
 /** ids at or above this are buildLobby's to allocate; the template uses none */
 const DIAMOND_ID_BASE = 10000
 
+/** ids buildLobby allocates for the arrival-respawn rig (LOBBY_RESPAWN_ID_BASE in build.ts) */
+const RESPAWN_ID_BASE = 9000
+
 // ------------------------------------------------------------ XML helpers
 
 const int = (name, v) => `<int name="${name}">${Math.trunc(v)}</int>`
@@ -409,6 +412,15 @@ function deriveMeta(xml) {
   }
   if (slots.length === 0) throw new Error(`level places no ${DIAMOND_ITEM} to use as diamond slots`)
   slots.sort((a, b) => a[1] - b[1] || a[0] - b[0])
+
+  // buildLobby also inserts the four-node arrival-respawn rig at a fixed id base,
+  // which an authored level must therefore stay below
+  const overRig = [...xml.matchAll(/<int name="id">(\d+)<\/int>/g)]
+    .map((m) => Number(m[1]))
+    .filter((id) => id >= RESPAWN_ID_BASE)
+  if (overRig.length > 0) {
+    throw new Error(`level uses id ${Math.max(...overRig)}, at or above the respawn rig's ${RESPAWN_ID_BASE}`)
+  }
 
   // buildLobby allocates diamond ids from a base rather than reusing the
   // authored ones, so the base has to clear everything the file already uses

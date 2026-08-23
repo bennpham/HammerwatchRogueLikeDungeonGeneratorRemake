@@ -5,6 +5,7 @@ import {
   LOBBY_DIAMOND_VALUE,
   LOBBY_LEVEL_ID,
   LOBBY_LEVEL_PATH,
+  LOBBY_RESPAWN_ID_BASE,
   LOBBY_VENDORS,
   buildLobby,
   defaultParameters,
@@ -17,7 +18,7 @@ import {
 } from '../src/generator'
 import type { DungeonParameters, DungeonResult, LobbyOptions } from '../src/generator'
 import { LOBBY_ASSETS } from '../src/generator/lobby/assets'
-import { allIds, badIntArray } from './xmlHelpers'
+import { allIds, badIntArray, nodesOfType, oneShotRespawn } from './xmlHelpers'
 
 /** Five diamonds deep on every authored slot — well past what the old cap allowed. */
 const DEEP_GOLD = LOBBY_DIAMOND_VALUE * LOBBY_DIAMOND_SLOTS.length * 5
@@ -393,5 +394,37 @@ describe('lobby — parameters.txt round trip', () => {
     const parsed = parseParametersTxt('levels=3\n')
     expect(parsed.params.lobby).toEqual(defaultParameters().lobby)
     expect(parsed.unknownKeys).toEqual([])
+  })
+})
+
+describe('lobby — arrival respawn', () => {
+  // Same one-shot rig the dungeon floors and the boss prep room carry: nobody
+  // should be stuck dead in a room whose entire point is shopping.
+  it('revives whoever arrived dead, exactly once', () => {
+    const rig = oneShotRespawn(lobbyXML({}))
+    expect(rig, typeof rig === 'string' ? rig : '').not.toBeTypeOf('string')
+    expect(rig).toEqual({
+      shape: LOBBY_RESPAWN_ID_BASE,
+      trigger: LOBBY_RESPAWN_ID_BASE + 1,
+      respawn: LOBBY_RESPAWN_ID_BASE + 2,
+      disable: LOBBY_RESPAWN_ID_BASE + 3
+    })
+  })
+
+  it('watches the spot the players actually land in', () => {
+    const xml = lobbyXML({})
+    const [start] = nodesOfType(xml, 'LevelStart')
+    const pos = /<vec2 name="pos">(-?[\d.]+ -?[\d.]+)<\/vec2>/.exec(start.body)?.[1]
+    expect(pos).toBeDefined()
+    const shape = nodesOfType(xml, 'RectangleShape').find((n) => n.id === LOBBY_RESPAWN_ID_BASE)
+    expect(shape?.body).toContain(`<vec2 name="pos">${pos}</vec2>`)
+    expect(shape?.body).toContain('<float name="w">3</float>')
+  })
+
+  it('survives every shop configuration', () => {
+    for (const shopCategories of [[], ['power'], [...ALL_LOBBY_CATEGORIES]]) {
+      const label = `lobby with shops [${shopCategories.join(' ')}]`
+      expect(oneShotRespawn(lobbyXML({ shopCategories })), label).not.toBeTypeOf('string')
+    }
   })
 })

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Dead players stayed dead in the lobby, the boss prep room and the boss arena.** Only the numeric dungeon floors revived a player who died on the way in, so a co-op partner who died on the last floor arrived in the prep room dead and could not shop before the boss fight. All three rooms now emit the same one-shot `RespawnPlayers` rig the floors have always used — an `AreaTrigger` over the spawn point fires it once on arrival and a `ToggleElement` immediately disables the trigger, so dying mid-fight is still permanent. Generated dungeon floors are byte-identical; only the three extra level files change.
+
 ## [0.4.0]
 
 ### Added

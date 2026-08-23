@@ -81,6 +81,136 @@ export function replaceInElement(
 }
 
 /**
+ * Where the level's single `LevelStart` node sits.
+ *
+ * Derived from the template rather than hardcoded so a re-import that moves the
+ * spawn point keeps working. Anchored on the `type` string and scanned forward
+ * to the node's own `pos`, which is the next `<vec2 name="pos">` in the file —
+ * a `LevelStart`'s parameters hold only `id` and `dir`, no vec2 of their own.
+ */
+export function levelStartPos(xml: string, label: string): [number, number] {
+  const marker = /<string name="type">LevelStart<\/string>/g
+  const opening = marker.exec(xml)
+  if (opening === null) throw new Error(`${label} template has no LevelStart node`)
+  if (marker.exec(xml) !== null) throw new Error(`${label} template has more than one LevelStart node`)
+
+  const pos = /<vec2 name="pos">(-?[\d.]+) (-?[\d.]+)<\/vec2>/g
+  pos.lastIndex = opening.index
+  const found = pos.exec(xml)
+  if (found === null) throw new Error(`${label} template's LevelStart node has no pos`)
+
+  return [Number(found[1]), Number(found[2])]
+}
+
+/**
+ * The four-node "revive whoever arrived dead, once" rig, as template text.
+ *
+ * The same rig the `ExitUp` prefab puts on every dungeon floor (see
+ * `objects/objectSet.ts`), minus its `AnnounceText`: an `AreaTrigger` over the
+ * spawn point fires `RespawnPlayers`, then a `ToggleElement` whose `element` is
+ * the trigger's *own* id switches the trigger off, so it can never fire twice.
+ * Without it a player who died on the previous level arrives dead and stays
+ * dead — in the prep room that means they cannot shop for the boss fight.
+ *
+ * Emitted in the level editor's own dialect, which the hand-authored templates
+ * are saved in and which differs from the generated floors' in two ways:
+ * `<vec2 name="pos">` instead of a `<float name="x">`/`<float name="y">` pair,
+ * and `connection-delays` (zeros) instead of the floors' `delays` (a copy of
+ * `connections`). Indented with tabs to sit inside `<array name="nodes">`.
+ *
+ * `size` is deliberately wider than the floors' 1x1: a living player who spawns
+ * slightly off the exact start tile and walks away must still cross it.
+ */
+export function respawnOnEntryNodes(idBase: number, x: number, y: number, size = 3): string {
+  const shape = idBase
+  const trigger = idBase + 1
+  const respawn = idBase + 2
+  const disable = idBase + 3
+
+  return `\t\t\t<dictionary>
+\t\t\t\t<int name="id">${shape}</int>
+\t\t\t\t<string name="type">RectangleShape</string>
+\t\t\t\t<bool name="enabled">True</bool>
+\t\t\t\t<int name="trigger-times">-1</int>
+\t\t\t\t<vec2 name="pos">${x} ${y}</vec2>
+\t\t\t\t<dictionary name="parameters">
+\t\t\t\t\t<float name="w">${size}</float>
+\t\t\t\t\t<float name="h">${size}</float>
+\t\t\t\t\t<int name="types">15</int>
+\t\t\t\t</dictionary>
+\t\t\t</dictionary>
+\t\t\t<dictionary>
+\t\t\t\t<int name="id">${trigger}</int>
+\t\t\t\t<string name="type">AreaTrigger</string>
+\t\t\t\t<bool name="enabled">True</bool>
+\t\t\t\t<int name="trigger-times">-1</int>
+\t\t\t\t<vec2 name="pos">${x} ${y}</vec2>
+\t\t\t\t<dictionary name="parameters">
+\t\t\t\t\t<int name="event">0</int>
+\t\t\t\t\t<int name="types">1</int>
+\t\t\t\t\t<dictionary name="shape">
+\t\t\t\t\t\t<int-arr name="static">${shape}</int-arr>
+\t\t\t\t\t</dictionary>
+\t\t\t\t</dictionary>
+\t\t\t\t<int-arr name="connections">${respawn} ${disable}</int-arr>
+\t\t\t\t<int-arr name="connection-delays">0 0</int-arr>
+\t\t\t</dictionary>
+\t\t\t<dictionary>
+\t\t\t\t<int name="id">${respawn}</int>
+\t\t\t\t<string name="type">RespawnPlayers</string>
+\t\t\t\t<bool name="enabled">True</bool>
+\t\t\t\t<int name="trigger-times">-1</int>
+\t\t\t\t<vec2 name="pos">${x} ${y}</vec2>
+\t\t\t\t<dictionary name="parameters">
+\t\t\t\t</dictionary>
+\t\t\t</dictionary>
+\t\t\t<dictionary>
+\t\t\t\t<int name="id">${disable}</int>
+\t\t\t\t<string name="type">ToggleElement</string>
+\t\t\t\t<bool name="enabled">True</bool>
+\t\t\t\t<int name="trigger-times">-1</int>
+\t\t\t\t<vec2 name="pos">${x} ${y}</vec2>
+\t\t\t\t<dictionary name="parameters">
+\t\t\t\t\t<int name="state">1</int>
+\t\t\t\t\t<dictionary name="element">
+\t\t\t\t\t\t<int-arr name="static">${trigger}</int-arr>
+\t\t\t\t\t</dictionary>
+\t\t\t\t</dictionary>
+\t\t\t</dictionary>
+`
+}
+
+/**
+ * Append `body` just inside the close of the level's `nodes` array.
+ *
+ * The closing tag is found by counting `<array>` nesting rather than by taking
+ * the first `</array>`, for the same reason `setItems` counts `<dictionary>`
+ * depth: a node's parameters may hold arrays of their own.
+ */
+export function insertNodes(xml: string, body: string, label: string): string {
+  const open = '<array name="nodes">'
+  const start = xml.indexOf(open)
+  if (start === -1) throw new Error(`${label} template has no nodes array`)
+
+  const tag = /<array\b[^>]*>|<\/array>/g
+  tag.lastIndex = start
+  let depth = 0
+  let match: RegExpExecArray | null
+  while ((match = tag.exec(xml)) !== null) {
+    depth += match[0].startsWith('</') ? -1 : 1
+    if (depth === 0) {
+      // the closing tag sits on its own indented line; the body ends in a
+      // newline, so it lands on whole lines of its own above that indent
+      let from = match.index
+      while (from > 0 && (xml[from - 1] === '\t' || xml[from - 1] === ' ')) from--
+      return xml.slice(0, from) + body + xml.slice(from)
+    }
+  }
+
+  throw new Error(`${label} template nodes array is not closed`)
+}
+
+/**
  * Replace the whole body of the level's `items` section.
  *
  * Whatever the template author left on the floor is discarded: the authored
