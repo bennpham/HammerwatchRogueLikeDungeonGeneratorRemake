@@ -7,8 +7,9 @@ import { LOBBY_ASSETS, LOBBY_LEVEL_ID, LOBBY_LEVEL_PATH, buildLobby } from './lo
 import { BOSSPREP_LEVEL_ID, BOSSPREP_LEVEL_PATH, buildBossPrep } from './bossprep'
 import { buildBossArena } from './boss'
 import { buildFloorHazardRig } from './timer/hazard'
+import { buildFloorBuffRig } from './buffs/field'
 
-export type { DungeonParameters, LobbyOptions, BossOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FinalLockMode } from './config/parameters'
+export type { DungeonParameters, LobbyOptions, BossOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FinalLockMode, FloorBuff, BuffTarget } from './config/parameters'
 export {
   THEMES,
   BOSS_IDS,
@@ -25,6 +26,11 @@ export {
   defaultBossOptions,
   defaultFloorTimer,
   FINAL_LOCK_MODES,
+  defaultFloorBuffs,
+  BUFF_TARGETS,
+  BUFF_TARGET_TYPES,
+  BUFF_REFRESH_MS,
+  MAX_BUFFS_PER_FLOOR,
   MAX_TIMER_SECONDS,
   MIN_TIMER_FREQ_MS,
   MAX_TIMER_FREQ_MS,
@@ -33,6 +39,8 @@ export {
   isScatterMode,
   waveSpawnMode
 } from './config/parameters'
+export { BUFF_DEFS, BUFF_GROUPS, BUFF_HELPFUL_IDS, buffById } from './objects/buffTypes'
+export type { BuffDef } from './objects/buffTypes'
 export { THEME_DEFS, getTheme } from './config/themes'
 export type { ThemeDef } from './config/themes'
 export { ARENA_PATTERN_LABELS, isShapePattern } from './boss/arenaPattern'
@@ -277,10 +285,14 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
       }
     }
 
-    // Timer mode: the optional per-floor hazard. Built AFTER the floor is
-    // complete, so every dungeon id is already allocated and the rig only
-    // appends — a seed's walls, rooms, doodads, actors and items are identical
-    // whether the timer is on or off. Draws no random values (timer/hazard.ts).
+    // The two optional per-floor field rigs, in the order the form lists them.
+    // Both are built AFTER the floor is complete, so every dungeon id is already
+    // allocated and they can only append — a seed's walls, rooms, doodads,
+    // actors and items are identical whether either is on. Neither draws a
+    // random value (buffs/field.ts, timer/hazard.ts), and each emits nothing at
+    // all when its floor is unconfigured, so turning one on never moves the
+    // other's ids.
+    buildFloorBuffRig(ctx, params.levelBuffs?.[i], params.mapWidth, params.mapHeight)
     buildFloorHazardRig(ctx, params.levelTimers?.[i], params.mapWidth, params.mapHeight)
 
     files.push({ path: `levels/level${i}.xml`, content: level.getXML() })

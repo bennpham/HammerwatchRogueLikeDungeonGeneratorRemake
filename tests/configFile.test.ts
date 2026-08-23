@@ -537,6 +537,62 @@ describe('parameters.txt — boss invulnerability', () => {
   })
 })
 
+describe('buffN — per-floor buff auras', () => {
+  it('writes no buff line at all while every floor is empty', () => {
+    const text = serializeParametersTxt(defaultParameters())
+    expect(text).not.toMatch(/^buff\d+=/m)
+  })
+
+  it('writes one line per buffed floor and round-trips it', () => {
+    const params = defaultParameters()
+    const levelBuffs = params.levelBuffs!
+    levelBuffs[0] = [
+      { buff: 'frost', target: 'players' },
+      { buff: 'bloodlust', target: 'monsters' }
+    ]
+    levelBuffs[3] = [{ buff: 'slime_poison', target: 'both' }]
+
+    const text = serializeParametersTxt(params)
+    expect(text).toContain('buff0=frost:players|bloodlust:monsters')
+    expect(text).toContain('buff3=slime_poison:both')
+    expect(text).not.toContain('buff1=')
+
+    const reparsed = parseParametersTxt(text)
+    expect(reparsed.unknownKeys).toEqual([])
+    expect(reparsed.params.levelBuffs).toEqual(levelBuffs)
+  })
+
+  it('leaves a file written before buffs existed with every floor empty', () => {
+    const parsed = parseParametersTxt('levels=7\nlobby=1')
+    expect(parsed.params.levelBuffs?.every((list) => list.length === 0)).toBe(true)
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('reports an unknown buff id and keeps the rest of the line', () => {
+    const parsed = parseParametersTxt('levels=2\nbuff0=frost:players|no_such_buff:both')
+    expect(parsed.params.levelBuffs?.[0]).toEqual([{ buff: 'frost', target: 'players' }])
+    expect(parsed.unknownKeys).toEqual(['buff0 buff "no_such_buff"'])
+  })
+
+  it('reports an unknown target and keeps the rest of the line', () => {
+    const parsed = parseParametersTxt('levels=2\nbuff0=frost:everyone|cripple:monsters')
+    expect(parsed.params.levelBuffs?.[0]).toEqual([{ buff: 'cripple', target: 'monsters' }])
+    expect(parsed.unknownKeys).toEqual(['buff0 target "everyone"'])
+  })
+
+  it('defaults an omitted target to players', () => {
+    const parsed = parseParametersTxt('levels=2\nbuff1=frost')
+    expect(parsed.params.levelBuffs?.[1]).toEqual([{ buff: 'frost', target: 'players' }])
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('pads unmentioned floors with an empty list', () => {
+    const parsed = parseParametersTxt('levels=4\nbuff2=frost:players')
+    expect(parsed.params.levelBuffs).toHaveLength(4)
+    expect(parsed.params.levelBuffs?.map((list) => list.length)).toEqual([0, 0, 1, 0])
+  })
+})
+
 describe('timerN — per-floor timer mode', () => {
   it('writes no timer line at all while every floor is off', () => {
     const text = serializeParametersTxt(defaultParameters())

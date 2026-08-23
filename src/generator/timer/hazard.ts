@@ -31,11 +31,11 @@
 import type { GenerationContext } from '../core/context'
 import type { FloorTimer } from '../config/parameters'
 import { COUNTDOWN_TEXT_TYPE, TICK_DISPLAY_MS, formatCountdown } from '../core/countdown'
+import { COVER_MARGIN, coveringShape } from '../map/coverShape'
 import {
   NodeAnnounceText,
   NodeDangerArea,
   NodeGlobalEventTrigger,
-  NodeRectangleShape,
   NodeToggleElement
 } from '../objects/nodes'
 
@@ -52,13 +52,6 @@ const LEVEL_LOADED_EVENT = 'LevelLoaded'
  * prefabs/trap_fire_floor.xml uses 15 for one that catches everything.
  */
 const PLAYERS_ONLY = 1
-
-/**
- * Slack added to the covering rectangle on each axis, so the field reaches the
- * outermost walkable tile however the map rounds. Cheap: the rectangle is a
- * shape, not geometry, and nothing outside the map can be standing in it.
- */
-const COVER_MARGIN = 2
 
 /**
  * Builds one floor's hazard rig. Emits nothing at all — not one node, not one
@@ -82,10 +75,7 @@ export function buildFloorHazardRig(
   const col = mapWidth + COVER_MARGIN
   let row = 0
 
-  const shape = new NodeRectangleShape(ctx, mapWidth / 2, mapHeight / 2)
-  shape.width = mapWidth + COVER_MARGIN
-  shape.height = mapHeight + COVER_MARGIN
-  shape.types = PLAYERS_ONLY
+  const shape = coveringShape(ctx, mapWidth, mapHeight, PLAYERS_ONLY)
 
   const hazard = new NodeDangerArea(ctx, col, row)
   hazard.damage = timer.damage

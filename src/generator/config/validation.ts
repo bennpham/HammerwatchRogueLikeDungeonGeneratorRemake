@@ -9,6 +9,8 @@ import {
   BOSS_SPAWN_MODES,
   BOSS_WAVE_COUNT,
   MAX_BOSS_INVULN_SECONDS,
+  BUFF_TARGETS,
+  MAX_BUFFS_PER_FLOOR,
   MAX_TIMER_DAMAGE,
   MAX_TIMER_FREQ_MS,
   MAX_TIMER_SECONDS,
@@ -29,6 +31,7 @@ import {
   resolveActorPath
 } from '../objects/monsterTypes'
 import { corpseCollision } from '../objects/actorCollision'
+import { BUFF_HELPFUL_IDS, buffById } from '../objects/buffTypes'
 import { LOBBY_DIAMOND_VALUE } from '../lobby/build'
 import { ALL_LOBBY_CATEGORIES, isLobbyCategory, lobbyCategoryCounts, vendorOfCategory } from '../lobby/shops'
 import { DIAMOND_VALUE } from '../levelTemplate/surgery'
@@ -255,6 +258,7 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
   }
 
   validatePlayerTweaks(p, errors, warnings)
+  validateLevelBuffs(p, errors, warnings)
   validateLevelTimers(p, errors, warnings)
   validateLobby(p, errors, warnings)
   validateBoss(p, errors, warnings)
@@ -1165,6 +1169,90 @@ function validateLevelTimers(p: DungeonParameters, errors: ValidationIssue[], wa
     warnings.push({
       field: 'levelTimers',
       message: 'Floor timers only apply to generated dungeon floors — with 0 floors none of them run.'
+    })
+  }
+}
+
+/**
+ * Buff auras per floor (buffs/field.ts).
+ *
+ * Same shape as validateLevelTimers below it — snapshot, error rules, a guard,
+ * then warnings — so a floor with an unknown buff never also accumulates
+ * advisories about it.
+ *
+ * An absent `levelBuffs`, or an empty list, means "no floor carries a buff",
+ * which is the pre-feature default and never invalid. Entries past `levels` are
+ * ignored by the generator, so they are a warning rather than an error.
+ */
+function validateLevelBuffs(p: DungeonParameters, errors: ValidationIssue[], warnings: ValidationIssue[]): void {
+  const levelBuffs = p.levelBuffs
+  if (levelBuffs === undefined) return
+
+  const before = errors.length
+
+  levelBuffs.slice(0, p.levels).forEach((buffs, i) => {
+    if (buffs.length > MAX_BUFFS_PER_FLOOR) {
+      errors.push({
+        field: `levelBuffs.${i}`,
+        message: `Floor ${i + 1}: ${buffs.length} buffs, but a floor may carry at most ${MAX_BUFFS_PER_FLOOR}.`
+      })
+    }
+    buffs.forEach((entry, j) => {
+      if (buffById(entry.buff) === undefined) {
+        errors.push({
+          field: `levelBuffs.${i}.${j}.buff`,
+          message: `Floor ${i + 1}: "${entry.buff}" is not a buff the game ships.`
+        })
+      }
+      if (!BUFF_TARGETS.includes(entry.target)) {
+        errors.push({
+          field: `levelBuffs.${i}.${j}.target`,
+          message: `Floor ${i + 1}: "${entry.target}" is not a buff target — use ${BUFF_TARGETS.join(', ')}.`
+        })
+      }
+    })
+  })
+
+  if (errors.length > before) return
+
+  const inRange = levelBuffs.slice(0, p.levels)
+  if (inRange.every((buffs) => buffs.length === 0)) return
+
+  if (levelBuffs.length > p.levels) {
+    warnings.push({
+      field: 'levelBuffs',
+      message: `Buffs for ${levelBuffs.length} floors but only ${p.levels} floor(s) — the extra entries are ignored.`
+    })
+  }
+
+  inRange.forEach((buffs, i) => {
+    const seen = new Set<string>()
+    buffs.forEach((entry, j) => {
+      const pair = `${entry.buff}|${entry.target}`
+      if (seen.has(pair)) {
+        warnings.push({
+          field: `levelBuffs.${i}.${j}.buff`,
+          message: `Floor ${i + 1}: "${entry.buff}" is already applied to ${entry.target} on this floor — the second copy does nothing.`
+        })
+      }
+      seen.add(pair)
+
+      // Aiming a strengthening buff at the horde is a legitimate "make this
+      // floor terrifying" choice, so this is advisory only — it exists to catch
+      // the case where the target dropdown was simply left on its default.
+      if (BUFF_HELPFUL_IDS.includes(entry.buff) && entry.target !== 'players') {
+        warnings.push({
+          field: `levelBuffs.${i}.${j}.target`,
+          message: `Floor ${i + 1}: "${entry.buff}" strengthens whatever it catches, and this one catches ${entry.target}.`
+        })
+      }
+    })
+  })
+
+  if (p.levels === 0) {
+    warnings.push({
+      field: 'levelBuffs',
+      message: 'Buff auras only apply to generated dungeon floors — with 0 floors none of them run.'
     })
   }
 }

@@ -618,13 +618,48 @@ and the four `_v2` corners.
 
 The boss arena’s rig is `SpawnObject`, `GlobalEventTrigger`, `TimerTrigger`,
 `DestroyObject` and `ToggleImmortality` (`src/generator/boss/waves.ts`,
-`boss/invulnerability.ts`, `boss/arena.ts`). `DangerArea` belongs to timer mode
-(`src/generator/timer/hazard.ts`) and is the only one of these a dungeon floor
-can emit — and only when that floor’s timer is on.
+`boss/invulnerability.ts`, `boss/arena.ts`). `DangerArea` belongs to the two
+optional per-floor field rigs — timer mode (`src/generator/timer/hazard.ts`)
+and buff auras (`src/generator/buffs/field.ts`) — and is the only one of these a
+dungeon floor can emit, and only when that floor has one of them configured.
 
 **`types` is an entity bitmask** on `RectangleShape` and `AreaTrigger`, not a
-count: `1` = players only, `15` = everything. `[UNVERIFIED]` — inferred from the
-shipped prefabs, see DISCOVERY-LOG 2026-08-23.
+count: `1` = players only, `2` = monsters, `3` = both, `15` = everything.
+Bit 1 is `[VERIFIED]` (timer mode ships it and monsters take no damage); bit 2
+is `[UNVERIFIED]` — inferred from shipped content, see DISCOVERY-LOG 2026-08-23
+and 2026-08-24. `BUFF_TARGET_TYPES` in `config/parameters.ts` is the mapping the
+buff feature uses.
+
+## Buffs
+
+Source of truth: `src/generator/objects/buffTypes.ts` (all 41 assets the game
+ships under `assets/buffs/`, verified against a real install 2026-08-24). We
+never emit a buff file — we only reference a shipped one by path from a
+`DangerArea`’s `buff` parameter.
+
+A buff asset is `<buff><behavior><dictionary>` holding a `duration` (ms) plus
+any of `speed-mul`, `dmg-mul`, `snare`, `stun`, a `damage` sub-dictionary
+(`freq`, `dmg`, `can-kill`), a `mana-drain` sub-dictionary (`freq`, `dmg`) and a
+cosmetic `effects` array. Notable members rather than the full list, which
+`buffTypes.ts` carries with a description apiece:
+
+| id | effect |
+| --- | --- |
+| `bloodlust` | +50% damage and +50% move speed, 2s. The only pure strengthener. |
+| `test` | −10 damage and −10 mana-drain per second, i.e. **heals**, 10s. The only healing asset. |
+| `frost` | move speed halved, 5s |
+| `cripple` | damage halved, speed −25%, 2s |
+| `thief_stun_1..3` | stun, 1s / 1.5s / 2s |
+| `thief_smoke` | stun, 5s — the longest the game ships |
+| `slime_poison` | 6 dmg / 1.5s, cannot kill, plus slow and damage down, 4.5s |
+| `enemy_pillar_fire` | 20 dmg / s, 10s — the heaviest damage-over-time |
+| `banner_drain` | 3 mana / 0.1s, duration 0.15s so it drains only while stood in |
+| `enemy_spider_1`, `enemy_lich_desert_2` | **negative** `speed-mul` — the target walks backwards |
+
+Four carry a duration barely longer than a field’s 100ms reapply interval
+(`banner_bloodlust`, `banner_drain`, `trap_frost`, `trap_quicksand`), which is
+what makes them read as "only while standing in it" rather than as a lingering
+debuff.
 
 ### Connection delays `[VERIFIED 2026-08-22 for the schema, EMITTED for ours]`
 

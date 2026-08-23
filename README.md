@@ -105,6 +105,15 @@ The lobby and the boss finale are **on by default**; timer mode is **off**.
 - **Player tweaks** — `tweak/*.xml` overrides for class stats, upgrade costs
   and shop contents, edited per field or through bulk knobs. Purely a balance
   layer: it draws no random values at all.
+- **Buff auras** — hang any of the game's 41 buffs on a floor and choose who
+  it catches: **players**, **monsters**, or **both**. Configured **per floor**
+  and empty everywhere by default. A buff aura covers the whole floor and is
+  live the moment the party arrives — no countdown, and it never switches off.
+  Slow the party with frost, enrage the horde with bloodlust, poison everything,
+  or drain the party's mana the whole way down. A floor may carry several at
+  once, each with its own target, so the same floor can slow the party *and*
+  hurry the monsters. Every buff in the list explains itself on hover — what it
+  does, how hard, and for how long.
 - **Timer mode** — optional time pressure, configured **per floor** and off
   everywhere by default. Give a floor a countdown and, when it runs out, the
   whole floor starts damaging the party every few hundred milliseconds until
@@ -192,6 +201,7 @@ User-data folder: `%APPDATA%/hammerwatch-roguelike-dungeon-generator` (Windows),
 | `goldMultiplier` | 1.1 | Scales treasure amounts |
 | `foodMultiplier` | 1.2 | Scales health/mana drops |
 | `monsters0…N` | see defaults | Monster pool per floor (repeat an id to weight it) |
+| `buff0…N` | absent | Buff auras for that floor: `<id>:<target>` entries separated by `\|`, e.g. `buff2=frost:players\|bloodlust:monsters`. Targets are `players`, `monsters`, `both`; an omitted target means `players`. Written only for floors that carry one, so a stock file has none |
 | `timer0…N` | absent | Timer mode for that floor: `enabled|seconds|damage|freqMs|countdown`, e.g. `timer2=1|180|1|1000|1`. Written only for floors whose timer is on, so a stock file has none. Negative damage heals |
 | `max<Monster>` | see defaults | Horde-size cap per monster type; 0 disables the type |
 
@@ -262,6 +272,9 @@ list with actor files is in `src/generator/objects/monsterTypes.ts`.
 │   │   │                   cover pillars, wave rig, boss roster
 │   │   ├── tweak/          player tweak/*.xml emitters and bulk editors —
 │   │   │                   RNG-free, so they never move a seed's dungeon
+│   │   ├── buffs/         Buff auras: the optional per-floor buff fields.
+│   │   │                   RNG-free; appends always-on DangerAreas after a
+│   │   │                   floor is built, so it moves nothing already placed
 │   │   ├── timer/          Timer mode: the optional per-floor timed damage
 │   │   │                   field. RNG-free; appends nodes after a floor is
 │   │   │                   built, so it moves nothing already placed

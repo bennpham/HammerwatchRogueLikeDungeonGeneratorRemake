@@ -1186,12 +1186,15 @@ describe('boss arena — wall band thickness by theme', () => {
     }
   })
 
+  // Builds a whole arena per theme, and THEMES is every base, overlay pairing
+  // and mixed palette — far too much for the 5s default once the suite is
+  // running enough files to saturate the worker pool.
   it('leaves every other theme on a 1-tile band', () => {
     for (const theme of THEMES) {
       if (theme === 'h') continue
       expect(bandThickness(theme, 4242), `theme ${theme}`).toEqual({ left: 1, right: 1, top: 1, bottom: 1 })
     }
-  })
+  }, 30_000)
 
   it('still opens the alcove through the full band depth', () => {
     for (const theme of ['g', 'h']) {

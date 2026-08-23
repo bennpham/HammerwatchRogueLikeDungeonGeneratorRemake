@@ -64,10 +64,60 @@ export function isScatterMode(mode: BossSpawnMode): boolean {
   return mode !== 'anchors'
 }
 
+/** Who a buff field catches. */
+export type BuffTarget = 'players' | 'monsters' | 'both'
+
+/** The three targets, in form order. */
+export const BUFF_TARGETS: readonly BuffTarget[] = ['players', 'monsters', 'both']
+
 /**
- * All knobs of the generator, ported from the modified Parameters.java.
- * Sizes are in tiles. `monsterMax` is keyed by monster id (see monsterTypes.ts).
+ * A buff field's RectangleShape `types` bitmask, per target.
+ *
+ * Bit 1 = players is [VERIFIED] — timer mode ships it and monsters demonstrably
+ * take no damage. Bit 2 = monsters is inferred: the shipped
+ * `campaign/levels/level_boss_1.xml` binds an instakill `DangerArea{damage:
+ * 1337}` to a `types: 2` shape, and `prefabs/trap_fire_floor.xml` uses `3` where
+ * `1` is the known players-only value. Shipped content only ever uses 1, 2, 3
+ * and 15. See DISCOVERY-LOG.md.
  */
+export const BUFF_TARGET_TYPES: Record<BuffTarget, number> = {
+  players: 1,
+  monsters: 2,
+  both: 3
+}
+
+/**
+ * One buff aura on one floor.
+ *
+ * Unlike timer mode there is no countdown: the field is live from the moment
+ * the floor loads and never switches off, so the buff simply is a property of
+ * that floor. See buffs/field.ts for the node rig.
+ */
+export interface FloorBuff {
+  /** A BUFF_DEFS id from objects/buffTypes.ts, e.g. 'frost'. */
+  buff: string
+  /** Who it catches. */
+  target: BuffTarget
+}
+
+/**
+ * How often a buff field reapplies its buff, in milliseconds. 100 is what the
+ * hand-authored test_buff.xml uses; every shipped buff's duration outlasts it,
+ * so the aura reads as continuous while the target stands in the field.
+ */
+export const BUFF_REFRESH_MS = 100
+
+/**
+ * Bound on one floor's buff list. Each entry costs a node, and a floor wearing
+ * more than a handful of overlapping auras is a mistake, not a design.
+ */
+export const MAX_BUFFS_PER_FLOOR = 8
+
+/** A fresh, empty buff list — the stock value for every floor. */
+export function defaultFloorBuffs(): FloorBuff[] {
+  return []
+}
+
 /**
  * One floor's timed hazard ("timer mode").
  *
@@ -126,6 +176,10 @@ export function defaultFloorTimer(): FloorTimer {
   return { enabled: false, seconds: 180, damage: 1, freqMs: 1000, countdown: true }
 }
 
+/**
+ * All knobs of the generator, ported from the modified Parameters.java.
+ * Sizes are in tiles. `monsterMax` is keyed by monster id (see monsterTypes.ts).
+ */
 export interface DungeonParameters {
   levels: number
   minRoomSize: number
@@ -169,6 +223,12 @@ export interface DungeonParameters {
   finalLockMode: FinalLockMode
   /** monster pool (plain ids) per level */
   levelMonsters: string[][]
+  /**
+   * Buff auras per level, one list per floor. Optional, and empty per floor by
+   * default: a params object without it, or with every list empty, produces
+   * byte-identical output to the pre-feature generator for every seed.
+   */
+  levelBuffs?: FloorBuff[][]
   /**
    * Timed hazard per level, one entry per floor. Optional: a params object
    * without it, or with every floor disabled, produces byte-identical output to
@@ -610,6 +670,7 @@ export function defaultParameters(): DungeonParameters {
     edgePadding: 2,
     roomPadding: 2,
     themes: ['a_mixed', 'b_mixed', 'c_mixed', 'd_mixed', 'e_mixed', 'f_mixed', 'g_mixed'],
+    levelBuffs: Array.from({ length: 7 }, () => defaultFloorBuffs()),
     levelTimers: Array.from({ length: 7 }, () => defaultFloorTimer()),
     monsterMultiplier: 1.0,
     goldMultiplier: 1.1,

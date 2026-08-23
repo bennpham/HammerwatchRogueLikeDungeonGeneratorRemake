@@ -260,12 +260,35 @@ select:focus {
   color: var(--text-dim);
 }
 
-/* Timer mode: one block per floor, laid out like the monster pools above. */
+/* Buff auras and timer mode: one block per floor, laid out like the monster
+   pools above. */
+.floor-buffs > .pool-level > .section-body,
 .floor-timers > .pool-level > .section-body {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 4px 10px 10px;
+}
+
+/* One buff choice: which buff, an (i) for its description, and who it catches. */
+.buff-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.buff-select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.buff-target {
+  flex: 0 0 auto;
+}
+
+.buff-remove {
+  flex: 0 0 auto;
+  font-size: 11px;
 }
 
 .copy-down {
