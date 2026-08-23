@@ -68,6 +68,50 @@ export function isScatterMode(mode: BossSpawnMode): boolean {
  * All knobs of the generator, ported from the modified Parameters.java.
  * Sizes are in tiles. `monsterMax` is keyed by monster id (see monsterTypes.ts).
  */
+/**
+ * One floor's timed hazard ("timer mode").
+ *
+ * After `seconds` of play the whole floor turns into a damage field: a
+ * DangerArea covering the entire map, switched on by a ToggleElement at the end
+ * of a countdown. See timer/hazard.ts for the node rig.
+ *
+ * `damage` is deliberately signed — a negative value heals the party instead,
+ * so the same feature covers "the floor starts hurting" and "the floor starts
+ * healing". Only players are affected (RectangleShape `types: 1`).
+ */
+export interface FloorTimer {
+  /** Off by default; a floor with this false emits no nodes at all. */
+  enabled: boolean
+  /** Countdown length before the hazard switches on, in seconds. */
+  seconds: number
+  /** Health change per application. Negative heals. */
+  damage: number
+  /** Milliseconds between applications once the hazard is live. */
+  freqMs: number
+  /** Announce a `M:SS` tick every second while the countdown runs. */
+  countdown: boolean
+}
+
+/** Upper bound on a floor timer's countdown — an hour. */
+export const MAX_TIMER_SECONDS = 3600
+/** Fastest a floor hazard may tick. Below this it is effectively per-frame. */
+export const MIN_TIMER_FREQ_MS = 50
+/** Slowest a floor hazard may tick — ten minutes. */
+export const MAX_TIMER_FREQ_MS = 600_000
+/** Bound on a floor hazard's per-tick health change, either direction. */
+export const MAX_TIMER_DAMAGE = 10_000
+/**
+ * A countdown longer than this emits more than this many AnnounceText nodes on
+ * that one floor, which bloats the level XML — warned about, not rejected.
+ * Same threshold and same reasoning as BOSS_COUNTDOWN_NODE_WARN.
+ */
+export const TIMER_COUNTDOWN_NODE_WARN = 200
+
+/** A fresh, disabled floor timer — the stock value for every floor. */
+export function defaultFloorTimer(): FloorTimer {
+  return { enabled: false, seconds: 180, damage: 1, freqMs: 1000, countdown: true }
+}
+
 export interface DungeonParameters {
   levels: number
   minRoomSize: number
@@ -97,6 +141,12 @@ export interface DungeonParameters {
   lockFinalRoom: boolean
   /** monster pool (plain ids) per level */
   levelMonsters: string[][]
+  /**
+   * Timed hazard per level, one entry per floor. Optional: a params object
+   * without it, or with every floor disabled, produces byte-identical output to
+   * the pre-feature generator for every seed.
+   */
+  levelTimers?: FloorTimer[]
   /** max horde size per monster id */
   monsterMax: Record<string, number>
   /**
@@ -532,6 +582,7 @@ export function defaultParameters(): DungeonParameters {
     edgePadding: 2,
     roomPadding: 2,
     themes: ['a_mixed', 'b_mixed', 'c_mixed', 'd_mixed', 'e_mixed', 'f_mixed', 'g_mixed'],
+    levelTimers: Array.from({ length: 7 }, () => defaultFloorTimer()),
     monsterMultiplier: 1.0,
     goldMultiplier: 1.1,
     foodMultiplier: 1.2,

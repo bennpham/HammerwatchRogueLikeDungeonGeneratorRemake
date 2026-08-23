@@ -260,6 +260,19 @@ select:focus {
   color: var(--text-dim);
 }
 
+/* Timer mode: one block per floor, laid out like the monster pools above. */
+.floor-timers > .pool-level > .section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 10px 10px;
+}
+
+.copy-down {
+  align-self: flex-start;
+  font-size: 11px;
+}
+
 .pool-groups {
   padding: 4px 10px 10px;
   display: flex;

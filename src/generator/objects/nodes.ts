@@ -325,3 +325,43 @@ export class NodeDestroyObject extends ScriptNode {
     return d
   }
 }
+
+/**
+ * A damage-over-time field bound to a shape. Ships **disabled** — the floor-timer
+ * rig switches it on with a NodeToggleElement{state:0} once its countdown ends.
+ *
+ * `damage` is applied every `freq` milliseconds to every entity the shape's
+ * `types` bitmask admits (the rig uses `types: 1`, players only). A **negative**
+ * damage heals, which is a deliberate use of this node, not an accident.
+ *
+ * `buff` is emitted even when empty — `<string name="buff"></string>` is what the
+ * shipped campaign/levels/level_2.xml writes for a pure-damage field.
+ * [VERIFIED] 2026-08-23
+ */
+export class NodeDangerArea extends ScriptNode {
+  damage = 1
+  freqMs = 1000
+  /** A `buffs/*.xml` path, or '' for pure damage. Reserved for the buff feature. */
+  buff = ''
+  shapeId = 0
+
+  constructor(ctx: GenerationContext, x: number, y: number) {
+    super(ctx, x, y, 'DangerArea')
+    this.enabled = false
+  }
+
+  connectToShape(n: ScriptNode): void {
+    this.shapeId = n.id
+  }
+
+  protected getParametersDict(): XMLDictionary {
+    const d = new XMLDictionary('parameters')
+    d.addData(new XMLInt('damage', this.damage))
+    const shapeDict = new XMLDictionary('shape')
+    shapeDict.addData(new XMLIntArray('static', [this.shapeId]))
+    d.addData(shapeDict)
+    d.addData(new XMLInt('freq', this.freqMs))
+    d.addData(new XMLString('buff', this.buff))
+    return d
+  }
+}

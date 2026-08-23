@@ -83,11 +83,12 @@ up front and keeps every retry loop bounded.
 
 ### The optional levels
 
-Three additions sit outside the floor loop above. None of them draw from the
+Four additions sit outside the floor loop above. None of them draw from the
 dungeon's RNG stream — the arena draws from a third seeded stream of its own,
-the lobby, prep room and tweaks draw nothing — so turning any of them on or off
-leaves a seed's floors **byte-identical**; they can only add or remove levels,
-never reshuffle one. The lobby and the boss finale are **on by default**.
+the lobby, prep room, tweaks and timer mode draw nothing — so turning any of
+them on or off leaves a seed's floors **byte-identical** (timer mode appends
+script nodes to the floors it arms, but moves nothing that was already there).
+The lobby and the boss finale are **on by default**; timer mode is **off**.
 
 - **Lobby** — a hand-authored hub the campaign starts in, with vendor stalls
   for the shop columns you pick, a configurable pile of starting gold, and a
@@ -104,6 +105,13 @@ never reshuffle one. The lobby and the boss finale are **on by default**.
 - **Player tweaks** — `tweak/*.xml` overrides for class stats, upgrade costs
   and shop contents, edited per field or through bulk knobs. Purely a balance
   layer: it draws no random values at all.
+- **Timer mode** — optional time pressure, configured **per floor** and off
+  everywhere by default. Give a floor a countdown and, when it runs out, the
+  whole floor starts damaging the party every few hundred milliseconds until
+  they take the stairs. The damage can be **negative**, which heals instead —
+  a floor that starts patching you up on a clock. Monsters are never affected.
+  A `M:SS` countdown ticks down on screen while it runs, and can be switched
+  off if you would rather the deadline stayed a surprise.
 
 ## Verified in game
 
@@ -183,6 +191,7 @@ User-data folder: `%APPDATA%/hammerwatch-roguelike-dungeon-generator` (Windows),
 | `goldMultiplier` | 1.1 | Scales treasure amounts |
 | `foodMultiplier` | 1.2 | Scales health/mana drops |
 | `monsters0…N` | see defaults | Monster pool per floor (repeat an id to weight it) |
+| `timer0…N` | absent | Timer mode for that floor: `enabled|seconds|damage|freqMs|countdown`, e.g. `timer2=1|180|1|1000|1`. Written only for floors whose timer is on, so a stock file has none. Negative damage heals |
 | `max<Monster>` | see defaults | Horde-size cap per monster type; 0 disables the type |
 
 The optional levels add their own keys. The lobby, the boss finale and the one
@@ -252,6 +261,9 @@ list with actor files is in `src/generator/objects/monsterTypes.ts`.
 │   │   │                   cover pillars, wave rig, boss roster
 │   │   ├── tweak/          player tweak/*.xml emitters and bulk editors —
 │   │   │                   RNG-free, so they never move a seed's dungeon
+│   │   ├── timer/          Timer mode: the optional per-floor timed damage
+│   │   │                   field. RNG-free; appends nodes after a floor is
+│   │   │                   built, so it moves nothing already placed
 │   │   └── index.ts        generateDungeon(params, seed) → files + previews
 │   ├── main/               Electron main process: window, IPC handlers,
 │   │   │                   settings persistence, LevelPacker invocation,

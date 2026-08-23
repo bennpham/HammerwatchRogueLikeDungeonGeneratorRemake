@@ -7,6 +7,7 @@ import {
   BOSS_WAVE_COUNT,
   DEFAULT_WAVE_MONSTER_MAX,
   DungeonParameters,
+  defaultFloorTimer,
   defaultParameters,
   isScatterMode
 } from './parameters'
@@ -55,6 +56,7 @@ export const PARAMETER_ORDER = [
   'keyChance',
   'lockFinalRoom',
   'monster', // placeholder: expanded to monsters0...monstersN
+  'timer', // placeholder: expanded to timerN for each floor whose timer is on
   'monsterMax', // placeholder: expanded per MONSTER_TYPES order
   'playerTweaks', // placeholder: sorted by key
 ] as const
@@ -79,6 +81,8 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   const result: ParsedConfig = { params, unknownKeys: [] }
   /** highest N seen in a `monstersN=` key, or -1 if the file declared no pools */
   let highestPoolIndex = -1
+  // Highest `timerN=` seen, same purpose as highestPoolIndex above.
+  let highestTimerIndex = -1
   /** whether the file carried any `bossWaveN=` line, and whether one was the death tier */
   let sawAnyWave = false
   let sawDeathWave = false
@@ -382,6 +386,37 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       continue
     }
 
+    // timerN=enabled|seconds|damage|freqMs|countdown — one line per floor whose
+    // timer is on. Absent floors keep the default (off), so a file written
+    // before timer mode existed parses exactly as it always did. Per-field NaN
+    // guards, house style: a malformed segment is reported and only that field
+    // keeps its default.
+    const timerMatch = keyLower.match(/^timer(\d+)$/)
+    if (timerMatch) {
+      const levelIndex = parseInt(timerMatch[1], 10)
+      const timers = params.levelTimers ?? (params.levelTimers = [])
+      while (timers.length <= levelIndex) timers.push(defaultFloorTimer())
+      const timer = timers[levelIndex]
+      const fields = value.split('|').map((f) => f.trim())
+
+      timer.enabled = fields[0] === '1'
+      const numeric: Array<[number, string, (n: number) => void]> = [
+        [1, 'seconds', (n) => (timer.seconds = n)],
+        [2, 'damage', (n) => (timer.damage = n)],
+        [3, 'freqMs', (n) => (timer.freqMs = n)]
+      ]
+      for (const [index, name, assign] of numeric) {
+        if (fields[index] === undefined || fields[index] === '') continue
+        const n = parseInt(fields[index], 10)
+        if (Number.isNaN(n)) result.unknownKeys.push(`${key} ${name} "${fields[index]}"`)
+        else assign(n)
+      }
+      if (fields[4] !== undefined && fields[4] !== '') timer.countdown = fields[4] === '1'
+
+      highestTimerIndex = Math.max(highestTimerIndex, levelIndex)
+      continue
+    }
+
     const monstersMatch = keyLower.match(/^monsters(\d+)$/)
     if (monstersMatch) {
       const levelIndex = parseInt(monstersMatch[1], 10)
@@ -432,6 +467,19 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   // while `levels` stays short, then silently appended if the user raises it.
   if (highestPoolIndex >= 0) {
     params.levelMonsters.length = highestPoolIndex + 1
+  }
+
+  // Only enabled floors get a `timerN=` line, so an imported file is sparse by
+  // design: pad up to the floor count rather than trimming to the highest key,
+  // and leave the array absent entirely when neither the file nor the base
+  // mentioned a timer at all.
+  if (highestTimerIndex >= 0 || params.levelTimers !== undefined) {
+    const timers = params.levelTimers ?? (params.levelTimers = [])
+    while (timers.length < params.levels) timers.push(defaultFloorTimer())
+    // ...and no further: an inherited array from a longer base campaign would
+    // otherwise stay attached, invisible until the user raised `levels`. Same
+    // reasoning as the levelMonsters trim above.
+    timers.length = params.levels
   }
 
   // A file written before the boss-death tier existed carries bossWave1..4 and
@@ -506,6 +554,15 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
       for (const t of MONSTER_TYPES) {
         lines.push(`${t.configKey}=${params.monsterMax[t.id] ?? 0}`)
       }
+    } else if (key === 'timer') {
+      // Only floors with the timer ON get a line. Keeps parameters.default.txt
+      // and every file exported before timer mode existed byte-identical.
+      ;(params.levelTimers ?? []).forEach((timer, i) => {
+        if (!timer.enabled) return
+        lines.push(
+          `timer${i}=1|${timer.seconds}|${timer.damage}|${timer.freqMs}|${timer.countdown ? 1 : 0}`
+        )
+      })
     } else if (key === 'playerTweaks') {
       const tweaks = pruneTweaks(params.playerTweaks ?? {})
       for (const tweakKey of Object.keys(tweaks).sort()) {

@@ -610,10 +610,17 @@ and the four `_v2` corners.
 | `TimerTrigger` | repeating timer driving a spawn chain | interval ms |
 | `DestroyObject` | destroys another node's target (the alcove seals) | element id |
 | `ToggleImmortality` | makes an **actor** immortal, or takes it back | `state` (0 = immortal), `element` = actor id |
+| `DangerArea` | damage-over-time field bound to a shape; negative damage heals | `damage`, `shape`, `freq` (ms), `buff` (path or empty) |
 
-The last five are the boss arena's rig (`src/generator/boss/waves.ts`,
-`boss/invulnerability.ts`, `boss/arena.ts`); the dungeon floors emit none of
-them.
+The boss arena’s rig is `SpawnObject`, `GlobalEventTrigger`, `TimerTrigger`,
+`DestroyObject` and `ToggleImmortality` (`src/generator/boss/waves.ts`,
+`boss/invulnerability.ts`, `boss/arena.ts`). `DangerArea` belongs to timer mode
+(`src/generator/timer/hazard.ts`) and is the only one of these a dungeon floor
+can emit — and only when that floor’s timer is on.
+
+**`types` is an entity bitmask** on `RectangleShape` and `AreaTrigger`, not a
+count: `1` = players only, `15` = everything. `[UNVERIFIED]` — inferred from the
+shipped prefabs, see DISCOVERY-LOG 2026-08-23.
 
 ### Connection delays `[VERIFIED 2026-08-22 for the schema, EMITTED for ours]`
 

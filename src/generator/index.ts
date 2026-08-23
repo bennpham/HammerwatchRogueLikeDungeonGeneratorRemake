@@ -6,8 +6,9 @@ import { emitTweakFiles } from './tweak/overrides'
 import { LOBBY_ASSETS, LOBBY_LEVEL_ID, LOBBY_LEVEL_PATH, buildLobby } from './lobby'
 import { BOSSPREP_LEVEL_ID, BOSSPREP_LEVEL_PATH, buildBossPrep } from './bossprep'
 import { buildBossArena } from './boss'
+import { buildFloorHazardRig } from './timer/hazard'
 
-export type { DungeonParameters, LobbyOptions, BossOptions, BossWave, BossSpawnMode, BossFloorPattern } from './config/parameters'
+export type { DungeonParameters, LobbyOptions, BossOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer } from './config/parameters'
 export {
   THEMES,
   BOSS_IDS,
@@ -22,6 +23,12 @@ export {
   MAX_BOSS_INVULN_SECONDS,
   DEFAULT_WAVE_MONSTER_MAX,
   defaultBossOptions,
+  defaultFloorTimer,
+  MAX_TIMER_SECONDS,
+  MIN_TIMER_FREQ_MS,
+  MAX_TIMER_FREQ_MS,
+  MAX_TIMER_DAMAGE,
+  TIMER_COUNTDOWN_NODE_WARN,
   isScatterMode,
   waveSpawnMode
 } from './config/parameters'
@@ -262,6 +269,12 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
         ]
       }
     }
+
+    // Timer mode: the optional per-floor hazard. Built AFTER the floor is
+    // complete, so every dungeon id is already allocated and the rig only
+    // appends — a seed's walls, rooms, doodads, actors and items are identical
+    // whether the timer is on or off. Draws no random values (timer/hazard.ts).
+    buildFloorHazardRig(ctx, params.levelTimers?.[i], params.mapWidth, params.mapHeight)
 
     files.push({ path: `levels/level${i}.xml`, content: level.getXML() })
     levelString += `<level id="${i}" res="levels/level${i}.xml" name="lvl.floor?floor=${i}" />\n`

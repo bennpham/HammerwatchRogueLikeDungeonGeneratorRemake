@@ -9,6 +9,11 @@ import {
   BOSS_SPAWN_MODES,
   BOSS_WAVE_COUNT,
   MAX_BOSS_INVULN_SECONDS,
+  MAX_TIMER_DAMAGE,
+  MAX_TIMER_FREQ_MS,
+  MAX_TIMER_SECONDS,
+  MIN_TIMER_FREQ_MS,
+  TIMER_COUNTDOWN_NODE_WARN,
   DungeonParameters,
   THEMES,
   isScatterMode,
@@ -240,6 +245,7 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
   }
 
   validatePlayerTweaks(p, errors, warnings)
+  validateLevelTimers(p, errors, warnings)
   validateLobby(p, errors, warnings)
   validateBoss(p, errors, warnings)
 
@@ -1068,4 +1074,87 @@ function staleUpgrades(
 
   if (count === 0) return undefined
   return { count, side: improving > 0 ? 'below' : 'above' }
+}
+
+/**
+ * Timer mode's per-floor rules.
+ *
+ * Structured like validateLobby and validateBoss: a `before` snapshot, every
+ * error rule, a guard, then warnings — so a floor that is off, or one that
+ * already has errors, never accumulates advisories on top.
+ *
+ * An absent `levelTimers` means "no floor has a timer", which is the
+ * pre-feature default and never invalid. Entries past `levels` are ignored by
+ * the generator, so they are a warning rather than an error.
+ */
+function validateLevelTimers(p: DungeonParameters, errors: ValidationIssue[], warnings: ValidationIssue[]): void {
+  const timers = p.levelTimers
+  if (timers === undefined) return
+
+  const before = errors.length
+
+  timers.slice(0, p.levels).forEach((timer, i) => {
+    if (!timer.enabled) return
+    const at = (field: string) => `levelTimers.${i}.${field}`
+
+    if (!Number.isInteger(timer.seconds) || timer.seconds < 1 || timer.seconds > MAX_TIMER_SECONDS) {
+      errors.push({
+        field: at('seconds'),
+        message: `Floor ${i + 1}: countdown must be a whole number of seconds between 1 and ${MAX_TIMER_SECONDS}.`
+      })
+    }
+    if (
+      !Number.isInteger(timer.freqMs) ||
+      timer.freqMs < MIN_TIMER_FREQ_MS ||
+      timer.freqMs > MAX_TIMER_FREQ_MS
+    ) {
+      errors.push({
+        field: at('freqMs'),
+        message: `Floor ${i + 1}: frequency must be a whole number of milliseconds between ${MIN_TIMER_FREQ_MS} and ${MAX_TIMER_FREQ_MS}.`
+      })
+    }
+    if (!Number.isInteger(timer.damage) || Math.abs(timer.damage) > MAX_TIMER_DAMAGE) {
+      errors.push({
+        field: at('damage'),
+        message: `Floor ${i + 1}: damage must be a whole number between -${MAX_TIMER_DAMAGE} and ${MAX_TIMER_DAMAGE} (negative heals).`
+      })
+    }
+  })
+
+  if (errors.length > before) return
+
+  const enabled = timers.slice(0, p.levels).filter((t) => t.enabled)
+  if (enabled.length === 0) return
+
+  if (timers.length > p.levels) {
+    warnings.push({
+      field: 'levelTimers',
+      message: `${timers.length} floor timers for ${p.levels} floor(s) — the extra entries are ignored.`
+    })
+  }
+
+  timers.slice(0, p.levels).forEach((timer, i) => {
+    if (!timer.enabled) return
+    if (timer.damage === 0) {
+      warnings.push({
+        field: `levelTimers.${i}.damage`,
+        message: `Floor ${i + 1}: a timer with 0 damage does nothing once it fires.`
+      })
+    }
+    if (timer.countdown && timer.seconds > TIMER_COUNTDOWN_NODE_WARN) {
+      warnings.push({
+        field: `levelTimers.${i}.countdown`,
+        message:
+          `Floor ${i + 1}: a ${timer.seconds}s countdown emits ${timer.seconds + 1} announce nodes on that floor. ` +
+          'Turn the countdown off, or shorten it, to keep the level file small.'
+      })
+    }
+  })
+
+  if (p.levels === 0) {
+    warnings.push({
+      field: 'levelTimers',
+      message: 'Floor timers only apply to generated dungeon floors — with 0 floors none of them run.'
+    })
+  }
 }

@@ -162,8 +162,8 @@ nodes and items by that id, so ids must stay unique within one file.
 
 **Script nodes.** `src/generator/objects/nodes.ts` — `LevelStart`,
 `LevelExitArea`, `AreaTrigger`, `RectangleShape`, `ToggleElement`,
-`AnnounceText`, `ObjectEventTrigger`, `ShopArea`, `GameEnd`, plus the plain
-`RespawnPlayers`. Nodes wire to each other by id inside
+`AnnounceText`, `ObjectEventTrigger`, `ShopArea`, `GameEnd`, `DangerArea`, plus
+the plain `RespawnPlayers`. Nodes wire to each other by id inside
 `<dictionary name="shape">` / `element` / … with an `<int-arr name="static">`
 holding the target id.
 

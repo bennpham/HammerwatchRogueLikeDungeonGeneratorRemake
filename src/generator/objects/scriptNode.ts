@@ -17,6 +17,7 @@ export type NodeTypeName =
   | 'TimerTrigger'
   | 'DestroyObject'
   | 'ToggleImmortality'
+  | 'DangerArea'
 
 /**
  * Base scripting node (ported from ScriptNode.java). Most subclasses override

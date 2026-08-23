@@ -57,6 +57,9 @@ src/
 │   │   └── build.ts      buildLobby() — surgical edits only, no RNG
 │   ├── bossprep/         the prep room between the last floor and the arena —
 │   │                     same template+surgery shape as the lobby, no RNG
+│   ├── timer/            hazard.ts — timer mode, the optional per-floor timed
+│   │                     damage field. Appends nodes after a floor is built;
+│   │                     no RNG, no files of its own
 │   ├── boss/             the GENERATED arena — the only new geometry since the
 │   │   │                 port, and the only consumer of ctx.bossRand
 │   │   ├── arena.ts      buildBossArena() — the assembler
@@ -137,7 +140,7 @@ reference/hammerwatch-tweak-stats.md
    in `src/main/ipc.ts` and are *stripped* from the renderer response; the
    renderer only ever receives previews. Don't send megabytes of XML over the
    bridge.
-8. **Tweaks, the lobby and the prep room never touch the RNG.** `src/generator/tweak/**` draws no random
+8. **Tweaks, the lobby, the prep room and timer mode never touch the RNG.** `src/generator/tweak/**` draws no random
    values and is called *after* every level is built. A stock run (no player
    edits) must emit exactly the files it emitted before the feature existed —
    no `tweak/` folder at all. Adding a tweak field must not change any seed's
@@ -147,6 +150,11 @@ reference/hammerwatch-tweak-stats.md
    or off. `src/generator/boss/**` is the exception that proves the rule — it
    *does* draw, but only from `ctx.bossRand`, so turning the boss on or off
    still leaves every dungeon floor byte-identical.
+   `src/generator/timer/**` is the one optional layer that deliberately *does*
+   change a floor's XML — that is the whole feature — but only by appending
+   script nodes after the floor is complete: its tilemap, doodads, actors,
+   items and every pre-existing id must come out byte-identical, and a floor
+   with its timer off must emit nothing at all.
 9. **A floor the player cannot finish is invalid.** `map/reachability.ts`
    flood-fills the finished grid and rejects a floor unless the entrance
    reaches the exit (or orb/portal) and every key. Tile connectivity is not
@@ -175,6 +183,7 @@ reference/hammerwatch-tweak-stats.md
 | `monsterMultiplier` / `goldMultiplier` / `foodMultiplier` | 1.0 / 1.1 / 1.2 | ≥ 0 |
 | `levelMonsters[i]` | see defaults | non-empty; ids must exist in `MONSTER_TYPES`; repeat an id to weight it |
 | `monsterMax[id]` | per-type | integer ≥ 0; **0 disables the type entirely** |
+| `levelTimers[i]` | absent / all off | timer mode, one `FloorTimer` per floor: `enabled`, `seconds` (1–3600), `damage` (−10000–10000, **negative heals**), `freqMs` (50–600000), `countdown`. Off on every floor reproduces the pre-feature campaign exactly. See *Timer mode* below |
 | `playerTweaks` | `{ 'player.shared.remove.life': 1 }` | sparse `Record<lowercase key, number>` of player-balance overrides; empty = no `tweak/` folder. See below |
 | `lobby` | on, 10000 gold, all 21 columns | prebuilt starting level: `enabled`, `startingGold` (whole multiple of 500, no upper cap beyond `GOLD_SAFETY_MAX`), `shopCategories`. `enabled: false` reproduces the pre-lobby campaign exactly |
 | `boss` | **on** | the finale, two appended levels. See the sub-table below and *Boss finale* |
@@ -291,6 +300,36 @@ Where the key resolves differs by level kind, and this is load-bearing: the
 dungeon rolls a tier upward with `upgradeChance` (`Monster.createRolled`,
 consuming `ctx.rand`), while the arena's `resolveActorPath` maps a key to one
 actor path with **no draw** — the wave rig is structure, not a roll.
+
+## Timer mode (`src/generator/timer/`)
+
+Optional, per floor, off by default. After `seconds` of play the whole floor
+becomes a damage field: `damage` health every `freqMs` milliseconds until the
+party leaves. A **negative** damage heals, which is a supported use, not an
+accident — the same feature covers "the floor turns hostile" and "the floor
+starts healing you".
+
+The rig, built by `buildFloorHazardRig` and ported from the hand-authored
+`test_damage_player_timer.xml`:
+
+- a `RectangleShape` covering the whole map with `types: 1`, **players only** —
+  monsters are never damaged;
+- a `DangerArea`, shipped `enabled: False`, carrying `damage`, `freq` and an
+  empty `buff` (buff selection is a later feature);
+- a `GlobalEventTrigger("LevelLoaded")` whose per-connection delays drive one
+  `AnnounceText` per second of countdown and, at `seconds * 1000`, the
+  `ToggleElement{state: 0}` that switches the field on. `state: 0` enables —
+  the same inverted polarity the boss rig uses.
+
+It is called from the floor loop in `index.ts` **after** the floor is built and
+validated, so `ctx.idCounter` has already handed out every dungeon id and the
+rig can only append. `countdown: false` drops the announce nodes; a 3-minute
+countdown is 181 of them on that one floor, which is what the validation
+warning at `TIMER_COUNTDOWN_NODE_WARN` is about.
+
+`parameters.txt` carries `timerN=enabled|seconds|damage|freqMs|countdown`, and
+**only for floors whose timer is on** — a stock export has no `timer` line at
+all.
 
 ## Boss finale (`bossprep/` + `boss/`)
 
