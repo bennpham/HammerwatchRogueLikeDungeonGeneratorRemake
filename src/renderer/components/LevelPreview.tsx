@@ -67,7 +67,11 @@ export function LevelPreview({ levels, seed }: LevelPreviewProps) {
       g.lineWidth = Math.max(1, scale / 4)
       g.strokeRect(room.x * scale, room.y * scale, (room.width + 1) * scale, (room.height + 1) * scale)
 
-      const label = (ROOM_LABELS[room.type] ?? '') + (room.locked ? ' 🔒' : '')
+      // a sealed room is gated too, but by a wall and a button rather than a
+      // door and a key — the padlock would send the player hunting for a key
+      // that does not exist
+      const gate = room.sealed ? ' 🔘' : room.locked ? ' 🔒' : ''
+      const label = (ROOM_LABELS[room.type] ?? '') + gate
       if (label) {
         g.fillStyle = '#f5f0e6'
         g.font = `bold ${Math.max(10, scale * 2)}px sans-serif`
@@ -118,6 +122,7 @@ export function LevelPreview({ levels, seed }: LevelPreviewProps) {
             </span>
           ))}
         <span className="legend-item">🔒 locked</span>
+        <span className="legend-item">🔘 button</span>
       </div>
     </div>
   )

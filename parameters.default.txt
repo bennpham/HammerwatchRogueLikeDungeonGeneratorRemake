@@ -36,6 +36,10 @@ keyChance=1.000000
 # door, with one gold key hidden on that floor per gold door that exists
 # (a vault may also roll gold), 0 = orb is open.
 lockFinalRoom=1
+# How that gate works. button = a destructible wall opened by a floor button,
+# so no key can be hoarded, mis-spent or left on an earlier floor. key = the
+# original gold door plus its gold key.
+finalLockMode=button
 # Prebuilt starting level: 1 = the party spawns in a lobby with the upgrade
 # vendors and walks a teleport into the dungeon, 0 = straight into level 1.
 # lobbyGold is a multiple of 500 (one red diamond each); more diamonds than the

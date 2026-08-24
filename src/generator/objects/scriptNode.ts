@@ -18,6 +18,7 @@ export type NodeTypeName =
   | 'DestroyObject'
   | 'ToggleImmortality'
   | 'DangerArea'
+  | 'PlaySound'
 
 /**
  * Base scripting node (ported from ScriptNode.java). Most subclasses override

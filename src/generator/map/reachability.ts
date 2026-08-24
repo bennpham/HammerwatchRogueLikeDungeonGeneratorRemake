@@ -158,6 +158,13 @@ export function exitReachable(level: Level, ctx: GenerationContext): boolean {
   for (const item of ctx.items) {
     if (item.type === 'Key') targets.push({ x: item.x, y: item.y })
   }
+  // Whatever else this floor decided the player has to touch — the final
+  // floor's orb button, and nothing else today. The seal it opens is doodads,
+  // not tiles, so the fill above walks straight through it: what this asserts
+  // is that the button is standable and connected, which together with the
+  // rig's own geometry (the button sits on the corridor side of the seal) is
+  // what makes the orb reachable in game.
+  for (const t of ctx.reachTargets) targets.push(t)
 
   if (targets.length === 0) return false
 

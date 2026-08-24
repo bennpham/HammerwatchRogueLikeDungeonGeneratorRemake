@@ -1,7 +1,7 @@
 import React from 'react'
 import { THEME_DEFS, defaultFloorTimer } from '../../generator'
-import type { DungeonParameters, ValidationIssue } from '../../generator'
-import { BoolField, NumberField, Section } from './fields'
+import type { DungeonParameters, FinalLockMode, ValidationIssue } from '../../generator'
+import { BoolField, NumberField, Section, ToggleGroup } from './fields'
 import { MonsterPoolsEditor } from './MonsterPoolsEditor'
 import { MonsterMaxTable } from './MonsterMaxTable'
 import { FloorTimerEditor } from './FloorTimerEditor'
@@ -88,8 +88,27 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
           label="Lock final room"
           checked={params.lockFinalRoom}
           onChange={(v) => set('lockFinalRoom', v)}
-          title="Final floor only: the victory orb sits in a dead-end room behind a gold door, and a gold key is hidden elsewhere on that floor"
+          title="Final floor only: the victory orb sits in a dead-end room behind a gate, opened by whichever mechanism is picked below"
         />
+        {params.lockFinalRoom && (
+          <ToggleGroup<FinalLockMode>
+            label="Opened by"
+            value={params.finalLockMode ?? 'button'}
+            onChange={(v) => set('finalLockMode', v)}
+            options={[
+              {
+                value: 'button',
+                label: 'Button',
+                title: 'A destructible wall bars the corridor and a floor button just outside it blows the wall open. No key involved, so keys hoarded from earlier floors or spent on the wrong door cannot strand the party.'
+              },
+              {
+                value: 'key',
+                label: 'Gold key',
+                title: 'The original: a gold door across the corridor, with one gold key per gold door hidden elsewhere on the floor.'
+              }
+            ]}
+          />
+        )}
       </Section>
 
       <Section title="Themes" badge={params.themes.slice(0, params.levels).join(', ')}>

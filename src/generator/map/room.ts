@@ -26,6 +26,12 @@ export class Room {
   locked = false
   /** tier of the door sealing this room (index into ItemType.Door), null when open */
   lockTier: number | null = null
+  /**
+   * Barred by a destructible wall and a button rather than a door and a key.
+   * `locked` is true either way — this only says which of the two gates was
+   * built, and only the final floor's orb room ever sets it.
+   */
+  sealed = false
 
   private ctx: GenerationContext
 
@@ -357,15 +363,26 @@ export class Room {
     }
     ctx.lastLockType = lockTier
 
-    // add loot
+    this.grantLockLoot()
+
+    return true
+  }
+
+  /**
+   * The powerup that compensates for a room being gated. Split out of
+   * `lockRoom()` so the button seal can grant the same thing off the same
+   * three draws, keeping the two gate modes' RNG streams aligned up to the
+   * point where they genuinely differ (the gold-key top-up, which the button
+   * has no need of).
+   */
+  grantLockLoot(): void {
+    const ctx = this.ctx
     Item.create(
       ctx,
       ctx.rand.fRand(this.x, this.x + this.width),
       ctx.rand.fRand(this.y + 2, this.y + this.height),
       'Powerup'
     )
-
-    return true
   }
 
   /**

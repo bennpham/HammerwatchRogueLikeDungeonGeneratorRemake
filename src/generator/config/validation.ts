@@ -132,12 +132,22 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
     })
   }
 
-  // the locked orb needs a dead-end room of its own, plus somewhere else to
-  // hide the key — on a two-room floor the entrance is the only other room
+  // the gated orb needs a dead-end room of its own, plus somewhere else to put
+  // what opens it — on a two-room floor the entrance is the only other room
   if (p.lockFinalRoom && p.minRoomCount < 3) {
     warnings.push({
       field: 'minRoomCount',
-      message: 'With "Lock final room" on, floors with fewer than 3 rooms leave almost nowhere to hide the gold key.'
+      message:
+        (p.finalLockMode ?? 'button') === 'button'
+          ? 'With "Lock final room" on, floors with fewer than 3 rooms leave almost nowhere to put the button that opens it.'
+          : 'With "Lock final room" on, floors with fewer than 3 rooms leave almost nowhere to hide the gold key.'
+    })
+  }
+
+  if (p.finalLockMode !== undefined && p.finalLockMode !== 'key' && p.finalLockMode !== 'button') {
+    errors.push({
+      field: 'finalLockMode',
+      message: `Unknown final-room lock mode "${String(p.finalLockMode)}". Use "button" or "key".`
     })
   }
 

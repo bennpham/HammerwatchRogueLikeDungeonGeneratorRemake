@@ -8,6 +8,47 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-24 — `PlaySound`, `trigger_button_floor`, and a button-opened wall
+**Tag:** [EMITTED] for everything below — the schema and the paths come from a
+hand-edited `level6.xml` the user opened in the game's editor and re-saved, so
+the editor accepted them; none of it has been walked over in game yet.
+
+Source: a diff of a generated `level6.xml` against the same file after the user
+replaced its final-room gold door with a wall-and-button gate by hand.
+
+1. **`PlaySound` parameter shape.** A `<dictionary name="parameters">` with
+   `sound` (a `sound/<bank>.xml:<cue>` pair, **not** a file path), `loop`,
+   `play3d` and `range3d`:
+
+   ```xml
+   <string name="sound">sound/misc.xml:button_hatch</string>
+   <bool name="loop">False</bool>
+   <bool name="play3d">False</bool>
+   <float name="range3d">5</float>
+   ```
+
+   `range3d` is written even when `play3d` is False. `button_hatch` is the cue
+   the game's own hatch buttons use. Now `NodePlaySound` in `objects/nodes.ts`.
+
+2. **`doodads/special/trigger_button_floor.xml` is a floor plate with no
+   trigger of its own.** The user's rig lays a 1x1 `RectangleShape` over the
+   button's tile and hangs the `AreaTrigger` off *that* — the doodad is art.
+   Now `DoodadType.TriggerButton`, centred on its tile (`0.5, 0.5`) like
+   `Cover`, since the art is a flat decal with no overhang.
+
+3. **A wall can be a destructible gate outside the arena.** The same
+   `need-sync: true` + `DestroyObject` pairing the boss alcove's seals use
+   works on ordinary theme wall pieces laid across a corridor. The user's
+   version used `doodads/theme_g/g_v_16.xml` at 2-tile spacing;
+   `map/buttonSeal.ts` instead reuses the arena's verified `Vertical` /
+   `Horizontal` (`_v_8` / `_h_8`) one per tile, because that pairing is
+   [VERIFIED] to both seal and open. **Open question:** whether `_v_16` /
+   `_h_16` are the better-looking choice for a corridor-width gate — check in
+   game and record the answer here.
+
+4. **`AreaTrigger` with `trigger-times: 1`** is how the editor writes a
+   one-shot. The generator has only ever written `-1` before this.
+
 ### 2026-08-23 — `DangerArea`, the `RectangleShape` type bitmask, and `LevelLoaded`
 **Tag:** [VERIFIED] for all findings — `DangerArea` schema, empty `buff`, the
 `types` bitmask meaning (1 = players only), and `LevelLoaded` firing on a

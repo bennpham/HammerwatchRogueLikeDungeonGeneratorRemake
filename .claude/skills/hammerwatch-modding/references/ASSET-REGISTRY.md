@@ -611,6 +611,7 @@ and the four `_v2` corners.
 | `DestroyObject` | destroys another node's target (the alcove seals) | element id |
 | `ToggleImmortality` | makes an **actor** immortal, or takes it back | `state` (0 = immortal), `element` = actor id |
 | `DangerArea` | damage-over-time field bound to a shape; negative damage heals | `damage`, `shape`, `freq` (ms), `buff` (path or empty) |
+| `PlaySound` | plays one cue | `sound` (`sound/<bank>.xml:<cue>`), `loop`, `play3d`, `range3d` |
 
 The boss arena’s rig is `SpawnObject`, `GlobalEventTrigger`, `TimerTrigger`,
 `DestroyObject` and `ToggleImmortality` (`src/generator/boss/waves.ts`,

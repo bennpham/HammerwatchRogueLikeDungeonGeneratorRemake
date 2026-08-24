@@ -42,6 +42,16 @@ export class GenerationContext {
   doodads: Doodad[] = []
   scriptNodes: ScriptNode[] = []
   objectSets: ObjectSet[] = []
+  /**
+   * Extra tiles the player must be able to walk to for this floor to be
+   * finishable, on top of the exit/orb/keys `reachability.ts` always checks.
+   *
+   * Currently only the final floor's orb button uses it: the button is the
+   * only way past the wall sealing the orb room, so a button the player cannot
+   * reach is exactly as fatal as an unreachable key. Empty on every other
+   * floor, which is why adding it changed no existing seed.
+   */
+  reachTargets: Array<{ x: number; y: number }> = []
 
   constructor(params: DungeonParameters, seed: number) {
     this.params = params
@@ -57,6 +67,7 @@ export class GenerationContext {
     this.doodads = []
     this.scriptNodes = []
     this.objectSets = []
+    this.reachTargets = []
     this.idCounter = 0
   }
 }

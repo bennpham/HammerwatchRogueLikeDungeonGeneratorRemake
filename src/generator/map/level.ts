@@ -1,4 +1,5 @@
 import { Room } from './room'
+import { sealRoomWithButton } from './buttonSeal'
 import { Passage } from './passage'
 import { Tile } from './tile'
 import { searchPatterns } from './wallPattern'
@@ -194,7 +195,23 @@ export class Level {
       // transform('Orb') already refused every room with more than one
       // passage, so the orb room is a dead end and lockRoom accepts it
       const orbRoom = this.rooms.find((r) => r.type === 'Orb')
-      if (orbRoom === undefined || !orbRoom.lockRoom({ tier: GOLD_LOCK_TIER, allowOrb: true })) {
+      // A button, not a key, unless the campaign asked for the original gold
+      // door: the last gate before the orb is the one gate a party can lock
+      // itself out of, by hoarding gold keys on earlier floors or by spending
+      // this floor's key on one of the chance-rolled gold doors. The wall the
+      // button destroys cannot be opened wrong.
+      let gated = false
+      if (orbRoom !== undefined) {
+        if ((params.finalLockMode ?? 'button') === 'button') {
+          gated = sealRoomWithButton(orbRoom, ctx)
+          // the same consolation powerup, off the same three draws, that
+          // lockRoom() grants — see Room.grantLockLoot
+          if (gated) orbRoom.grantLockLoot()
+        } else {
+          gated = orbRoom.lockRoom({ tier: GOLD_LOCK_TIER, allowOrb: true })
+        }
+      }
+      if (!gated) {
         this.levelValid = false
       } else {
         // One gold key per gold door, whatever the chance rolls did.
@@ -202,9 +219,13 @@ export class Level {
         // The vault and the chance-gated lock both draw a random tier but only
         // ever produce a single key between them, so a floor can hold two gold
         // doors and one gold key. That was survivable while the orb was open;
-        // now that the orb is behind gold too, spending the only key on the
-        // wrong door locks the player out of finishing. So count the gold doors
+        // once the orb went behind gold too, spending the only key on the wrong
+        // door locked the player out of finishing. So count the gold doors
         // actually placed and top the keys up to match.
+        //
+        // Still runs in button mode, where the orb is not one of them: the
+        // chance-rolled gold doors on this floor are real doors and still need
+        // their keys. It simply has fewer (often zero) to top up.
         const goldDoors = this.rooms.filter((r) => r.lockTier === GOLD_LOCK_TIER).length
         const goldKeys = () =>
           ctx.items.filter((i) => i.type === 'Key' && i.index === GOLD_LOCK_TIER).length
