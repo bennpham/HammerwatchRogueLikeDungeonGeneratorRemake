@@ -203,7 +203,7 @@ export class Level {
       let gated = false
       if (orbRoom !== undefined) {
         if ((params.finalLockMode ?? 'button') === 'button') {
-          gated = sealRoomWithButton(orbRoom, ctx)
+          gated = sealRoomWithButton(orbRoom, ctx, this.rooms)
           // the same consolation powerup, off the same three draws, that
           // lockRoom() grants — see Room.grantLockLoot
           if (gated) orbRoom.grantLockLoot()

@@ -8,6 +8,50 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-24 — theme h and the bonus themes have **no wall overhang**, so a barrier must span the whole corridor
+**Tag:** [VERIFIED] in game — the user played a theme-h campaign, walked around
+the seal barring the final room, and fixed it by hand in the editor.
+
+Source: a diff of a generated theme-h `level0.xml` against the same file after
+the user extended its seal. Exactly three doodads were added — `h_v_8_l` at
+(59,7), (59,8), (59,9), all `need-sync`, appended to the `DestroyObject` id
+list. Nothing else in the level differed.
+
+1. **The two rows under a wall band are dead space only where the art
+   overhangs.** `OVERHANG_ROWS = 2` (reachability.ts) comes from the lettered
+   themes, whose wall pieces are 16x48 anchored `<origin>0 32</origin>` and
+   emitted at `yOffset: 1`/`2`, so a wall at tile `T` fills `T`, `T+1` and most
+   of `T+2`. **Theme h and every `bonus<n>` theme anchor every wall piece at
+   `yOffset: 0`** (16x16 art, `<origin>0 0</origin>` — see `desertOutdoor()`
+   and `bonus()` in `config/themes.ts`). They overhang nothing, and those two
+   rows are ordinary walkable floor.
+
+2. **So any barrier laid across a corridor must cover its full cross-section.**
+   Reconstructing the tilemap: the corridor was floor on rows y=8..13 (a
+   horizontal passage is `width + 2` rows tall, `Passage.contains`), and the
+   seal covered y=10..14 — it started at `entrance.y + 2` on the assumption
+   that rows 8 and 9 were buried. On theme h they were not, and the player
+   walked straight over the top of the wall without pressing the button.
+   `map/buttonSeal.ts` now spans the whole cross-section plus one tile into the
+   wall band at each end (`width + 4` pieces for a horizontal corridor,
+   `width + 2` for a vertical one), on every theme — the extra pieces sit under
+   the lettered themes' overhang and simply make the barrier read full-height.
+   `tests/generation.test.ts` asserts the seal is contiguous and runs into wall
+   at both ends, for themes `a`, `h` and `bonus1`.
+
+3. **Open question:** `reachability.ts` still models `OVERHANG_ROWS = 2` for
+   every theme. On the flat themes that is over-conservative — it treats
+   walkable rows as blocked and so rejects some floors the game plays fine. It
+   never passes a floor that is actually sealed, so it is safe as it stands;
+   the fix would be a per-theme overhang count. Not done, deliberately.
+
+4. **Not a finding:** the same diff moved the rig's script nodes
+   (`RectangleShape`/`AreaTrigger`/`PlaySound`/`AnnounceText` from (56,12) to
+   (57,13), `DestroyObject` from (59,12) to (57,9)). The user confirms that was
+   incidental dragging in the editor, **not** a fix — so it says nothing about
+   whether `RectangleShape` is corner- or centre-anchored, and the generator
+   keeps anchoring the shape on the button's own tile.
+
 ### 2026-08-24 — `PlaySound`, `trigger_button_floor`, and a button-opened wall
 **Tag:** [EMITTED] for everything below — the schema and the paths come from a
 hand-edited `level6.xml` the user opened in the game's editor and re-saved, so

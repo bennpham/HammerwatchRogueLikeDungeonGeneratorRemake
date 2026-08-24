@@ -180,7 +180,7 @@ reference/hammerwatch-tweak-stats.md
 | `edgePadding` / `roomPadding` | 2 / 2 | ≥ 0 |
 | `themes` | `a_mixed`…`g_mixed` | one per level; any id in `THEME_DEFS` — bases `a`–`i`, `bonus1`–`bonus5`, each base's overlay pairings (`c_tiles`) and its `_mixed` palette. Registry in `config/themes.ts`; see *Themes* below |
 | `lockFinalRoom` | `true` | final floor only: the orb sits in a dead-end room behind a gate |
-| `finalLockMode` | `'button'` | how that gate opens. `'button'` = a destructible wall plus a floor button outside it (`map/buttonSeal.ts`) — no key exists, so one cannot be hoarded from an earlier floor or spent on the wrong door. `'key'` = the original gold door, with one gold key per gold door on that floor |
+| `finalLockMode` | `'button'` | how that gate opens. `'button'` = a destructible wall across the corridor plus a floor button hidden elsewhere on the floor, placed like a key (`map/buttonSeal.ts`) — no key exists, so one cannot be hoarded from an earlier floor or spent on the wrong door. `'key'` = the original gold door, with one gold key per gold door on that floor |
 | `shopChance` / `vaultChance` / `lockChance` / `keyChance` | 1.0 / 0.3 / 0.8 / 1.0 | 0–1 inclusive |
 | `monsterMultiplier` / `goldMultiplier` / `foodMultiplier` | 1.0 / 1.1 / 1.2 | ≥ 0 |
 | `levelMonsters[i]` | see defaults | non-empty; ids must exist in `MONSTER_TYPES`; repeat an id to weight it |
@@ -243,9 +243,14 @@ Plus two app settings that are *not* generator parameters:
    by chance. Everything left becomes a `Lair`. With `lockFinalRoom` on, the
    orb room is gated last — by `buttonSeal.ts`'s wall-and-button rig by
    default, or by `Room.lockRoom()`'s gold door under `finalLockMode: 'key'`.
-   The button rig draws no random values of its own; both modes grant the same
-   consolation powerup (`Room.grantLockLoot`), so only the gold-key top-up loop
-   after them differs.
+   The wall spans the corridor's whole cross-section plus one tile of wall band
+   at each end — do not shorten it back to the walkable rows, the flat-anchored
+   themes (`h`, every `bonus<n>`) overhang nothing and the player walks around a
+   short seal. The button is hidden **like a key**: a random unlocked room, same
+   draws as `Room.spawnKey()`, so it can be anywhere on the floor and
+   `ctx.reachTargets` is what proves the player can get to it. Both modes grant
+   the same consolation powerup (`Room.grantLockLoot`), but the two streams
+   diverge — button mode draws the button's room and position first.
 4. **Population** — per lair: a monster type from that floor's pool, a horde
    of `trunc(fRand(max/5, max) * monsterMultiplier)`, `iRand(0, max/20)`
    spawners, treasure/breakables scaled by `goldMultiplier`, food by

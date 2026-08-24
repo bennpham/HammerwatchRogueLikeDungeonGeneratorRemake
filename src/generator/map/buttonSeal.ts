@@ -6,7 +6,6 @@ import {
   NodePlaySound,
   NodeRectangleShape
 } from '../objects/nodes'
-import type { DoodadTypeName } from '../objects/doodad'
 import type { Room } from './room'
 import type { GenerationContext } from '../core/context'
 
@@ -25,9 +24,12 @@ const SEAL_ANNOUNCE_TYPE = 2
 
 const SEAL_TEXT = 'The way to the final room has opened!'
 
+/** Same bound the key-spawning loops in level.ts use. */
+const MAX_BUTTON_ATTEMPTS = 2000
+
 /**
- * Bar a dead-end room's corridor with a destructible wall, and put the floor
- * button that opens it on the far side.
+ * Bar a dead-end room's corridor with a destructible wall, and hide the floor
+ * button that opens it somewhere else on the floor.
  *
  * This is the keyless alternative to `Room.lockRoom()`'s gold door, and exists
  * because a *key* on the last gate of the campaign can be lost: a party that
@@ -45,67 +47,63 @@ const SEAL_TEXT = 'The way to the final room has opened!'
  * The wall pieces carry `need-sync`, which is what makes their destruction
  * replicate to every client — the same requirement the arena's seals have.
  *
- * **Draws no random values.** The gold-door path's own tier roll is skipped
- * (that path is handed a fixed tier), so the only stream difference between the
- * two modes is the key top-up loop the caller runs for gold doors and not for
- * this — see level.ts.
- *
- * Returns false if the room is not a lockable dead end, exactly as
- * `lockRoom()` does, in which case the caller re-rolls the floor.
+ * Returns false if the room is not a lockable dead end, or if the floor has
+ * nowhere unlocked to hide the button — exactly as `lockRoom()` does, in which
+ * case the caller re-rolls the floor.
  */
-export function sealRoomWithButton(room: Room, ctx: GenerationContext): boolean {
+export function sealRoomWithButton(room: Room, ctx: GenerationContext, rooms: Room[]): boolean {
   if (room.passages.length !== 1 || room.locked || room.type === 'Entrance' || room.type === 'Exit') {
     return false
   }
 
+  // Before the button is placed, so pickButtonTile's locked-room rule excludes
+  // the very room this seal is about to close.
+  room.locked = true
+  room.sealed = true
+
+  // First, because a floor with nowhere to hide the button is discarded whole
+  // and there is no point emitting a wall for it.
+  const button = pickButtonTile(ctx, rooms)
+  if (button === null) return false
+
   const p = room.passages[0]
   const entrance = p.path[0]
-  const dir = entrance.dir
 
-  // Which tiles the wall covers: the same ones lockRoom() would have filled
-  // with door items, so the two modes bar the corridor in the same place.
+  // The wall spans the corridor's whole cross-section, plus one tile into the
+  // wall band at each end.
+  //
+  // The full span matters: it is tempting to skip the two rows nearest the wall
+  // above, since the lettered themes' art overhangs and buries them
+  // (`OVERHANG_ROWS`, reachability.ts) — but theme h and every bonus theme
+  // anchor their wall pieces at `yOffset: 0` and overhang nothing, so those rows
+  // are walkable there and a short seal is one the player simply walks around.
+  // [VERIFIED] 2026-08-24 in game, theme h. On the lettered themes the extra
+  // pieces sit under the overhang and merely make the barrier read full-height.
   const seals: Doodad[] = []
-  let piece: DoodadTypeName
-  let midX: number
-  let midY: number
 
-  switch (dir.name) {
+  switch (entrance.dir.name) {
     case 'UP':
     case 'DOWN': {
-      piece = 'Horizontal'
-      const lineY = dir.name === 'UP' ? entrance.y : entrance.y + 3
-      for (let xOffset = 0; xOffset < p.width; xOffset++) {
-        seals.push(Doodad.create(ctx, entrance.x + xOffset, lineY, piece, room.theme))
+      // a vertical corridor occupies columns entrance.x .. entrance.x + width - 1
+      const lineY = entrance.dir.name === 'UP' ? entrance.y : entrance.y + 3
+      for (let xOffset = -1; xOffset <= p.width; xOffset++) {
+        seals.push(Doodad.create(ctx, entrance.x + xOffset, lineY, 'Horizontal', room.theme))
       }
-      midX = entrance.x + Math.trunc(p.width / 2)
-      midY = lineY
       break
     }
 
     case 'LEFT':
     case 'RIGHT': {
-      piece = 'Vertical'
-      for (let yOffset = 0; yOffset < p.width + 1; yOffset++) {
-        seals.push(Doodad.create(ctx, entrance.x, entrance.y + yOffset + 2, piece, room.theme))
+      // a horizontal corridor occupies rows entrance.y .. entrance.y + width + 1
+      // (Passage.contains walks width + 2 rows for a horizontal leg)
+      for (let yOffset = -1; yOffset <= p.width + 2; yOffset++) {
+        seals.push(Doodad.create(ctx, entrance.x, entrance.y + yOffset, 'Vertical', room.theme))
       }
-      midX = entrance.x
-      midY = entrance.y + 2 + Math.trunc((p.width + 1) / 2)
       break
     }
   }
 
   for (const s of seals) s.needSync = true
-
-  // The button goes on the OUTSIDE of the wall, which is not always the same
-  // side of it. Passages are built from an already-connected room to a new one
-  // (level.ts), and `path[0]` sits at the *begin* room's edge — so for the
-  // usual dead end, which is the passage's end room, the wall stands at the far
-  // room's mouth and everything on that room's side is outside. Only when the
-  // sealed room is itself the begin room does the corridor lie outside.
-  const sealedIsBegin = p.beginRoom === room
-  const button = sealedIsBegin
-    ? { x: midX + dir.xDir, y: midY + dir.yDir }
-    : insideRoom(sealedIsBegin ? p.endRoom : p.beginRoom, midX - dir.xDir * 2, midY - dir.yDir * 2)
 
   Doodad.create(ctx, button.x, button.y, 'TriggerButton', room.theme)
 
@@ -114,13 +112,18 @@ export function sealRoomWithButton(room: Room, ctx: GenerationContext): boolean 
   // explicitly and let a bad roll be discarded like any other invalid floor.
   ctx.reachTargets.push({ x: button.x, y: button.y })
 
+  // The button art is centred on its tile (xOffset/yOffset 0.5) and this shape
+  // is a 1x1 anchored at the same coordinate, so the two stay concentric even
+  // at the fractional coordinates the random placement produces.
   const shape = new NodeRectangleShape(ctx, button.x, button.y)
   const trigger = new NodeAreaTrigger(ctx, button.x, button.y)
   trigger.triggerTimes = 1 // one shot: the wall is gone, there is nothing to re-fire
   trigger.connectToShape(shape)
 
   const sound = new NodePlaySound(ctx, button.x, button.y, SEAL_SOUND)
-  const destroy = new NodeDestroyObject(ctx, midX, midY)
+  // purely cosmetic placement — put the node on the wall it destroys
+  const mid = seals[Math.trunc(seals.length / 2)]
+  const destroy = new NodeDestroyObject(ctx, mid.x, mid.y)
   for (const s of seals) destroy.connectDoodad(s)
   const announce = new NodeAnnounceText(ctx, button.x, button.y)
   announce.setText(SEAL_TEXT)
@@ -131,26 +134,26 @@ export function sealRoomWithButton(room: Room, ctx: GenerationContext): boolean 
   trigger.connectTo(destroy)
   trigger.connectTo(announce)
 
-  room.locked = true
-  room.sealed = true
-
   return true
 }
 
 /**
- * Pull a point into a room's standable interior.
+ * Where the button hides: a random spot in a random room, drawn exactly the way
+ * `Room.spawnKey()` draws a key's — the same room roll the key loops in level.ts
+ * run, and the same `fRand(x, x + width)` / `fRand(y + 2, y + height)` pair.
  *
- * The two rows below a room's top edge are buried by the overhang of the wall
- * above them (`OVERHANG_ROWS` in reachability.ts), which is why the y floor is
- * `+2` and not `+1`.
+ * Locked rooms are refused, which is the rule that keeps the button out of the
+ * seal it opens (the caller marks that room locked first) and out of any
+ * chance-rolled gold-door room. Null means the floor has nowhere to put it.
  */
-function insideRoom(room: Room, x: number, y: number): { x: number; y: number } {
-  return {
-    x: clamp(x, room.x + 1, room.x + room.width - 2),
-    y: clamp(y, room.y + 2, room.y + room.height - 1)
+function pickButtonTile(ctx: GenerationContext, rooms: Room[]): { x: number; y: number } | null {
+  for (let attempt = 0; attempt < MAX_BUTTON_ATTEMPTS; attempt++) {
+    const r = rooms[ctx.rand.iRand(0, rooms.length)]
+    if (r.locked) continue
+    return {
+      x: ctx.rand.fRand(r.x, r.x + r.width),
+      y: ctx.rand.fRand(r.y + 2, r.y + r.height)
+    }
   }
-}
-
-function clamp(v: number, lo: number, hi: number): number {
-  return v < lo ? lo : v > hi ? hi : v
+  return null
 }

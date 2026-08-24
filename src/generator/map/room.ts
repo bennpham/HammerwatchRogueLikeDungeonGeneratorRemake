@@ -370,10 +370,13 @@ export class Room {
 
   /**
    * The powerup that compensates for a room being gated. Split out of
-   * `lockRoom()` so the button seal can grant the same thing off the same
-   * three draws, keeping the two gate modes' RNG streams aligned up to the
-   * point where they genuinely differ (the gold-key top-up, which the button
-   * has no need of).
+   * `lockRoom()` so the button seal grants the *same item off the same three
+   * draws* rather than inventing its own consolation prize.
+   *
+   * It does not keep the two gate modes' streams in lockstep, and is not meant
+   * to: button mode draws the button's room and position first (buttonSeal.ts),
+   * so the powerup lands somewhere else than the gold door's would. Only the
+   * item and its draw count are shared.
    */
   grantLockLoot(): void {
     const ctx = this.ctx

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { generateDungeon, defaultParameters, DungeonResult } from '../src/generator'
+import { doodadOffset, doodadPath } from '../src/generator/objects/doodad'
 import { oneShotRespawn } from './xmlHelpers'
+import type { DoodadTypeName } from '../src/generator/objects/doodad'
 
 function generateOk(seed: number, mutate?: (p: ReturnType<typeof defaultParameters>) => void): DungeonResult {
   const params = defaultParameters()
@@ -249,6 +251,84 @@ describe('generateDungeon', () => {
             button.y >= orb.y &&
             button.y <= orb.y + orb.height
           expect(inside, `seed ${seed}`).toBe(false)
+        }
+      }, 30_000)
+
+      it('bars the corridor end to end, on flat-walled themes too', () => {
+        // The regression this guards: the seal used to start two rows into the
+        // corridor, because the lettered themes' wall art overhangs those rows
+        // and buries them (OVERHANG_ROWS). Theme h and the bonus themes anchor
+        // every wall piece at yOffset 0 and overhang nothing, so there the two
+        // rows were open floor and the player walked around the seal.
+        for (const theme of ['a', 'h', 'bonus1']) {
+          for (const seed of [3, 555, 90210]) {
+            const params = defaultParameters()
+            params.themes = params.themes.map(() => theme)
+            const result = generateDungeon(params, seed)
+            expect(result.ok, `${theme} seed ${seed}`).toBe(true)
+            const ok = result as DungeonResult
+            const last = ok.levels[finalFloorIndex]
+            const xml = lastLevelXML(ok)
+
+            // the seal is exactly the floor's need-sync doodads
+            const seal = [
+              ...xml.matchAll(
+                /<string name="type">([^<]+)<\/string>\s*<float name="x">(-?[\d.]+)<\/float>\s*<float name="y">(-?[\d.]+)<\/float>\s*<bool name="need-sync">True<\/bool>/g
+              )
+            ].map((m) => ({ path: m[1], x: parseFloat(m[2]), y: parseFloat(m[3]) }))
+            expect(seal.length, `${theme} seed ${seed}`).toBeGreaterThan(0)
+            expect(new Set(seal.map((s) => s.path)).size).toBe(1)
+
+            // undo the art anchor to get back to tile coordinates — it differs
+            // per theme, which is the whole point of this test
+            const vertical = new Set(seal.map((s) => s.x)).size === 1
+            const piece: DoodadTypeName = vertical ? 'Vertical' : 'Horizontal'
+            expect(seal[0].path).toBe(doodadPath(piece, theme))
+            const off = doodadOffset(piece, theme)
+            const along = seal
+              .map((s) => (vertical ? s.y - off.y : s.x - off.x))
+              .sort((a, b) => a - b)
+            const across = vertical ? seal[0].x - off.x : seal[0].y - off.y
+
+            const wallAt = (x: number, y: number): boolean =>
+              last.walls[x + y * last.mapWidth] === '1'
+            const at = (i: number): boolean =>
+              vertical ? wallAt(across, i) : wallAt(i, across)
+
+            // contiguous, so there is no hole in the middle of the barrier
+            expect(along[along.length - 1] - along[0] + 1, `${theme} seed ${seed}`).toBe(
+              along.length
+            )
+            // it actually stands in the corridor rather than buried in wall
+            expect(along.some((i) => !at(i)), `${theme} seed ${seed}`).toBe(true)
+            // and it runs into wall at both ends, so there is no way around it
+            expect(at(along[0] - 1), `${theme} seed ${seed} before`).toBe(true)
+            expect(at(along[along.length - 1] + 1), `${theme} seed ${seed} after`).toBe(true)
+          }
+        }
+      }, 60_000)
+
+      it('hides the button in a room the player can open without it', () => {
+        for (let seed = 1; seed <= 25; seed++) {
+          const result = generateOk(seed)
+          const last = result.levels[finalFloorIndex]
+          const button = doodadsOfType(
+            lastLevelXML(result),
+            'doodads/special/trigger_button_floor.xml'
+          )[0]
+
+          // the doodad is centred on its tile, so undo that to get the draw
+          const x = button.x - 0.5
+          const y = button.y - 0.5
+
+          // placed exactly like a key: inside some room, and never inside one
+          // that is itself gated — the sealed orb room above all
+          const host = last.rooms.find(
+            (r) => x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height
+          )
+          expect(host, `seed ${seed}`).toBeDefined()
+          expect(host!.locked, `seed ${seed}`).toBe(false)
+          expect(host!.sealed, `seed ${seed}`).toBe(false)
         }
       }, 30_000)
 
