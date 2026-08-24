@@ -1,4 +1,4 @@
-import { Doodad } from '../objects/doodad'
+import { Doodad, doodadOffset } from '../objects/doodad'
 import {
   NodeAnnounceText,
   NodeAreaTrigger,
@@ -110,22 +110,34 @@ export function sealRoomWithButton(room: Room, ctx: GenerationContext, rooms: Ro
   // A button the party cannot walk to is as fatal as an unreachable key, and
   // the flood fill cannot see the wall (it is doodads, not tiles) — so say so
   // explicitly and let a bad roll be discarded like any other invalid floor.
+  // The raw tile, not the node position below: this is a lookup into the map
+  // array, not a world-space trigger.
   ctx.reachTargets.push({ x: button.x, y: button.y })
 
-  // The button art is centred on its tile (xOffset/yOffset 0.5) and this shape
-  // is a 1x1 anchored at the same coordinate, so the two stay concentric even
-  // at the fractional coordinates the random placement produces.
-  const shape = new NodeRectangleShape(ctx, button.x, button.y)
-  const trigger = new NodeAreaTrigger(ctx, button.x, button.y)
+  // Where the rig's nodes go. A doodad's position is its art anchor — the
+  // top-left corner, for a flat 16x16 decal like this one — while a
+  // RectangleShape's is its **centre** (see timer/hazard.ts), so a 1x1 box that
+  // covers the button sits half a tile further on than the art. Hence the
+  // doodad's own offset plus 0.5, which is exactly the relationship the shipped
+  // campaign's button rigs use: campaign/levels/level_1.xml has a
+  // trigger_button_floor at `-20 -25` driven by a w1 h1 RectangleShape at
+  // `-19.5 -24.5`. [VERIFIED] 2026-08-24 — the previous code anchored the shape
+  // at the raw tile and the box landed diagonally off the button.
+  const art = doodadOffset('TriggerButton', room.theme)
+  const nodeX = button.x + art.x + 0.5
+  const nodeY = button.y + art.y + 0.5
+
+  const shape = new NodeRectangleShape(ctx, nodeX, nodeY)
+  const trigger = new NodeAreaTrigger(ctx, nodeX, nodeY)
   trigger.triggerTimes = 1 // one shot: the wall is gone, there is nothing to re-fire
   trigger.connectToShape(shape)
 
-  const sound = new NodePlaySound(ctx, button.x, button.y, SEAL_SOUND)
+  const sound = new NodePlaySound(ctx, nodeX, nodeY, SEAL_SOUND)
   // purely cosmetic placement — put the node on the wall it destroys
   const mid = seals[Math.trunc(seals.length / 2)]
   const destroy = new NodeDestroyObject(ctx, mid.x, mid.y)
   for (const s of seals) destroy.connectDoodad(s)
-  const announce = new NodeAnnounceText(ctx, button.x, button.y)
+  const announce = new NodeAnnounceText(ctx, nodeX, nodeY)
   announce.setText(SEAL_TEXT)
   announce.time = SEAL_ANNOUNCE_MS
   announce.textType = SEAL_ANNOUNCE_TYPE

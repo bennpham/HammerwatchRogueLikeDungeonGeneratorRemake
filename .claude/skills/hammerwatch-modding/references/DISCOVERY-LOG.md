@@ -8,6 +8,31 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-24 — a doodad's `pos` is its art anchor; a `RectangleShape`'s is its **centre**
+**Tag:** [VERIFIED] — from the shipped campaign, plus the user's hand-fix in the
+editor.
+**Context:** The button that opens the final room was pressable only from beside
+it, never on it. The generated rig put the doodad and its 1x1 trigger box half a
+tile apart on both axes.
+**Evidence:** `editor/campaign/levels/level_1.xml` wires the game's own floor
+button — a `doodads/special/trigger_button_floor.xml` doodad at `pos -20 -25`
+(line 9803) driven by `RectangleShape` id 2179 at `pos -19.5 -24.5`, `w 1 h 1`
+(line 20689). The two differ by exactly `(0.5, 0.5)`, and the asset itself
+declares `<origin>0 0</origin>`, i.e. the sprite hangs down-right of its
+position rather than straddling it. The user reproduced the same offset by hand
+in `dungeon1210642739/levels/level0_modified.xml`, dragging the seal's four
+script nodes from `37.241093 6.315228` to `38.241093 7.315228` while the button
+doodad stayed at `37.741093 6.815228`.
+**Impact:** `src/generator/map/buttonSeal.ts` now positions the shape (and the
+trigger/sound/announce nodes with it) at the doodad's **emitted** position plus
+0.5 — `doodadOffset('TriggerButton', theme)` plus a half tile — rather than at
+the raw rolled tile. `tests/generation.test.ts` asserts the 0.5 relationship.
+The centre rule was already known for large shapes (`timer/hazard.ts`, the 3x3
+`BossPortal` shape); what was missing is that a doodad does **not** share it, so
+"same coordinate" never means "concentric". Note `objects/objectSet.ts`'s `Shop`
+still puts its 1x1 shape at the vendor doodad's own coordinate and carries the
+same mismatch; it is long-standing shipped behaviour and was left alone.
+
 ### 2026-08-24 — theme h and the bonus themes have **no wall overhang**, so a barrier must span the whole corridor
 **Tag:** [VERIFIED] in game — the user played a theme-h campaign, walked around
 the seal barring the final room, and fixed it by hand in the editor.

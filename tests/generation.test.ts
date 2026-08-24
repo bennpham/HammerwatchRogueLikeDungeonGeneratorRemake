@@ -317,7 +317,7 @@ describe('generateDungeon', () => {
             'doodads/special/trigger_button_floor.xml'
           )[0]
 
-          // the doodad is centred on its tile, so undo that to get the draw
+          // the doodad carries a half-tile art offset, so undo it to get the draw
           const x = button.x - 0.5
           const y = button.y - 0.5
 
@@ -331,6 +331,40 @@ describe('generateDungeon', () => {
           expect(host!.sealed, `seed ${seed}`).toBe(false)
         }
       }, 30_000)
+
+      it('puts the trigger box on the button, not beside it', () => {
+        // The regression this guards: the RectangleShape used to be anchored at
+        // the raw rolled tile while the doodad was emitted half a tile on, so
+        // the 1x1 trigger sat diagonally off the plate and the player had to
+        // stand next to the button to press it. A doodad's position is its art
+        // anchor and a RectangleShape's is its centre — the shipped campaign's
+        // own rig (campaign/levels/level_1.xml) offsets them by exactly 0.5.
+        for (const seed of [3, 555, 90210]) {
+          const xml = lastLevelXML(generateOk(seed))
+          const button = doodadsOfType(xml, 'doodads/special/trigger_button_floor.xml')[0]
+          expect(button).toBeDefined()
+
+          // the seal's trigger is the one-shot one; its shape id names the box
+          const trigger =
+            /<string name="type">AreaTrigger<\/string>\s*<bool name="enabled">True<\/bool>\s*<int name="trigger-times">1<\/int>[\s\S]*?<int-arr name="static">(\d+)<\/int-arr>/.exec(
+              xml
+            )
+          expect(trigger, `seed ${seed}`).not.toBeNull()
+
+          const shape = new RegExp(
+            String.raw`<int name="id">${trigger![1]}</int>\s*<string name="type">RectangleShape</string>` +
+              String.raw`[\s\S]*?<float name="x">(-?[\d.]+)</float>\s*<float name="y">(-?[\d.]+)</float>` +
+              String.raw`[\s\S]*?<float name="w">([\d.]+)</float>\s*<float name="h">([\d.]+)</float>`
+          ).exec(xml)
+          expect(shape, `seed ${seed}`).not.toBeNull()
+
+          expect(parseFloat(shape![3]), `seed ${seed}`).toBe(1)
+          expect(parseFloat(shape![4]), `seed ${seed}`).toBe(1)
+          // centre of a 1x1 box over art anchored at the doodad's position
+          expect(parseFloat(shape![1]), `seed ${seed}`).toBeCloseTo(button.x + 0.5, 5)
+          expect(parseFloat(shape![2]), `seed ${seed}`).toBeCloseTo(button.y + 0.5, 5)
+        }
+      })
 
       it('leaves every floor before the last untouched by the choice of mode', () => {
         const button = generateOk(4242)
