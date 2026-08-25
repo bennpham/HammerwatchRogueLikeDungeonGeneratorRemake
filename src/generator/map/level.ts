@@ -9,6 +9,7 @@ import { getTheme, THEME_DEFS } from '../config/themes'
 import { XMLArray, XMLDictionary, XMLInt, XMLIntArray, XMLString } from '../xml'
 import { mixedDatasets, overlayDataset } from './tilemapOverlay'
 import { exitReachable } from './reachability'
+import { sealHolds } from './sealCheck'
 import type { GenerationContext } from '../core/context'
 
 const TILEMAP_SIZE = 20
@@ -265,6 +266,16 @@ export class Level {
     // floor is connected — what seals it is the wall art's overhang, which
     // reachability.ts models. Draws no random values.
     if (!exitReachable(this, ctx)) {
+      this.levelValid = false
+    }
+
+    // And the other half of that promise: the player must NOT be able to reach
+    // the orb without opening the gate. `exitReachable` above walks straight
+    // through the seal on purpose — it is proving the *button* is reachable —
+    // so nothing checked this until four separate walk-arounds had shipped.
+    // Reads the finished tile grid and the placed wall doodads, so it runs last
+    // of all. Draws no random values.
+    if (!sealHolds(this, ctx)) {
       this.levelValid = false
     }
   }

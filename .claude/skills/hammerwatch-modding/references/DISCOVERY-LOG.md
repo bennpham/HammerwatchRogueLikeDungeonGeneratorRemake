@@ -8,6 +8,67 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-24 — the gated room was open on a second side, and nothing ever checked the gate held
+**Tag:** [VERIFIED] — a seal-aware reachability sweep, calibrated against the two
+walk-arounds the user confirmed in game.
+**Context:** After four positioning fixes, a sweep of 60 seeds x 4 themes asked
+the question none of the existing checks did: *with the seal intact, can the
+player still walk to the orb?* Nine floors per lettered theme said yes.
+**Evidence:** The probe was calibrated first. Reverting each earlier fix in turn
+reproduced exactly the leak the user had found in game and nothing else:
+
+| | LEFT fix reverted | DOWN fix reverted | both in |
+| --- | --- | --- | --- |
+| `dungeon1613495514` (LEFT) | **reachable** | sealed | sealed |
+| `dungeon1986970473` (DOWN) | sealed | **reachable** | sealed |
+
+The leaks then split into two families. The smaller one is barrier geometry —
+the barrier's end stops 2..9 tiles short of any wall (themes a/f seeds 29, 37,
+59; bonus1 seed 35). The larger one cannot be fixed by moving a barrier at all.
+Seed 8, theme a, orb room `o` and seal `S`:
+
+```
+  42 #####.....####ooooooooo........
+  46 #####.....####ooooooooo........
+  50 ...........S##ooooooooo########
+  55 ...........S..ooooooooo########
+```
+
+The seal bars the left corridor correctly. The room's right edge at x 56 abuts
+open floor at x 57 with **no wall band between them at all**. `buildTileArray`
+marks a tile floor if *any* room or passage contains it, and `overlapRoom` only
+forbids a passage overlapping rooms that are not its own endpoints — so a
+passage bound for the gated room may graze it anywhere along its path, and two
+regions that merely touch merge seamlessly. `sealRoomWithButton` and
+`Room.lockRoom` both gate `passages[0]` and trust it is the only way in.
+Eleven of theme a's 51 *sealed* floors also have a second opening that happens
+to lead nowhere, so the topology is common; it is only sometimes fatal.
+**Impact:** `map/sealCheck.ts` — `sealHolds(level, ctx)` — runs last in
+`Level.build()`, after `buildTileArray` and `buildWalls`, and rejects the floor
+if the orb is reachable with the seal treated as intact. Draws no random values;
+a rejected floor re-rolls like any other invalid one. It carries the fence model
+(which `DoodadType` closes which tile edge on a `directionalFences` theme) that
+until now existed only as prose in this log. Solid themes read the tile grid
+directly and deliberately skip `OVERHANG_ROWS`, since over-stating where the
+player can walk can only cost a re-roll, never ship a leak.
+
+Result: 0 leaks across 240 floors, 0 generation failures, and **only the leaking
+floors changed** — 9/60 on a and f, 6/60 on h, 4/60 on bonus1, matching the leak
+counts exactly. A floor whose gate already held is byte-identical.
+
+`tests/sealProbe.ts` keeps an independent reading of the same collision data
+from the *emitted XML*, so a floor the generator believes is sealed but writes
+out wrong is still caught. The two are deliberately not shared.
+**The gold door too.** `Room.lockRoom` gates the same `passages[0]` and inherited
+the same blind spot, so `sealHolds` closes every `Door` item as well and runs on
+any gated floor, not only one carrying `need-sync` doodads. A door is a solid
+one-tile-wide collider whose two variants differ only in reach:
+`door_a_*_h_v2` is y -16..0 px (its own row and the one above) and
+`door_a_*_v` is y -32..+8 (its own row and the two above). Every door closes,
+not just the orb's — a route crossing any door is a gated route. In
+`finalLockMode: 'key'` this re-rolls 3/40 floors on theme a and 5/40 on theme h,
+again with no generation failures.
+
 ### 2026-08-24 — a barrier needs the right tile AND the right edge, and "+3" was really "1 + overhang"
 **Tag:** [VERIFIED] — two theme-h campaigns played and hand-fixed in the editor.
 **Context:** The button seal failed to gate the final room twice more, in two
