@@ -10,7 +10,11 @@ in the same change.
 
 ### 2026-08-24 — the gated room was open on a second side, and nothing ever checked the gate held
 **Tag:** [VERIFIED] — a seal-aware reachability sweep, calibrated against the two
-walk-arounds the user confirmed in game.
+walk-arounds the user confirmed in game, and since confirmed in play: a theme-h
+and a bonus-5 campaign were played on 2026-08-24 with the seal no longer
+walk-around-able and every locked door holding at its ends. Bonus 5 is the first
+play evidence for the bonus themes at all — their `flatWalls` flag, and the
+barrier and door rows it moves, had only ever been inferred from theme h.
 **Context:** After four positioning fixes, a sweep of 60 seeds x 4 themes asked
 the question none of the existing checks did: *with the seal intact, can the
 player still walk to the orb?* Nine floors per lettered theme said yes.
@@ -141,9 +145,11 @@ was fixed alongside.
    change which floors get re-rolled and with them every flat-theme seed.
 
 ### 2026-08-24 — theme h's wall *band* is standable, so a barrier must reach one tile into it
-**Tag:** [VERIFIED] in game for the vertical case — the user walked around a gold
-door on a theme-h floor and fixed it by hand. [UNVERIFIED] for the horizontal
-case, which is the same mechanism but has not been seen.
+**Tag:** [VERIFIED] in game, both orientations. The vertical case came first —
+the user walked around a gold door on a theme-h floor and fixed it by hand. The
+horizontal case shipped as an inference from the same mechanism and was
+confirmed on 2026-08-24, when the user walked at a horizontal door row's ends on
+a theme-h campaign and could not get past.
 **Context:** A locked door on theme h did not seal its corridor. This is a
 *different* fault from the 2026-08-24 overhang entry below: there the corridor's
 own rows were uncovered, here they were covered and the player went around

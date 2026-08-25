@@ -580,9 +580,12 @@ theme `i`'s stone renders as grey slabs lying on the sand. `omitCover` skips it
 in both emission sites — the matcher in `map/level.ts` and the pair the stair
 prefabs place in `objects/objectSet.ts`.
 
-`[UNVERIFIED]` until someone loads a packed `h` level: the `h_pyramid_exit`
-offsets (`{1.21875, 0.25}`), the `h_h_8_up` anchor (`yOffset: -1`), and whether
-each cliff face points out of the wall mass rather than into it.
+`[VERIFIED]` 2026-08-24 — a packed `h` campaign was played through. The
+`h_pyramid_exit` offsets (`{1.21875, 0.25}`) put a usable stair in its alcove,
+the `h_h_8_up` anchor (`yOffset: -1`) holds, and every cliff face points out of
+the wall mass: the run was made specifically to hunt walk-throughs, and the only
+ways past a wall that turned up were the four barrier-placement faults in the
+discovery log, never a band tile that simply failed to stop the player.
 
 Unused by the matcher, present in the folder: `h_deco_rock`, `h_h_16_dn/up`,
 `h_v_16_l/r`, `h_pyramid`, `h_pyramid_exit`, `h_pyramid_shadow`, `h_exit_special`,

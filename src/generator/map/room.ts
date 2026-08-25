@@ -352,7 +352,7 @@ export class Room {
     // corridor, which means that row is steppable from the corridor floor and
     // runs its whole length — straight over the top of the door column and
     // back down on the far side. One extra door at each open end closes it.
-    // [VERIFIED] 2026-08-24 in game, theme h, for the vertical case.
+    // [VERIFIED] 2026-08-24 in game, theme h, both orientations.
     //
     // The ends that need it are not symmetric, and that is the art, not luck:
     //
@@ -362,8 +362,8 @@ export class Room {
     //    reach one row past the corridor at that end anyway.
     //  - A vertical corridor's two side columns take `TRight`/`TLeft` ->
     //    `h_v_8_r`/`h_v_8_l`, ~25% edge fences, so both are standable and both
-    //    need the extra piece. [UNVERIFIED] — inferred from the same mechanism
-    //    as the vertical case, not yet seen in game.
+    //    need the extra piece. [VERIFIED] 2026-08-24 — the user walked at a
+    //    horizontal door row's ends on theme h and could not get past.
     const margin = getTheme(this.theme)?.directionalFences === true ? 1 : 0
 
     switch (entrance.dir.name) {
