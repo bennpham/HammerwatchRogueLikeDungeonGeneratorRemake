@@ -2,7 +2,7 @@ import { MONSTER_TYPES } from '../objects/monsterTypes'
 import { THEME_DEFS } from './themes'
 import { ALL_LOBBY_CATEGORIES } from '../lobby/shops'
 import type { PlayerTweaks } from '../tweak/types'
-import { oneOfEachUpgrade } from '../levelTemplate/surgery'
+import { noUpgrades } from '../levelTemplate/surgery'
 import type { UpgradeCounts } from '../levelTemplate/surgery'
 // the tweak key builder, so the default life removal below cannot drift from
 // the key QuickSetup's checkbox writes. tweak/ imports nothing from config/,
@@ -463,8 +463,10 @@ export function defaultBossOptions(): BossOptions {
       // the last shop before the boss, so the party arrives able to actually
       // spend at it — 40 red diamonds on the prep floor
       startingGold: 20000,
-      // one of each free upgrade, which is how the room was authored
-      upgrades: oneOfEachUpgrade()
+      // no free upgrades by default: the prep room's shop is the intended way to
+      // get them, and handing out eight for free changes the balance of the boss
+      // run. The dungeon master turns them on per kind.
+      upgrades: noUpgrades()
     },
     arena: {
       theme: 'g_mixed',
@@ -755,8 +757,9 @@ export function defaultParameters(): DungeonParameters {
       enabled: true,
       startingGold: 10000,
       shopCategories: [...ALL_LOBBY_CATEGORIES],
-      // one of each free upgrade, which is how the room was authored
-      upgrades: oneOfEachUpgrade()
+      // no free upgrades by default: the vendors are the intended way to get
+      // them, so handing eight out on the floor is opt-in per kind
+      upgrades: noUpgrades()
     },
     boss: defaultBossOptions()
   }

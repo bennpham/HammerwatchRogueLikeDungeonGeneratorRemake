@@ -62,7 +62,7 @@ export function UpgradeCountFields({ upgrades, field, issues, onChange }: Upgrad
   )
 
   return (
-    <Section title="Free upgrades" defaultOpen badge={`${total}`}>
+    <Section title="Free upgrades" badge={`${total}`}>
       <p className="hint">
         Upgrade pickups lying on the floor, free to whoever walks over them — the same items the
         vendors sell, handed out rather than bought. Each kind has one spot in the room, so more

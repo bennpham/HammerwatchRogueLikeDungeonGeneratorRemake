@@ -159,8 +159,15 @@ describe('boss prep — starting gold', () => {
 })
 
 describe('boss prep — free upgrades', () => {
-  it('lays one of each kind on its authored slot by default', () => {
+  it('lays none at all by default', () => {
     const xml = prepXML()
+    for (const kind of UPGRADE_KINDS) {
+      expect(xml, kind).not.toContain(upgradeItemPath(kind))
+    }
+  })
+
+  it('lays each kind on its authored slot when asked for', () => {
+    const xml = prepXML({ upgrades: oneOfEachUpgrade() })
     for (const kind of UPGRADE_KINDS) {
       const [x, y] = BOSSPREP_UPGRADE_SLOTS[kind]
       const section = itemSection(xml, upgradeItemPath(kind))
@@ -217,10 +224,10 @@ describe('boss prep — lighting', () => {
 
 describe('boss prep — id integrity', () => {
   it('keeps every id in the file unique across doodads / actors / items / scripting', () => {
-    // deliberately left with the stock free upgrades on: the diamonds and the
-    // upgrades number from two different bases, and this is what proves those
-    // ranges cannot meet however deep the gold piles up
-    const xml = prepXML({ startingGold: DEEP_GOLD })
+    // every free upgrade turned on alongside the deepest payout: the diamonds
+    // and the upgrades number from two different bases, and this is what proves
+    // those ranges cannot meet however deep the gold piles up
+    const xml = prepXML({ startingGold: DEEP_GOLD, upgrades: oneOfEachUpgrade() })
     const elementIds = [...xml.matchAll(/<dictionary>\s*<int name="id">(-?\d+)<\/int>/g)].map((m) =>
       Number(m[1])
     )
