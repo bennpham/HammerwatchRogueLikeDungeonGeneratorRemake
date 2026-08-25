@@ -3,6 +3,8 @@ import {
   LOBBY_EXIT_NODE_ID,
   LOBBY_ITEM_ID_BASE,
   LOBBY_TEMPLATE,
+  LOBBY_UPGRADE_ID_BASE,
+  LOBBY_UPGRADE_SLOTS,
   LOBBY_TEMPLATE_IDS
 } from './template'
 import { LOBBY_VENDORS, categoriesFor } from './shops'
@@ -15,8 +17,10 @@ import {
   levelStartPos,
   removeElement,
   replaceInElement,
+  itemsBody,
   respawnOnEntryNodes,
-  setItems
+  setItems,
+  upgradeArrays
 } from '../levelTemplate/surgery'
 
 // re-exported so the lobby's public surface (and src/generator/index.ts, which
@@ -98,9 +102,15 @@ export function buildLobby(options: LobbyOptions): string {
   const [startX, startY] = levelStartPos(xml, 'lobby')
   xml = insertNodes(xml, respawnOnEntryNodes(LOBBY_RESPAWN_ID_BASE, startX, startY), 'lobby')
 
+  // one items section, two independent populations: the gold payout, and the
+  // free upgrades the dungeon master hands the party. Their id ranges cannot
+  // overlap however large either gets — see LOBBY_UPGRADE_ID_BASE.
   return setItems(
     xml,
-    diamondArray(options.startingGold, LOBBY_DIAMOND_SLOTS, LOBBY_ITEM_ID_BASE),
+    itemsBody([
+      ...diamondArray(options.startingGold, LOBBY_DIAMOND_SLOTS, LOBBY_ITEM_ID_BASE),
+      ...upgradeArrays(options.upgrades, LOBBY_UPGRADE_SLOTS, LOBBY_UPGRADE_ID_BASE)
+    ]),
     'lobby'
   )
 }

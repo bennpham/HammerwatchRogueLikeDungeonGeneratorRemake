@@ -5,10 +5,20 @@
  * Source: D:/Program Files (x86)/Steam/steamapps/common/Hammerwatch/editor/pht6_quiky_dreadmann_mansion/levels/test_lobby.xml
  *
  * Treated as an opaque swappable template: buildLobby() rewrites four things
- * in it by id (vendor `cats`, badge doodad paths, the diamond list and the
- * exit's target level) and touches nothing else. Nothing here is re-serialized
- * through src/generator/xml/, and no value is drawn from either RNG stream.
+ * in it by id (vendor `cats`, badge doodad paths, the items list — diamonds and
+ * free upgrades both — and the exit's target level) and touches nothing else.
+ * Nothing here is re-serialized through src/generator/xml/, and no value is
+ * drawn from either RNG stream.
+ *
+ * The two warm lights at the shop end (ids 3400/3401) come from the source
+ * level and are unconditional — there is no parameter for them. Lights are
+ * never renumbered at build time, so they had to be given authored-range ids up
+ * front: the ids they carry in the source level sit inside the span the diamond
+ * payout walks, and a deep enough pile would have landed on top of them.
  */
+import { MAX_DIAMOND_COUNT } from '../levelTemplate/surgery'
+import type { UpgradeSlots } from '../levelTemplate/surgery'
+
 export const LOBBY_TEMPLATE = `<dictionary>
 	<dictionary name="tilemap">
 		<array name="tiledata">
@@ -989,6 +999,30 @@ export const LOBBY_TEMPLATE = `<dictionary>
 				<int-arr name="addColor3">48 32 0 255</int-arr>
 				<float name="addRange">1.6</float>
 			</dictionary>
+			<dictionary>
+				<int name="id">3400</int>
+				<vec2 name="pos">-7.75 -4</vec2>
+				<int-arr name="mulColor1">255 255 255 255</int-arr>
+				<int-arr name="mulColor2">255 255 224 255</int-arr>
+				<int-arr name="mulColor3">255 165 0 255</int-arr>
+				<float name="mulRange">15</float>
+				<int-arr name="addColor1">96 64 0 255</int-arr>
+				<int-arr name="addColor2">64 48 0 255</int-arr>
+				<int-arr name="addColor3">48 32 0 255</int-arr>
+				<float name="addRange">4</float>
+			</dictionary>
+			<dictionary>
+				<int name="id">3401</int>
+				<vec2 name="pos">8 -3.75</vec2>
+				<int-arr name="mulColor1">255 255 255 255</int-arr>
+				<int-arr name="mulColor2">255 255 224 255</int-arr>
+				<int-arr name="mulColor3">255 165 0 255</int-arr>
+				<float name="mulRange">15</float>
+				<int-arr name="addColor1">96 64 0 255</int-arr>
+				<int-arr name="addColor2">64 48 0 255</int-arr>
+				<int-arr name="addColor3">48 32 0 255</int-arr>
+				<float name="addRange">4</float>
+			</dictionary>
 		</array>
 		<int-arr name="shadow-color">135 128 128 255</int-arr>
 		<int-arr name="ambient-color">125 125 125 255</int-arr>
@@ -1048,3 +1082,32 @@ export const LOBBY_DIAMOND_SLOTS: ReadonlyArray<readonly [number, number]> = [
 
 /** First id buildLobby hands to a diamond; above anything the template uses. */
 export const LOBBY_ITEM_ID_BASE = 10000
+
+/**
+ * Where each free upgrade pickup goes — one slot per kind:
+ * tier 1 on the back row and tier 2 in front of it.
+ *
+ * Read off the hand-authored level, same as the diamond slots above. A count
+ * above one stacks on the kind's single slot rather than spreading, so this map
+ * never has to grow with the count.
+ */
+export const LOBBY_UPGRADE_SLOTS: UpgradeSlots = {
+  damage: [-9, -4.5],
+  defense: [-8, -4.5],
+  health: [-7, -4.5],
+  mana: [-6, -4.5],
+  damage2: [-9, -3.5],
+  defense2: [-8, -3.5],
+  health2: [-7, -3.5],
+  mana2: [-6, -3.5]
+}
+
+/**
+ * First id buildLobby hands to a free upgrade.
+ *
+ * Directly above the diamonds rather than a round number: the payout is capped
+ * at `MAX_DIAMOND_COUNT` diamonds, so `LOBBY_ITEM_ID_BASE + MAX_DIAMOND_COUNT`
+ * is the first id no diamond can reach however much gold is asked for. Derived
+ * so raising that cap moves this with it instead of silently colliding.
+ */
+export const LOBBY_UPGRADE_ID_BASE = LOBBY_ITEM_ID_BASE + MAX_DIAMOND_COUNT

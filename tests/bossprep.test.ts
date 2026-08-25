@@ -9,8 +9,20 @@ import {
   diamondCount
 } from '../src/generator/bossprep'
 import { ALL_LOBBY_CATEGORIES, LOBBY_VENDORS } from '../src/generator/lobby/shops'
+import { GOLD_SAFETY_MAX } from '../src/generator/config/validation'
+import {
+  BOSSPREP_ITEM_ID_BASE,
+  BOSSPREP_UPGRADE_ID_BASE,
+  BOSSPREP_UPGRADE_SLOTS
+} from '../src/generator/bossprep/template'
 import { defaultParameters } from '../src/generator/config/parameters'
-import { DIAMOND_VALUE } from '../src/generator/levelTemplate/surgery'
+import {
+  DIAMOND_VALUE,
+  UPGRADE_KINDS,
+  noUpgrades,
+  oneOfEachUpgrade,
+  upgradeItemPath
+} from '../src/generator/levelTemplate/surgery'
 import type { BossOptions } from '../src/generator/config/parameters'
 import { allIds, badIntArray, nodesOfType, oneShotRespawn } from './xmlHelpers'
 
@@ -115,7 +127,9 @@ describe('boss prep — vendor stalls', () => {
 describe('boss prep — starting gold', () => {
   it('emits one diamond per 500 gold', () => {
     for (const gold of [0, 500, 3000, 6000]) {
-      const xml = prepXML({ startingGold: gold })
+      // the free upgrades share this section, so they are switched off here to
+      // leave the diamonds as the only placements in the file
+      const xml = prepXML({ startingGold: gold, upgrades: noUpgrades() })
       const diamonds = [...xml.matchAll(/<array><int>\d+<\/int><vec2>[^<]*<\/vec2><\/array>/g)]
       expect(diamonds).toHaveLength(gold / BOSSPREP_DIAMOND_VALUE)
       expect(diamondCount(gold)).toBe(gold / BOSSPREP_DIAMOND_VALUE)
@@ -124,13 +138,13 @@ describe('boss prep — starting gold', () => {
   })
 
   it('leaves the items section empty at 0 gold rather than emitting an empty array', () => {
-    const xml = prepXML({ startingGold: 0 })
+    const xml = prepXML({ startingGold: 0, upgrades: noUpgrades() })
     expect(xml).toMatch(/<dictionary name="items">\s*<\/dictionary>/)
     expect(xml).not.toContain('items/valuable_diamond_red.xml')
   })
 
   it('stacks past the 42 authored slots rather than spilling outside the room', () => {
-    const xml = prepXML({ startingGold: DEEP_GOLD })
+    const xml = prepXML({ startingGold: DEEP_GOLD, upgrades: noUpgrades() })
     const placed = [...xml.matchAll(/<vec2>(-?[\d.]+) (-?[\d.]+)<\/vec2>/g)]
       .map((m) => `${Number(m[1])},${Number(m[2])}`)
 
@@ -144,8 +158,68 @@ describe('boss prep — starting gold', () => {
   })
 })
 
+describe('boss prep — free upgrades', () => {
+  it('lays one of each kind on its authored slot by default', () => {
+    const xml = prepXML()
+    for (const kind of UPGRADE_KINDS) {
+      const [x, y] = BOSSPREP_UPGRADE_SLOTS[kind]
+      const section = itemSection(xml, upgradeItemPath(kind))
+      expect(section, kind).not.toBeNull()
+      expect(placementsIn(section ?? ''), kind).toEqual([`${x},${y}`])
+    }
+  })
+
+  it('omits a kind left at zero rather than emitting an empty array', () => {
+    const xml = prepXML({ upgrades: { ...oneOfEachUpgrade(), damage2: 0 } })
+    expect(xml).not.toContain(upgradeItemPath('damage2'))
+    expect(xml).toContain(upgradeItemPath('damage'))
+    expect(badIntArray(xml)).toBeNull()
+  })
+
+  it('emits nothing at all with every kind at zero and no gold', () => {
+    const xml = prepXML({ startingGold: 0, upgrades: noUpgrades() })
+    expect(xml).toMatch(/<dictionary name="items">\s*<\/dictionary>/)
+  })
+
+  it('stacks multiples on the one slot instead of spreading them', () => {
+    const xml = prepXML({ startingGold: 0, upgrades: { ...noUpgrades(), mana: 3 } })
+    const [x, y] = BOSSPREP_UPGRADE_SLOTS.mana
+    const section = itemSection(xml, upgradeItemPath('mana'))
+    expect(placementsIn(section ?? '')).toEqual([`${x},${y}`, `${x},${y}`, `${x},${y}`])
+  })
+
+  it('numbers from a base no diamond payout can reach', () => {
+    const xml = prepXML({ startingGold: GOLD_SAFETY_MAX, upgrades: oneOfEachUpgrade() })
+    const itemIds = [...xml.matchAll(/<array><int>(\d+)<\/int><vec2>/g)].map((m) => Number(m[1]))
+    expect(new Set(itemIds).size).toBe(itemIds.length)
+    expect(Math.min(...itemIds)).toBe(BOSSPREP_ITEM_ID_BASE)
+    expect(Math.max(...itemIds)).toBe(BOSSPREP_UPGRADE_ID_BASE + UPGRADE_KINDS.length - 1)
+  })
+
+  it('is a pure function of the counts', () => {
+    const a = prepXML({ upgrades: { ...noUpgrades(), health2: 5 } })
+    const b = prepXML({ upgrades: { ...noUpgrades(), health2: 5 } })
+    expect(a).toBe(b)
+  })
+})
+
+describe('boss prep — lighting', () => {
+  it('carries the two warm lights over the shop row, always', () => {
+    for (const patch of [{}, { shopCategories: [] }, { startingGold: 0, upgrades: noUpgrades() }]) {
+      const xml = prepXML(patch)
+      for (const pos of ['9 -5', '-9 -5']) {
+        expect(xml, JSON.stringify(patch)).toContain(`<vec2 name="pos">${pos}</vec2>`)
+      }
+      expect(xml).toContain('<int-arr name="mulColor3">255 165 0 255</int-arr>')
+    }
+  })
+})
+
 describe('boss prep — id integrity', () => {
   it('keeps every id in the file unique across doodads / actors / items / scripting', () => {
+    // deliberately left with the stock free upgrades on: the diamonds and the
+    // upgrades number from two different bases, and this is what proves those
+    // ranges cannot meet however deep the gold piles up
     const xml = prepXML({ startingGold: DEEP_GOLD })
     const elementIds = [...xml.matchAll(/<dictionary>\s*<int name="id">(-?\d+)<\/int>/g)].map((m) =>
       Number(m[1])
@@ -153,7 +227,7 @@ describe('boss prep — id integrity', () => {
     const itemIds = [...xml.matchAll(/<array><int>(\d+)<\/int><vec2>/g)].map((m) => Number(m[1]))
     const all = [...elementIds, ...itemIds]
     expect(new Set(all).size).toBe(all.length)
-    expect(itemIds).toHaveLength(DEEP_GOLD / BOSSPREP_DIAMOND_VALUE)
+    expect(itemIds).toHaveLength(DEEP_GOLD / BOSSPREP_DIAMOND_VALUE + UPGRADE_KINDS.length)
   })
 })
 
@@ -207,3 +281,24 @@ describe('boss prep — arrival respawn', () => {
     }
   })
 })
+
+/**
+ * The body of one `<array name="items/…">`, or null when the file has none.
+ *
+ * The close is found at the section's own indentation, not by the first
+ * `</array>` — each placement inside is itself an `<array>…</array>`.
+ */
+function itemSection(xml: string, item: string): string | null {
+  const open = `\t\t<array name="${item}">\n`
+  const start = xml.indexOf(open)
+  if (start === -1) return null
+  const body = start + open.length
+  return xml.slice(body, xml.indexOf('\t\t</array>', body))
+}
+
+/** Every `x,y` an item section places something at, in order. */
+function placementsIn(section: string): string[] {
+  return [...section.matchAll(/<vec2>(-?[\d.]+) (-?[\d.]+)<\/vec2>/g)].map(
+    (m) => `${Number(m[1])},${Number(m[2])}`
+  )
+}

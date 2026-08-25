@@ -3,6 +3,8 @@ import {
   BOSSPREP_EXIT_NODE_ID,
   BOSSPREP_ITEM_ID_BASE,
   BOSSPREP_TEMPLATE,
+  BOSSPREP_UPGRADE_ID_BASE,
+  BOSSPREP_UPGRADE_SLOTS,
   BOSSPREP_TEMPLATE_IDS
 } from './template'
 import { LOBBY_VENDORS, categoriesFor } from '../lobby/shops'
@@ -15,8 +17,10 @@ import {
   levelStartPos,
   removeElement,
   replaceInElement,
+  itemsBody,
   respawnOnEntryNodes,
-  setItems
+  setItems,
+  upgradeArrays
 } from '../levelTemplate/surgery'
 
 // re-exported so bossprep's public surface (and src/generator/index.ts, which
@@ -97,9 +101,15 @@ export function buildBossPrep(options: BossOptions['prep']): string {
   const [startX, startY] = levelStartPos(xml, 'bossprep')
   xml = insertNodes(xml, respawnOnEntryNodes(BOSSPREP_RESPAWN_ID_BASE, startX, startY), 'bossprep')
 
+  // one items section, two independent populations: the gold payout, and the
+  // free upgrades the dungeon master hands the party. Their id ranges cannot
+  // overlap however large either gets — see BOSSPREP_UPGRADE_ID_BASE.
   return setItems(
     xml,
-    diamondArray(options.startingGold, BOSSPREP_DIAMOND_SLOTS, BOSSPREP_ITEM_ID_BASE),
+    itemsBody([
+      ...diamondArray(options.startingGold, BOSSPREP_DIAMOND_SLOTS, BOSSPREP_ITEM_ID_BASE),
+      ...upgradeArrays(options.upgrades, BOSSPREP_UPGRADE_SLOTS, BOSSPREP_UPGRADE_ID_BASE)
+    ]),
     'bossprep'
   )
 }

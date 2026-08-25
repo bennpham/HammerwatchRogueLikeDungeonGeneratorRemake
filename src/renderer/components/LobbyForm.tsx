@@ -4,11 +4,13 @@ import {
   LOBBY_DIAMOND_SLOTS,
   LOBBY_DIAMOND_VALUE,
   LOBBY_VENDORS,
+  UPGRADE_KINDS,
   diamondCount,
   lobbyCategoryCounts
 } from '../../generator'
 import type { DungeonParameters, LobbyOptions, PlayerTweaks, ValidationIssue } from '../../generator'
 import { BoolField, NumberField, Section } from './fields'
+import { UpgradeCountFields } from './UpgradeCountFields'
 
 interface LobbyFormProps {
   params: DungeonParameters
@@ -83,6 +85,13 @@ export function LobbyForm({ params, issues, onChange }: LobbyFormProps) {
         </div>
         <p className="hint">{goldDescription(lobby.startingGold)}</p>
       </Section>
+
+      <UpgradeCountFields
+        upgrades={lobby.upgrades}
+        field="lobby.upgrades"
+        issues={issues}
+        onChange={(upgrades) => set({ upgrades })}
+      />
 
       <Section title="Shops" defaultOpen badge={`${lobby.shopCategories.length}/21`}>
         <p className="hint">
@@ -195,6 +204,20 @@ function LobbyDiagram({ lobby }: { lobby: LobbyOptions }) {
             ◆
           </span>
         ))}
+      </div>
+      <div className="lobby-diagram-row lobby-diagram-upgrades">
+        {UPGRADE_KINDS.map((kind) => {
+          const count = lobby.upgrades?.[kind] ?? 0
+          return (
+            <span
+              key={kind}
+              className={count > 0 ? 'upgrade on' : 'upgrade'}
+              title={`${count} free ${kind} upgrade${count === 1 ? '' : 's'}`}
+            >
+              {count > 1 ? `▲${count}` : '▲'}
+            </span>
+          )
+        })}
       </div>
       <div className="lobby-diagram-row lobby-diagram-floor">
         <span className="lobby-spawn">spawn</span>

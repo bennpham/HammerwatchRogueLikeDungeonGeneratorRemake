@@ -16,6 +16,16 @@
 export const DIAMOND_VALUE = 500
 
 /**
+ * The most diamonds a payout can ever produce.
+ *
+ * `GOLD_SAFETY_MAX` in config/validation.ts is this times `DIAMOND_VALUE`, so
+ * the cap and the id arithmetic below cannot drift apart: the highest id a
+ * diamond can take is `itemIdBase + MAX_DIAMOND_COUNT - 1`, which is what each
+ * template's `*_UPGRADE_ID_BASE` sits directly above.
+ */
+export const MAX_DIAMOND_COUNT = 10_000
+
+/**
  * The span of the element whose id is `id`.
  *
  * An element is an unnamed `<dictionary>` whose first child is its id, which
@@ -237,6 +247,48 @@ export function setItems(xml: string, body: string, label: string): string {
   throw new Error(`${label} template items section is not closed`)
 }
 
+/** One item on the floor: its element id and where it sits. */
+export interface ItemEntry {
+  id: number
+  x: number
+  y: number
+}
+
+/** Every item of one type, as the editor's items dialect groups them. */
+export interface ItemSection {
+  /** the item file, e.g. `items/valuable_diamond_red.xml` */
+  item: string
+  entries: readonly ItemEntry[]
+}
+
+/**
+ * Assemble the whole `<dictionary name="items">` body from its sections.
+ *
+ * This is the level editor's own items dialect — one array per item type, each
+ * entry an `<array>` of id and position — not the dictionary-per-element form
+ * the rest of the file uses.
+ *
+ * The leading newline and the trailing tab are the section's own indentation,
+ * so `setItems` can splice the result straight between the open and close tags.
+ * With nothing to place the body is just that indentation: an empty
+ * `<array>` is never emitted, because LevelPacker.exe parses what is inside one
+ * and throws on nothing ([VERIFIED] 2026-07-31).
+ */
+export function itemsBody(sections: readonly ItemSection[]): string {
+  const filled = sections.filter((section) => section.entries.length > 0)
+  if (filled.length === 0) return '\n\t'
+
+  let out = '\n'
+  for (const section of filled) {
+    out += `\t\t<array name="${section.item}">\n`
+    for (const { id, x, y } of section.entries) {
+      out += `\t\t\t<array><int>${id}</int><vec2>${x} ${y}</vec2></array>\n`
+    }
+    out += '\t\t</array>\n'
+  }
+  return out + '\t'
+}
+
 /** How many diamonds a given amount of starting gold is worth. */
 export function diamondCount(startingGold: number): number {
   return Math.max(0, Math.floor(startingGold / DIAMOND_VALUE))
@@ -246,30 +298,103 @@ export function diamondCount(startingGold: number): number {
 const DIAMOND_ITEM = 'items/valuable_diamond_red.xml'
 
 /**
- * The `<items>` body paying `startingGold` out as diamonds, walking `slots`
+ * The item section paying `startingGold` out as diamonds, walking `slots`
  * round-robin so gold past the authored slot count lands back on slot 0 rather
  * than somewhere outside the room. Ids start at `itemIdBase`, which each
  * template puts above anything it already uses so they cannot collide.
  *
- * This is the level editor's own items dialect — one array per item type, each
- * entry an `<array>` of id and position — not the dictionary-per-element form
- * the rest of the file uses. At zero gold the whole array is left out rather
- * than emitted empty, for the same reason `<int-arr>`s are never left empty:
- * LevelPacker.exe parses what is inside them and throws on nothing
- * ([VERIFIED] 2026-07-31).
+ * Returns no section at all at zero gold, so `itemsBody` never emits an empty
+ * array — see its note on LevelPacker.exe.
  */
 export function diamondArray(
   startingGold: number,
   slots: readonly (readonly [number, number])[],
   itemIdBase: number
-): string {
+): ItemSection[] {
   const count = diamondCount(startingGold)
-  if (count === 0) return '\n\t'
+  if (count === 0) return []
 
-  let entries = ''
+  const entries: ItemEntry[] = []
   for (let i = 0; i < count; i++) {
     const [x, y] = slots[i % slots.length]
-    entries += `\t\t\t<array><int>${itemIdBase + i}</int><vec2>${x} ${y}</vec2></array>\n`
+    entries.push({ id: itemIdBase + i, x, y })
   }
-  return `\n\t\t<array name="${DIAMOND_ITEM}">\n${entries}\t\t</array>\n\t`
+  return [{ item: DIAMOND_ITEM, entries }]
+}
+
+/**
+ * The eight free upgrade pickups the lobby and the prep room lay out.
+ *
+ * Order is fixed and load-bearing: it is the order ids are handed out in, the
+ * order `parameters.txt` writes the counts in, and the order the form shows
+ * them in. The `2` suffix is the game's own — `items/upgrade_damage_2.xml` is
+ * the second-tier pickup, not a second copy of the first.
+ */
+export const UPGRADE_KINDS = [
+  'damage',
+  'defense',
+  'health',
+  'mana',
+  'damage2',
+  'defense2',
+  'health2',
+  'mana2'
+] as const
+
+export type UpgradeKind = (typeof UPGRADE_KINDS)[number]
+
+/** How many of each free upgrade a room puts on the floor. */
+export type UpgradeCounts = Readonly<Record<UpgradeKind, number>>
+
+/** Where each kind goes in one room, one slot per kind. */
+export type UpgradeSlots = Readonly<Record<UpgradeKind, readonly [number, number]>>
+
+/** The item file a kind picks up as: `mana2` is `items/upgrade_mana_2.xml`. */
+export function upgradeItemPath(kind: UpgradeKind): string {
+  return `items/upgrade_${kind.replace(/2$/, '_2')}.xml`
+}
+
+/** Every kind at zero — the "no free upgrades at all" set. */
+export function noUpgrades(): UpgradeCounts {
+  return Object.fromEntries(UPGRADE_KINDS.map((k) => [k, 0])) as UpgradeCounts
+}
+
+/** Every kind at one, which is what both rooms were authored with. */
+export function oneOfEachUpgrade(): UpgradeCounts {
+  return Object.fromEntries(UPGRADE_KINDS.map((k) => [k, 1])) as UpgradeCounts
+}
+
+/**
+ * The free upgrades' item sections.
+ *
+ * Unlike the diamonds there is exactly one slot per kind, so a count above one
+ * **stacks** on that slot rather than walking a list — which is the whole point
+ * of letting the count run free: the dungeon master decides how many of each
+ * the party is handed, and the room's layout does not have to grow to match.
+ *
+ * Ids run sequentially from `idBase` in `UPGRADE_KINDS` order, so the output is
+ * a pure function of the counts. A kind at zero emits **no** array rather than
+ * an empty one, for the same reason zero gold emits no diamond array:
+ * LevelPacker.exe parses what is inside and throws on nothing
+ * ([VERIFIED] 2026-07-31).
+ */
+export function upgradeArrays(
+  counts: UpgradeCounts,
+  slots: UpgradeSlots,
+  idBase: number
+): ItemSection[] {
+  const sections: ItemSection[] = []
+  let id = idBase
+
+  for (const kind of UPGRADE_KINDS) {
+    const count = counts[kind] ?? 0
+    const [x, y] = slots[kind]
+    const entries: ItemEntry[] = []
+    // ids advance with the items actually placed, so a kind left at zero costs
+    // no id and the numbering stays a function of the counts alone
+    for (let i = 0; i < count; i++) entries.push({ id: id++, x, y })
+    if (entries.length > 0) sections.push({ item: upgradeItemPath(kind), entries })
+  }
+
+  return sections
 }

@@ -34,7 +34,8 @@ import { corpseCollision } from '../objects/actorCollision'
 import { BUFF_HELPFUL_IDS, buffById } from '../objects/buffTypes'
 import { LOBBY_DIAMOND_VALUE } from '../lobby/build'
 import { ALL_LOBBY_CATEGORIES, isLobbyCategory, lobbyCategoryCounts, vendorOfCategory } from '../lobby/shops'
-import { DIAMOND_VALUE } from '../levelTemplate/surgery'
+import { DIAMOND_VALUE, MAX_DIAMOND_COUNT, UPGRADE_KINDS } from '../levelTemplate/surgery'
+import type { UpgradeCounts } from '../levelTemplate/surgery'
 import { ARENA_MIN_HEIGHT, ARENA_MIN_WIDTH, freeFloorArea } from '../boss/geometry'
 import { scaledMax } from '../boss/waves'
 import { TWEAK_BASELINE } from '../tweak/baseline'
@@ -278,7 +279,46 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
  * typo (`99999999999`) is rejected instead of emitting millions of `<item>`
  * nodes and hanging the generator.
  */
-export const GOLD_SAFETY_MAX = DIAMOND_VALUE * 10_000
+export const GOLD_SAFETY_MAX = DIAMOND_VALUE * MAX_DIAMOND_COUNT
+
+/**
+ * The same kind of ceiling for the free upgrade pickups, per kind.
+ *
+ * Also not a game limit: a count above one stacks on the kind's single slot, so
+ * any number "fits" the room. This exists so a typo cannot ask for a million
+ * `<array>` entries, and it is deliberately generous — the dungeon master is
+ * meant to be able to hand out an absurd pile if that is the campaign.
+ */
+export const UPGRADE_COUNT_MAX = 10_000
+
+/**
+ * The shared rule for one room's free upgrade counts.
+ *
+ * The lobby and the prep room carry the identical block, so the messages are
+ * generated from the field prefix rather than written twice.
+ */
+function validateUpgrades(
+  upgrades: UpgradeCounts | undefined,
+  field: string,
+  errors: ValidationIssue[]
+): void {
+  // a config written before the feature existed has no block at all; that means
+  // "none", not "invalid" — the same reading as a missing lobby
+  if (upgrades === undefined) return
+
+  for (const kind of UPGRADE_KINDS) {
+    const count = upgrades[kind]
+    if (count === undefined) continue
+    if (!Number.isInteger(count) || count < 0) {
+      errors.push({ field, message: `The ${kind} upgrade count must be a whole number ≥ 0.` })
+    } else if (count > UPGRADE_COUNT_MAX) {
+      errors.push({
+        field,
+        message: `The ${kind} upgrade count cannot exceed ${UPGRADE_COUNT_MAX} — not a game limit, just the point past which the stack is too large to emit.`
+      })
+    }
+  }
+}
 
 function validateLobby(
   p: DungeonParameters,
@@ -305,6 +345,8 @@ function validateLobby(
       message: `Starting gold cannot exceed ${GOLD_SAFETY_MAX} — not a game limit, just the point past which the diamond pile is too large to emit.`
     })
   }
+
+  validateUpgrades(lobby.upgrades, 'lobby.upgrades', errors)
 
   const unknown = lobby.shopCategories.filter((c) => !isLobbyCategory(c))
   for (const id of [...new Set(unknown)].sort()) {
@@ -572,6 +614,8 @@ function validateBoss(
       message: `Starting gold cannot exceed ${GOLD_SAFETY_MAX} — not a game limit, just the point past which the diamond pile is too large to emit.`
     })
   }
+
+  validateUpgrades(boss.prep.upgrades, 'boss.prep.upgrades', errors)
 
   // every prep shop column must be a real one
   const unknownShop = boss.prep.shopCategories.filter((c) => !isLobbyCategory(c))

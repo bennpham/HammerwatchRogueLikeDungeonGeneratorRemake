@@ -112,7 +112,45 @@ function elements(body) {
  *
  * Ported from scripts/import-lobby-assets.mjs's deriveMeta — kept a separate
  * copy rather than shared, because the two importers are one-shot scripts
- * (never imported by src/generator/**) and a shared module would only add
+ * (never imported by src/generator/** The eight free upgrade pickups, in the order UPGRADE_KINDS lists them. */
+const UPGRADE_KINDS = ['damage', 'defense', 'health', 'mana', 'damage2', 'defense2', 'health2', 'mana2']
+
+/** `mana2` -> `items/upgrade_mana_2.xml`, matching upgradeItemPath in surgery.ts. */
+function upgradeItemPath(kind) {
+  return `items/upgrade_${kind.replace(/2$/, '_2')}.xml`
+}
+
+/**
+ * Where each free upgrade kind sits, read off the authored level.
+ *
+ * One slot per kind: the authored copies are a position map, not a count — how
+ * many actually appear is the dungeon master's setting, and anything above one
+ * stacks on the slot. A kind the level does not place is fatal rather than
+ * defaulted, for the same reason a missing diamond is: a silently-zeroed slot
+ * would drop pickups at 0,0 in the middle of the room.
+ */
+function deriveUpgradeSlots(xml) {
+  const items = section(xml, 'dictionary', 'items')
+  const each = /<array><int>\d+<\/int><vec2>(-?[\d.]+) (-?[\d.]+)<\/vec2><\/array>/
+  const slots = {}
+
+  for (const kind of UPGRADE_KINDS) {
+    const path = upgradeItemPath(kind)
+    let body
+    try {
+      body = section(items, 'array', path)
+    } catch {
+      throw new Error(`level places no ${path} to use as the ${kind} upgrade slot`)
+    }
+    const first = each.exec(body)
+    if (first === null) throw new Error(`${path} is present but places nothing`)
+    slots[kind] = [Number(first[1]), Number(first[2])]
+  }
+
+  return slots
+}
+
+/**) and a shared module would only add
  * indirection for code that is read once per re-import.
  */
 function deriveMeta(xml) {
@@ -185,7 +223,7 @@ function deriveMeta(xml) {
   const used = [...xml.matchAll(/<int name="id">(\d+)<\/int>/g)].map((m) => Number(m[1]))
   const base = Math.max(DIAMOND_ID_BASE, Math.ceil((Math.max(...used) + 1) / 1000) * 1000)
 
-  return { ids, exit: exits[0].id, slots, base }
+  return { ids, exit: exits[0].id, slots, base, upgradeSlots: deriveUpgradeSlots(xml) }
 }
 
 // ----------------------------------------------------------------- emitting
@@ -211,6 +249,9 @@ function literal(text) {
 
 function emitTemplate(xml, source, meta) {
   const slots = meta.slots.map(([x, y]) => `  [${x}, ${y}]`).join(',\n')
+  const upgradeSlots = UPGRADE_KINDS.map(
+    (kind) => `  ${kind}: [${meta.upgradeSlots[kind][0]}, ${meta.upgradeSlots[kind][1]}]`
+  ).join(',\n')
   const vendorIds = Object.keys(meta.ids)
     .sort()
     .map((key) => {
@@ -229,14 +270,22 @@ function emitTemplate(xml, source, meta) {
  *
  * Treated as an opaque swappable template: buildBossPrep() rewrites the same
  * four things buildLobby() does in the lobby template (vendor \`cats\`, badge
- * doodad paths, the diamond list and the exit's target level) and touches
- * nothing else. Nothing here is re-serialized through src/generator/xml/, and
- * no value is drawn from either RNG stream — the prep room, like the lobby, is
- * plain text surgery.
+ * doodad paths, the items list — diamonds and free upgrades both — and the
+ * exit's target level) and touches nothing else. Nothing here is re-serialized
+ * through src/generator/xml/, and no value is drawn from either RNG stream —
+ * the prep room, like the lobby, is plain text surgery.
  *
  * Stock assets only ([VERIFIED] 2026-08-10, see docs/plans/boss-tab.md
  * "Verified mechanics") — unlike the lobby there is no bossprep/assets.ts.
+ *
+ * Lights come through verbatim from the source level and are unconditional —
+ * there is no parameter for them. They are never renumbered at build time, so
+ * the authored level has to keep their ids below the respawn rig's base, which
+ * deriveMeta enforces for every id in the file.
  */
+import { MAX_DIAMOND_COUNT } from '../levelTemplate/surgery'
+import type { UpgradeSlots } from '../levelTemplate/surgery'
+
 export const BOSSPREP_TEMPLATE = ${literal(xml)}
 
 /**
@@ -263,6 +312,27 @@ ${slots}
 
 /** First id buildBossPrep hands to a diamond; above anything the template uses. */
 export const BOSSPREP_ITEM_ID_BASE = ${meta.base}
+
+/**
+ * Where each free upgrade pickup goes — one slot per kind.
+ *
+ * Read off the hand-authored level, same as the diamond slots above. A count
+ * above one stacks on the kind's single slot rather than spreading, so this map
+ * never has to grow with the count.
+ */
+export const BOSSPREP_UPGRADE_SLOTS: UpgradeSlots = {
+${upgradeSlots}
+}
+
+/**
+ * First id buildBossPrep() hands to a free upgrade.
+ *
+ * Directly above the diamonds rather than a round number: the payout is capped
+ * at \`MAX_DIAMOND_COUNT\` diamonds, so \`BOSSPREP_ITEM_ID_BASE + MAX_DIAMOND_COUNT\`
+ * is the first id no diamond can reach however much gold is asked for. Derived
+ * so raising that cap moves this with it instead of silently colliding.
+ */
+export const BOSSPREP_UPGRADE_ID_BASE = BOSSPREP_ITEM_ID_BASE + MAX_DIAMOND_COUNT
 `
 }
 

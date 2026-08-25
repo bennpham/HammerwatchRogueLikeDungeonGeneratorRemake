@@ -37,6 +37,7 @@ import type {
   ValidationIssue
 } from '../../generator'
 import { BoolField, NumberField, Section, Subsection, ToggleGroup } from './fields'
+import { UpgradeCountFields } from './UpgradeCountFields'
 import { BuffListEditor } from './BuffListEditor'
 import { InfoTip } from './InfoTip'
 import { MonsterFilterBar, useMonsterFilter } from './MonsterFilterBar'
@@ -157,6 +158,13 @@ function PrepTab({ params, prep, issues, setPrep }: PrepTabProps) {
         </div>
         <p className="hint">{goldDescription(prep.startingGold)}</p>
       </Section>
+
+      <UpgradeCountFields
+        upgrades={prep.upgrades}
+        field="boss.prep.upgrades"
+        issues={issues}
+        onChange={(upgrades) => setPrep({ upgrades })}
+      />
 
       <Section title="Shops" defaultOpen badge={`${prep.shopCategories.length}/21`}>
         <div className="boss-prep-actions">

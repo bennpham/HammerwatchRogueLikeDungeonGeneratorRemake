@@ -50,7 +50,14 @@ export { CAMPAIGN_PRESETS, DEFAULT_PRESET_ID, campaignPresetById } from './confi
 export type { CampaignPreset } from './config/presets'
 export { validateParameters } from './config/validation'
 export type { ValidationResult, ValidationIssue } from './config/validation'
-export { GOLD_SAFETY_MAX } from './config/validation'
+export { GOLD_SAFETY_MAX, UPGRADE_COUNT_MAX } from './config/validation'
+export {
+  UPGRADE_KINDS,
+  noUpgrades,
+  oneOfEachUpgrade,
+  upgradeItemPath
+} from './levelTemplate/surgery'
+export type { UpgradeCounts, UpgradeKind } from './levelTemplate/surgery'
 export type { BossDef, BossId } from './boss'
 export { BOSS_DEF_LIST } from './boss'
 export { parseParametersTxt, serializeParametersTxt } from './config/configFile'

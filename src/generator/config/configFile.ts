@@ -14,6 +14,8 @@ import {
   isScatterMode,
   waveBuffs
 } from './parameters'
+import { UPGRADE_KINDS, noUpgrades } from '../levelTemplate/surgery'
+import type { UpgradeCounts } from '../levelTemplate/surgery'
 import type { BossFloorPattern, BossOptions, BossSpawnMode, BuffTarget, FloorBuff } from './parameters'
 import { MONSTER_TYPES } from '../objects/monsterTypes'
 import { buffById } from '../objects/buffTypes'
@@ -74,6 +76,39 @@ const configKeyToMonsterId = new Map(MONSTER_TYPES.map((t) => [t.configKey.toLow
  * Anything present overrides the defaults; anything missing keeps them —
  * the same semantics the Java ConfigFile had.
  */
+
+/**
+ * Parse a `lobbyUpgrades` / `bossUpgrades` value: the free upgrade counts as
+ * whole numbers in `UPGRADE_KINDS` order, space separated.
+ *
+ * Lenient on purpose, like every other key here (invariant: unknown or
+ * malformed input is reported, never fatal). A short list leaves the kinds it
+ * does not reach at zero; a long one reports the extras; a value that is not a
+ * whole number ≥ 0 is reported and that one kind stays at zero. Whatever
+ * survives is a complete, valid `UpgradeCounts` — `validation.ts` is the gate
+ * for the parts that did parse.
+ */
+function parseUpgradeCounts(key: string, value: string, unknownKeys: string[]): UpgradeCounts {
+  const counts: Record<string, number> = { ...noUpgrades() }
+  const fields = value.split(/\s+/).filter((f) => f !== '')
+
+  fields.forEach((field, i) => {
+    const kind = UPGRADE_KINDS[i]
+    if (kind === undefined) {
+      unknownKeys.push(`${key} extra value "${field}"`)
+      return
+    }
+    const n = parseInt(field, 10)
+    if (Number.isNaN(n) || n < 0 || String(n) !== field) {
+      unknownKeys.push(`${key} value "${field}"`)
+      return
+    }
+    counts[kind] = n
+  })
+
+  return counts as UpgradeCounts
+}
+
 export function parseParametersTxt(content: string, base?: DungeonParameters): ParsedConfig {
   const params: DungeonParameters = base
     ? JSON.parse(JSON.stringify(base))
@@ -169,6 +204,10 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       else params.lobby.startingGold = n
       continue
     }
+    if (keyLower === 'lobbyupgrades') {
+      params.lobby.upgrades = parseUpgradeCounts(key, value, result.unknownKeys)
+      continue
+    }
     if (keyLower === 'lobbyshops') {
       // space separated to mirror the `cats` string it becomes. Unknown column
       // ids are reported rather than dropped silently, but never throw.
@@ -188,6 +227,10 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       const n = parseInt(value, 10)
       if (Number.isNaN(n)) result.unknownKeys.push(key)
       else params.boss.prep.startingGold = n
+      continue
+    }
+    if (keyLower === 'bossupgrades') {
+      params.boss.prep.upgrades = parseUpgradeCounts(key, value, result.unknownKeys)
       continue
     }
     if (keyLower === 'bossshops') {
@@ -603,6 +646,13 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
 }
 
 /** Serialize parameters back into the original parameters.txt format, following PARAMETER_ORDER. */
+
+/** The free upgrade counts as a `lobbyUpgrades`/`bossUpgrades` value. */
+function upgradeCountsLine(upgrades: UpgradeCounts | undefined): string {
+  const counts = upgrades ?? noUpgrades()
+  return UPGRADE_KINDS.map((kind) => counts[kind] ?? 0).join(' ')
+}
+
 export function serializeParametersTxt(params: DungeonParameters, path?: string, cleanupFiles = true): string {
   const lines: string[] = []
 
@@ -692,6 +742,7 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
   lines.push(`lobby=${params.lobby.enabled ? 1 : 0}`)
   lines.push(`lobbyGold=${params.lobby.startingGold}`)
   lines.push(`lobbyShops=${params.lobby.shopCategories.join(' ')}`)
+  lines.push(`lobbyUpgrades=${upgradeCountsLine(params.lobby.upgrades)}`)
 
   // Add boss params after the lobby params. Keys past the flag mirror the
   // lobby's camelCase (lobbyGold/lobbyShops) — parsing is case-insensitive, so
@@ -699,6 +750,7 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
   lines.push(`boss=${params.boss.enabled ? 1 : 0}`)
   lines.push(`bossGold=${params.boss.prep.startingGold}`)
   lines.push(`bossShops=${params.boss.prep.shopCategories.join(' ')}`)
+  lines.push(`bossUpgrades=${upgradeCountsLine(params.boss.prep.upgrades)}`)
   lines.push(`bossTheme=${params.boss.arena.theme}`)
   lines.push(`bossFloorPattern=${params.boss.arena.floorPattern}`)
   lines.push(`bossWidth=${params.boss.arena.minWidth},${params.boss.arena.maxWidth}`)

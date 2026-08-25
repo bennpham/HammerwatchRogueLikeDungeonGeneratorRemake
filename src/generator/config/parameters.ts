@@ -2,6 +2,8 @@ import { MONSTER_TYPES } from '../objects/monsterTypes'
 import { THEME_DEFS } from './themes'
 import { ALL_LOBBY_CATEGORIES } from '../lobby/shops'
 import type { PlayerTweaks } from '../tweak/types'
+import { oneOfEachUpgrade } from '../levelTemplate/surgery'
+import type { UpgradeCounts } from '../levelTemplate/surgery'
 // the tweak key builder, so the default life removal below cannot drift from
 // the key QuickSetup's checkbox writes. tweak/ imports nothing from config/,
 // so this direction adds no cycle
@@ -270,6 +272,12 @@ export interface LobbyOptions {
   startingGold: number
   /** selected shop columns, e.g. ['misc1', 'misc2', 'off1', 'power'] */
   shopCategories: string[]
+  /**
+   * How many of each free upgrade pickup lies on the floor, by `UPGRADE_KINDS`.
+   * Anything above one stacks on that kind's single slot, so the count is not
+   * bounded by the room's layout — it is the dungeon master's dial.
+   */
+  upgrades: UpgradeCounts
 }
 
 /**
@@ -288,6 +296,8 @@ export interface BossOptions {
     shopCategories: string[]
     /** multiple of 500 — each 500 is one red diamond on the prep floor */
     startingGold: number
+    /** free upgrade pickups on the prep floor; see `LobbyOptions.upgrades` */
+    upgrades: UpgradeCounts
   }
   arena: {
     /** one theme letter from THEME_DEFS, independent of the dungeon floors' themes */
@@ -452,7 +462,9 @@ export function defaultBossOptions(): BossOptions {
       shopCategories: [...ALL_LOBBY_CATEGORIES],
       // the last shop before the boss, so the party arrives able to actually
       // spend at it — 40 red diamonds on the prep floor
-      startingGold: 20000
+      startingGold: 20000,
+      // one of each free upgrade, which is how the room was authored
+      upgrades: oneOfEachUpgrade()
     },
     arena: {
       theme: 'g_mixed',
@@ -739,7 +751,13 @@ export function defaultParameters(): DungeonParameters {
     // the vendors exist, not to hand the party a head start they didn't ask for.
     // power is on: it sells the potions and rejuv, and the one thing that made
     // it questionable — buyable extra lives — is removed by the tweak above
-    lobby: { enabled: true, startingGold: 10000, shopCategories: [...ALL_LOBBY_CATEGORIES] },
+    lobby: {
+      enabled: true,
+      startingGold: 10000,
+      shopCategories: [...ALL_LOBBY_CATEGORIES],
+      // one of each free upgrade, which is how the room was authored
+      upgrades: oneOfEachUpgrade()
+    },
     boss: defaultBossOptions()
   }
 }

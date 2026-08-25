@@ -8,14 +8,23 @@ import type { LobbyVendorIds } from '../lobby/template'
  *
  * Treated as an opaque swappable template: buildBossPrep() rewrites the same
  * four things buildLobby() does in the lobby template (vendor `cats`, badge
- * doodad paths, the diamond list and the exit's target level) and touches
- * nothing else. Nothing here is re-serialized through src/generator/xml/, and
+ * doodad paths, the items list — diamonds and free upgrades both — and the
+ * exit's target level) and touches nothing else. Nothing here is re-serialized through src/generator/xml/, and
  * no value is drawn from either RNG stream — the prep room, like the lobby, is
  * plain text surgery.
  *
  * Stock assets only ([VERIFIED] 2026-08-10, see docs/plans/boss-tab.md
  * "Verified mechanics") — unlike the lobby there is no bossprep/assets.ts.
+ *
+ * The two warm lights over the shop row (ids 3600/3601) come from the source
+ * level and are unconditional — there is no parameter for them. Lights are
+ * never renumbered at build time, so they had to be given authored-range ids up
+ * front: the ids they carry in the source level sit inside the span the diamond
+ * payout walks, and a deep enough pile would have landed on top of them.
  */
+import { MAX_DIAMOND_COUNT } from '../levelTemplate/surgery'
+import type { UpgradeSlots } from '../levelTemplate/surgery'
+
 export const BOSSPREP_TEMPLATE = `<dictionary>
 	<dictionary name="tilemap">
 		<array name="tiledata">
@@ -1473,6 +1482,30 @@ export const BOSSPREP_TEMPLATE = `<dictionary>
 				<int-arr name="addColor3">48 32 0 255</int-arr>
 				<float name="addRange">4</float>
 			</dictionary>
+			<dictionary>
+				<int name="id">3600</int>
+				<vec2 name="pos">9 -5</vec2>
+				<int-arr name="mulColor1">255 255 255 255</int-arr>
+				<int-arr name="mulColor2">255 255 224 255</int-arr>
+				<int-arr name="mulColor3">255 165 0 255</int-arr>
+				<float name="mulRange">15</float>
+				<int-arr name="addColor1">96 64 0 255</int-arr>
+				<int-arr name="addColor2">64 48 0 255</int-arr>
+				<int-arr name="addColor3">48 32 0 255</int-arr>
+				<float name="addRange">4</float>
+			</dictionary>
+			<dictionary>
+				<int name="id">3601</int>
+				<vec2 name="pos">-9 -5</vec2>
+				<int-arr name="mulColor1">255 255 255 255</int-arr>
+				<int-arr name="mulColor2">255 255 224 255</int-arr>
+				<int-arr name="mulColor3">255 165 0 255</int-arr>
+				<float name="mulRange">15</float>
+				<int-arr name="addColor1">96 64 0 255</int-arr>
+				<int-arr name="addColor2">64 48 0 255</int-arr>
+				<int-arr name="addColor3">48 32 0 255</int-arr>
+				<float name="addRange">4</float>
+			</dictionary>
 		</array>
 		<int-arr name="shadow-color">135 128 128 255</int-arr>
 		<int-arr name="ambient-color">50 50 50 255</int-arr>
@@ -1553,3 +1586,32 @@ export const BOSSPREP_DIAMOND_SLOTS: ReadonlyArray<readonly [number, number]> = 
 
 /** First id buildBossPrep hands to a diamond; above anything the template uses. */
 export const BOSSPREP_ITEM_ID_BASE = 10000
+
+/**
+ * Where each free upgrade pickup goes — one slot per kind:
+ * tier 1 to the left of the room and tier 2 to the right.
+ *
+ * Read off the hand-authored level, same as the diamond slots above. A count
+ * above one stacks on the kind's single slot rather than spreading, so this map
+ * never has to grow with the count.
+ */
+export const BOSSPREP_UPGRADE_SLOTS: UpgradeSlots = {
+  damage: [-10, -4.75],
+  defense: [-9, -4.75],
+  health: [-8, -4.75],
+  mana: [-7, -4.75],
+  damage2: [7, -4.75],
+  defense2: [8, -4.75],
+  health2: [9, -4.75],
+  mana2: [10, -4.75]
+}
+
+/**
+ * First id buildBossPrep hands to a free upgrade.
+ *
+ * Directly above the diamonds rather than a round number: the payout is capped
+ * at `MAX_DIAMOND_COUNT` diamonds, so `BOSSPREP_ITEM_ID_BASE + MAX_DIAMOND_COUNT`
+ * is the first id no diamond can reach however much gold is asked for. Derived
+ * so raising that cap moves this with it instead of silently colliding.
+ */
+export const BOSSPREP_UPGRADE_ID_BASE = BOSSPREP_ITEM_ID_BASE + MAX_DIAMOND_COUNT

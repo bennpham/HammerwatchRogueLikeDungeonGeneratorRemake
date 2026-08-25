@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { BOSS_COVER_DENSITY_MAX, BOSS_DEATH_WAVE, BOSS_WAVE_COUNT, defaultParameters } from '../src/generator/config/parameters'
-import { GOLD_SAFETY_MAX, validateParameters } from '../src/generator/config/validation'
+import {
+  GOLD_SAFETY_MAX,
+  UPGRADE_COUNT_MAX,
+  validateParameters
+} from '../src/generator/config/validation'
+import { noUpgrades, oneOfEachUpgrade } from '../src/generator/levelTemplate/surgery'
 
 const fieldsOf = (issues: Array<{ field: string }>) => issues.map((i) => i.field)
 
@@ -283,6 +288,27 @@ describe('lobby validation', () => {
     expect(fieldsOf(over.errors)).toContain('lobby.startingGold')
   })
 
+  it('accepts any whole number of free upgrades, however large', () => {
+    expect(withLobby({ upgrades: noUpgrades() }).valid).toBe(true)
+    expect(withLobby({ upgrades: { ...oneOfEachUpgrade(), health: 500 } }).valid).toBe(true)
+    expect(withLobby({ upgrades: { ...noUpgrades(), mana2: UPGRADE_COUNT_MAX } }).valid).toBe(true)
+    expect(withLobby({ upgrades: { ...noUpgrades(), mana2: 500 } }).warnings).toEqual([])
+  })
+
+  it('rejects a negative or fractional free upgrade count', () => {
+    for (const bad of [-1, 2.5]) {
+      const result = withLobby({ upgrades: { ...oneOfEachUpgrade(), defense: bad } })
+      expect(result.valid, `${bad}`).toBe(false)
+      expect(fieldsOf(result.errors)).toContain('lobby.upgrades')
+    }
+  })
+
+  it('rejects a free upgrade count past the safety ceiling', () => {
+    const over = withLobby({ upgrades: { ...noUpgrades(), damage: UPGRADE_COUNT_MAX + 1 } })
+    expect(over.valid).toBe(false)
+    expect(fieldsOf(over.errors)).toContain('lobby.upgrades')
+  })
+
   it('rejects an unknown shop column', () => {
     const result = withLobby({ shopCategories: ['misc1', 'misc6'] })
     expect(result.valid).toBe(false)
@@ -556,6 +582,19 @@ describe('boss validation', () => {
       arena: { ...defaultParameters().boss.arena, theme: 'g', floorPattern: 'rings' }
     })
     expect(fieldsOf(result.errors)).not.toContain('boss.arena.floorPattern')
+  })
+
+  it('applies the same free upgrade rules to the prep room', () => {
+    const ok = withBoss({
+      prep: { ...defaultParameters().boss.prep, upgrades: { ...noUpgrades(), health: 900 } }
+    })
+    expect(ok.valid).toBe(true)
+
+    const bad = withBoss({
+      prep: { ...defaultParameters().boss.prep, upgrades: { ...oneOfEachUpgrade(), mana: -3 } }
+    })
+    expect(bad.valid).toBe(false)
+    expect(fieldsOf(bad.errors)).toContain('boss.prep.upgrades')
   })
 
   it('rejects starting gold that is not a multiple of 500', () => {

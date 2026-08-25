@@ -1119,6 +1119,19 @@ button.primary:hover:not(:disabled) {
   color: var(--error);
 }
 
+.lobby-diagram-upgrades {
+  justify-content: center;
+}
+
+.lobby-diagram .upgrade {
+  color: var(--border);
+  font-size: 12px;
+}
+
+.lobby-diagram .upgrade.on {
+  color: var(--accent);
+}
+
 .lobby-diagram-floor {
   justify-content: space-between;
   color: var(--text-dim);

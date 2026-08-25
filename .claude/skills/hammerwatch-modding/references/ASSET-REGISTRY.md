@@ -324,6 +324,25 @@ Keys and doors are index-matched: bronze/silver/gold at 0/1/2, and doors 0–2
 are horizontal while 3–5 are the vertical variants of the same three tiers.
 `ctx.lastLockType` carries the tier from the door to its key.
 
+### Free upgrade pickups `[VERIFIED 2026-08-25]`
+
+Not in `item.ts` — used by the lobby and the boss prep room templates only.
+Eight stock items, the shop upgrades handed out on the floor instead of sold:
+
+| Tier | Paths |
+| --- | --- |
+| 1 | `items/upgrade_damage.xml`, `items/upgrade_defense.xml`, `items/upgrade_health.xml`, `items/upgrade_mana.xml` |
+| 2 | `items/upgrade_damage_2.xml`, `items/upgrade_defense_2.xml`, `items/upgrade_health_2.xml`, `items/upgrade_mana_2.xml` |
+
+The `_2` suffix is the game's own tier marker, not a copy count. Read off levels
+saved by the game's own editor; `UPGRADE_KINDS` and `upgradeItemPath` in
+`src/generator/levelTemplate/surgery.ts` are the code's copy of this table.
+
+Each room gives a kind **one** slot (`LOBBY_UPGRADE_SLOTS`,
+`BOSSPREP_UPGRADE_SLOTS`), and a count above one stacks on it. Whether a stack
+of *items* is fully collectable is `[UNVERIFIED]` — the money-item result below
+does not carry over, see the 2026-08-25 discovery-log entry.
+
 ### Money items `[VERIFIED 2026-07-30]`
 
 Not in `item.ts` — used by the lobby template only. `items/valuable_diamond_red.xml`

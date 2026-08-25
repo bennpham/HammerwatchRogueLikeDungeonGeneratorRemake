@@ -349,6 +349,44 @@ function elements(body) {
   return out
 }
 
+/** The eight free upgrade pickups, in the order UPGRADE_KINDS lists them. */
+const UPGRADE_KINDS = ['damage', 'defense', 'health', 'mana', 'damage2', 'defense2', 'health2', 'mana2']
+
+/** `mana2` -> `items/upgrade_mana_2.xml`, matching upgradeItemPath in surgery.ts. */
+function upgradeItemPath(kind) {
+  return `items/upgrade_${kind.replace(/2$/, '_2')}.xml`
+}
+
+/**
+ * Where each free upgrade kind sits, read off the authored level.
+ *
+ * One slot per kind: the authored copies are a position map, not a count — how
+ * many actually appear is the dungeon master's setting, and anything above one
+ * stacks on the slot. A kind the level does not place is fatal rather than
+ * defaulted, for the same reason a missing diamond is: a silently-zeroed slot
+ * would drop pickups at 0,0 in the middle of the room.
+ */
+function deriveUpgradeSlots(xml) {
+  const items = section(xml, 'dictionary', 'items')
+  const each = /<array><int>\d+<\/int><vec2>(-?[\d.]+) (-?[\d.]+)<\/vec2><\/array>/
+  const slots = {}
+
+  for (const kind of UPGRADE_KINDS) {
+    const path = upgradeItemPath(kind)
+    let body
+    try {
+      body = section(items, 'array', path)
+    } catch {
+      throw new Error(`level places no ${path} to use as the ${kind} upgrade slot`)
+    }
+    const first = each.exec(body)
+    if (first === null) throw new Error(`${path} is present but places nothing`)
+    slots[kind] = [Number(first[1]), Number(first[2])]
+  }
+
+  return slots
+}
+
 /**
  * The ids buildLobby needs, read back out of an imported level.
  *
@@ -427,7 +465,25 @@ function deriveMeta(xml) {
   const used = [...xml.matchAll(/<int name="id">(\d+)<\/int>/g)].map((m) => Number(m[1]))
   const base = Math.max(DIAMOND_ID_BASE, Math.ceil((Math.max(...used) + 1) / 1000) * 1000)
 
-  return { ids, exit: exits[0].id, slots, base }
+  return { ids, exit: exits[0].id, slots, base, upgradeSlots: deriveUpgradeSlots(xml) }
+}
+
+/**
+ * Where the fallback layout puts the free upgrades.
+ *
+ * Fallback mode builds a lobby from constants rather than reading an authored
+ * level, so it has to name these outright. Two rows of four behind the vendors,
+ * matching the authored room's arrangement.
+ */
+const UPGRADE_SLOTS_FALLBACK = {
+  damage: [-9, -4.5],
+  defense: [-8, -4.5],
+  health: [-7, -4.5],
+  mana: [-6, -4.5],
+  damage2: [-9, -3.5],
+  defense2: [-8, -3.5],
+  health2: [-7, -3.5],
+  mana2: [-6, -3.5]
 }
 
 /** The same shape as deriveMeta, from the layout constants, for fallback mode. */
@@ -442,7 +498,7 @@ function fallbackMeta() {
       badge: v.key === 'power' ? null : v.ids + 4
     }
   }
-  return { ids, exit: IDS.exit, slots: DIAMOND_SLOTS, base: DIAMOND_ID_BASE }
+  return { ids, exit: IDS.exit, slots: DIAMOND_SLOTS, base: DIAMOND_ID_BASE, upgradeSlots: UPGRADE_SLOTS_FALLBACK }
 }
 
 // ----------------------------------------------------------------- emitting
@@ -468,6 +524,9 @@ function literal(text) {
 
 function emitTemplate(xml, source, meta) {
   const slots = meta.slots.map(([x, y]) => `  [${x}, ${y}]`).join(',\n')
+  const upgradeSlots = UPGRADE_KINDS.map(
+    (kind) => `  ${kind}: [${meta.upgradeSlots[kind][0]}, ${meta.upgradeSlots[kind][1]}]`
+  ).join(',\n')
   const vendorIds = Object.keys(meta.ids)
     .sort()
     .map((key) => {
@@ -483,10 +542,19 @@ function emitTemplate(xml, source, meta) {
  * Source: ${source}
  *
  * Treated as an opaque swappable template: buildLobby() rewrites four things
- * in it by id (vendor \`cats\`, badge doodad paths, the diamond list and the
- * exit's target level) and touches nothing else. Nothing here is re-serialized
- * through src/generator/xml/, and no value is drawn from either RNG stream.
+ * in it by id (vendor \`cats\`, badge doodad paths, the items list — diamonds and
+ * free upgrades both — and the exit's target level) and touches nothing else.
+ * Nothing here is re-serialized through src/generator/xml/, and no value is
+ * drawn from either RNG stream.
+ *
+ * Lights come through verbatim from the source level and are unconditional —
+ * there is no parameter for them. They are never renumbered at build time, so
+ * the authored level has to keep their ids below the respawn rig's base, which
+ * deriveMeta enforces for every id in the file.
  */
+import { MAX_DIAMOND_COUNT } from '../levelTemplate/surgery'
+import type { UpgradeSlots } from '../levelTemplate/surgery'
+
 export const LOBBY_TEMPLATE = ${literal(xml)}
 
 /** Element ids buildLobby edits, one group per vendor stall. */
@@ -522,6 +590,27 @@ ${slots}
 
 /** First id buildLobby hands to a diamond; above anything the template uses. */
 export const LOBBY_ITEM_ID_BASE = ${meta.base}
+
+/**
+ * Where each free upgrade pickup goes — one slot per kind.
+ *
+ * Read off the hand-authored level, same as the diamond slots above. A count
+ * above one stacks on the kind's single slot rather than spreading, so this map
+ * never has to grow with the count.
+ */
+export const LOBBY_UPGRADE_SLOTS: UpgradeSlots = {
+${upgradeSlots}
+}
+
+/**
+ * First id buildLobby() hands to a free upgrade.
+ *
+ * Directly above the diamonds rather than a round number: the payout is capped
+ * at \`MAX_DIAMOND_COUNT\` diamonds, so \`LOBBY_ITEM_ID_BASE + MAX_DIAMOND_COUNT\`
+ * is the first id no diamond can reach however much gold is asked for. Derived
+ * so raising that cap moves this with it instead of silently colliding.
+ */
+export const LOBBY_UPGRADE_ID_BASE = LOBBY_ITEM_ID_BASE + MAX_DIAMOND_COUNT
 `
 }
 
