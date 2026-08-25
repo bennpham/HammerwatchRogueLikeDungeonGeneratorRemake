@@ -49,6 +49,11 @@ finalLockMode=button
 lobby=1
 lobbyGold=10000
 lobbyShops=combo1 combo2 combo3 combo4 combo5 def1 def2 def3 def4 def5 misc1 misc2 misc3 misc4 misc5 off1 off2 off3 off4 off5 power
+# Free upgrade pickups lying on the lobby floor: eight whole numbers, in the
+# order damage defense health mana damage2 defense2 health2 mana2 (the 2s are
+# the game's own second-tier items). Each kind has one spot on the floor, so a
+# count above one stacks there; 0 lays none of that kind out at all.
+lobbyUpgrades=0 0 0 0 0 0 0 0
 # Boss fight after the last dungeon floor: 1 = a shop room (prep) then a
 # generated arena with a boss, 0 = campaign ends on the final floor.
 # bossGold is a multiple of 500, same rule as lobbyGold. bossShops is the
@@ -59,6 +64,8 @@ lobbyShops=combo1 combo2 combo3 combo4 combo5 def1 def2 def3 def4 def5 misc1 mis
 boss=1
 bossGold=20000
 bossShops=combo1 combo2 combo3 combo4 combo5 def1 def2 def3 def4 def5 misc1 misc2 misc3 misc4 misc5 off1 off2 off3 off4 off5 power
+# The same eight free upgrade counts as lobbyUpgrades, for the prep-room floor.
+bossUpgrades=0 0 0 0 0 0 0 0
 bossTheme=g_mixed
 # How a "- mixed" bossTheme arranges its floor palette; ignored by every other
 # theme. random | checker | bandsH | bandsV | bandsDiag | rings | diamond | cross | triangle
@@ -109,6 +116,26 @@ bossWave2=archer1,archer2,skeleton1,skeleton1#2,slime,tower_archer1,mb_tick,mb_m
 bossWave3=eye,eye#2,wisp1,wisp1#2,wisp2,lich#3,tower_flower1,tower_flower2,tower_flower3,mb_skeleton,mb_eye|2000|eye:120,eye#2:80,wisp1:30,wisp1#2:10,wisp2:20,lich#3:20,tower_flower1:6,tower_flower2:3,tower_flower3:1,mb_skeleton:8,mb_eye:2||eye:random,eye#2:random,lich#3:random,mb_eye:random,mb_skeleton:random,tower_flower1:random,tower_flower2:random,tower_flower3:random,wisp1:random,wisp1#2:random,wisp2:random
 bossWave4=lich,lich#0,lich#2,mb_eye,mb_lich,tower_archer3,eye#0,archer2#0,skeleton2#0,tower_nova1|1000|lich:4,lich#0:8,lich#2:8,mb_eye:4,mb_lich:1,tower_archer3:8,eye#0:12,archer2#0:8,skeleton2#0:8,tower_nova1:4||archer2#0:random,eye#0:random,lich:random,lich#0:random,lich#2:random,mb_eye:random,mb_lich:random,skeleton2#0:random,tower_archer3:random
 bossWave5=lich#2,lich,lich#0,mb_lich,mb_doomspawn,tower_static_frost|1000|lich#2:16,lich:6,lich#0:10,mb_lich:2,mb_doomspawn:4,tower_static_frost:4||lich:random,lich#0:random,lich#2:random,mb_doomspawn:random,mb_lich:random
+# bossWaveBuff1..5 hangs an arena-wide buff on that tier: <id>:<target> entries
+# separated by |, e.g. bossWaveBuff3=frost:players|bloodlust:monsters. Targets
+# are players, monsters or both; an omitted target means players. Unlike the
+# wave spawns, the tiers REPLACE one another — each threshold switches the
+# previous tier's buffs off as it switches its own on, so exactly one tier's
+# aura is ever live. Its own key rather than a sixth bossWaveN field, so files
+# exported before the feature still round-trip. Written only for tiers that
+# carry one, so this file has none.
+#
+# buff0..N hangs buff auras on a dungeon floor, same <id>:<target>|<id>:<target>
+# form, e.g. buff2=frost:players|bloodlust:monsters. A floor's aura covers the
+# whole floor, is live the moment the party arrives, and never switches off.
+# Written only for floors that carry one, so this file has none.
+#
+# timer0..N gives a floor a countdown: enabled|seconds|damage|freqMs|countdown,
+# e.g. timer2=1|180|1|1000|1. When it runs out the whole floor damages the party
+# every freqMs until they take the stairs; a NEGATIVE damage heals instead.
+# Monsters are never affected, and countdown=0 keeps the deadline a surprise.
+# Written only for floors whose timer is on, so this file has none.
+
 monsters0=bat1,tick1,maggot,tower_flower1_small
 monsters1=maggot,slime,skeleton1,archer1
 monsters2=eye,wisp1,lich,tower_nova1

@@ -24,6 +24,9 @@ orchestrator.
 | Renderer blank / React error | UI bug | §D |
 | Floor looks open in the preview but the exit can't be reached in game | The three-tile wall overhang — `reachability.ts` should have re-rolled that floor. A **real bug**, not a validation gap | §B |
 | Arena walled off by dead towers / boss unreachable | A blocking-wreck monster on a scatter mode, or cover pruning | §F |
+| "The whole floor damages us after a few minutes" / "a floor heals us" | Timer mode is on for that floor (`timerN` / the Dungeon tab's *Timer mode*). Negative damage heals — both are the feature, not a bug | §A |
+| "The boss can't be hurt for half a minute" | An invulnerability window at 75/50/25% health. `bossInvuln=off` disables it | §F |
+| "The whole floor is slowed / the monsters are enraged" | A buff aura on that floor (`buffN`), or an arena-wide tier buff (`bossWaveBuffN`) | §A |
 | `Generate a dungeon first.` on export | User flow, not a bug | — |
 
 ## §A — Parameter-constraint failures (most common)
@@ -52,6 +55,12 @@ Constraints enforced today (`src/generator/config/validation.ts`):
 | `levelMonsters.length ≥ levels`, none empty, all ids known | short/empty pool → index out of bounds |
 | lobby/prep `startingGold`: whole ≥ 0, multiple of 500, ≤ `GOLD_SAFETY_MAX` | one diamond per 500. The old 12000/42000 caps are **gone**; `GOLD_SAFETY_MAX` (5,000,000) only stops a typo emitting millions of item nodes |
 | lobby/prep `shopCategories` all real columns | see `ALL_LOBBY_CATEGORIES` |
+| lobby/prep `upgrades[kind]`: whole ≥ 0, ≤ `UPGRADE_COUNT_MAX` (10000) | free upgrade pickups; **not** a game limit, just the point past which the stack is too large to emit. 0 (the default for every kind) emits no item array |
+| `finalLockMode` ∈ `button` / `key` | anything else is rejected by name; absent means `button` |
+| enabled `levelTimers[i]`: `seconds` whole 1…`MAX_TIMER_SECONDS` (3600), `freqMs` whole `MIN_TIMER_FREQ_MS`…`MAX_TIMER_FREQ_MS` (50…600000), `damage` whole, `|damage| ≤ MAX_TIMER_DAMAGE` (10000) | negative damage is **legal** — it heals. A disabled floor timer is never checked |
+| every `levelBuffs[i][j]`: `buff` in `BUFF_DEFS`, `target` in `BUFF_TARGETS` | unknown ids are an error here; the rig itself skips them, so validation is the only gate |
+| every `waves[i].buffs[j]`: same two rules | the arena tiers, same registry |
+| `boss.arena.invulnerability.seconds`: exactly `BOSS_INVULN_COUNT` whole values ≥ 0 | one per `BOSS_INVULN_THRESHOLDS` (75/50/25%); 0 disables that one threshold |
 | the whole boss block | see §F |
 | chances in `[0,1]`; multipliers ≥ 0 | |
 | every `monsterMax` an integer ≥ 0 | |
@@ -65,7 +74,12 @@ Warnings (non-blocking): room-area-vs-map capacity heuristic; map dimensions
 not multiples of 20; a theme's own `cosmeticWarning` (theme `h` for the arena);
 `max-health` above 10000; lobby/prep columns left with nothing to sell; an
 empty *health* wave tier; a scattered monster's ignored interval; an arena
-scattering ≥ `BOSS_SCATTER_WARN` (2000) spawns.
+scattering ≥ `BOSS_SCATTER_WARN` (2000) spawns; a floor timer with 0 damage; a
+countdown longer than `TIMER_COUNTDOWN_NODE_WARN` (200s — one announce node per
+second); timer or buff entries past `levels`; the same buff twice on one floor
+or tier; a `BUFF_HELPFUL_IDS` buff (`bloodlust`, `banner_bloodlust`, `test`)
+aimed at anything but `players`; a monster-targeted buff on the boss-death tier,
+which spawns none; every invulnerability window at 0 with the feature still on.
 
 **Known gaps — likely causes of a §A report.** Confirm before "fixing":
 

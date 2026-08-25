@@ -52,7 +52,9 @@ src/
 │   │                     objectSet.ts, actorCollision.ts (which wrecks block)
 │   ├── levelTemplate/    surgery.ts — shared id-targeted edits for the three
 │   │                     hand-authored levels (lobby, prep room, and the
-│   │                     arena's borrowed rig)
+│   │                     arena's borrowed rig), plus UPGRADE_KINDS and
+│   │                     upgradeArrays() for the free upgrade pickups and
+│   │                     respawnOnEntryNodes() for the arrival revive
 │   ├── lobby/            the prebuilt starting level — NOT generated geometry
 │   │   ├── template.ts   the lobby XML verbatim (generated + committed)
 │   │   ├── assets.ts     custom files it references, base64 when binary
@@ -98,11 +100,13 @@ src/
 │                         LevelPreview, LoadoutSheet, MonsterPoolsEditor,
 │                         PoolGroup, PoolTextField, MonsterFilterBar,
 │                         MonsterMaxTable, FloorTimerEditor, FloorBuffEditor,
-│                         BuffPicker, InfoTip, OutputPanel, fields},
+│                         BuffPicker, UpgradeCountFields, InfoTip, OutputPanel,
+│                         fields},
 │                         styles/app.css
 └── shared/ipc.ts         types shared across the bridge
-tests/                    vitest, 32 files: rand, context, configFile,
-                          validation, generation, reachability, themes (+ a
+tests/                    vitest, 33 files / 972 tests: rand, context,
+                          configFile, validation, generation, reachability,
+                          sealIntegrity, themes (+ a
                           snapshot), presets, monsters, monsterVariants,
                           doodad, nodes, objectSet, actorCollision, xmlHelpers,
                           lobby, bossprep, boss, bossWaves, bossCover,
@@ -167,6 +171,10 @@ reference/hammerwatch-tweak-stats.md
    byte-identical, and a floor with neither configured must emit nothing at
    all. They share the floor loop, so each emitting **nothing** when its floor
    is unconfigured is also what keeps the other's ids from shifting.
+   The lobby's and prep room's **free upgrade pickups** and their two extra
+   lights are on the RNG-free side of this line too: however many upgrades a
+   room hands out, every `levels/level*.xml` stays byte-identical, and a kind
+   left at 0 emits no item array at all.
 9. **A floor the player cannot finish is invalid.** `map/reachability.ts`
    flood-fills the finished grid and rejects a floor unless the entrance
    reaches the exit (or orb/portal) and every key. Tile connectivity is not
@@ -199,7 +207,8 @@ reference/hammerwatch-tweak-stats.md
 | `levelBuffs[i]` | absent / all empty | buff auras, one `FloorBuff[]` per floor: each `{buff, target}` where `buff` is a `BUFF_DEFS` id and `target` is `players`/`monsters`/`both`. No cap on how many a floor carries. Empty on every floor reproduces the pre-feature campaign exactly. See *Buff auras* below |
 | `levelTimers[i]` | absent / all off | timer mode, one `FloorTimer` per floor: `enabled`, `seconds` (1–3600), `damage` (−10000–10000, **negative heals**), `freqMs` (50–600000), `countdown`. Off on every floor reproduces the pre-feature campaign exactly. See *Timer mode* below |
 | `playerTweaks` | `{ 'player.shared.remove.life': 1 }` | sparse `Record<lowercase key, number>` of player-balance overrides; empty = no `tweak/` folder. See below |
-| `lobby` | on, 10000 gold, all 21 columns | prebuilt starting level: `enabled`, `startingGold` (whole multiple of 500, no upper cap beyond `GOLD_SAFETY_MAX`), `shopCategories`. `enabled: false` reproduces the pre-lobby campaign exactly |
+| `lobby` | on, 10000 gold, all 21 columns, no free upgrades | prebuilt starting level: `enabled`, `startingGold` (whole multiple of 500, no upper cap beyond `GOLD_SAFETY_MAX`), `shopCategories`, `upgrades`. `enabled: false` reproduces the pre-lobby campaign exactly |
+| `lobby.upgrades` | every kind 0 | free upgrade pickups on the lobby floor, one count per `UPGRADE_KINDS` entry (`damage`, `defense`, `health`, `mana`, then the four `*2` tiers). Whole number 0…`UPGRADE_COUNT_MAX` (10000) each; **0 emits no item array**. One authored slot per kind, so a count above one *stacks* on that slot rather than needing the room's layout to grow. `lobbyUpgrades` in `parameters.txt`. See *Free upgrades* below |
 | `boss` | **on** | the finale, two appended levels. See the sub-table below and *Boss finale* |
 
 `BossOptions` (`config/parameters.ts`), defaults from `defaultBossOptions()`:
@@ -209,13 +218,14 @@ reference/hammerwatch-tweak-stats.md
 | `enabled` | `true` | off reproduces the pre-boss campaign; the final floor keeps its own orb room |
 | `prep.shopCategories` | all 21, `power` included | same full set as the lobby; buyable lives are safe because the stock `player.shared.remove.life` tweak deletes that upgrade |
 | `prep.startingGold` | 20000 | whole multiple of 500, one red diamond each |
+| `prep.upgrades` | every kind 0 | the same free upgrade pickups as the lobby, on the prep floor. `bossUpgrades` in `parameters.txt` |
 | `arena.theme` | `g_mixed` | any `THEME_DEFS` id, independent of the floors' themes |
 | `arena.floorPattern` | `random` | one of `BOSS_FLOOR_PATTERNS`; only meaningful for a `- mixed` theme |
 | `arena.minWidth`–`maxWidth` | 24–32 | ≥ `ARENA_MIN_WIDTH` (14) |
 | `arena.minHeight`–`maxHeight` | 32–44 | ≥ `ARENA_MIN_HEIGHT` (18) |
 | `arena.bossPool` | the 4 castle bosses | non-empty subset of `BOSS_IDS` (7); the seed picks one per campaign |
 | `arena.waves` | 5 populated tiers | exactly `BOSS_WAVE_COUNT`; see *Boss finale* |
-| `arena.waves[i].buff` / `.buffTarget` | absent / none | one arena-wide buff per tier, aimed at `players`/`monsters`/`both`. Tiers **replace** one another rather than stacking. `bossWaveBuffN` in `parameters.txt`. See *Buffs per boss wave tier* |
+| `arena.waves[i].buffs` | absent / none | any number of arena-wide buffs per tier, each `{buff, target}` aimed at `players`/`monsters`/`both`. Tiers **replace** one another rather than stacking. The pre-list fields `buff`/`buffTarget` still parse — read a tier through `waveBuffs(wave)`, never off the raw field. `bossWaveBuffN` in `parameters.txt`. See *Buffs per boss wave tier* |
 | `arena.cover` | `random`, 0.08, 4, 3 | `density` is the fraction of free floor filled and is capped at `BOSS_COVER_DENSITY_MAX` (0.25) |
 | `arena.spawn` | spacing 2, ring 4, clusters 3 | tuning for the scatter modes only; deliberately separate from `cover` |
 | `arena.invulnerability` | on, `[30, 30, 30]`, countdown on | seconds of boss immortality per health threshold (`BOSS_INVULN_THRESHOLDS`: 75/50/25%); 0 disables one threshold, `bossInvuln` / `bossInvulnCountdown` in `parameters.txt`. Independent of `waves` — see *Boss finale* |
@@ -365,8 +375,11 @@ omitted `:target` parses as `players`; an unknown id or target lands in
 ### Buffs per boss wave tier (`boss/waveBuffs.ts`)
 
 The same aura, per arena health tier. Each of the five `BossWave`s may carry a
-`buff` and a `buffTarget`, both optional so every wave literal written before
-the feature still compiles.
+`buffs: FloorBuff[]` — any number, like a floor. The pre-list single pair
+`buff`/`buffTarget` is still read, so every wave literal and every
+`parameters.txt` written before the list existed still loads; go through
+`waveBuffs(wave)` (`config/parameters.ts`) rather than either field, or the
+legacy shape silently stops applying.
 
 Where this differs from everything else in the arena: the tiers **replace** one
 another rather than accumulating. Tier 0's field ships `enabled: True` — it *is*
@@ -382,7 +395,7 @@ cannot drift on the event strings. Built in `arena.ts` after `buildWaveRig` and
 `buildInvulnerabilityRig`, draws from **no** stream — `ctx.bossRand` included —
 so the arena's fixed draw order is untouched and no arena seed moves.
 
-`parameters.txt` carries `bossWaveBuffN=<id>:<target>` on its **own key**, not
+`parameters.txt` carries `bossWaveBuffN=<id>:<target>|<id>:<target>` on its **own key**, not
 as a sixth `bossWaveN` field: appending one would put a trailing `|` on every
 stock export and break byte-compatibility with files written before the
 feature. Its parse branch must be tested **before** `bossWaveN`'s, or
@@ -485,6 +498,41 @@ capped at `BOSS_COVER_DENSITY_MAX` (0.25) — the original 0.5 playtested as
 physically impassable. Whatever the pattern, `pruneForConnectivity` guarantees
 the boss, all nine anchors and the alcove stay reachable from the entrance;
 pillars that would wall something off are removed.
+
+## Free upgrades and the arrival revive (`levelTemplate/surgery.ts`)
+
+Two things both hand-authored rooms — the lobby and the prep room — gained
+after they shipped, neither drawing from any stream.
+
+**Free upgrade pickups.** `UPGRADE_KINDS` is the fixed eight-entry order
+(`damage`, `defense`, `health`, `mana`, `damage2`, `defense2`, `health2`,
+`mana2`) and it is load-bearing three times over: it is the order ids are handed
+out in, the order `parameters.txt` writes the counts in, and the order the form
+shows them in. `upgradeArrays(counts, slots, idBase)` emits one `ItemSection`
+per kind with a count above 0; a kind at 0 emits **no** array, for the same
+reason zero gold emits no diamond array (LevelPacker throws on an empty one).
+Each room has exactly one slot per kind (`LOBBY_UPGRADE_SLOTS`,
+`BOSSPREP_UPGRADE_SLOTS`), so a count above one **stacks** on that slot — which
+is why the count needs no gameplay cap, only `UPGRADE_COUNT_MAX` (10000) to stop
+a typo emitting an unserializable pile. `upgradeItemPath` maps `mana2` to
+`items/upgrade_mana_2.xml`: the `2` is the game's own second-tier pickup, not a
+second copy.
+
+The id base is **derived, not round**: `*_UPGRADE_ID_BASE = *_ITEM_ID_BASE +
+MAX_DIAMOND_COUNT`, the first id no diamond can reach however much gold is
+asked for. Raising the gold cap moves the upgrade ids with it instead of
+silently colliding. Both rooms' two extra lights had to be renumbered into the
+authored range for the same reason: a light entry references nothing, so its id
+is never rewritten at build time, and the ids the source levels carried
+(10020/10021, 10047/10048) sat inside the span a deep diamond payout walks.
+The lights are unconditional and have no parameter.
+
+**Arrival revive.** `respawnOnEntryNodes()` + `insertNodes()` (ids from 9000)
+give the lobby, the prep room and the arena the one-shot `RespawnPlayers` rig
+every dungeon floor's `ExitUp` prefab already emitted — an `AreaTrigger` over
+the spawn point, then a `ToggleElement` that disables the trigger, so dying
+mid-fight stays permanent. Inserted at **build** time, never by editing
+`template.ts`, which the import scripts regenerate.
 
 ## Player tweaks (`src/generator/tweak/`)
 

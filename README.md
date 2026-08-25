@@ -83,7 +83,7 @@ up front and keeps every retry loop bounded.
 
 ### The optional levels
 
-Four additions sit outside the floor loop above. None of them draw from the
+Five additions sit outside the floor loop above. None of them draw from the
 dungeon's RNG stream — the arena draws from a third seeded stream of its own,
 the lobby, prep room, tweaks and timer mode draw nothing — so turning any of
 them on or off leaves a seed's floors **byte-identical** (timer mode appends
@@ -92,9 +92,14 @@ The lobby and the boss finale are **on by default**; timer mode is **off**.
 
 - **Lobby** — a hand-authored hub the campaign starts in, with vendor stalls
   for the shop columns you pick, a configurable pile of starting gold, and a
-  portal to floor 0.
+  portal to floor 0. It can also lay out **free upgrade pickups** — any number
+  of each of the game's eight upgrade items, none by default — and anyone who
+  died on the way in is revived on arrival, so a co-op partner never has to sit
+  out the shopping.
 - **Boss finale** — two levels appended after the last floor. A **prep room**
-  (shops, a diamond payout, a portal) leads into a **boss arena**: a walled
+  (shops, a diamond payout, the same optional free upgrades, a portal — and the
+  same revive on arrival, so nobody reaches the boss dead) leads into a **boss
+  arena**: a walled
   room with one boss, five monster waves — four keyed to the boss's health
   (100 / 75 / 50 / 25%, switching on and never off) and a fifth that spawns
   the moment the boss *dies* — scattered cover pillars, and a sealed alcove
@@ -102,9 +107,9 @@ The lobby and the boss finale are **on by default**; timer mode is **off**.
   death wave fights you on the walk to the orb, and touching the orb ends the
   game. With the boss on, the final floor's orb room is replaced by the
   portal, so there is exactly one way to win. Each of the five tiers can also
-  carry an **arena-wide buff** aimed at players, monsters or both; unlike the
-  spawns, the buffs replace one another, so exactly one is ever live and the
-  fight reads as phases.
+  carry **arena-wide buffs** aimed at players, monsters or both; unlike the
+  spawns, each tier's buffs replace the previous tier's, so only one tier's
+  aura is ever live and the fight reads as phases.
 - **Player tweaks** — `tweak/*.xml` overrides for class stats, upgrade costs
   and shop contents, edited per field or through bulk knobs. Purely a balance
   layer: it draws no random values at all.
@@ -216,9 +221,11 @@ stock player tweak are all **on by default**:
 | `lobby` | 1 | Start the campaign in a hub level instead of on floor 0 |
 | `lobbyGold` | 10000 | Starting gold, a multiple of 500 (one red diamond each). Past the 12 floor spots the diamonds simply stack on the same spots — there is no upper cap beyond a safety limit that stops a typo emitting millions of items |
 | `lobbyShops` | all 21 columns | Space-separated shop columns the lobby stalls sell |
+| `lobbyUpgrades` | `0 0 0 0 0 0 0 0` | Free upgrade pickups lying on the lobby floor: eight space-separated counts, in the order damage, defense, health, mana, then the four tier-2 versions. Each kind has one spot on the floor, so a count above one simply stacks there — there is no gameplay cap, only a safety limit. `0` means the kind is not laid out at all |
 | `boss` | 1 | Append a prep room and a boss arena after the final floor |
 | `bossGold` | 20000 | Gold paid out in the prep room, same 500-multiple rule |
 | `bossShops` | all 21 columns | Shop columns the prep-room stalls sell |
+| `bossUpgrades` | `0 0 0 0 0 0 0 0` | Free upgrade pickups on the prep-room floor, same eight counts as `lobbyUpgrades` |
 | `bossTheme` | `g_mixed` | Tileset for the arena — any dungeon theme, independent of the floors' (`h` warns: its cliff art needs a thicker wall band and overlapping corners to stay sealed) |
 | `bossFloorPattern` | `random` | How a `_mixed` arena theme arranges its floor palette: `random`, `checker`, `bandsH`, `bandsV`, `bandsDiag`, `rings`, `diamond`, `cross`, `triangle`. Ignored by every other theme |
 | `bossWidth`, `bossHeight` | 24–32, 32–44 | Arena size range in tiles |
@@ -226,7 +233,7 @@ stock player tweak are all **on by default**:
 | `bossCover` | `random,0.08,4,3` | `pattern,density,ringSpacing,clusters`. Pattern is `random`/`ring`/`gaussian`/`symmetric`; **density is capped at 0.25** — it is the fraction of free floor filled with pillars, and denser than that leaves nowhere to fight |
 | `bossWave1…5` | see defaults | Waves 1–4 are the health tiers (100/75/50/25%); **wave 5 fires when the boss dies**, spawning a last stand into the walk to the orb. Each is `monsters\|defaultIntervalMs\|monsterMax\|intervalMs\|spawnMode`, the last three being comma-separated `id:value` pairs. Tiers switch on and never off, so by 25% all four health tiers are spawning at once. A monster's pool entry may be a variant key (`lich#2`, `slime#0`); an empty wave is legal and emits nothing |
 | `bossSpawnMode` per monster | `anchors` | Inside a `bossWaveN` line. `anchors` trickles the horde in on a timer from the nine spawn anchors; `random` / `ring` / `gaussian` / `symmetric` scatter it across the arena and spawn it **all at once**, ignoring the intervals. A monster whose wreck still blocks movement (the nova/frost/tracking towers) may not be scattered — it could wall the arena off |
-| `bossWaveBuff1…5` | absent | An arena-wide buff for that tier, `<id>:<target>`, e.g. `bossWaveBuff3=frost:players`. Its own key rather than a sixth `bossWaveN` field, so files exported before the feature still round-trip. Tiers **replace** one another: each threshold switches the previous buff off as it switches its own on, so exactly one is ever live. Tier 1 is live from the moment the fight starts. Written only for tiers that carry one |
+| `bossWaveBuff1…5` | absent | Arena-wide buffs for that tier, `<id>:<target>` entries separated by `\|`, e.g. `bossWaveBuff3=frost:players\|bloodlust:monsters`. Its own key rather than a sixth `bossWaveN` field, so files exported before the feature still round-trip. Tiers **replace** one another: each threshold switches the previous buff off as it switches its own on, so exactly one is ever live. Tier 1 is live from the moment the fight starts. Written only for tiers that carry one |
 | `bossSpawn` | `2,4,3` | `spacing,ringSpacing,clusters` for the scatter modes; separate from `bossCover` so pillars and monsters can be spaced differently |
 | `bossInvuln` | `30,30,30` | Seconds the boss is **immortal** each time its health crosses 75%, 50% and 25%. One value sets all three; `0` disables that one threshold; `off` disables the feature. Stops a fully upgraded party bursting the boss down before the fight happens, and keeps the three thresholds from firing in the same frame — which would switch every wave tier on at once and flood the arena |
 | `bossInvulnCountdown` | 1 | Announce a ticking `M:SS` countdown for the length of each invulnerability window. `0` keeps the windows silent |
@@ -314,7 +321,7 @@ Design notes:
 ```bash
 npm install          # once
 npm run dev          # launch the app with hot reload
-npm test             # run the generator test suite (787 tests)
+npm test             # run the generator test suite (972 tests)
 npm run typecheck    # strict TypeScript across main/preload/renderer/generator
 npm run build        # typecheck + production build into out/
 npm run dist         # build a distributable for the current platform
