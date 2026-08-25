@@ -34,6 +34,14 @@ export const DoodadType = {
   Horizontal: { path: 'doodads/theme_%s/%s_h_8.xml', xOffset: 0, yOffset: 2, themeSubs: 2 },
   Vertical: { path: 'doodads/theme_%s/%s_v_8.xml', xOffset: 0, yOffset: 1, themeSubs: 2 },
   Cover: { path: 'doodads/special/color_theme_%s_16.xml', xOffset: 0.5, yOffset: 0.5, themeSubs: 1 },
+  // A floor plate the party steps on. Purely decorative by itself — it carries
+  // no trigger of its own, so the rig that uses it lays a RectangleShape over
+  // the art and hangs an AreaTrigger off that. Mind the two anchors: this
+  // position is where the art's top-left corner lands, while a RectangleShape's
+  // is its centre, so a 1x1 box covering the plate goes half a tile further on
+  // (see map/buttonSeal.ts). [EMITTED] — the path is taken from a hand-edited
+  // level6 that loaded.
+  TriggerButton: { path: 'doodads/special/trigger_button_floor.xml', xOffset: 0.5, yOffset: 0.5, themeSubs: 0 },
   Torch: { path: 'doodads/generic/lamp_torch.xml', xOffset: 0.5, yOffset: 1, themeSubs: 0 },
   TorchOff: { path: 'doodads/generic/lamp_torch_off.xml', xOffset: 0.5, yOffset: 1, themeSubs: 0 },
   CrossWall: { path: 'doodads/theme_%s/%s_x_x.xml', xOffset: 0, yOffset: 1, themeSubs: 2 },

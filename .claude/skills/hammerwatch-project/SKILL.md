@@ -41,7 +41,8 @@ src/
 │   │   └── validation.ts every crash path of the original, as a rule
 │   ├── xml/              XMLDictionary/Array/Int/Float/Bool/String/IntArray
 │   ├── map/              level.ts, room.ts, passage.ts, tile.ts,
-│   │                     wallPattern.ts, posDir.ts, reachability.ts
+│   │                     wallPattern.ts, posDir.ts, reachability.ts,
+│   │                     buttonSeal.ts (the final room's keyless gate)
 │   │                     (overhang-aware flood fill), tilemapOverlay.ts
 │   │                     (overlay + mixed floor datasets)
 │   ├── objects/          monsterTypes.ts (roster data + variants), monster.ts,
@@ -178,7 +179,8 @@ reference/hammerwatch-tweak-stats.md
 | `minPassageWidth`–`maxPassageWidth` | 3–6 | **`maxPassageWidth` ≤ `minRoomSize`** or doors land outside rooms |
 | `edgePadding` / `roomPadding` | 2 / 2 | ≥ 0 |
 | `themes` | `a_mixed`…`g_mixed` | one per level; any id in `THEME_DEFS` — bases `a`–`i`, `bonus1`–`bonus5`, each base's overlay pairings (`c_tiles`) and its `_mixed` palette. Registry in `config/themes.ts`; see *Themes* below |
-| `lockFinalRoom` | `true` | final floor only: the orb sits behind a gold door, and that floor gets one gold key per gold door so the key can't be spent wrong |
+| `lockFinalRoom` | `true` | final floor only: the orb sits in a dead-end room behind a gate |
+| `finalLockMode` | `'button'` | how that gate opens. `'button'` = a destructible wall across the corridor plus a floor button hidden elsewhere on the floor, placed like a key (`map/buttonSeal.ts`) — no key exists, so one cannot be hoarded from an earlier floor or spent on the wrong door. `'key'` = the original gold door, with one gold key per gold door on that floor |
 | `shopChance` / `vaultChance` / `lockChance` / `keyChance` | 1.0 / 0.3 / 0.8 / 1.0 | 0–1 inclusive |
 | `monsterMultiplier` / `goldMultiplier` / `foodMultiplier` | 1.0 / 1.1 / 1.2 | ≥ 0 |
 | `levelMonsters[i]` | see defaults | non-empty; ids must exist in `MONSTER_TYPES`; repeat an id to weight it |
@@ -238,7 +240,17 @@ Plus two app settings that are *not* generator parameters:
    after 1000 tries, `levelValid = false` and the whole floor is re-rolled.
 3. **Special rooms** — `Entrance` (ExitUp prefab), `Exit` (ExitDn) or on the
    last floor `Orb`; then `Shop`, `Vault`, an extra locked room and its `Key`
-   by chance. Everything left becomes a `Lair`.
+   by chance. Everything left becomes a `Lair`. With `lockFinalRoom` on, the
+   orb room is gated last — by `buttonSeal.ts`'s wall-and-button rig by
+   default, or by `Room.lockRoom()`'s gold door under `finalLockMode: 'key'`.
+   The wall spans the corridor's whole cross-section plus one tile of wall band
+   at each end — do not shorten it back to the walkable rows, the flat-anchored
+   themes (`h`, every `bonus<n>`) overhang nothing and the player walks around a
+   short seal. The button is hidden **like a key**: a random unlocked room, same
+   draws as `Room.spawnKey()`, so it can be anywhere on the floor and
+   `ctx.reachTargets` is what proves the player can get to it. Both modes grant
+   the same consolation powerup (`Room.grantLockLoot`), but the two streams
+   diverge — button mode draws the button's room and position first.
 4. **Population** — per lair: a monster type from that floor's pool, a horde
    of `trunc(fRand(max/5, max) * monsterMultiplier)`, `iRand(0, max/20)`
    spawners, treasure/breakables scaled by `goldMultiplier`, food by

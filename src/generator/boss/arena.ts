@@ -734,7 +734,10 @@ function buildArenaPreview(
     height,
     type: 'Boss',
     locked: false,
-    lockTier: null
+    lockTier: null,
+    // the arena's alcove seal opens on the boss's death, not on a gate the
+    // player operates, so it is neither locked nor sealed for preview purposes
+    sealed: false
   }
 
   return {

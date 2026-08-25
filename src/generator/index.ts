@@ -8,7 +8,7 @@ import { BOSSPREP_LEVEL_ID, BOSSPREP_LEVEL_PATH, buildBossPrep } from './bosspre
 import { buildBossArena } from './boss'
 import { buildFloorHazardRig } from './timer/hazard'
 
-export type { DungeonParameters, LobbyOptions, BossOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer } from './config/parameters'
+export type { DungeonParameters, LobbyOptions, BossOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FinalLockMode } from './config/parameters'
 export {
   THEMES,
   BOSS_IDS,
@@ -24,6 +24,7 @@ export {
   DEFAULT_WAVE_MONSTER_MAX,
   defaultBossOptions,
   defaultFloorTimer,
+  FINAL_LOCK_MODES,
   MAX_TIMER_SECONDS,
   MIN_TIMER_FREQ_MS,
   MAX_TIMER_FREQ_MS,
@@ -185,6 +186,12 @@ export interface PreviewRoom {
   locked: boolean
   /** door tier sealing the room (0 bronze, 1 silver, 2 gold), null when open */
   lockTier: number | null
+  /**
+   * Barred by a destructible wall and a button rather than a door and a key.
+   * Mutually exclusive with `lockTier`, and only the final floor's orb room
+   * ever sets it — see map/buttonSeal.ts.
+   */
+  sealed: boolean
 }
 
 export interface LevelPreview {
@@ -365,7 +372,8 @@ function buildPreview(ctx: GenerationContext, level: Level): LevelPreview {
       height: r.height,
       type: r.type,
       locked: r.locked,
-      lockTier: r.lockTier
+      lockTier: r.lockTier,
+      sealed: r.sealed
     })),
     passages: level.passageList.map((p) => ({
       width: p.width,

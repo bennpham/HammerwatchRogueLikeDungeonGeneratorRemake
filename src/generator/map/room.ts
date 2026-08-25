@@ -1,6 +1,8 @@
 import { Monster } from '../objects/monster'
 import { Item, ItemType } from '../objects/item'
 import { ObjectSet } from '../objects/objectSet'
+import { getTheme } from '../config/themes'
+import { overhangRows } from './reachability'
 import type { MonsterTypeDef } from '../objects/monsterTypes'
 import type { Passage } from './passage'
 import type { GenerationContext } from '../core/context'
@@ -26,6 +28,12 @@ export class Room {
   locked = false
   /** tier of the door sealing this room (index into ItemType.Door), null when open */
   lockTier: number | null = null
+  /**
+   * Barred by a destructible wall and a button rather than a door and a key.
+   * `locked` is true either way — this only says which of the two gates was
+   * built, and only the final floor's orb room ever sets it.
+   */
+  sealed = false
 
   private ctx: GenerationContext
 
@@ -334,22 +342,55 @@ export class Room {
     const pathPos = p.path[0]
     const entrance = { x: pathPos.x, y: pathPos.y, dir: pathPos.dir }
 
+    // How far past the corridor the barrier reaches.
+    //
+    // On every ordinary theme the doors need to span the corridor and nothing
+    // more, because the wall band beside it is solid. A `directionalFences`
+    // theme's pieces barricade a single *edge* of their tile instead (see
+    // config/themes.ts), so the band tile is somewhere the player can stand:
+    // theme h's `h_h_8_dn` fences only the top edge of the row above a
+    // corridor, which means that row is steppable from the corridor floor and
+    // runs its whole length — straight over the top of the door column and
+    // back down on the far side. One extra door at each open end closes it.
+    // [VERIFIED] 2026-08-24 in game, theme h, both orientations.
+    //
+    // The ends that need it are not symmetric, and that is the art, not luck:
+    //
+    //  - A horizontal corridor's *bottom* row takes `TUp` -> `h_h_8_up` at
+    //    `yOffset: -1`, whose polygon covers x 0..1, y -0.19..1.0 — near enough
+    //    the whole tile, so nothing can stand there. The vertical doors already
+    //    reach one row past the corridor at that end anyway.
+    //  - A vertical corridor's two side columns take `TRight`/`TLeft` ->
+    //    `h_v_8_r`/`h_v_8_l`, ~25% edge fences, so both are standable and both
+    //    need the extra piece. [VERIFIED] 2026-08-24 — the user walked at a
+    //    horizontal door row's ends on theme h and could not get past.
+    const margin = getTheme(this.theme)?.directionalFences === true ? 1 : 0
+
     switch (entrance.dir.name) {
       case 'UP':
-        for (let xOffset = 0; xOffset < p.width; xOffset++) {
+        for (let xOffset = -margin; xOffset < p.width + margin; xOffset++) {
           Item.create(ctx, entrance.x + xOffset + 0.5, entrance.y, 'Door', lockTier)
         }
         break
 
       case 'DOWN':
-        for (let xOffset = 0; xOffset < p.width; xOffset++) {
-          Item.create(ctx, entrance.x + xOffset + 0.5, entrance.y + 3, 'Door', lockTier)
+        // One row past the doorway, plus whatever that wall buries beneath
+        // itself — the 3 this has always been on the lettered themes, and 1 on a
+        // flat one. See map/buttonSeal.ts's `lineY`, which had the same latent
+        // overshoot and was the one caught in game.
+        for (let xOffset = -margin; xOffset < p.width + margin; xOffset++) {
+          const row = entrance.y + 1 + overhangRows(this.theme)
+          Item.create(ctx, entrance.x + xOffset + 0.5, row, 'Door', lockTier)
         }
         break
 
       case 'LEFT':
       case 'RIGHT':
-        for (let yOffset = 0; yOffset < p.width + 1; yOffset++) {
+        // The `_v` door art is 32px tall anchored at its base, so its collision
+        // runs from two tiles above its position down to half a tile below. The
+        // loop's first door therefore already covers `entrance.y`, and one more
+        // above it carries the barrier into the wall row at `entrance.y - 1`.
+        for (let yOffset = -margin; yOffset < p.width + 1; yOffset++) {
           // +3 selects the vertical door variants
           Item.create(ctx, entrance.x + 0.5, entrance.y + yOffset + 2, 'Door', lockTier + 3)
         }
@@ -357,15 +398,29 @@ export class Room {
     }
     ctx.lastLockType = lockTier
 
-    // add loot
+    this.grantLockLoot()
+
+    return true
+  }
+
+  /**
+   * The powerup that compensates for a room being gated. Split out of
+   * `lockRoom()` so the button seal grants the *same item off the same three
+   * draws* rather than inventing its own consolation prize.
+   *
+   * It does not keep the two gate modes' streams in lockstep, and is not meant
+   * to: button mode draws the button's room and position first (buttonSeal.ts),
+   * so the powerup lands somewhere else than the gold door's would. Only the
+   * item and its draw count are shared.
+   */
+  grantLockLoot(): void {
+    const ctx = this.ctx
     Item.create(
       ctx,
       ctx.rand.fRand(this.x, this.x + this.width),
       ctx.rand.fRand(this.y + 2, this.y + this.height),
       'Powerup'
     )
-
-    return true
   }
 
   /**

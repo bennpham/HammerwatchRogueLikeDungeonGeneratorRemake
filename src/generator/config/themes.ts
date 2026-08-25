@@ -108,6 +108,24 @@ export interface ThemeDef {
    */
   directionalFences?: boolean
   /**
+   * This theme's wall art is anchored on its own tile and overhangs nothing, so
+   * the rows below a wall are open floor rather than dead space.
+   *
+   * The lettered art is three tiles tall anchored low (`a_h_8.xml` is
+   * `<origin>0 32</origin>`, hence `DoodadType`'s `yOffset: 2`), so a wall at
+   * tile T also fills T+1 and T+2 — see `OVERHANG_ROWS` in map/reachability.ts.
+   * A flat theme fills T alone. Anything positioned to clear a doorway's own art
+   * has to know which it is dealing with, or it lands two rows too far and, on a
+   * short corridor, inside the next room entirely (see `overhangRows`).
+   *
+   * Not the same claim as `directionalFences`, which is about a piece fencing one
+   * *edge* of its tile rather than filling it. A theme can be flat without being
+   * fenced — every bonus theme is — but theme h is both. The evidence for the
+   * flag is the `yOffset: 0` loop over `THEMED_WALL_PIECES` that each such theme
+   * runs below.
+   */
+  flatWalls?: boolean
+  /**
    * Advisory note surfaced once by `validateParameters` when the theme is used.
    *
    * For cosmetic quirks a theme cannot avoid — not for anything that blocks
@@ -191,6 +209,8 @@ function bonus(n: number, tiles: number, coverLetter: string): ThemeDef {
     tiles,
     doodadToken: `bonus${n}`,
     doodadOverrides,
+    // every piece above was forced to yOffset 0 — nothing overhangs
+    flatWalls: true,
     // bonus_entrance/bonus_exit are pure sprites with no collision polygon, so
     // the wall band has to be closed with an ordinary wall segment
     stairBacking: 'Horizontal'
@@ -335,6 +355,8 @@ function desertOutdoor(): ThemeDef {
     omitCover: true,
     // its pieces fence one edge each and never fill a tile — see the flag's note
     directionalFences: true,
+    // and, like the bonus art, every piece is anchored on its own tile
+    flatWalls: true,
     // Verified in game: the level is sealed and reads correctly, but the folder
     // has no 4-way junction art, so corners borrow the 16x32 `h_h_8_up` face —
     // which is the only piece that seals a whole tile. Being a tile taller than

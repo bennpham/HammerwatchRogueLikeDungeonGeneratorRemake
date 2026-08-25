@@ -1,4 +1,4 @@
-import { XMLDictionary, XMLFloat, XMLInt, XMLIntArray, XMLString } from '../xml'
+import { XMLBool, XMLDictionary, XMLFloat, XMLInt, XMLIntArray, XMLString } from '../xml'
 import { ScriptNode } from './scriptNode'
 import type { Doodad, DoodadTypeName } from './doodad'
 import type { GenerationContext } from '../core/context'
@@ -80,6 +80,43 @@ export class NodeToggleImmortality extends ScriptNode {
     const eDict = new XMLDictionary('element')
     eDict.addData(new XMLIntArray('static', [this.element]))
     d.addData(eDict)
+    return d
+  }
+}
+
+/**
+ * Switches a doodad to one of the named states its asset declares.
+ *
+ * `object` holds a **doodad** id, not a script-node id — hence `setTarget(d)`
+ * rather than a connectTo(node), the same distinction `NodeToggleImmortality`
+ * above draws for actor ids. [VERIFIED] 2026-08-24 against the shipped
+ * campaign/levels/level_1.xml node 2180, which drives a floor button this way.
+ *
+ * The state names come from the target asset's `<sprite name="...">` entries and
+ * its `<states>` block, so they are per-doodad strings, not an enum.
+ */
+export class NodeChangeDoodadState extends ScriptNode {
+  target = 0
+
+  constructor(
+    ctx: GenerationContext,
+    x: number,
+    y: number,
+    public state: string
+  ) {
+    super(ctx, x, y, 'ChangeDoodadState')
+  }
+
+  setTarget(d: Doodad): void {
+    this.target = d.id
+  }
+
+  protected getParametersDict(): XMLDictionary {
+    const d = new XMLDictionary('parameters')
+    d.addData(new XMLString('state', this.state))
+    const oDict = new XMLDictionary('object')
+    oDict.addData(new XMLIntArray('static', [this.target]))
+    d.addData(oDict)
     return d
   }
 }
@@ -322,6 +359,39 @@ export class NodeDestroyObject extends ScriptNode {
     if (this.targets.length > 0) {
       d.addData(new XMLIntArray('static', this.targets.map((t) => t.id)))
     }
+    return d
+  }
+}
+
+/**
+ * Plays one sound cue. `sound` is a `sound/<bank>.xml:<cue>` pair, not a file
+ * path — the bank XML names the cues.
+ *
+ * `play3d` false means the cue is heard at full volume anywhere on the floor,
+ * which is what a "something just opened elsewhere" cue wants; `range3d` is
+ * then unused but still written, matching what the game's editor emits.
+ * [EMITTED] 2026-08-24 — parameter shape copied from an editor-saved level.
+ */
+export class NodePlaySound extends ScriptNode {
+  loop = false
+  play3d = false
+  range3d = 5
+
+  constructor(
+    ctx: GenerationContext,
+    x: number,
+    y: number,
+    public sound: string
+  ) {
+    super(ctx, x, y, 'PlaySound')
+  }
+
+  protected getParametersDict(): XMLDictionary {
+    const d = new XMLDictionary('parameters')
+    d.addData(new XMLString('sound', this.sound))
+    d.addData(new XMLBool('loop', this.loop))
+    d.addData(new XMLBool('play3d', this.play3d))
+    d.addData(new XMLFloat('range3d', this.range3d))
     return d
   }
 }

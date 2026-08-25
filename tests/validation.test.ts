@@ -33,6 +33,19 @@ describe('parameter validation', () => {
     expect(fieldsOf(result.warnings)).toContain('minRoomCount')
   })
 
+  it('rejects an unknown final-room lock mode', () => {
+    const p = defaultParameters()
+    expect(validateParameters(p).errors).toEqual([])
+
+    for (const mode of ['button', 'key'] as const) {
+      p.finalLockMode = mode
+      expect(fieldsOf(validateParameters(p).errors)).not.toContain('finalLockMode')
+    }
+
+    p.finalLockMode = 'hatch' as typeof p.finalLockMode
+    expect(fieldsOf(validateParameters(p).errors)).toContain('finalLockMode')
+  })
+
   it('rejects rooms that cannot fit on the map (the original crashed here)', () => {
     const p = defaultParameters()
     p.maxRoomSize = 80

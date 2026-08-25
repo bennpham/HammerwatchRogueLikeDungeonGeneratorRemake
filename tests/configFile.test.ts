@@ -147,6 +147,27 @@ describe('parameters.txt parsing', () => {
     expect(parseParametersTxt('lockfinalroom=0').params.lockFinalRoom).toBe(false)
   })
 
+  it('round-trips finalLockMode, and reports an unknown mode', () => {
+    const original = defaultParameters()
+    expect(serializeParametersTxt(original)).toContain('finalLockMode=button')
+
+    original.finalLockMode = 'key'
+    const text = serializeParametersTxt(original)
+    expect(text).toContain('finalLockMode=key')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.params.finalLockMode).toBe('key')
+    expect(parsed.unknownKeys).toEqual([])
+
+    expect(parseParametersTxt('finallockmode=button').params.finalLockMode).toBe('button')
+
+    // an unrecognized mode is reported, never fatal, and never silently
+    // becomes one of the two real ones
+    const bad = parseParametersTxt('finalLockMode=hatch')
+    expect(bad.params.finalLockMode).toBe(defaultParameters().finalLockMode)
+    expect(bad.unknownKeys).toEqual(['finalLockMode'])
+  })
+
   it('round-trips the boss options', () => {
     const original = defaultParameters()
     original.boss.enabled = true

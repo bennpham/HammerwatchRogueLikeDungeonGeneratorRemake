@@ -8,6 +8,353 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-24 — `ChangeDoodadState`, and `need-sync` is about *change*, not collision
+**Tag:** [VERIFIED] for the schema and the `need-sync` rule — both read off the
+shipped campaign. [EMITTED] for our own rig until the campaign is played.
+**Context:** The floor button that opens the final room never changed its art —
+it stayed in its `raised` sprite after being stepped on.
+**Evidence — the node.** `campaign/levels/level_1.xml` node 2180 drives its own
+floor button with a `ChangeDoodadState`:
+
+```xml
+<dictionary name="parameters">
+  <string name="state">activate</string>
+  <dictionary name="object"><int-arr name="static">65</int-arr></dictionary>
+</dictionary>
+```
+
+`object` holds a **doodad** id, not a script-node id — the same distinction
+`NodeToggleImmortality` draws for actor ids. The state names are per-asset
+strings, not an enum: `doodads/special/trigger_button_floor.xml` declares three
+sprites — `raised` (its default), `activate` (two frames, 50ms each) and
+`pressed` — plus `<states default="raised"><transition from="activate"
+to="pressed"/></states>`. So `activate` animates the press and lands on
+`pressed` by itself, while `pressed` snaps straight to the final frame. We emit
+`pressed` by choice; `SEAL_BUTTON_STATE` in `map/buttonSeal.ts` says so, because
+it otherwise reads like an error against the campaign's own usage.
+
+**Evidence — `need-sync`.** The same file carries two floor buttons and they
+differ on exactly this point: the one with a `ChangeDoodadState` on it is
+`need-sync True` (line 9804), the plain one `False` (line 7111). So the flag
+means "this doodad's runtime changes replicate to every client" — destruction
+for the seal pieces, *state* for the button — and not "this doodad blocks".
+**Impact:** `NodeChangeDoodadState` in `objects/nodes.ts`, wired as a fourth
+fan-out on the seal's one-shot `AreaTrigger`, and the button now ships
+`need-sync True`.
+
+That last distinction quietly retired an assumption three places relied on, all
+of which read "need-sync ⇒ part of the barrier" and were only ever right by
+accident:
+
+1. `map/sealCheck.ts` marked every synced doodad solid on a solid-tile theme.
+   The button carries no `<collision>` and no `<polygon>` at all, so this would
+   invent an obstacle — and an invented obstacle *shrinks* the reachable set,
+   meaning the check would start passing floors it should reject. It fails
+   towards a false pass, which is the dangerous direction.
+2. `tests/sealProbe.ts` did the same, and would additionally have read the button
+   as a `Horizontal` piece and undone a `yOffset: 2` never applied to it, landing
+   the phantom obstacle on the wrong tile.
+3. `tests/generation.test.ts` asserted the `DestroyObject` array named *every*
+   synced doodad, and that the floor's synced doodads were all one type. The
+   button is synced, is not destroyed, and is a different type.
+
+The rule to reach for is not "is it synced" but "does its art declare a
+collider".
+
+### 2026-08-24 — the gated room was open on a second side, and nothing ever checked the gate held
+**Tag:** [VERIFIED] — a seal-aware reachability sweep, calibrated against the two
+walk-arounds the user confirmed in game, and since confirmed in play: a theme-h
+and a bonus-5 campaign were played on 2026-08-24 with the seal no longer
+walk-around-able and every locked door holding at its ends. Bonus 5 is the first
+play evidence for the bonus themes at all — their `flatWalls` flag, and the
+barrier and door rows it moves, had only ever been inferred from theme h.
+**Context:** After four positioning fixes, a sweep of 60 seeds x 4 themes asked
+the question none of the existing checks did: *with the seal intact, can the
+player still walk to the orb?* Nine floors per lettered theme said yes.
+**Evidence:** The probe was calibrated first. Reverting each earlier fix in turn
+reproduced exactly the leak the user had found in game and nothing else:
+
+| | LEFT fix reverted | DOWN fix reverted | both in |
+| --- | --- | --- | --- |
+| `dungeon1613495514` (LEFT) | **reachable** | sealed | sealed |
+| `dungeon1986970473` (DOWN) | sealed | **reachable** | sealed |
+
+The leaks then split into two families. The smaller one is barrier geometry —
+the barrier's end stops 2..9 tiles short of any wall (themes a/f seeds 29, 37,
+59; bonus1 seed 35). The larger one cannot be fixed by moving a barrier at all.
+Seed 8, theme a, orb room `o` and seal `S`:
+
+```
+  42 #####.....####ooooooooo........
+  46 #####.....####ooooooooo........
+  50 ...........S##ooooooooo########
+  55 ...........S..ooooooooo########
+```
+
+The seal bars the left corridor correctly. The room's right edge at x 56 abuts
+open floor at x 57 with **no wall band between them at all**. `buildTileArray`
+marks a tile floor if *any* room or passage contains it, and `overlapRoom` only
+forbids a passage overlapping rooms that are not its own endpoints — so a
+passage bound for the gated room may graze it anywhere along its path, and two
+regions that merely touch merge seamlessly. `sealRoomWithButton` and
+`Room.lockRoom` both gate `passages[0]` and trust it is the only way in.
+Eleven of theme a's 51 *sealed* floors also have a second opening that happens
+to lead nowhere, so the topology is common; it is only sometimes fatal.
+**Impact:** `map/sealCheck.ts` — `sealHolds(level, ctx)` — runs last in
+`Level.build()`, after `buildTileArray` and `buildWalls`, and rejects the floor
+if the orb is reachable with the seal treated as intact. Draws no random values;
+a rejected floor re-rolls like any other invalid one. It carries the fence model
+(which `DoodadType` closes which tile edge on a `directionalFences` theme) that
+until now existed only as prose in this log. Solid themes read the tile grid
+directly and deliberately skip `OVERHANG_ROWS`, since over-stating where the
+player can walk can only cost a re-roll, never ship a leak.
+
+Result: 0 leaks across 240 floors, 0 generation failures, and **only the leaking
+floors changed** — 9/60 on a and f, 6/60 on h, 4/60 on bonus1, matching the leak
+counts exactly. A floor whose gate already held is byte-identical.
+
+`tests/sealProbe.ts` keeps an independent reading of the same collision data
+from the *emitted XML*, so a floor the generator believes is sealed but writes
+out wrong is still caught. The two are deliberately not shared.
+**The gold door too.** `Room.lockRoom` gates the same `passages[0]` and inherited
+the same blind spot, so `sealHolds` closes every `Door` item as well and runs on
+any gated floor, not only one carrying `need-sync` doodads. A door is a solid
+one-tile-wide collider whose two variants differ only in reach:
+`door_a_*_h_v2` is y -16..0 px (its own row and the one above) and
+`door_a_*_v` is y -32..+8 (its own row and the two above). Every door closes,
+not just the orb's — a route crossing any door is a gated route. In
+`finalLockMode: 'key'` this re-rolls 3/40 floors on theme a and 5/40 on theme h,
+again with no generation failures.
+
+### 2026-08-24 — a barrier needs the right tile AND the right edge, and "+3" was really "1 + overhang"
+**Tag:** [VERIFIED] — two theme-h campaigns played and hand-fixed in the editor.
+**Context:** The button seal failed to gate the final room twice more, in two
+unrelated ways. Both were in `map/buttonSeal.ts`'s choice of *where* to put the
+barrier, not its span (that was the earlier overhang entry) nor the wall band
+(the entry below).
+
+| Seed | Corridor | Generated | Hand-fixed |
+| --- | --- | --- | --- |
+| `dungeon1613495514` | LEFT | 8x `h_v_8_l` at x **12**, rows 22..29 | x **11** |
+| `dungeon1986970473` | DOWN | 7x `h_h_8_dn` at y **41**, x 34..40 | y **39** |
+
+**Evidence — the edge.** A fence theme's piece blocks one edge of its tile, and
+the band uses a *mirrored* piece on each side of a corridor:
+
+| Piece | Polygon | Blocks the boundary at |
+| --- | --- | --- |
+| `h_v_8_l` (`Vertical`, `TLeft`) | x 10..18 px | `x + 1` |
+| `h_v_8_r` (`TRight`) | x -2..6 px | `x` |
+
+`placePassageDoor` puts a LEFT door at `r.x - 1` and a RIGHT one at
+`r.x + r.width + 1` — the room's wall column either way. But a LEFT doorway's
+band is `TRight` and a RIGHT one's is `TLeft`, so the boundary to continue is
+`entrance.x` on the left and `entrance.x + 1` on the right. The seal is always
+`Vertical` -> `h_v_8_l`, which blocks `x + 1`: right for a RIGHT door, one tile
+off for a LEFT one. The gap is not walked through sideways — it is walked
+*around*: the corner at the doorway, `h_crn_r_dn`, has polygon (0,3)(-5,0)(1,-5)(2,0),
+a 7x8px nub in the tile's top-left corner rather than a full edge, so the player
+enters the doorway tile from the standable wall row below the nub, steps up past
+`h_v_8_r`'s x 11.87..12.38 fence at x≈12.6, and walks into the room.
+
+**Evidence — the offset.** `lineY = entrance.y + 3` for a DOWN corridor is
+`1 + OVERHANG_ROWS`: one row past the doorway, plus the two rows the lettered
+themes' three-tile-tall art buries. A `flatWalls` theme buries none, so +3 is two
+rows too far. In `dungeon1986970473` the corridor is a single row — room wall at
+38, mouth at 39, orb room from 40 spanning x 35..49 — so the seal landed at 41
+*inside the orb room*, 7 tiles against 15, and was walked around at its right
+end. At `entrance.y + 1` the cross-section is exactly `p.width` and the line
+joins the orb room's own top wall, which is the same `h_h_8_dn` top-edge fence.
+
+**Impact:** new `flatWalls` flag on `ThemeDef` (theme h and every bonus theme) and
+`overhangRows(theme)` in `map/reachability.ts`; `buttonSeal.ts` gains a `lineX`
+mirroring its `lineY`, and both it and `Room.lockRoom()`'s DOWN case now read
+`entrance.y + 1 + overhangRows(theme)`. Lettered themes are byte-identical —
+`overhangRows` returns 2, so `1 + 2` is the 3 they already had.
+
+**Why the gold door never showed either:** a door is a solid 1-tile collider
+centred on `entrance.x + 0.5`, covering `entrance.x`..`entrance.x + 1`, so it
+spans *both* candidate boundaries and edge direction cannot matter to it —
+`dungeon300445903`'s theme-h gold columns held at the door line and leaked only
+over the top. It does share the DOWN overshoot exactly, which is why `lockRoom`
+was fixed alongside.
+
+**Sharp edges left in place, all pre-existing:**
+1. **The lettered themes have the same DOWN overshoot** and no room to correct
+   it — the rows the barrier would move onto are inside their own wall art.
+   Reproduces on themes a and f at seeds 12, 29, 35, 59, 60, where the seal's
+   far end abuts floor instead of wall. `tests/generation.test.ts` sweeps those
+   seeds on the flat themes only and says so at the loop.
+2. **A separate end-of-barrier failure on every theme**, seeds 13, 20 and 35:
+   the seal's *near* end abuts floor, i.e. the wall band beside the corridor is
+   thinner than the one tile of margin the seal allows for. Not diagnosed.
+3. `sealRoomWithButton` reads `passages[0].path[0]`, the doorway of the
+   passage's **begin** room, which may not be the room being sealed — it is not
+   in `dungeon1986970473`. Harmless (barring either end of a one-way corridor
+   gates it equally, and `p.width` is the passage's own width), and the gold door
+   has always worked the same way.
+4. `blockedGrid` models `OVERHANG_ROWS` on every theme, including flat ones. It
+   is over-conservative there, never unsafe — but making it theme-aware would
+   change which floors get re-rolled and with them every flat-theme seed.
+
+### 2026-08-24 — theme h's wall *band* is standable, so a barrier must reach one tile into it
+**Tag:** [VERIFIED] in game, both orientations. The vertical case came first —
+the user walked around a gold door on a theme-h floor and fixed it by hand. The
+horizontal case shipped as an inference from the same mechanism and was
+confirmed on 2026-08-24, when the user walked at a horizontal door row's ends on
+a theme-h campaign and could not get past.
+**Context:** A locked door on theme h did not seal its corridor. This is a
+*different* fault from the 2026-08-24 overhang entry below: there the corridor's
+own rows were uncovered, here they were covered and the player went around
+through the wall.
+**Evidence:** Theme h's pieces barricade one edge of their tile, so a boundary
+tile is somewhere the player can stand — already documented in
+`config/themes.ts` under `directionalFences`. The row above a corridor takes
+`TDown` -> `h_h_8_dn`, which fences only that tile's top edge (y -0.13..0.38):
+steppable from the corridor floor, connected along the corridor's whole length,
+and therefore a way over the top of a door column and back down past it. In
+`dungeon300445903/levels/level0.xml` the two gold columns ran y 7..12 and 36..39;
+`level0_modified.xml` adds one `items/door_a_gold_v_v2.xml` per column at
+`21.5 5` and `46.5 34` — `entrance.y` in both cases.
+
+The ends are not symmetric, and the art is why:
+
+| End | Piece | Coverage | Needs an extra door? |
+| --- | --- | --- | --- |
+| Row above a horizontal corridor | `h_h_8_dn` | top edge only, y -0.13..0.38 | **yes** |
+| Row below a horizontal corridor | `h_h_8_up` @ `yOffset: -1` | x 0..1, y -0.19..1.0 — near solid | no |
+| Both columns beside a vertical corridor | `h_v_8_r` / `h_v_8_l` | ~25% edge fences | **yes, both** |
+
+Door geometry, read from `assetsExtract/items/`: `door_a_*_v.xml` is a 12x32
+sprite at `<origin>6 32</origin>` with collision y -32..+8 px, so it blocks from
+two tiles above its position down to half a tile below; `door_a_*_v_v2.xml` is
+the 16px variant (collision y -16..+8); `door_a_*_h_v2.xml` blocks one tile,
+x -8..+8, y -16..0. That is why an extra **full** `_v` door at `entrance.y + 1`
+is equivalent to the hand-placed `_v_v2` at `entrance.y` — same collision top
+edge, same visual top edge, no new asset — and why the vertical case already
+reached the wall row *below* the corridor without help.
+**Impact:** `Room.lockRoom()` takes a `margin` of 1 when
+`getTheme(this.theme)?.directionalFences === true`, and 0 otherwise: UP/DOWN
+gains a door in the wall column on each side, LEFT/RIGHT one above. Non-fence
+themes emit byte-identical levels, which the new `tests/generation.test.ts`
+sweep asserts by requiring theme a's columns to *stop* on corridor floor at the
+top. No RNG draw moves — `Item.create(..., 'Door', tier)` passes an explicit
+index — so theme-h seeds keep their layout and only gain items and shifted ids.
+**Caveat:** the extra door occupies a wall-band tile. Where that tile is floor
+belonging to an unrelated passage hard against the corridor, the door gates that
+passage too; reachability does not model doors and will not catch it. The
+existing doors already carry the same exposure at their other ends.
+
+### 2026-08-24 — a doodad's `pos` is its art anchor; a `RectangleShape`'s is its **centre**
+**Tag:** [VERIFIED] — from the shipped campaign, plus the user's hand-fix in the
+editor.
+**Context:** The button that opens the final room was pressable only from beside
+it, never on it. The generated rig put the doodad and its 1x1 trigger box half a
+tile apart on both axes.
+**Evidence:** `editor/campaign/levels/level_1.xml` wires the game's own floor
+button — a `doodads/special/trigger_button_floor.xml` doodad at `pos -20 -25`
+(line 9803) driven by `RectangleShape` id 2179 at `pos -19.5 -24.5`, `w 1 h 1`
+(line 20689). The two differ by exactly `(0.5, 0.5)`, and the asset itself
+declares `<origin>0 0</origin>`, i.e. the sprite hangs down-right of its
+position rather than straddling it. The user reproduced the same offset by hand
+in `dungeon1210642739/levels/level0_modified.xml`, dragging the seal's four
+script nodes from `37.241093 6.315228` to `38.241093 7.315228` while the button
+doodad stayed at `37.741093 6.815228`.
+**Impact:** `src/generator/map/buttonSeal.ts` now positions the shape (and the
+trigger/sound/announce nodes with it) at the doodad's **emitted** position plus
+0.5 — `doodadOffset('TriggerButton', theme)` plus a half tile — rather than at
+the raw rolled tile. `tests/generation.test.ts` asserts the 0.5 relationship.
+The centre rule was already known for large shapes (`timer/hazard.ts`, the 3x3
+`BossPortal` shape); what was missing is that a doodad does **not** share it, so
+"same coordinate" never means "concentric". Note `objects/objectSet.ts`'s `Shop`
+still puts its 1x1 shape at the vendor doodad's own coordinate and carries the
+same mismatch; it is long-standing shipped behaviour and was left alone.
+
+### 2026-08-24 — theme h and the bonus themes have **no wall overhang**, so a barrier must span the whole corridor
+**Tag:** [VERIFIED] in game — the user played a theme-h campaign, walked around
+the seal barring the final room, and fixed it by hand in the editor.
+
+Source: a diff of a generated theme-h `level0.xml` against the same file after
+the user extended its seal. Exactly three doodads were added — `h_v_8_l` at
+(59,7), (59,8), (59,9), all `need-sync`, appended to the `DestroyObject` id
+list. Nothing else in the level differed.
+
+1. **The two rows under a wall band are dead space only where the art
+   overhangs.** `OVERHANG_ROWS = 2` (reachability.ts) comes from the lettered
+   themes, whose wall pieces are 16x48 anchored `<origin>0 32</origin>` and
+   emitted at `yOffset: 1`/`2`, so a wall at tile `T` fills `T`, `T+1` and most
+   of `T+2`. **Theme h and every `bonus<n>` theme anchor every wall piece at
+   `yOffset: 0`** (16x16 art, `<origin>0 0</origin>` — see `desertOutdoor()`
+   and `bonus()` in `config/themes.ts`). They overhang nothing, and those two
+   rows are ordinary walkable floor.
+
+2. **So any barrier laid across a corridor must cover its full cross-section.**
+   Reconstructing the tilemap: the corridor was floor on rows y=8..13 (a
+   horizontal passage is `width + 2` rows tall, `Passage.contains`), and the
+   seal covered y=10..14 — it started at `entrance.y + 2` on the assumption
+   that rows 8 and 9 were buried. On theme h they were not, and the player
+   walked straight over the top of the wall without pressing the button.
+   `map/buttonSeal.ts` now spans the whole cross-section plus one tile into the
+   wall band at each end (`width + 4` pieces for a horizontal corridor,
+   `width + 2` for a vertical one), on every theme — the extra pieces sit under
+   the lettered themes' overhang and simply make the barrier read full-height.
+   `tests/generation.test.ts` asserts the seal is contiguous and runs into wall
+   at both ends, for themes `a`, `h` and `bonus1`.
+
+3. **Open question:** `reachability.ts` still models `OVERHANG_ROWS = 2` for
+   every theme. On the flat themes that is over-conservative — it treats
+   walkable rows as blocked and so rejects some floors the game plays fine. It
+   never passes a floor that is actually sealed, so it is safe as it stands;
+   the fix would be a per-theme overhang count. Not done, deliberately.
+
+4. **Not a finding:** the same diff moved the rig's script nodes
+   (`RectangleShape`/`AreaTrigger`/`PlaySound`/`AnnounceText` from (56,12) to
+   (57,13), `DestroyObject` from (59,12) to (57,9)). The user confirms that was
+   incidental dragging in the editor, **not** a fix — so it says nothing about
+   whether `RectangleShape` is corner- or centre-anchored, and the generator
+   keeps anchoring the shape on the button's own tile.
+
+### 2026-08-24 — `PlaySound`, `trigger_button_floor`, and a button-opened wall
+**Tag:** [EMITTED] for everything below — the schema and the paths come from a
+hand-edited `level6.xml` the user opened in the game's editor and re-saved, so
+the editor accepted them; none of it has been walked over in game yet.
+
+Source: a diff of a generated `level6.xml` against the same file after the user
+replaced its final-room gold door with a wall-and-button gate by hand.
+
+1. **`PlaySound` parameter shape.** A `<dictionary name="parameters">` with
+   `sound` (a `sound/<bank>.xml:<cue>` pair, **not** a file path), `loop`,
+   `play3d` and `range3d`:
+
+   ```xml
+   <string name="sound">sound/misc.xml:button_hatch</string>
+   <bool name="loop">False</bool>
+   <bool name="play3d">False</bool>
+   <float name="range3d">5</float>
+   ```
+
+   `range3d` is written even when `play3d` is False. `button_hatch` is the cue
+   the game's own hatch buttons use. Now `NodePlaySound` in `objects/nodes.ts`.
+
+2. **`doodads/special/trigger_button_floor.xml` is a floor plate with no
+   trigger of its own.** The user's rig lays a 1x1 `RectangleShape` over the
+   button's tile and hangs the `AreaTrigger` off *that* — the doodad is art.
+   Now `DoodadType.TriggerButton`, centred on its tile (`0.5, 0.5`) like
+   `Cover`, since the art is a flat decal with no overhang.
+
+3. **A wall can be a destructible gate outside the arena.** The same
+   `need-sync: true` + `DestroyObject` pairing the boss alcove's seals use
+   works on ordinary theme wall pieces laid across a corridor. The user's
+   version used `doodads/theme_g/g_v_16.xml` at 2-tile spacing;
+   `map/buttonSeal.ts` instead reuses the arena's verified `Vertical` /
+   `Horizontal` (`_v_8` / `_h_8`) one per tile, because that pairing is
+   [VERIFIED] to both seal and open. **Open question:** whether `_v_16` /
+   `_h_16` are the better-looking choice for a corridor-width gate — check in
+   game and record the answer here.
+
+4. **`AreaTrigger` with `trigger-times: 1`** is how the editor writes a
+   one-shot. The generator has only ever written `-1` before this.
+
 ### 2026-08-23 — `DangerArea`, the `RectangleShape` type bitmask, and `LevelLoaded`
 **Tag:** [VERIFIED] for all findings — `DangerArea` schema, empty `buff`, the
 `types` bitmask meaning (1 = players only), and `LevelLoaded` firing on a
