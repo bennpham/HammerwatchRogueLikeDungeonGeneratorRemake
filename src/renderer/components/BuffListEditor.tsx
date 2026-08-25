@@ -9,9 +9,7 @@ const FIRST_BUFF = BUFF_DEFS[0].id
 interface BuffListEditorProps {
   value: FloorBuff[]
   onChange: (next: FloorBuff[]) => void
-  /** Cap on the list — MAX_BUFFS_PER_FLOOR or MAX_BUFFS_PER_WAVE. */
-  max: number
-  /** What a full list is called in the "cap reached" tooltip, e.g. 'floor'. */
+  /** What the list hangs off, for the row tooltips: 'floor' or 'tier'. */
   noun: string
   /** Issue-field prefix, e.g. `levelBuffs.0` or `boss.arena.waves.0.buffs`. */
   issuePrefix: string
@@ -22,11 +20,12 @@ interface BuffListEditorProps {
  * One editable list of buffs: a row per entry, plus "Add buff".
  *
  * Shared by the per-floor editor and the boss arena's per-tier editor so the
- * two cannot drift on the row layout, the cap or the add/remove behaviour —
- * the same reason BuffPicker itself is shared. "No buff" is an empty list in
- * both places, never a row with nothing selected.
+ * two cannot drift on the row layout or the add/remove behaviour — the same
+ * reason BuffPicker itself is shared. "No buff" is an empty list in both
+ * places, never a row with nothing selected, and the list has no upper bound:
+ * see the note beside FloorBuff in config/parameters.ts.
  */
-export function BuffListEditor({ value, onChange, max, noun, issuePrefix, issues }: BuffListEditorProps) {
+export function BuffListEditor({ value, onChange, noun, issuePrefix, issues }: BuffListEditorProps) {
   const patch = (index: number, change: Partial<FloorBuff>) => {
     onChange(value.map((entry, i) => (i === index ? { ...entry, ...change } : { ...entry })))
   }
@@ -72,17 +71,7 @@ export function BuffListEditor({ value, onChange, max, noun, issuePrefix, issues
             {issue.message}
           </p>
         ))}
-      <button
-        type="button"
-        className="copy-down"
-        onClick={add}
-        disabled={value.length >= max}
-        title={
-          value.length >= max
-            ? `A ${noun} may carry at most ${max} buffs`
-            : `Hang another buff on this ${noun}`
-        }
-      >
+      <button type="button" className="copy-down" onClick={add} title={`Hang another buff on this ${noun}`}>
         Add buff
       </button>
     </div>

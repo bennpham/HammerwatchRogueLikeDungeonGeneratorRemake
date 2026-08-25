@@ -11,7 +11,6 @@ import {
   LOBBY_DIAMOND_VALUE,
   LOBBY_VENDORS,
   MAX_BOSS_INVULN_SECONDS,
-  MAX_BUFFS_PER_WAVE,
   MONSTER_VARIANT_GROUPS,
   THEME_DEFS,
   buffById,
@@ -463,7 +462,6 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
               <BuffListEditor
                 value={buffs}
                 onChange={(next) => setWave(i, { buffs: next })}
-                max={MAX_BUFFS_PER_WAVE}
                 noun="tier"
                 issuePrefix={`boss.arena.waves.${i}.buffs`}
                 issues={issues}

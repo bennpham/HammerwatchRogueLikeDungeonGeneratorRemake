@@ -108,16 +108,13 @@ export interface FloorBuff {
 export const BUFF_REFRESH_MS = 100
 
 /**
- * Bound on one floor's buff list. Each entry costs a node, and a floor wearing
- * more than a handful of overlapping auras is a mistake, not a design.
+ * There is no cap on how many buffs a floor or a boss tier may carry. The game
+ * ships 41 and nothing verified limits how many DangerArea nodes a level holds;
+ * the earlier bound of 8 was a guess at good taste, not a constraint, and a
+ * campaign that wants all of them is the author's call. Each entry still costs
+ * nodes — see DISCOVERY-LOG.md — so the count is a performance question, not a
+ * validity one.
  */
-export const MAX_BUFFS_PER_FLOOR = 8
-
-/**
- * The same bound for one boss tier's buff list. A tier's whole set replaces the
- * previous tier's, so the node cost is per tier, not cumulative.
- */
-export const MAX_BUFFS_PER_WAVE = 8
 
 /** A fresh, empty buff list — the stock value for every floor. */
 export function defaultFloorBuffs(): FloorBuff[] {

@@ -1,4 +1,4 @@
-import { MAX_BUFFS_PER_FLOOR, buffById } from '../../generator'
+import { buffById } from '../../generator'
 import type { DungeonParameters, FloorBuff, ValidationIssue } from '../../generator'
 import { BuffListEditor } from './BuffListEditor'
 
@@ -70,7 +70,6 @@ export function FloorBuffEditor({ params, issues, onChange }: FloorBuffEditorPro
               <BuffListEditor
                 value={buffs}
                 onChange={(next) => setFloor(level, next)}
-                max={MAX_BUFFS_PER_FLOOR}
                 noun="floor"
                 issuePrefix={`levelBuffs.${level}`}
                 issues={issues}

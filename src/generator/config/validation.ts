@@ -10,8 +10,6 @@ import {
   BOSS_WAVE_COUNT,
   MAX_BOSS_INVULN_SECONDS,
   BUFF_TARGETS,
-  MAX_BUFFS_PER_FLOOR,
-  MAX_BUFFS_PER_WAVE,
   MAX_TIMER_DAMAGE,
   MAX_TIMER_FREQ_MS,
   MAX_TIMER_SECONDS,
@@ -497,14 +495,7 @@ function validateBoss(
 
     // The tier's arena-wide buffs. An empty list means none, which is the
     // pre-feature default and never invalid.
-    const tierBuffs = waveBuffs(wave)
-    if (tierBuffs.length > MAX_BUFFS_PER_WAVE) {
-      errors.push({
-        field: `boss.arena.waves.${i}.buffs`,
-        message: `Wave ${i + 1}: ${tierBuffs.length} buffs, but a tier may carry at most ${MAX_BUFFS_PER_WAVE}.`
-      })
-    }
-    tierBuffs.forEach((entry, j) => {
+    waveBuffs(wave).forEach((entry, j) => {
       if (buffById(entry.buff) === undefined) {
         errors.push({
           field: `boss.arena.waves.${i}.buffs.${j}.buff`,
@@ -1249,12 +1240,6 @@ function validateLevelBuffs(p: DungeonParameters, errors: ValidationIssue[], war
   const before = errors.length
 
   levelBuffs.slice(0, p.levels).forEach((buffs, i) => {
-    if (buffs.length > MAX_BUFFS_PER_FLOOR) {
-      errors.push({
-        field: `levelBuffs.${i}`,
-        message: `Floor ${i + 1}: ${buffs.length} buffs, but a floor may carry at most ${MAX_BUFFS_PER_FLOOR}.`
-      })
-    }
     buffs.forEach((entry, j) => {
       if (buffById(entry.buff) === undefined) {
         errors.push({

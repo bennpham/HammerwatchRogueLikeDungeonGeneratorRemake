@@ -19,11 +19,11 @@ import { GenerationContext } from '../src/generator/core/context'
 import {
   BUFF_REFRESH_MS,
   BUFF_TARGET_TYPES,
-  MAX_BUFFS_PER_WAVE,
   defaultParameters
 } from '../src/generator/config/parameters'
 import type { BossWave, BuffTarget } from '../src/generator/config/parameters'
 import { validateParameters } from '../src/generator/config/validation'
+import { BUFF_DEFS } from '../src/generator/objects/buffTypes'
 import { buildBossArena } from '../src/generator/boss/arena'
 import { buildWaveBuffRig } from '../src/generator/boss/waveBuffs'
 import { TIER_EVENT_NAMES } from '../src/generator/boss/waves'
@@ -341,14 +341,11 @@ describe('boss wave buffs — validation', () => {
     expect(result.errors.map((e) => e.field)).toContain('boss.arena.waves.1.buffs.0.target')
   })
 
-  it('rejects more buffs than a tier may carry', () => {
-    const tooMany: [string, BuffTarget][] = Array.from(
-      { length: MAX_BUFFS_PER_WAVE + 1 },
-      () => ['frost', 'players'] as [string, BuffTarget]
-    )
-    const result = withWaveBuffs(1, tooMany)
-    expect(result.valid).toBe(false)
-    expect(result.errors.map((e) => e.field)).toContain('boss.arena.waves.1.buffs')
+  it('puts no upper bound on how many buffs a tier carries', () => {
+    const everything = BUFF_DEFS.map((def) => [def.id, 'players'] as [string, BuffTarget])
+    const result = withWaveBuffs(1, everything)
+    expect(result.valid).toBe(true)
+    expect(result.errors).toEqual([])
   })
 
   it('warns about a duplicate buff/target pair on one tier', () => {

@@ -15,7 +15,6 @@ import { describe, expect, it } from 'vitest'
 import {
   BUFF_REFRESH_MS,
   BUFF_TARGET_TYPES,
-  MAX_BUFFS_PER_FLOOR,
   defaultFloorBuffs,
   defaultFloorTimer,
   defaultParameters
@@ -343,14 +342,14 @@ describe('buff auras — validation', () => {
     expect(result.errors.map((e) => e.field)).toContain('levelBuffs.0.0.target')
   })
 
-  it('rejects more buffs than a floor may carry', () => {
-    const tooMany = Array.from({ length: MAX_BUFFS_PER_FLOOR + 1 }, () => ({
-      buff: 'frost',
-      target: 'players' as BuffTarget
-    }))
-    const result = check(tooMany)
-    expect(result.valid).toBe(false)
-    expect(result.errors.map((e) => e.field)).toContain('levelBuffs.0')
+  it('puts no upper bound on how many buffs a floor carries', () => {
+    // One of every buff the game ships, all on one floor. Cheerfully silly, and
+    // deliberately not an error: the count is a performance question, not a
+    // validity one.
+    const everything = BUFF_DEFS.map((def) => ({ buff: def.id, target: 'players' as BuffTarget }))
+    const result = check(everything)
+    expect(result.valid).toBe(true)
+    expect(result.errors).toEqual([])
   })
 
   it('warns about the same buff and target twice on one floor', () => {
