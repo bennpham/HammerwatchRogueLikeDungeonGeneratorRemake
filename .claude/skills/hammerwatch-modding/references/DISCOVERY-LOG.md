@@ -8,6 +8,58 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-25 — the eight free upgrade item paths, and light ids are not renumbered
+**Tag:** **[VERIFIED]** for the item paths and the two lighting entries (read
+from levels saved by the game's own editor); **[EMITTED]** for stacking more
+than one of a kind on a slot, which no in-game run has confirmed yet.
+**Context:** Adding dungeon-master-controlled free upgrade pickups and two extra
+lights to the lobby and the boss prep room (`src/generator/lobby/`,
+`src/generator/bossprep/`).
+**Evidence:** Two authored levels supplied by the project owner — a lobby and a
+boss prep room saved out of the editor — were diffed against the committed
+templates.
+
+1. **Eight upgrade pickups exist as ordinary items** and are placed through the
+   same `<dictionary name="items">` section as the diamonds, one
+   `<array name="items/…">` per type:
+
+   | | path |
+   | --- | --- |
+   | tier 1 | `items/upgrade_damage.xml`, `items/upgrade_defense.xml`, `items/upgrade_health.xml`, `items/upgrade_mana.xml` |
+   | tier 2 | `items/upgrade_damage_2.xml`, `items/upgrade_defense_2.xml`, `items/upgrade_health_2.xml`, `items/upgrade_mana_2.xml` |
+
+   The `_2` suffix is the game's own tier marker, not a copy count. **[VERIFIED]**
+   — the editor wrote these paths itself. Promoted into `ASSET-REGISTRY.md`
+   § "Items".
+
+2. **A light entry carries no reference to anything**, so unlike an item or a
+   node its id is never rewritten at build time. That makes light ids a hazard
+   the other sections do not have: the two authored lights came in at 10020/10021
+   (lobby) and 10047/10048 (prep room), which sit **inside** the span
+   `diamondArray` walks — `LOBBY_ITEM_ID_BASE` is 10000 and the payout is capped
+   at 10 000 diamonds. A deep enough gold pile silently produced duplicate ids.
+   They were renumbered into the authored range (3400/3401 and 3600/3601) on
+   import. Both import scripts already reject any id at or above the respawn
+   rig's 9000, so a re-import of the original files fails loudly rather than
+   reintroducing this. **[VERIFIED]** (the collision was caught by the existing
+   id-uniqueness tests, not in game).
+
+3. **The lighting block the authored lights use** is a plain warm torch:
+   `mulColor1 255 255 255 255`, `mulColor2 255 255 224 255`,
+   `mulColor3 255 165 0 255`, `mulRange 15`, `addColor1 96 64 0 255`,
+   `addColor2 64 48 0 255`, `addColor3 48 32 0 255`, `addRange 4`. **[VERIFIED]**
+
+**Impact:** `UPGRADE_KINDS` / `upgradeArrays` in
+`src/generator/levelTemplate/surgery.ts`; `*_UPGRADE_SLOTS` and
+`*_UPGRADE_ID_BASE` in the two `template.ts` files, the latter derived as
+`*_ITEM_ID_BASE + MAX_DIAMOND_COUNT` so the cap and the id arithmetic cannot
+drift. **Open question:** whether several upgrade pickups stacked on one tile
+are all collectable, or whether the party can only pick up the top one — the
+same question the diamonds answered yes to in 2026-07-30, but the diamonds are
+money and these are items, so it does not carry over. Until someone runs it, the
+form's "there is no cap" wording is a promise about what we emit, not about what
+the game hands out.
+
 ### 2026-08-24 — the buff asset catalogue, `types` bit 2, and a `damage: 0` buff aura
 **Tag:** [VERIFIED] for the buff catalogue and schema (read from a real
 install); **[UNVERIFIED]** for the monsters bit and for the pure-aura rig, both

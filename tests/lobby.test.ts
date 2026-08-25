@@ -18,6 +18,18 @@ import {
 } from '../src/generator'
 import type { DungeonParameters, DungeonResult, LobbyOptions } from '../src/generator'
 import { LOBBY_ASSETS } from '../src/generator/lobby/assets'
+import { GOLD_SAFETY_MAX } from '../src/generator/config/validation'
+import {
+  LOBBY_ITEM_ID_BASE,
+  LOBBY_UPGRADE_ID_BASE,
+  LOBBY_UPGRADE_SLOTS
+} from '../src/generator/lobby/template'
+import {
+  UPGRADE_KINDS,
+  noUpgrades,
+  oneOfEachUpgrade,
+  upgradeItemPath
+} from '../src/generator/levelTemplate/surgery'
 import { allIds, badIntArray, nodesOfType, oneShotRespawn } from './xmlHelpers'
 
 /** Five diamonds deep on every authored slot — well past what the old cap allowed. */
@@ -56,6 +68,26 @@ describe('lobby — determinism', () => {
     }
     // six full campaigns; the 5s default times this one out whenever the suite
     // runs its files in parallel, which is every time
+  }, 60_000)
+
+  // invariant 6 again, one level down: the free upgrades are an item list, and
+  // an item list must not be able to reach the dungeon either
+  it('leaves every dungeon level byte-identical however many free upgrades it hands out', () => {
+    for (const seed of [1, 4242]) {
+      const none = generateOk(withLobby({ upgrades: noUpgrades() }), seed)
+      const many = generateOk(
+        withLobby({ upgrades: Object.fromEntries(UPGRADE_KINDS.map((k) => [k, 9])) as never }),
+        seed
+      )
+
+      const levelsOf = (r: DungeonResult) =>
+        r.files.filter((f) => /^levels\/level\d+\.xml$/.test(f.path))
+
+      expect(levelsOf(none)).toEqual(levelsOf(many))
+      expect(none.levels).toEqual(many.levels)
+      // only the lobby itself moved
+      expect(fileAt(none, LOBBY_LEVEL_PATH)).not.toBe(fileAt(many, LOBBY_LEVEL_PATH))
+    }
   }, 60_000)
 
   it('produces the same lobby for the same options', () => {
@@ -208,7 +240,9 @@ describe('lobby — vendor stalls', () => {
 describe('lobby — starting gold', () => {
   it('emits one diamond per 500 gold', () => {
     for (const gold of [0, 500, 3000, 6000]) {
-      const xml = lobbyXML({ startingGold: gold })
+      // the free upgrades share this section, so they are switched off here to
+      // leave the diamonds as the only placements in the file
+      const xml = lobbyXML({ startingGold: gold, upgrades: noUpgrades() })
       // the editor's items dialect names the type once and lists a placement
       // per item under it, so the diamonds are the placements
       const diamonds = [...xml.matchAll(/<array><int>\d+<\/int><vec2>[^<]*<\/vec2><\/array>/g)]
@@ -219,13 +253,13 @@ describe('lobby — starting gold', () => {
   })
 
   it('leaves the items section empty at 0 gold rather than emitting an empty array', () => {
-    const xml = lobbyXML({ startingGold: 0 })
+    const xml = lobbyXML({ startingGold: 0, upgrades: noUpgrades() })
     expect(xml).toMatch(/<dictionary name="items">\s*<\/dictionary>/)
     expect(xml).not.toContain('items/valuable_diamond_red.xml')
   })
 
   it('stacks past the authored slots rather than spilling outside the room', () => {
-    const xml = lobbyXML({ startingGold: DEEP_GOLD })
+    const xml = lobbyXML({ startingGold: DEEP_GOLD, upgrades: noUpgrades() })
     const placed = [...xml.matchAll(/<vec2>(-?[\d.]+) (-?[\d.]+)<\/vec2>/g)]
       .map((m) => `${Number(m[1])},${Number(m[2])}`)
 
@@ -254,7 +288,10 @@ describe('lobby — starting gold', () => {
   })
 
   it('keeps every id in the file unique', () => {
-    const xml = lobbyXML({ startingGold: DEEP_GOLD })
+    // every free upgrade turned on alongside the deepest payout: the diamonds
+    // and the upgrades number from two different bases, and this is what proves
+    // those ranges cannot meet however deep the gold piles up
+    const xml = lobbyXML({ startingGold: DEEP_GOLD, upgrades: oneOfEachUpgrade() })
     // ids appear once as an element id and, for LevelStart, once more inside
     // its parameters — so compare against the element ids only. buildLobby
     // finds an element by exactly this pattern, so a duplicate would not just
@@ -265,7 +302,86 @@ describe('lobby — starting gold', () => {
     const itemIds = [...xml.matchAll(/<array><int>(\d+)<\/int><vec2>/g)].map((m) => Number(m[1]))
     const all = [...elementIds, ...itemIds]
     expect(new Set(all).size).toBe(all.length)
-    expect(itemIds).toHaveLength(DEEP_GOLD / LOBBY_DIAMOND_VALUE)
+    expect(itemIds).toHaveLength(DEEP_GOLD / LOBBY_DIAMOND_VALUE + UPGRADE_KINDS.length)
+  })
+})
+
+describe('lobby — free upgrades', () => {
+  it('lays none at all by default', () => {
+    const xml = lobbyXML({})
+    for (const kind of UPGRADE_KINDS) {
+      expect(xml, kind).not.toContain(upgradeItemPath(kind))
+    }
+  })
+
+  it('lays each kind on its authored slot when asked for', () => {
+    const xml = lobbyXML({ upgrades: oneOfEachUpgrade() })
+    for (const kind of UPGRADE_KINDS) {
+      const [x, y] = LOBBY_UPGRADE_SLOTS[kind]
+      const section = itemSection(xml, upgradeItemPath(kind))
+      expect(section, kind).not.toBeNull()
+      expect(placementsIn(section ?? ''), kind).toEqual([`${x},${y}`])
+    }
+  })
+
+  it('omits a kind left at zero rather than emitting an empty array', () => {
+    const xml = lobbyXML({ upgrades: { ...oneOfEachUpgrade(), mana2: 0 } })
+    expect(xml).not.toContain(upgradeItemPath('mana2'))
+    expect(xml).toContain(upgradeItemPath('mana'))
+    expect(badIntArray(xml)).toBeNull()
+  })
+
+  it('emits nothing at all with every kind at zero and no gold', () => {
+    const xml = lobbyXML({ startingGold: 0, upgrades: noUpgrades() })
+    expect(xml).toMatch(/<dictionary name="items">\s*<\/dictionary>/)
+  })
+
+  it('stacks multiples on the one slot instead of spreading them', () => {
+    const xml = lobbyXML({ upgrades: { ...noUpgrades(), health: 4 } })
+    const [x, y] = LOBBY_UPGRADE_SLOTS.health
+    const section = itemSection(xml, upgradeItemPath('health'))
+    // four pickups, one spot: the count is the dungeon master's dial and is
+    // deliberately not bounded by how many slots the room was authored with
+    expect(placementsIn(section ?? '')).toEqual([`${x},${y}`, `${x},${y}`, `${x},${y}`, `${x},${y}`])
+  })
+
+  it('numbers from a base no diamond payout can reach', () => {
+    // the deepest pile the validator will accept, against the largest counts
+    const xml = lobbyXML({
+      startingGold: GOLD_SAFETY_MAX,
+      upgrades: { ...oneOfEachUpgrade(), damage: 3 }
+    })
+    const itemIds = [...xml.matchAll(/<array><int>(\d+)<\/int><vec2>/g)].map((m) => Number(m[1]))
+    expect(new Set(itemIds).size).toBe(itemIds.length)
+    expect(Math.min(...itemIds)).toBe(LOBBY_ITEM_ID_BASE)
+    expect(Math.max(...itemIds)).toBeLessThan(LOBBY_UPGRADE_ID_BASE + UPGRADE_KINDS.length + 3)
+  })
+
+  it('leaves the ids of the kinds after a zeroed one where they were', () => {
+    // ids advance with the items placed, not with the kind's position, so
+    // switching one kind off must not shift the rest of the numbering around
+    const off = lobbyXML({ startingGold: 0, upgrades: { ...noUpgrades(), mana2: 1 } })
+    const only = [...off.matchAll(/<array><int>(\d+)<\/int><vec2>/g)].map((m) => Number(m[1]))
+    expect(only).toEqual([LOBBY_UPGRADE_ID_BASE])
+  })
+
+  it('is a pure function of the counts', () => {
+    const a = lobbyXML({ upgrades: { ...noUpgrades(), defense: 2, mana: 7 } })
+    const b = lobbyXML({ upgrades: { ...noUpgrades(), defense: 2, mana: 7 } })
+    expect(a).toBe(b)
+  })
+})
+
+describe('lobby — lighting', () => {
+  it('carries the two warm lights over the shop row, always', () => {
+    for (const patch of [{}, { shopCategories: [] }, { startingGold: 0, upgrades: noUpgrades() }]) {
+      const xml = lobbyXML(patch)
+      for (const pos of ['-7.75 -4', '8 -3.75']) {
+        expect(xml, JSON.stringify(patch)).toContain(`<vec2 name="pos">${pos}</vec2>`)
+      }
+      // the torch colour block, so a re-import cannot quietly change the mood
+      expect(xml).toContain('<int-arr name="mulColor3">255 165 0 255</int-arr>')
+    }
   })
 })
 
@@ -428,3 +544,31 @@ describe('lobby — arrival respawn', () => {
     }
   })
 })
+
+/**
+ * The body of one `<array name="items/…">`, or null when the file has none.
+ *
+ * The close is found at the section's own indentation, not by the first
+ * `</array>` — each placement inside is itself an `<array>…</array>`.
+ */
+function itemSection(xml: string, item: string): string | null {
+  const open = `\t\t<array name="${item}">\n`
+  const start = xml.indexOf(open)
+  if (start === -1) return null
+  const body = start + open.length
+  return xml.slice(body, xml.indexOf('\t\t</array>', body))
+}
+
+/** Every `x,y` an item section places something at, in order. */
+function placementsIn(section: string): string[] {
+  return [...section.matchAll(/<vec2>(-?[\d.]+) (-?[\d.]+)<\/vec2>/g)].map(
+    (m) => `${Number(m[1])},${Number(m[2])}`
+  )
+}
+
+/** One generated file's contents by path. */
+function fileAt(result: DungeonResult, path: string): string {
+  const file = result.files.find((f) => f.path === path)
+  expect(file, `no ${path} in the result`).toBeDefined()
+  return file?.content ?? ''
+}

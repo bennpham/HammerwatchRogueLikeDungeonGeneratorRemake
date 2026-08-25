@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { parseParametersTxt, serializeParametersTxt } from '../src/generator/config/configFile'
+import { noUpgrades, oneOfEachUpgrade } from '../src/generator/levelTemplate/surgery'
 import {
   BOSS_DEATH_WAVE,
   BOSS_WAVE_COUNT,
@@ -757,5 +758,62 @@ describe('timerN — per-floor timer mode', () => {
     const parsed = parseParametersTxt('levels=4\ntimer2=1|10|1|100|1')
     expect(parsed.params.levelTimers).toHaveLength(4)
     expect(parsed.params.levelTimers?.map((t) => t.enabled)).toEqual([false, false, true, false])
+  })
+})
+
+describe('parameters.txt — free upgrades', () => {
+  it('round-trips both rooms\' counts', () => {
+    const original = defaultParameters()
+    original.lobby.upgrades = { ...noUpgrades(), damage: 3, mana2: 12 }
+    original.boss.prep.upgrades = { ...oneOfEachUpgrade(), health: 0 }
+
+    const parsed = parseParametersTxt(serializeParametersTxt(original))
+
+    expect(parsed.params.lobby.upgrades).toEqual(original.lobby.upgrades)
+    expect(parsed.params.boss.prep.upgrades).toEqual(original.boss.prep.upgrades)
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('writes the counts in UPGRADE_KINDS order', () => {
+    const original = defaultParameters()
+    original.lobby.upgrades = { ...noUpgrades(), damage: 1, mana2: 8 }
+    const text = serializeParametersTxt(original)
+    expect(text).toContain('lobbyUpgrades=1 0 0 0 0 0 0 8')
+  })
+
+  // a file written before the feature existed carries no key at all
+  it('leaves the defaults alone when the key is absent', () => {
+    const parsed = parseParametersTxt('levels=3\n')
+    expect(parsed.params.lobby.upgrades).toEqual(defaultParameters().lobby.upgrades)
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('reports a malformed count without dropping the rest of the line', () => {
+    const parsed = parseParametersTxt('lobbyUpgrades=2 -1 x 4 5 6 7 8\n')
+    expect(parsed.params.lobby.upgrades).toEqual({
+      ...noUpgrades(),
+      damage: 2,
+      mana: 4,
+      damage2: 5,
+      defense2: 6,
+      health2: 7,
+      mana2: 8
+    })
+    expect(parsed.unknownKeys).toEqual(['lobbyUpgrades value "-1"', 'lobbyUpgrades value "x"'])
+  })
+
+  it('reports values past the eight kinds, and takes the eight it knows', () => {
+    const parsed = parseParametersTxt('bossUpgrades=1 1 1 1 1 1 1 1 1 2\n')
+    expect(parsed.params.boss.prep.upgrades).toEqual(oneOfEachUpgrade())
+    expect(parsed.unknownKeys).toEqual([
+      'bossUpgrades extra value "1"',
+      'bossUpgrades extra value "2"'
+    ])
+  })
+
+  it('leaves the kinds a short list does not reach at zero', () => {
+    const parsed = parseParametersTxt('lobbyUpgrades=4 5\n')
+    expect(parsed.params.lobby.upgrades).toEqual({ ...noUpgrades(), damage: 4, defense: 5 })
+    expect(parsed.unknownKeys).toEqual([])
   })
 })
