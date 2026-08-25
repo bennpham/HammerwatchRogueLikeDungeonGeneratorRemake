@@ -70,7 +70,7 @@ export function UpgradeCountFields({ upgrades, field, issues, onChange }: Upgrad
         entirely.
       </p>
       {row(TIER_1)}
-      <p className="hint">Tier II</p>
+      <br/>
       {row(TIER_2)}
       {issues
         .filter((i) => i.field === field)
