@@ -5,6 +5,7 @@ import { BoolField, NumberField, Section, ToggleGroup } from './fields'
 import { MonsterPoolsEditor } from './MonsterPoolsEditor'
 import { MonsterMaxTable } from './MonsterMaxTable'
 import { FloorTimerEditor } from './FloorTimerEditor'
+import { FloorBuffEditor } from './FloorBuffEditor'
 
 /** Themes bucketed by their registry group, in registry order. */
 const THEME_GROUPS = THEME_DEFS.reduce<[string, (typeof THEME_DEFS)[number][]][]>((groups, def) => {
@@ -25,7 +26,7 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
     onChange({ ...params, [key]: value })
   }
 
-  /** Changing the level count resizes the per-level theme, monster and timer lists. */
+  /** Changing the level count resizes the per-level theme, monster, buff and timer lists. */
   const setLevels = (levels: number) => {
     const next = { ...params, levels }
     if (Number.isInteger(levels) && levels >= 1 && levels <= 50) {
@@ -36,6 +37,11 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
       const pools = params.levelMonsters.map((p) => [...p])
       while (pools.length < levels) pools.push([...(pools[pools.length - 1] ?? ['bat1'])])
       next.levelMonsters = pools.slice(0, Math.max(levels, 1))
+
+      const levelBuffs = (params.levelBuffs ?? []).map((list) => list.map((b) => ({ ...b })))
+      while (levelBuffs.length < levels)
+        levelBuffs.push((levelBuffs[levelBuffs.length - 1] ?? []).map((b) => ({ ...b })))
+      next.levelBuffs = levelBuffs.slice(0, Math.max(levels, 1))
 
       const timers = (params.levelTimers ?? []).map((t) => ({ ...t }))
       while (timers.length < levels) timers.push({ ...(timers[timers.length - 1] ?? defaultFloorTimer()) })
@@ -166,6 +172,10 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
 
       <Section title="Monster max counts">
         <MonsterMaxTable params={params} onChange={onChange} />
+      </Section>
+
+      <Section title="Buffs per floor" badge={(params.levelBuffs ?? []).slice(0, params.levels).some((b) => b.length > 0) ? 'on' : undefined}>
+        <FloorBuffEditor params={params} issues={issues} onChange={onChange} />
       </Section>
 
       <Section title="Timer mode" badge={(params.levelTimers ?? []).slice(0, params.levels).some((t) => t.enabled) ? 'on' : undefined}>

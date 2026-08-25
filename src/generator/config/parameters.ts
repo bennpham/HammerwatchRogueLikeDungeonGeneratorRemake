@@ -64,10 +64,63 @@ export function isScatterMode(mode: BossSpawnMode): boolean {
   return mode !== 'anchors'
 }
 
+/** Who a buff field catches. */
+export type BuffTarget = 'players' | 'monsters' | 'both'
+
+/** The three targets, in form order. */
+export const BUFF_TARGETS: readonly BuffTarget[] = ['players', 'monsters', 'both']
+
 /**
- * All knobs of the generator, ported from the modified Parameters.java.
- * Sizes are in tiles. `monsterMax` is keyed by monster id (see monsterTypes.ts).
+ * A buff field's RectangleShape `types` bitmask, per target.
+ *
+ * Bit 1 = players is [VERIFIED] — timer mode ships it and monsters demonstrably
+ * take no damage. Bit 2 = monsters is inferred: the shipped
+ * `campaign/levels/level_boss_1.xml` binds an instakill `DangerArea{damage:
+ * 1337}` to a `types: 2` shape, and `prefabs/trap_fire_floor.xml` uses `3` where
+ * `1` is the known players-only value. Shipped content only ever uses 1, 2, 3
+ * and 15. See DISCOVERY-LOG.md.
  */
+export const BUFF_TARGET_TYPES: Record<BuffTarget, number> = {
+  players: 1,
+  monsters: 2,
+  both: 3
+}
+
+/**
+ * One buff aura on one floor.
+ *
+ * Unlike timer mode there is no countdown: the field is live from the moment
+ * the floor loads and never switches off, so the buff simply is a property of
+ * that floor. See buffs/field.ts for the node rig.
+ */
+export interface FloorBuff {
+  /** A BUFF_DEFS id from objects/buffTypes.ts, e.g. 'frost'. */
+  buff: string
+  /** Who it catches. */
+  target: BuffTarget
+}
+
+/**
+ * How often a buff field reapplies its buff, in milliseconds. 100 is what the
+ * hand-authored test_buff.xml uses; every shipped buff's duration outlasts it,
+ * so the aura reads as continuous while the target stands in the field.
+ */
+export const BUFF_REFRESH_MS = 100
+
+/**
+ * There is no cap on how many buffs a floor or a boss tier may carry. The game
+ * ships 41 and nothing verified limits how many DangerArea nodes a level holds;
+ * the earlier bound of 8 was a guess at good taste, not a constraint, and a
+ * campaign that wants all of them is the author's call. Each entry still costs
+ * nodes — see DISCOVERY-LOG.md — so the count is a performance question, not a
+ * validity one.
+ */
+
+/** A fresh, empty buff list — the stock value for every floor. */
+export function defaultFloorBuffs(): FloorBuff[] {
+  return []
+}
+
 /**
  * One floor's timed hazard ("timer mode").
  *
@@ -126,6 +179,10 @@ export function defaultFloorTimer(): FloorTimer {
   return { enabled: false, seconds: 180, damage: 1, freqMs: 1000, countdown: true }
 }
 
+/**
+ * All knobs of the generator, ported from the modified Parameters.java.
+ * Sizes are in tiles. `monsterMax` is keyed by monster id (see monsterTypes.ts).
+ */
 export interface DungeonParameters {
   levels: number
   minRoomSize: number
@@ -169,6 +226,12 @@ export interface DungeonParameters {
   finalLockMode: FinalLockMode
   /** monster pool (plain ids) per level */
   levelMonsters: string[][]
+  /**
+   * Buff auras per level, one list per floor. Optional, and empty per floor by
+   * default: a params object without it, or with every list empty, produces
+   * byte-identical output to the pre-feature generator for every seed.
+   */
+  levelBuffs?: FloorBuff[][]
   /**
    * Timed hazard per level, one entry per floor. Optional: a params object
    * without it, or with every floor disabled, produces byte-identical output to
@@ -322,6 +385,37 @@ export interface BossWave {
    * spawns once, not on a timer.
    */
   spawnMode?: Record<string, BossSpawnMode>
+  /**
+   * This tier's arena-wide buff fields, each aimed at players, monsters or
+   * both. Optional so every wave literal written before the feature keeps
+   * compiling, and empty everywhere leaves the arena byte-identical.
+   *
+   * Independent of the tier's monsters: an otherwise empty tier may still carry
+   * buffs, and a populated tier need not. Tiers *replace* one another — a
+   * tier's whole set switches the previous tier's whole set off. See
+   * boss/waveBuffs.ts.
+   */
+  buffs?: FloorBuff[]
+  /**
+   * Legacy single-buff form, kept so configs and `parameters.txt` files written
+   * before `buffs` existed still load. Read through `waveBuffs()`; nothing
+   * writes these any more.
+   */
+  buff?: string
+  /** Legacy target for `buff`. Defaults to `players`. */
+  buffTarget?: BuffTarget
+}
+
+/**
+ * The buffs `wave` applies, newest storage first and the legacy single pair as
+ * a fallback. An empty array means the tier carries none.
+ */
+export function waveBuffs(wave: BossWave): FloorBuff[] {
+  if (wave.buffs !== undefined) return wave.buffs
+  if (wave.buff !== undefined && wave.buff !== '') {
+    return [{ buff: wave.buff, target: wave.buffTarget ?? 'players' }]
+  }
+  return []
 }
 
 /** The spawn mode `wave` uses for `id` — the stored one, or `anchors`. */
@@ -610,6 +704,7 @@ export function defaultParameters(): DungeonParameters {
     edgePadding: 2,
     roomPadding: 2,
     themes: ['a_mixed', 'b_mixed', 'c_mixed', 'd_mixed', 'e_mixed', 'f_mixed', 'g_mixed'],
+    levelBuffs: Array.from({ length: 7 }, () => defaultFloorBuffs()),
     levelTimers: Array.from({ length: 7 }, () => defaultFloorTimer()),
     monsterMultiplier: 1.0,
     goldMultiplier: 1.1,

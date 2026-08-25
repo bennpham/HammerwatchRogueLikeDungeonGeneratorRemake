@@ -44,8 +44,10 @@ src/
 │   │                     wallPattern.ts, posDir.ts, reachability.ts,
 │   │                     buttonSeal.ts (the final room's keyless gate)
 │   │                     (overhang-aware flood fill), tilemapOverlay.ts
-│   │                     (overlay + mixed floor datasets)
-│   ├── objects/          monsterTypes.ts (roster data + variants), monster.ts,
+│   │                     (overlay + mixed floor datasets), coverShape.ts
+│   │                     (the whole-map RectangleShape buffs and timer share)
+│   ├── objects/          monsterTypes.ts (roster data + variants),
+│   │                     buffTypes.ts (the 41 shipped buffs), monster.ts,
 │   │                     item.ts, doodad.ts, nodes.ts, scriptNode.ts,
 │   │                     objectSet.ts, actorCollision.ts (which wrecks block)
 │   ├── levelTemplate/    surgery.ts — shared id-targeted edits for the three
@@ -58,6 +60,9 @@ src/
 │   │   └── build.ts      buildLobby() — surgical edits only, no RNG
 │   ├── bossprep/         the prep room between the last floor and the arena —
 │   │                     same template+surgery shape as the lobby, no RNG
+│   ├── buffs/            field.ts — buff auras, the optional per-floor buff
+│   │                     fields. Appends always-on DangerAreas after a floor
+│   │                     is built; no RNG, no files of its own
 │   ├── timer/            hazard.ts — timer mode, the optional per-floor timed
 │   │                     damage field. Appends nodes after a floor is built;
 │   │                     no RNG, no files of its own
@@ -71,7 +76,9 @@ src/
 │   │   ├── spawnPoints.ts scatter-mode spawn placement
 │   │   ├── arenaPattern.ts geometric floor patterns for a `- mixed` arena
 │   │   ├── placement.ts  shared rect/perimeter/gaussian helpers
-│   │   └── waves.ts      the five-tier spawn rig (health tiers + Boss Died)
+│   │   ├── waves.ts      the five-tier spawn rig (health tiers + Boss Died)
+│   │   └── waveBuffs.ts  one arena-wide buff field per tier; they replace one
+│   │                     another rather than stacking
 │   ├── tweak/            player balance (tweak/*.xml) — NOT level generation
 │   │   ├── types.ts      TweakFile/TweakParam/TweakUpgrade, PlayerTweaks
 │   │   ├── baseline.ts   full stock transcription of the 9 game tweak files
@@ -90,15 +97,17 @@ src/
 │                         PlayerForm, QuickSetup, LobbyForm, BossForm,
 │                         LevelPreview, LoadoutSheet, MonsterPoolsEditor,
 │                         PoolGroup, PoolTextField, MonsterFilterBar,
-│                         MonsterMaxTable, InfoTip, OutputPanel, fields},
+│                         MonsterMaxTable, FloorTimerEditor, FloorBuffEditor,
+│                         BuffPicker, InfoTip, OutputPanel, fields},
 │                         styles/app.css
 └── shared/ipc.ts         types shared across the bridge
-tests/                    vitest, 28 files: rand, context, configFile,
+tests/                    vitest, 32 files: rand, context, configFile,
                           validation, generation, reachability, themes (+ a
                           snapshot), presets, monsters, monsterVariants,
                           doodad, nodes, objectSet, actorCollision, xmlHelpers,
                           lobby, bossprep, boss, bossWaves, bossCover,
-                          bossInvulnerability,
+                          bossInvulnerability, bossWaveBuffs,
+                          floorTimer, floorBuffs,
                           bossGeometry, bossSpawnPoints, bosses, anchors,
                           arenaPattern, packer, tweak, tweakChains, tweakBulk
 reference/original-java/  the Java original (read-only reference)
@@ -151,11 +160,13 @@ reference/hammerwatch-tweak-stats.md
    or off. `src/generator/boss/**` is the exception that proves the rule — it
    *does* draw, but only from `ctx.bossRand`, so turning the boss on or off
    still leaves every dungeon floor byte-identical.
-   `src/generator/timer/**` is the one optional layer that deliberately *does*
-   change a floor's XML — that is the whole feature — but only by appending
-   script nodes after the floor is complete: its tilemap, doodads, actors,
-   items and every pre-existing id must come out byte-identical, and a floor
-   with its timer off must emit nothing at all.
+   `src/generator/timer/**` and `src/generator/buffs/**` are the two optional
+   layers that deliberately *do* change a floor's XML — that is the whole
+   feature — but only by appending script nodes after the floor is complete:
+   its tilemap, doodads, actors, items and every pre-existing id must come out
+   byte-identical, and a floor with neither configured must emit nothing at
+   all. They share the floor loop, so each emitting **nothing** when its floor
+   is unconfigured is also what keeps the other's ids from shifting.
 9. **A floor the player cannot finish is invalid.** `map/reachability.ts`
    flood-fills the finished grid and rejects a floor unless the entrance
    reaches the exit (or orb/portal) and every key. Tile connectivity is not
@@ -185,6 +196,7 @@ reference/hammerwatch-tweak-stats.md
 | `monsterMultiplier` / `goldMultiplier` / `foodMultiplier` | 1.0 / 1.1 / 1.2 | ≥ 0 |
 | `levelMonsters[i]` | see defaults | non-empty; ids must exist in `MONSTER_TYPES`; repeat an id to weight it |
 | `monsterMax[id]` | per-type | integer ≥ 0; **0 disables the type entirely** |
+| `levelBuffs[i]` | absent / all empty | buff auras, one `FloorBuff[]` per floor: each `{buff, target}` where `buff` is a `BUFF_DEFS` id and `target` is `players`/`monsters`/`both`. No cap on how many a floor carries. Empty on every floor reproduces the pre-feature campaign exactly. See *Buff auras* below |
 | `levelTimers[i]` | absent / all off | timer mode, one `FloorTimer` per floor: `enabled`, `seconds` (1–3600), `damage` (−10000–10000, **negative heals**), `freqMs` (50–600000), `countdown`. Off on every floor reproduces the pre-feature campaign exactly. See *Timer mode* below |
 | `playerTweaks` | `{ 'player.shared.remove.life': 1 }` | sparse `Record<lowercase key, number>` of player-balance overrides; empty = no `tweak/` folder. See below |
 | `lobby` | on, 10000 gold, all 21 columns | prebuilt starting level: `enabled`, `startingGold` (whole multiple of 500, no upper cap beyond `GOLD_SAFETY_MAX`), `shopCategories`. `enabled: false` reproduces the pre-lobby campaign exactly |
@@ -203,6 +215,7 @@ reference/hammerwatch-tweak-stats.md
 | `arena.minHeight`–`maxHeight` | 32–44 | ≥ `ARENA_MIN_HEIGHT` (18) |
 | `arena.bossPool` | the 4 castle bosses | non-empty subset of `BOSS_IDS` (7); the seed picks one per campaign |
 | `arena.waves` | 5 populated tiers | exactly `BOSS_WAVE_COUNT`; see *Boss finale* |
+| `arena.waves[i].buff` / `.buffTarget` | absent / none | one arena-wide buff per tier, aimed at `players`/`monsters`/`both`. Tiers **replace** one another rather than stacking. `bossWaveBuffN` in `parameters.txt`. See *Buffs per boss wave tier* |
 | `arena.cover` | `random`, 0.08, 4, 3 | `density` is the fraction of free floor filled and is capped at `BOSS_COVER_DENSITY_MAX` (0.25) |
 | `arena.spawn` | spacing 2, ring 4, clusters 3 | tuning for the scatter modes only; deliberately separate from `cover` |
 | `arena.invulnerability` | on, `[30, 30, 30]`, countdown on | seconds of boss immortality per health threshold (`BOSS_INVULN_THRESHOLDS`: 75/50/25%); 0 disables one threshold, `bossInvuln` / `bossInvulnCountdown` in `parameters.txt`. Independent of `waves` — see *Boss finale* |
@@ -313,6 +326,68 @@ dungeon rolls a tier upward with `upgradeChance` (`Monster.createRolled`,
 consuming `ctx.rand`), while the arena's `resolveActorPath` maps a key to one
 actor path with **no draw** — the wave rig is structure, not a roll.
 
+## Buff auras (`src/generator/buffs/`)
+
+Optional, per floor, empty by default. A floor can wear any number of the game's
+41 buffs (`objects/buffTypes.ts`), each aimed at **players**, **monsters** or
+**both**. Unlike timer mode there is no countdown: the field is live from the
+moment the floor loads and never switches off, so a buff is a property of the
+floor rather than an event on it.
+
+The rig, built by `buildFloorBuffRig` and ported from the hand-authored
+`test_buff.xml`:
+
+- one `RectangleShape` covering the whole map **per distinct target** used on
+  that floor — three player-facing buffs cost four nodes, not six. Shapes are
+  created lazily in first-use order, so a floor's ids depend only on its own
+  list. `types` comes from `BUFF_TARGET_TYPES`: 1 players, 2 monsters, 3 both;
+  bit 2 is still `[UNVERIFIED]`, see the DISCOVERY-LOG;
+- one `DangerArea` per buff, shipped **`enabled: True`** with `damage: 0`,
+  `freq: BUFF_REFRESH_MS` (100) and the buff's path. `NodeDangerArea`'s
+  constructor ships it *disabled* for timer mode's benefit — an aura has no
+  trigger, so the rig has to set it back.
+
+`BUFF_DEFS` is the registry: id, path, label, group and a **description**
+written from the asset's own numbers, which is what the form's dropdown and
+`InfoTip` show. A test asserts `path === 'buffs/{id}.xml'` for every entry, so
+the registry cannot drift from the asset folder. An entry naming an unknown buff
+is *skipped* by the rig rather than thrown on — `validation.ts` is the gate.
+
+Called from the floor loop in `index.ts` **before** `buildFloorHazardRig`, in
+the order the form lists the two sections. Both return before allocating an id
+when their floor is unconfigured, which is what stops one moving the other's.
+
+`parameters.txt` carries `buffN=<id>:<target>|<id>:<target>`, and **only for
+floors carrying at least one** — a stock export has no `buff` line at all. An
+omitted `:target` parses as `players`; an unknown id or target lands in
+`unknownKeys` and the rest of the line still parses.
+
+### Buffs per boss wave tier (`boss/waveBuffs.ts`)
+
+The same aura, per arena health tier. Each of the five `BossWave`s may carry a
+`buff` and a `buffTarget`, both optional so every wave literal written before
+the feature still compiles.
+
+Where this differs from everything else in the arena: the tiers **replace** one
+another rather than accumulating. Tier 0's field ships `enabled: True` — it *is*
+the opening state and has no trigger at all. Every later tier with a buff gets a
+`GlobalEventTrigger(TIER_EVENT_NAMES[tier - 1])` fanning out to a
+`ToggleElement{state: 1}` on the previous field and a `{state: 0}` on its own.
+"The previous field" is the nearest **earlier tier that actually carries a
+buff**, not `tier - 1`: a campaign buffing only 100% and 25% needs the 25%
+trigger to clear the 100% field, and there is no tier-2 field to name.
+
+`TIER_EVENT_NAMES` is exported from `waves.ts` and shared, so the two rigs
+cannot drift on the event strings. Built in `arena.ts` after `buildWaveRig` and
+`buildInvulnerabilityRig`, draws from **no** stream — `ctx.bossRand` included —
+so the arena's fixed draw order is untouched and no arena seed moves.
+
+`parameters.txt` carries `bossWaveBuffN=<id>:<target>` on its **own key**, not
+as a sixth `bossWaveN` field: appending one would put a trailing `|` on every
+stock export and break byte-compatibility with files written before the
+feature. Its parse branch must be tested **before** `bossWaveN`'s, or
+`bosswavebuff1` falls through to `unknownKeys`.
+
 ## Timer mode (`src/generator/timer/`)
 
 Optional, per floor, off by default. After `seconds` of play the whole floor
@@ -327,7 +402,8 @@ The rig, built by `buildFloorHazardRig` and ported from the hand-authored
 - a `RectangleShape` covering the whole map with `types: 1`, **players only** —
   monsters are never damaged;
 - a `DangerArea`, shipped `enabled: False`, carrying `damage`, `freq` and an
-  empty `buff` (buff selection is a later feature);
+  empty `buff` — timer mode is a *damage* field, and the buff feature above is
+  a separate rig rather than a knob on this one;
 - a `GlobalEventTrigger("LevelLoaded")` whose per-connection delays drive one
   `AnnounceText` per second of countdown and, at `seconds * 1000`, the
   `ToggleElement{state: 0}` that switches the field on. `state: 0` enables —

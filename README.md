@@ -101,10 +101,22 @@ The lobby and the boss finale are **on by default**; timer mode is **off**.
   holding the victory orb. Killing the boss destroys the alcove seals; the
   death wave fights you on the walk to the orb, and touching the orb ends the
   game. With the boss on, the final floor's orb room is replaced by the
-  portal, so there is exactly one way to win.
+  portal, so there is exactly one way to win. Each of the five tiers can also
+  carry an **arena-wide buff** aimed at players, monsters or both; unlike the
+  spawns, the buffs replace one another, so exactly one is ever live and the
+  fight reads as phases.
 - **Player tweaks** — `tweak/*.xml` overrides for class stats, upgrade costs
   and shop contents, edited per field or through bulk knobs. Purely a balance
   layer: it draws no random values at all.
+- **Buff auras** — hang any of the game's 41 buffs on a floor and choose who
+  it catches: **players**, **monsters**, or **both**. Configured **per floor**
+  and empty everywhere by default. A buff aura covers the whole floor and is
+  live the moment the party arrives — no countdown, and it never switches off.
+  Slow the party with frost, enrage the horde with bloodlust, poison everything,
+  or drain the party's mana the whole way down. A floor may carry several at
+  once, each with its own target, so the same floor can slow the party *and*
+  hurry the monsters. Every buff in the list explains itself on hover — what it
+  does, how hard, and for how long.
 - **Timer mode** — optional time pressure, configured **per floor** and off
   everywhere by default. Give a floor a countdown and, when it runs out, the
   whole floor starts damaging the party every few hundred milliseconds until
@@ -192,6 +204,7 @@ User-data folder: `%APPDATA%/hammerwatch-roguelike-dungeon-generator` (Windows),
 | `goldMultiplier` | 1.1 | Scales treasure amounts |
 | `foodMultiplier` | 1.2 | Scales health/mana drops |
 | `monsters0…N` | see defaults | Monster pool per floor (repeat an id to weight it) |
+| `buff0…N` | absent | Buff auras for that floor: `<id>:<target>` entries separated by `\|`, e.g. `buff2=frost:players\|bloodlust:monsters`. Targets are `players`, `monsters`, `both`; an omitted target means `players`. Written only for floors that carry one, so a stock file has none |
 | `timer0…N` | absent | Timer mode for that floor: `enabled|seconds|damage|freqMs|countdown`, e.g. `timer2=1|180|1|1000|1`. Written only for floors whose timer is on, so a stock file has none. Negative damage heals |
 | `max<Monster>` | see defaults | Horde-size cap per monster type; 0 disables the type |
 
@@ -213,6 +226,7 @@ stock player tweak are all **on by default**:
 | `bossCover` | `random,0.08,4,3` | `pattern,density,ringSpacing,clusters`. Pattern is `random`/`ring`/`gaussian`/`symmetric`; **density is capped at 0.25** — it is the fraction of free floor filled with pillars, and denser than that leaves nowhere to fight |
 | `bossWave1…5` | see defaults | Waves 1–4 are the health tiers (100/75/50/25%); **wave 5 fires when the boss dies**, spawning a last stand into the walk to the orb. Each is `monsters\|defaultIntervalMs\|monsterMax\|intervalMs\|spawnMode`, the last three being comma-separated `id:value` pairs. Tiers switch on and never off, so by 25% all four health tiers are spawning at once. A monster's pool entry may be a variant key (`lich#2`, `slime#0`); an empty wave is legal and emits nothing |
 | `bossSpawnMode` per monster | `anchors` | Inside a `bossWaveN` line. `anchors` trickles the horde in on a timer from the nine spawn anchors; `random` / `ring` / `gaussian` / `symmetric` scatter it across the arena and spawn it **all at once**, ignoring the intervals. A monster whose wreck still blocks movement (the nova/frost/tracking towers) may not be scattered — it could wall the arena off |
+| `bossWaveBuff1…5` | absent | An arena-wide buff for that tier, `<id>:<target>`, e.g. `bossWaveBuff3=frost:players`. Its own key rather than a sixth `bossWaveN` field, so files exported before the feature still round-trip. Tiers **replace** one another: each threshold switches the previous buff off as it switches its own on, so exactly one is ever live. Tier 1 is live from the moment the fight starts. Written only for tiers that carry one |
 | `bossSpawn` | `2,4,3` | `spacing,ringSpacing,clusters` for the scatter modes; separate from `bossCover` so pillars and monsters can be spaced differently |
 | `bossInvuln` | `30,30,30` | Seconds the boss is **immortal** each time its health crosses 75%, 50% and 25%. One value sets all three; `0` disables that one threshold; `off` disables the feature. Stops a fully upgraded party bursting the boss down before the fight happens, and keeps the three thresholds from firing in the same frame — which would switch every wave tier on at once and flood the arena |
 | `bossInvulnCountdown` | 1 | Announce a ticking `M:SS` countdown for the length of each invulnerability window. `0` keeps the windows silent |
@@ -262,6 +276,9 @@ list with actor files is in `src/generator/objects/monsterTypes.ts`.
 │   │   │                   cover pillars, wave rig, boss roster
 │   │   ├── tweak/          player tweak/*.xml emitters and bulk editors —
 │   │   │                   RNG-free, so they never move a seed's dungeon
+│   │   ├── buffs/         Buff auras: the optional per-floor buff fields.
+│   │   │                   RNG-free; appends always-on DangerAreas after a
+│   │   │                   floor is built, so it moves nothing already placed
 │   │   ├── timer/          Timer mode: the optional per-floor timed damage
 │   │   │                   field. RNG-free; appends nodes after a floor is
 │   │   │                   built, so it moves nothing already placed

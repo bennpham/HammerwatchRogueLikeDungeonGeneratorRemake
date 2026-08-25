@@ -8,6 +8,100 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-24 — the buff asset catalogue, `types` bit 2, and a `damage: 0` buff aura
+**Tag:** [VERIFIED] for the buff catalogue and schema (read from a real
+install); **[UNVERIFIED]** for the monsters bit and for the pure-aura rig, both
+of which need one in-game run; [EMITTED] for the 100ms reapply interval.
+**Context:** Buff auras — the optional per-floor buff fields
+(`src/generator/buffs/field.ts`). A floor can wear any number of the game's
+buffs, each aimed at players, monsters or both.
+**Evidence:** The rig is copied from a level built by hand in the game's own
+editor,
+`<Steam>/steamapps/common/Hammerwatch/editor/pht6_quiky_dreadmann_mansion/levels/test_buff.xml`,
+and cross-checked against shipped content and the extracted asset folder.
+
+1. **The game ships exactly 41 buffs**, all under
+   `<Steam>/steamapps/common/Hammerwatch/editor/assetsExtract/buffs/*.xml`.
+   Transcribed in full into `src/generator/objects/buffTypes.ts`, one entry per
+   file, with a description derived from that file's own numbers. A test asserts
+   `path === 'buffs/' + id + '.xml'` for every entry. **[VERIFIED]**
+
+2. **A buff asset's schema** is `<buff><behavior><dictionary>` holding an `int
+   duration` (ms) plus any of `float speed-mul`, `float dmg-mul`, `bool snare`,
+   `bool stun`, a `dictionary damage` (`freq`, `dmg`, `bool can-kill`), a
+   `dictionary mana-drain` (`freq`, `dmg`), a `string color`, and a cosmetic
+   `array effects` of particles/light/sprite dictionaries. **[VERIFIED]**
+
+   Two asset-level surprises worth recording: `test.xml` uses **negative** `dmg`
+   in both `damage` and `mana-drain`, i.e. it *heals* — the only healing buff in
+   the game. And `enemy_spider_1.xml` / `enemy_lich_desert_2.xml` use a
+   **negative** `speed-mul`, which reverses movement rather than slowing it.
+
+3. **`RectangleShape`'s `types` bit 2 is monsters. [UNVERIFIED]** Bit 1 =
+   players is already [VERIFIED] (see the 2026-08-23 entry). Bit 2 is inferred
+   from two independent places in shipped content: `campaign/levels/level_boss_1.xml`
+   binds a `DangerArea{damage: 1337}` — an instakill sweep, plainly not aimed at
+   the party — to a `RectangleShape{types: 2}`, and `prefabs/trap_fire_floor.xml`
+   uses `3` for its `AreaTrigger` where `1` is the known players-only value.
+   Across all of `campaign/`, `campaign2/` and `prefabs/` the only values that
+   ever appear are `1` (470×), `2` (23×), `3` (246×) and `15` (1154×), which is
+   consistent with a four-bit mask whose low two bits are players and monsters.
+
+   `BUFF_TARGET_TYPES` in `config/parameters.ts` maps `players`/`monsters`/`both`
+   to `1`/`2`/`3`. **Promote to [VERIFIED] once a generated floor with a
+   monsters-only buff has been played and the party demonstrably does not catch
+   it.**
+
+4. **A `DangerArea` with `damage: 0` and a non-empty `buff` is a pure buff
+   aura. [UNVERIFIED]** This is the whole feature: the node's damage is not the
+   point, the buff is. The authored `test_buff.xml` is built exactly this way —
+   three `DangerArea` nodes, `damage: 0`, `freq: 100`, carrying
+   `buffs/bloodlust.xml`, `buffs/banner_drain.xml` and
+   `buffs/boss_maggot_poison.xml` respectively, all bound to one whole-map
+   `RectangleShape{types: 15}`. Needs one in-game run to confirm the engine does
+   not skip a zero-damage field.
+
+5. **`freq: 100` keeps an aura continuous. [EMITTED]** `BUFF_REFRESH_MS = 100`,
+   taken from `test_buff.xml`. Every shipped buff's `duration` is at least 150ms,
+   so the buff is always reapplied before it lapses. The four shortest
+   (`banner_bloodlust` and `banner_drain` at 150ms, `trap_frost` at 500ms,
+   `trap_quicksand` at 400ms) are what make a field read as "only while standing
+   in it" rather than as a lingering debuff — that is the asset's design, not a
+   limitation of ours.
+
+6. **A buff field ships `enabled: True`.** `NodeDangerArea`'s constructor sets
+   `enabled = false` for timer mode's benefit, whose `ToggleElement{state: 0}`
+   switches it on at the end of a countdown. A buff aura has no trigger at all,
+   so `buildFloorBuffRig` sets it back to true — it has to arrive live.
+
+7. **A buff field can be swapped mid-fight by toggling two of them. [EMITTED]**
+   The boss arena's per-tier buffs (`src/generator/boss/waveBuffs.ts`) rely on
+   this: each threshold's `GlobalEventTrigger` fans out to a
+   `ToggleElement{state: 1}` on the outgoing field and a `{state: 0}` on the
+   incoming one, so exactly one arena-wide aura is live at a time. Same
+   inverted polarity as everywhere else. The 100% tier's field carries no
+   trigger at all — it ships `enabled: True` and *is* the opening state.
+
+   Not yet run in game. The risk worth naming: a buff already applied to an
+   entity presumably runs out its own `duration` after its field is switched
+   off, so the swap is not instant — the outgoing buff should linger for up to
+   its duration (2–5s for most). That is acceptable for the feature and is why
+   the short-duration assets above are the crisp choice for a tier buff.
+
+8. **One shape per distinct target, not one per buff.** Buffs on the same floor
+   aiming at the same target share a `RectangleShape`, so three player-facing
+   buffs cost four nodes rather than six. The shapes are created lazily in
+   first-use order, so a floor's ids depend only on its own buff list.
+
+**Impact:** `src/generator/objects/buffTypes.ts` (new),
+`src/generator/boss/waveBuffs.ts` (new),
+`src/generator/buffs/field.ts` (new), `src/generator/map/coverShape.ts` (new —
+the covering-rectangle helper timer mode and buffs now share),
+`BUFF_TARGET_TYPES`/`FloorBuff`/`levelBuffs` in `config/parameters.ts`,
+`validateLevelBuffs` in `config/validation.ts`, the `buffN=` key in
+`config/configFile.ts`, `tests/floorBuffs.test.ts`,
+`tests/bossWaveBuffs.test.ts`.
+
 ### 2026-08-24 — `ChangeDoodadState`, and `need-sync` is about *change*, not collision
 **Tag:** [VERIFIED] for the schema and the `need-sync` rule — both read off the
 shipped campaign. [EMITTED] for our own rig until the campaign is played.

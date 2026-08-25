@@ -5,14 +5,18 @@ import {
   BOSS_INVULN_COUNT,
   BOSS_SPAWN_MODES,
   BOSS_WAVE_COUNT,
+  BUFF_TARGETS,
   DEFAULT_WAVE_MONSTER_MAX,
   DungeonParameters,
+  defaultFloorBuffs,
   defaultFloorTimer,
   defaultParameters,
-  isScatterMode
+  isScatterMode,
+  waveBuffs
 } from './parameters'
-import type { BossFloorPattern, BossOptions, BossSpawnMode } from './parameters'
+import type { BossFloorPattern, BossOptions, BossSpawnMode, BuffTarget, FloorBuff } from './parameters'
 import { MONSTER_TYPES } from '../objects/monsterTypes'
+import { buffById } from '../objects/buffTypes'
 import { isLobbyCategory } from '../lobby/shops'
 import { TWEAK_FIELD_MAP, pruneTweaks } from '../tweak/overrides'
 
@@ -57,6 +61,7 @@ export const PARAMETER_ORDER = [
   'lockFinalRoom',
   'finalLockMode',
   'monster', // placeholder: expanded to monsters0...monstersN
+  'buff', // placeholder: expanded to buffN for each floor that carries a buff
   'timer', // placeholder: expanded to timerN for each floor whose timer is on
   'monsterMax', // placeholder: expanded per MONSTER_TYPES order
   'playerTweaks', // placeholder: sorted by key
@@ -86,6 +91,8 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   let highestPoolIndex = -1
   // Highest `timerN=` seen, same purpose as highestPoolIndex above.
   let highestTimerIndex = -1
+  // Highest `buffN=` seen, same purpose again.
+  let highestBuffIndex = -1
   /** whether the file carried any `bossWaveN=` line, and whether one was the death tier */
   let sawAnyWave = false
   let sawDeathWave = false
@@ -315,6 +322,44 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       }
       continue
     }
+    // bossWaveBuffN=<id>:<target>|<id>:<target> — one line per tier carrying
+    // arena buffs, written only for those tiers, in the same form as the
+    // per-floor `buffN` key above. A file written when a tier could only hold
+    // one buff has a single segment and parses to a one-entry list. Must be
+    // tested BEFORE the bossWaveN branch: `bosswavebuff1` would otherwise never
+    // match anything, since that branch's pattern is anchored and would simply
+    // fall through to unknownKeys.
+    const waveBuffMatch = keyLower.match(/^bosswavebuff(\d)$/)
+    if (waveBuffMatch) {
+      const idx = parseInt(waveBuffMatch[1], 10) - 1
+      if (idx < 0 || idx >= BOSS_WAVE_COUNT) {
+        result.unknownKeys.push(key)
+        continue
+      }
+      const entries: FloorBuff[] = []
+
+      for (const segment of value.split('|')) {
+        const trimmed = segment.trim()
+        if (trimmed === '') continue
+        const colon = trimmed.indexOf(':')
+        const id = (colon === -1 ? trimmed : trimmed.slice(0, colon)).trim()
+        const target = (colon === -1 ? 'players' : trimmed.slice(colon + 1).trim()) as BuffTarget
+
+        if (buffById(id) === undefined) {
+          result.unknownKeys.push(`${key} buff "${id}"`)
+          continue
+        }
+        if (!BUFF_TARGETS.includes(target)) {
+          result.unknownKeys.push(`${key} target "${target}"`)
+          continue
+        }
+        entries.push({ buff: id, target })
+      }
+
+      params.boss.arena.waves[idx].buffs = entries
+      continue
+    }
+
     const waveMatch = keyLower.match(/^bosswave(\d)$/)
     if (waveMatch) {
       const idx = parseInt(waveMatch[1], 10) - 1
@@ -400,6 +445,43 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       continue
     }
 
+    // buffN=<id>:<target>|<id>:<target> — one line per floor that carries at
+    // least one buff aura. Absent floors keep the default (none), so a file
+    // written before buffs existed parses exactly as it always did. Split on
+    // the FIRST colon only: buff ids are lowercase-and-underscore today, but
+    // splitting greedily would silently mangle any that ever gains one.
+    const buffMatch = keyLower.match(/^buff(\d+)$/)
+    if (buffMatch) {
+      const levelIndex = parseInt(buffMatch[1], 10)
+      const levelBuffs = params.levelBuffs ?? (params.levelBuffs = [])
+      while (levelBuffs.length <= levelIndex) levelBuffs.push(defaultFloorBuffs())
+      const entries: FloorBuff[] = []
+
+      for (const segment of value.split('|')) {
+        const trimmed = segment.trim()
+        if (trimmed === '') continue
+        const colon = trimmed.indexOf(':')
+        const id = (colon === -1 ? trimmed : trimmed.slice(0, colon)).trim()
+        // An omitted target is the common case by hand, and players is the
+        // conservative reading of "buff this floor".
+        const target = (colon === -1 ? 'players' : trimmed.slice(colon + 1).trim()) as BuffTarget
+
+        if (buffById(id) === undefined) {
+          result.unknownKeys.push(`${key} buff "${id}"`)
+          continue
+        }
+        if (!BUFF_TARGETS.includes(target)) {
+          result.unknownKeys.push(`${key} target "${target}"`)
+          continue
+        }
+        entries.push({ buff: id, target })
+      }
+
+      levelBuffs[levelIndex] = entries
+      highestBuffIndex = Math.max(highestBuffIndex, levelIndex)
+      continue
+    }
+
     // timerN=enabled|seconds|damage|freqMs|countdown — one line per floor whose
     // timer is on. Absent floors keep the default (off), so a file written
     // before timer mode existed parses exactly as it always did. Per-field NaN
@@ -481,6 +563,15 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   // while `levels` stays short, then silently appended if the user raises it.
   if (highestPoolIndex >= 0) {
     params.levelMonsters.length = highestPoolIndex + 1
+  }
+
+  // Only floors carrying a buff get a `buffN=` line, so the same padding rule
+  // as the timers below applies: pad to the floor count, trim to it, and leave
+  // the array absent entirely when neither the file nor the base mentioned one.
+  if (highestBuffIndex >= 0 || params.levelBuffs !== undefined) {
+    const levelBuffs = params.levelBuffs ?? (params.levelBuffs = [])
+    while (levelBuffs.length < params.levels) levelBuffs.push(defaultFloorBuffs())
+    levelBuffs.length = params.levels
   }
 
   // Only enabled floors get a `timerN=` line, so an imported file is sparse by
@@ -570,6 +661,14 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
       for (const t of MONSTER_TYPES) {
         lines.push(`${t.configKey}=${params.monsterMax[t.id] ?? 0}`)
       }
+    } else if (key === 'buff') {
+      // Only floors carrying at least one buff get a line. Keeps
+      // parameters.default.txt and every file exported before buffs existed
+      // byte-identical.
+      ;(params.levelBuffs ?? []).forEach((buffs, i) => {
+        if (buffs.length === 0) return
+        lines.push(`buff${i}=${buffs.map((b) => `${b.buff}:${b.target}`).join('|')}`)
+      })
     } else if (key === 'timer') {
       // Only floors with the timer ON get a line. Keeps parameters.default.txt
       // and every file exported before timer mode existed byte-identical.
@@ -652,6 +751,13 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
     lines.push(
       `bossWave${i + 1}=${wave.monsters.join(',')}|${wave.defaultIntervalMs}|${monsterMax}|${overrides}|${modes}`
     )
+    // A separate key rather than a sixth field on the line above: appending one
+    // would put a trailing `|` on every stock export, so a file written before
+    // wave buffs existed would no longer round-trip to the same bytes.
+    const buffs = waveBuffs(wave)
+    if (buffs.length > 0) {
+      lines.push(`bossWaveBuff${i + 1}=${buffs.map((b) => `${b.buff}:${b.target}`).join('|')}`)
+    }
   }
 
   return lines.join('\r\n') + '\r\n'

@@ -20,5 +20,7 @@ export { buildWaveRig, scatterRequests } from './waves'
 
 export { buildInvulnerabilityRig, formatCountdown } from './invulnerability'
 
+export { buildWaveBuffRig } from './waveBuffs'
+
 export type { BossArenaResult } from './arena'
 export { buildBossArena } from './arena'

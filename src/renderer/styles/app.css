@@ -260,12 +260,51 @@ select:focus {
   color: var(--text-dim);
 }
 
-/* Timer mode: one block per floor, laid out like the monster pools above. */
+/* Buff auras and timer mode: one block per floor, laid out like the monster
+   pools above. */
+.floor-buffs > .pool-level > .section-body,
 .floor-timers > .pool-level > .section-body {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 4px 10px 10px;
+}
+
+/* One list of buffs — a floor's or a boss tier's. Its own class rather than a
+   descendant rule, because the boss version sits in a .subsection-body. */
+.buff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* One buff choice: which buff, an (i) for its description, and who it catches. */
+.buff-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The global `select { width: 100% }` would otherwise resolve .buff-target's
+   `auto` flex-basis to the full row width, and `flex-shrink: 0` forbids it
+   giving any back — the target select alone then claims the row, squeezes the
+   buff name down to a caret and pushes Remove off the right edge. */
+.buff-row select {
+  width: auto;
+}
+
+.buff-select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.buff-target {
+  flex: 0 0 130px;
+}
+
+.buff-remove {
+  flex: 0 0 auto;
+  font-size: 11px;
 }
 
 .copy-down {
@@ -316,12 +355,15 @@ select:focus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
   margin-left: 6px;
-  border: 1px solid var(--text-dim);
+  border: 1px solid var(--accent);
   border-radius: 50%;
-  font-size: 10px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
   font-style: italic;
   line-height: 1;
   cursor: help;
