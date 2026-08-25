@@ -113,6 +113,12 @@ export const BUFF_REFRESH_MS = 100
  */
 export const MAX_BUFFS_PER_FLOOR = 8
 
+/**
+ * The same bound for one boss tier's buff list. A tier's whole set replaces the
+ * previous tier's, so the node cost is per tier, not cumulative.
+ */
+export const MAX_BUFFS_PER_WAVE = 8
+
 /** A fresh, empty buff list — the stock value for every floor. */
 export function defaultFloorBuffs(): FloorBuff[] {
   return []
@@ -383,27 +389,36 @@ export interface BossWave {
    */
   spawnMode?: Record<string, BossSpawnMode>
   /**
-   * A BUFF_DEFS id for this tier's arena-wide buff field, or '' / absent for
-   * none. Optional so every wave literal written before the feature keeps
-   * compiling, and absent everywhere leaves the arena byte-identical.
+   * This tier's arena-wide buff fields, each aimed at players, monsters or
+   * both. Optional so every wave literal written before the feature keeps
+   * compiling, and empty everywhere leaves the arena byte-identical.
    *
    * Independent of the tier's monsters: an otherwise empty tier may still carry
-   * a buff, and a populated tier need not. Tiers *replace* one another — see
+   * buffs, and a populated tier need not. Tiers *replace* one another — a
+   * tier's whole set switches the previous tier's whole set off. See
    * boss/waveBuffs.ts.
    */
+  buffs?: FloorBuff[]
+  /**
+   * Legacy single-buff form, kept so configs and `parameters.txt` files written
+   * before `buffs` existed still load. Read through `waveBuffs()`; nothing
+   * writes these any more.
+   */
   buff?: string
-  /** Who this tier's buff catches. Defaults to `players`. */
+  /** Legacy target for `buff`. Defaults to `players`. */
   buffTarget?: BuffTarget
 }
 
-/** The buff `wave` applies, or '' for none. */
-export function waveBuff(wave: BossWave): string {
-  return wave.buff ?? ''
-}
-
-/** Who `wave`'s buff catches — the stored target, or `players`. */
-export function waveBuffTarget(wave: BossWave): BuffTarget {
-  return wave.buffTarget ?? 'players'
+/**
+ * The buffs `wave` applies, newest storage first and the legacy single pair as
+ * a fallback. An empty array means the tier carries none.
+ */
+export function waveBuffs(wave: BossWave): FloorBuff[] {
+  if (wave.buffs !== undefined) return wave.buffs
+  if (wave.buff !== undefined && wave.buff !== '') {
+    return [{ buff: wave.buff, target: wave.buffTarget ?? 'players' }]
+  }
+  return []
 }
 
 /** The spawn mode `wave` uses for `id` — the stored one, or `anchors`. */

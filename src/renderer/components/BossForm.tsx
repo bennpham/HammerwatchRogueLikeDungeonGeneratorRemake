@@ -11,6 +11,7 @@ import {
   LOBBY_DIAMOND_VALUE,
   LOBBY_VENDORS,
   MAX_BOSS_INVULN_SECONDS,
+  MAX_BUFFS_PER_WAVE,
   MONSTER_VARIANT_GROUPS,
   THEME_DEFS,
   buffById,
@@ -23,8 +24,7 @@ import {
   monsterNote,
   monsterVariantsInGroup,
   resolveActorPath,
-  waveBuff,
-  waveBuffTarget,
+  waveBuffs,
   waveSpawnMode
 } from '../../generator'
 import type {
@@ -38,7 +38,7 @@ import type {
   ValidationIssue
 } from '../../generator'
 import { BoolField, NumberField, Section, Subsection, ToggleGroup } from './fields'
-import { BuffPicker } from './BuffPicker'
+import { BuffListEditor } from './BuffListEditor'
 import { InfoTip } from './InfoTip'
 import { MonsterFilterBar, useMonsterFilter } from './MonsterFilterBar'
 import { PoolGroup } from './PoolGroup'
@@ -243,16 +243,16 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
   )
 
   /**
-   * Gives every later tier this tier's buff and target. Copying the *previous*
-   * tier is the common setup — the buffs replace one another, so a fight that
-   * wants one aura for its whole second half has to repeat it on each tier that
-   * would otherwise clear it.
+   * Gives every later tier this tier's buffs. Copying the *previous* tier is
+   * the common setup — the buffs replace one another, so a fight that wants one
+   * aura for its whole second half has to repeat it on each tier that would
+   * otherwise clear it.
    */
   const copyWaveBuffDown = (index: number) => {
-    const source = arena.waves[index]
+    const source = waveBuffs(arena.waves[index])
     setArena({
       waves: arena.waves.map((wave, i) =>
-        i > index ? { ...wave, buff: waveBuff(source), buffTarget: waveBuffTarget(source) } : wave
+        i > index ? { ...wave, buffs: source.map((b) => ({ ...b })) } : wave
       )
     })
   }
@@ -439,49 +439,48 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
 
       <Section
         title="Wave buffs"
-        badge={arena.waves.some((w) => waveBuff(w) !== '') ? 'on' : undefined}
+        badge={arena.waves.some((w) => waveBuffs(w).length > 0) ? 'on' : undefined}
       >
         <p className="hint">
-          Each tier's buff covers the whole arena and <strong>replaces</strong> the previous tier's,
-          so exactly one is ever live — the fight reads as phases rather than as a growing pile of
-          debuffs. The 100% buff is on from the moment the fight starts. Pick who it catches: a buff
-          aimed at the horde never touches the party, and vice versa. No tier carries one by default.
+          A tier's buffs cover the whole arena and <strong>replace</strong> the previous tier's, so
+          only one tier's are ever live — the fight reads as phases rather than as a growing pile of
+          debuffs. The 100% buffs are on from the moment the fight starts. Pick who each catches: a
+          buff aimed at the horde never touches the party, and vice versa. No tier carries one by
+          default.
         </p>
-        {arena.waves.map((wave, i) => (
-          <Subsection
-            key={i}
-            title={WAVE_LABELS[i] ?? `Tier ${i + 1}`}
-            badge={buffById(waveBuff(wave))?.label ?? 'none'}
-          >
-            <BuffPicker
-              buff={waveBuff(wave)}
-              target={waveBuffTarget(wave)}
-              onChange={(change) => setWave(i, change)}
-              allowNone
-            />
-            {issues
-              .filter(
-                (issue) =>
-                  issue.field === `boss.arena.waves.${i}.buff` ||
-                  issue.field === `boss.arena.waves.${i}.buffTarget`
-              )
-              .map((issue, k) => (
-                <p key={k} className="field-message">
-                  {issue.message}
-                </p>
-              ))}
-            {i < arena.waves.length - 1 && (
-              <button
-                type="button"
-                className="copy-down"
-                onClick={() => copyWaveBuffDown(i)}
-                title="Give every later tier this same buff and target"
-              >
-                Copy to tiers below
-              </button>
-            )}
-          </Subsection>
-        ))}
+        {arena.waves.map((wave, i) => {
+          const buffs = waveBuffs(wave)
+          return (
+            <Subsection
+              key={i}
+              title={WAVE_LABELS[i] ?? `Tier ${i + 1}`}
+              badge={
+                buffs.length === 0
+                  ? 'none'
+                  : buffs.map((b) => buffById(b.buff)?.label ?? b.buff).join(', ')
+              }
+            >
+              <BuffListEditor
+                value={buffs}
+                onChange={(next) => setWave(i, { buffs: next })}
+                max={MAX_BUFFS_PER_WAVE}
+                noun="tier"
+                issuePrefix={`boss.arena.waves.${i}.buffs`}
+                issues={issues}
+              />
+              {i < arena.waves.length - 1 && (
+                <button
+                  type="button"
+                  className="copy-down"
+                  onClick={() => copyWaveBuffDown(i)}
+                  title="Give every later tier these same buffs and targets"
+                >
+                  Copy to tiers below
+                </button>
+              )}
+            </Subsection>
+          )
+        })}
       </Section>
 
       <Section title="Cover">

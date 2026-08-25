@@ -2,7 +2,12 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { parseParametersTxt, serializeParametersTxt } from '../src/generator/config/configFile'
-import { BOSS_DEATH_WAVE, BOSS_WAVE_COUNT, defaultParameters } from '../src/generator/config/parameters'
+import {
+  BOSS_DEATH_WAVE,
+  BOSS_WAVE_COUNT,
+  defaultParameters,
+  waveBuffs
+} from '../src/generator/config/parameters'
 import {
   SHOP_PRICE_MAX,
   applyCostPolicy,
@@ -546,8 +551,8 @@ describe('bossWaveBuffN — per-tier arena buffs', () => {
   it('writes one line per buffed tier and round-trips it', () => {
     const params = defaultParameters()
     params.boss.arena.waves = params.boss.arena.waves.map((w, i) => {
-      if (i === 0) return { ...w, buff: 'bloodlust', buffTarget: 'monsters' as const }
-      if (i === 3) return { ...w, buff: 'frost', buffTarget: 'players' as const }
+      if (i === 0) return { ...w, buffs: [{ buff: 'bloodlust', target: 'monsters' as const }] }
+      if (i === 3) return { ...w, buffs: [{ buff: 'frost', target: 'players' as const }] }
       return w
     })
 
@@ -558,10 +563,49 @@ describe('bossWaveBuffN — per-tier arena buffs', () => {
 
     const reparsed = parseParametersTxt(text)
     expect(reparsed.unknownKeys).toEqual([])
-    expect(reparsed.params.boss.arena.waves[0].buff).toBe('bloodlust')
-    expect(reparsed.params.boss.arena.waves[0].buffTarget).toBe('monsters')
-    expect(reparsed.params.boss.arena.waves[3].buff).toBe('frost')
-    expect(reparsed.params.boss.arena.waves[1].buff).toBeUndefined()
+    expect(waveBuffs(reparsed.params.boss.arena.waves[0])).toEqual([
+      { buff: 'bloodlust', target: 'monsters' }
+    ])
+    expect(waveBuffs(reparsed.params.boss.arena.waves[3])).toEqual([{ buff: 'frost', target: 'players' }])
+    expect(waveBuffs(reparsed.params.boss.arena.waves[1])).toEqual([])
+  })
+
+  it('round-trips several buffs on one tier', () => {
+    const params = defaultParameters()
+    params.boss.arena.waves = params.boss.arena.waves.map((w, i) =>
+      i === 0
+        ? {
+            ...w,
+            buffs: [
+              { buff: 'bloodlust', target: 'monsters' as const },
+              { buff: 'frost', target: 'players' as const }
+            ]
+          }
+        : w
+    )
+
+    const text = serializeParametersTxt(params)
+    expect(text).toContain('bossWaveBuff1=bloodlust:monsters|frost:players')
+
+    const reparsed = parseParametersTxt(text)
+    expect(reparsed.unknownKeys).toEqual([])
+    expect(waveBuffs(reparsed.params.boss.arena.waves[0])).toEqual([
+      { buff: 'bloodlust', target: 'monsters' },
+      { buff: 'frost', target: 'players' }
+    ])
+  })
+
+  it('reads a line written when a tier could only carry one buff', () => {
+    const parsed = parseParametersTxt('bossWaveBuff1=frost:monsters')
+    expect(parsed.unknownKeys).toEqual([])
+    expect(waveBuffs(parsed.params.boss.arena.waves[0])).toEqual([{ buff: 'frost', target: 'monsters' }])
+  })
+
+  it('reads a tier stored in the legacy single-buff fields', () => {
+    const params = defaultParameters()
+    params.boss.arena.waves[0].buff = 'frost'
+    params.boss.arena.waves[0].buffTarget = 'both'
+    expect(serializeParametersTxt(params)).toContain('bossWaveBuff1=frost:both')
   })
 
   it('leaves the bossWaveN lines byte-identical — no trailing sixth field', () => {
@@ -574,8 +618,7 @@ describe('bossWaveBuffN — per-tier arena buffs', () => {
 
     params.boss.arena.waves = params.boss.arena.waves.map((w) => ({
       ...w,
-      buff: 'frost',
-      buffTarget: 'both' as const
+      buffs: [{ buff: 'frost', target: 'both' as const }]
     }))
     const after = serializeParametersTxt(params)
       .split('\r\n')
@@ -586,14 +629,20 @@ describe('bossWaveBuffN — per-tier arena buffs', () => {
 
   it('reports an unknown buff id and leaves the tier alone', () => {
     const parsed = parseParametersTxt('bossWaveBuff2=no_such_buff:players')
-    expect(parsed.params.boss.arena.waves[1].buff).toBeUndefined()
+    expect(waveBuffs(parsed.params.boss.arena.waves[1])).toEqual([])
     expect(parsed.unknownKeys).toEqual(['bossWaveBuff2 buff "no_such_buff"'])
   })
 
   it('reports an unknown target and leaves the tier alone', () => {
     const parsed = parseParametersTxt('bossWaveBuff2=frost:everyone')
-    expect(parsed.params.boss.arena.waves[1].buff).toBeUndefined()
+    expect(waveBuffs(parsed.params.boss.arena.waves[1])).toEqual([])
     expect(parsed.unknownKeys).toEqual(['bossWaveBuff2 target "everyone"'])
+  })
+
+  it('keeps the good entries when one segment of a tier is bad', () => {
+    const parsed = parseParametersTxt('bossWaveBuff2=frost:players|no_such_buff:both')
+    expect(waveBuffs(parsed.params.boss.arena.waves[1])).toEqual([{ buff: 'frost', target: 'players' }])
+    expect(parsed.unknownKeys).toEqual(['bossWaveBuff2 buff "no_such_buff"'])
   })
 
   it('reports a tier index outside the wave count', () => {
@@ -603,7 +652,7 @@ describe('bossWaveBuffN — per-tier arena buffs', () => {
 
   it('defaults an omitted target to players', () => {
     const parsed = parseParametersTxt('bossWaveBuff1=frost')
-    expect(parsed.params.boss.arena.waves[0].buffTarget).toBe('players')
+    expect(waveBuffs(parsed.params.boss.arena.waves[0])).toEqual([{ buff: 'frost', target: 'players' }])
     expect(parsed.unknownKeys).toEqual([])
   })
 })

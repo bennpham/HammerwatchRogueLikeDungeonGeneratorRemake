@@ -31,14 +31,14 @@ export {
   BUFF_TARGET_TYPES,
   BUFF_REFRESH_MS,
   MAX_BUFFS_PER_FLOOR,
+  MAX_BUFFS_PER_WAVE,
   MAX_TIMER_SECONDS,
   MIN_TIMER_FREQ_MS,
   MAX_TIMER_FREQ_MS,
   MAX_TIMER_DAMAGE,
   TIMER_COUNTDOWN_NODE_WARN,
   isScatterMode,
-  waveBuff,
-  waveBuffTarget,
+  waveBuffs,
   waveSpawnMode
 } from './config/parameters'
 export { BUFF_DEFS, BUFF_GROUPS, BUFF_HELPFUL_IDS, buffById } from './objects/buffTypes'

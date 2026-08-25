@@ -1,20 +1,21 @@
 /**
  * Buffs per boss wave tier — an arena-wide buff field per health threshold.
  *
- * Each of the five tiers (100 / 75 / 50 / 25% and Boss Died) may carry one
- * buff aimed at players, monsters or both. Unlike the wave *spawns*, which
- * switch on and never off so that by 25% all four tiers are running at once,
- * the buffs **replace** one another: a tier's trigger switches the previous
- * live field off as it switches its own on, so exactly one arena buff is ever
- * active. That is what makes the fight read as phases rather than as an
- * accumulating pile of debuffs.
+ * Each of the five tiers (100 / 75 / 50 / 25% and Boss Died) may carry any
+ * number of buffs, each aimed at players, monsters or both, and each getting
+ * its own field. Unlike the wave *spawns*, which switch on and never off so
+ * that by 25% all four tiers are running at once, the buffs **replace** one
+ * another: a tier's trigger switches the previous tier's whole set off as it
+ * switches its own on, so only one tier's buffs are ever active. That is what
+ * makes the fight read as phases rather than as an accumulating pile of
+ * debuffs.
  *
  *   tier 0 (100%)   DangerArea{enabled: True, damage: 0, buff} -> shape
  *                   (live from arena load — no trigger, it IS the opening state)
  *
  *   tier N          GlobalEventTrigger(TIER_EVENT_NAMES[N - 1])
- *                        ├─ ToggleElement{state: 1} -> the previous tier's field
- *                        └─ ToggleElement{state: 0} -> this tier's field
+ *                        ├─ ToggleElement{state: 1} -> each previous tier field
+ *                        └─ ToggleElement{state: 0} -> each of this tier's
  *
  * `state: 0` ENABLES and `state: 1` disables — the inverted polarity
  * NodeToggleElement documents and prefabs/trap_fire_floor.xml confirms.
@@ -31,7 +32,8 @@
 
 import type { GenerationContext } from '../core/context'
 import type { BossWave, BuffTarget } from '../config/parameters'
-import { BUFF_REFRESH_MS, BUFF_TARGET_TYPES, waveBuff, waveBuffTarget } from '../config/parameters'
+import { BUFF_REFRESH_MS, BUFF_TARGET_TYPES, waveBuffs } from '../config/parameters'
+import type { BuffDef } from '../objects/buffTypes'
 import { buffById } from '../objects/buffTypes'
 import { NodeDangerArea, NodeGlobalEventTrigger, NodeRectangleShape, NodeToggleElement } from '../objects/nodes'
 import { TIER_EVENT_NAMES } from './waves'
@@ -48,7 +50,7 @@ const COVER_MARGIN = 2
  * not one id — when no tier carries a buff, so an arena without them stays
  * byte-identical to the pre-feature output.
  *
- * A tier naming an unknown buff is skipped rather than thrown on;
+ * An entry naming an unknown buff is skipped rather than thrown on;
  * config/validation.ts is the gate.
  */
 export function buildWaveBuffRig(
@@ -59,58 +61,71 @@ export function buildWaveBuffRig(
   x: number,
   y: number
 ): void {
-  const carried = waves.map((wave) => {
-    const def = buffById(waveBuff(wave))
-    return def === undefined ? null : { def, target: waveBuffTarget(wave) }
-  })
-  if (carried.every((entry) => entry === null)) return
+  const carried: { def: BuffDef; target: BuffTarget }[][] = waves.map((wave) =>
+    waveBuffs(wave).flatMap((entry) => {
+      const def = buffById(entry.buff)
+      return def === undefined ? [] : [{ def, target: entry.target }]
+    })
+  )
+  if (carried.every((entries) => entries.length === 0)) return
 
-  // The previous tier's field, so each trigger knows what to switch off.
-  let previous: NodeDangerArea | null = null
+  // The previous carrying tier's fields, so each trigger knows what to switch
+  // off — all of them, since a tier replaces the whole set before it.
+  let previous: NodeDangerArea[] = []
 
   for (let tier = 0; tier < carried.length; tier++) {
-    const entry = carried[tier]
-    if (entry === null) continue
+    const entries = carried[tier]
+    if (entries.length === 0) continue
 
     // Nodes are placed off the arena, one column per tier — cosmetic editor
     // markers only, nothing about the rig is positional.
     const col = x + tier
     let row = y
 
-    const shape = new NodeRectangleShape(ctx, arenaWidth / 2, arenaHeight / 2)
-    shape.width = arenaWidth + COVER_MARGIN
-    shape.height = arenaHeight + COVER_MARGIN
-    shape.types = BUFF_TARGET_TYPES[entry.target as BuffTarget]
+    const fields: NodeDangerArea[] = []
+    for (const entry of entries) {
+      const shape = new NodeRectangleShape(ctx, arenaWidth / 2, arenaHeight / 2)
+      shape.width = arenaWidth + COVER_MARGIN
+      shape.height = arenaHeight + COVER_MARGIN
+      shape.types = BUFF_TARGET_TYPES[entry.target as BuffTarget]
 
-    const field = new NodeDangerArea(ctx, col, row)
-    field.damage = 0
-    field.freqMs = BUFF_REFRESH_MS
-    field.buff = entry.def.path
-    field.connectToShape(shape)
-    // The opening tier has nothing to switch it on, so it has to arrive live;
-    // every later tier ships disabled and waits for its own threshold. That is
-    // also why tier 0 emits no trigger at all.
-    field.enabled = tier === 0
+      const field = new NodeDangerArea(ctx, col, row)
+      field.damage = 0
+      field.freqMs = BUFF_REFRESH_MS
+      field.buff = entry.def.path
+      field.connectToShape(shape)
+      // The opening tier has nothing to switch it on, so it has to arrive live;
+      // every later tier ships disabled and waits for its own threshold. That is
+      // also why tier 0 emits no trigger at all.
+      field.enabled = tier === 0
+      fields.push(field)
+      // The first field sits on the tier's own row so a single-buff tier emits
+      // exactly the node sequence it did before tiers took lists.
+      row += 1
+    }
+    row -= 1
 
     if (tier > 0) {
       row += 1
       const trigger = new NodeGlobalEventTrigger(ctx, col, row, TIER_EVENT_NAMES[tier - 1])
 
-      if (previous !== null) {
+      for (const stale of previous) {
         row += 1
         const off = new NodeToggleElement(ctx, col, row)
         off.state = 1 // 1 disables the target element
-        off.connectToElement(previous)
+        off.connectToElement(stale)
         trigger.connectTo(off)
       }
 
-      row += 1
-      const on = new NodeToggleElement(ctx, col, row)
-      on.state = 0 // 0 enables the target element
-      on.connectToElement(field)
-      trigger.connectTo(on)
+      for (const field of fields) {
+        row += 1
+        const on = new NodeToggleElement(ctx, col, row)
+        on.state = 0 // 0 enables the target element
+        on.connectToElement(field)
+        trigger.connectTo(on)
+      }
     }
 
-    previous = field
+    previous = fields
   }
 }

@@ -19,6 +19,7 @@ import { GenerationContext } from '../src/generator/core/context'
 import {
   BUFF_REFRESH_MS,
   BUFF_TARGET_TYPES,
+  MAX_BUFFS_PER_WAVE,
   defaultParameters
 } from '../src/generator/config/parameters'
 import type { BossWave, BuffTarget } from '../src/generator/config/parameters'
@@ -35,9 +36,23 @@ function freshCtx(seed = 12345): GenerationContext {
   return new GenerationContext(defaultParameters(), seed)
 }
 
-/** A bare tier, optionally carrying a buff. */
+/**
+ * A bare tier, optionally carrying a buff in the LEGACY single-buff form —
+ * which is also what proves configs written before tiers took lists still
+ * build the same rig.
+ */
 function wave(buff?: string, buffTarget?: BuffTarget): BossWave {
   return { monsters: [], monsterMax: {}, defaultIntervalMs: 3000, buff, buffTarget }
+}
+
+/** A bare tier carrying any number of buffs, in the current list form. */
+function waveWith(...buffs: [string, BuffTarget][]): BossWave {
+  return {
+    monsters: [],
+    monsterMax: {},
+    defaultIntervalMs: 3000,
+    buffs: buffs.map(([buff, target]) => ({ buff, target }))
+  }
 }
 
 function buildRig(ctx: GenerationContext, waves: BossWave[]) {
@@ -232,14 +247,73 @@ describe('boss wave buffs — the field rig', () => {
   })
 })
 
+describe('boss wave buffs — several buffs on one tier', () => {
+  it('gives one tier a field per buff, each with its own shape and target', () => {
+    const ctx = freshCtx()
+    buildRig(ctx, [waveWith(['bloodlust', 'monsters'], ['frost', 'players']), wave(), wave(), wave(), wave()])
+
+    const areas = fields(ctx)
+    const shapes = nodesOfType(ctx, 'RectangleShape') as unknown as { id: number; types: number }[]
+    expect(areas).toHaveLength(2)
+    expect(shapes).toHaveLength(2)
+    expect(areas.map((a) => a.buff)).toEqual(['buffs/bloodlust.xml', 'buffs/frost.xml'])
+    // tier 0 arrives live, whichever of its fields you look at
+    expect(areas.every((a) => a.enabled)).toBe(true)
+
+    const typesOf = (index: number) => shapes.find((s) => s.id === areas[index].shapeId)?.types
+    expect(typesOf(0)).toBe(BUFF_TARGET_TYPES.monsters)
+    expect(typesOf(1)).toBe(BUFF_TARGET_TYPES.players)
+  })
+
+  it('switches every field of the previous tier off, and every one of its own on', () => {
+    const ctx = freshCtx()
+    buildRig(ctx, [
+      waveWith(['bloodlust', 'monsters'], ['frost', 'players']),
+      waveWith(['cripple', 'monsters'], ['test', 'both']),
+      wave(),
+      wave(),
+      wave()
+    ])
+
+    const areas = fields(ctx)
+    expect(areas).toHaveLength(4)
+    const [first, second, third, fourth] = areas
+
+    const triggers = nodesOfType(ctx, 'GlobalEventTrigger')
+    expect(triggers).toHaveLength(1)
+
+    const toggles = togglesFrom(triggers[0])
+    expect(toggles).toHaveLength(4)
+    expect(toggles).toContainEqual({ state: 1, element: first.id })
+    expect(toggles).toContainEqual({ state: 1, element: second.id })
+    expect(toggles).toContainEqual({ state: 0, element: third.id })
+    expect(toggles).toContainEqual({ state: 0, element: fourth.id })
+    expect(connectionsResolve(ctx)).toBe(true)
+  })
+
+  it('emits the same nodes for a one-entry list as for the legacy single buff', () => {
+    const listed = freshCtx()
+    buildRig(listed, [waveWith(['bloodlust', 'monsters']), wave(), waveWith(['frost', 'players']), wave(), wave()])
+
+    const legacy = freshCtx()
+    buildRig(legacy, [wave('bloodlust', 'monsters'), wave(), wave('frost', 'players'), wave(), wave()])
+
+    expect(listed.scriptNodes.map((n) => n.getXML())).toEqual(legacy.scriptNodes.map((n) => n.getXML()))
+    expect(listed.idCounter).toBe(legacy.idCounter)
+  })
+})
+
 describe('boss wave buffs — validation', () => {
-  const withWaveBuff = (index: number, buff: string, buffTarget?: BuffTarget) => {
+  const withWaveBuffs = (index: number, buffs: [string, BuffTarget][]) => {
     const params = defaultParameters()
     params.boss.arena.waves = params.boss.arena.waves.map((w, i) =>
-      i === index ? { ...w, buff, buffTarget } : w
+      i === index ? { ...w, buffs: buffs.map(([buff, target]) => ({ buff, target })) } : w
     )
     return validateParameters(params)
   }
+
+  const withWaveBuff = (index: number, buff: string, buffTarget: BuffTarget = 'players') =>
+    withWaveBuffs(index, [[buff, buffTarget]])
 
   it('accepts a stock campaign, which carries no wave buff', () => {
     expect(validateParameters(defaultParameters()).valid).toBe(true)
@@ -251,31 +325,63 @@ describe('boss wave buffs — validation', () => {
     }
   })
 
+  it('accepts several real buffs on one tier', () => {
+    expect(withWaveBuffs(1, [['frost', 'monsters'], ['cripple', 'both']]).valid).toBe(true)
+  })
+
   it('rejects an unknown buff id', () => {
     const result = withWaveBuff(1, 'no_such_buff')
     expect(result.valid).toBe(false)
-    expect(result.errors.map((e) => e.field)).toContain('boss.arena.waves.1.buff')
+    expect(result.errors.map((e) => e.field)).toContain('boss.arena.waves.1.buffs.0.buff')
   })
 
   it('rejects an unknown target', () => {
     const result = withWaveBuff(1, 'frost', 'everyone' as BuffTarget)
     expect(result.valid).toBe(false)
-    expect(result.errors.map((e) => e.field)).toContain('boss.arena.waves.1.buffTarget')
+    expect(result.errors.map((e) => e.field)).toContain('boss.arena.waves.1.buffs.0.target')
+  })
+
+  it('rejects more buffs than a tier may carry', () => {
+    const tooMany: [string, BuffTarget][] = Array.from(
+      { length: MAX_BUFFS_PER_WAVE + 1 },
+      () => ['frost', 'players'] as [string, BuffTarget]
+    )
+    const result = withWaveBuffs(1, tooMany)
+    expect(result.valid).toBe(false)
+    expect(result.errors.map((e) => e.field)).toContain('boss.arena.waves.1.buffs')
+  })
+
+  it('warns about a duplicate buff/target pair on one tier', () => {
+    const result = withWaveBuffs(1, [['frost', 'monsters'], ['frost', 'monsters']])
+    expect(result.valid).toBe(true)
+    expect(result.warnings.map((w) => w.field)).toContain('boss.arena.waves.1.buffs.1.buff')
   })
 
   it('warns when a strengthening buff catches the horde', () => {
     const result = withWaveBuff(2, 'bloodlust', 'monsters')
     expect(result.valid).toBe(true)
-    expect(result.warnings.map((w) => w.field)).toContain('boss.arena.waves.2.buffTarget')
+    expect(result.warnings.map((w) => w.field)).toContain('boss.arena.waves.2.buffs.0.target')
   })
 
   it('warns when the death tier buffs monsters it does not spawn', () => {
     const params = defaultParameters()
     params.boss.arena.waves = params.boss.arena.waves.map((w, i) =>
-      i === 4 ? { ...w, monsters: [], monsterMax: {}, buff: 'frost', buffTarget: 'monsters' as BuffTarget } : w
+      i === 4
+        ? { ...w, monsters: [], monsterMax: {}, buffs: [{ buff: 'frost', target: 'monsters' as BuffTarget }] }
+        : w
     )
     const result = validateParameters(params)
     expect(result.valid).toBe(true)
-    expect(result.warnings.map((w) => w.field)).toContain('boss.arena.waves.4.buffTarget')
+    expect(result.warnings.map((w) => w.field)).toContain('boss.arena.waves.4.buffs.0.target')
+  })
+
+  it('still validates a tier stored in the legacy single-buff form', () => {
+    const params = defaultParameters()
+    params.boss.arena.waves = params.boss.arena.waves.map((w, i) =>
+      i === 1 ? { ...w, buff: 'no_such_buff', buffTarget: 'players' as BuffTarget } : w
+    )
+    const result = validateParameters(params)
+    expect(result.valid).toBe(false)
+    expect(result.errors.map((e) => e.field)).toContain('boss.arena.waves.1.buffs.0.buff')
   })
 })

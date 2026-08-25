@@ -11,6 +11,7 @@ import {
   MAX_BOSS_INVULN_SECONDS,
   BUFF_TARGETS,
   MAX_BUFFS_PER_FLOOR,
+  MAX_BUFFS_PER_WAVE,
   MAX_TIMER_DAMAGE,
   MAX_TIMER_FREQ_MS,
   MAX_TIMER_SECONDS,
@@ -20,8 +21,7 @@ import {
   THEMES,
   isScatterMode,
   waveSpawnMode,
-  waveBuff,
-  waveBuffTarget
+  waveBuffs
 } from './parameters'
 import { getTheme } from './themes'
 import {
@@ -495,23 +495,29 @@ function validateBoss(
       }
     }
 
-    // The tier's arena-wide buff. Absent or '' means none, which is the
-    // pre-feature default and never invalid; the target is only meaningful
-    // once a buff is actually named.
-    if (waveBuff(wave) !== '') {
-      if (buffById(waveBuff(wave)) === undefined) {
-        errors.push({
-          field: `boss.arena.waves.${i}.buff`,
-          message: `"${waveBuff(wave)}" is not a buff the game ships.`
-        })
-      }
-      if (!BUFF_TARGETS.includes(waveBuffTarget(wave))) {
-        errors.push({
-          field: `boss.arena.waves.${i}.buffTarget`,
-          message: `"${waveBuffTarget(wave)}" is not a buff target — use ${BUFF_TARGETS.join(', ')}.`
-        })
-      }
+    // The tier's arena-wide buffs. An empty list means none, which is the
+    // pre-feature default and never invalid.
+    const tierBuffs = waveBuffs(wave)
+    if (tierBuffs.length > MAX_BUFFS_PER_WAVE) {
+      errors.push({
+        field: `boss.arena.waves.${i}.buffs`,
+        message: `Wave ${i + 1}: ${tierBuffs.length} buffs, but a tier may carry at most ${MAX_BUFFS_PER_WAVE}.`
+      })
     }
+    tierBuffs.forEach((entry, j) => {
+      if (buffById(entry.buff) === undefined) {
+        errors.push({
+          field: `boss.arena.waves.${i}.buffs.${j}.buff`,
+          message: `"${entry.buff}" is not a buff the game ships.`
+        })
+      }
+      if (!BUFF_TARGETS.includes(entry.target)) {
+        errors.push({
+          field: `boss.arena.waves.${i}.buffs.${j}.target`,
+          message: `"${entry.target}" is not a buff target — use ${BUFF_TARGETS.join(', ')}.`
+        })
+      }
+    })
 
     // Spawn modes. A key for a monster that is no longer in the pool is
     // ignored rather than reported — the parser and the form both rebuild the
@@ -687,25 +693,37 @@ function validateBoss(
       })
     }
 
-    if (waveBuff(wave) !== '' && buffById(waveBuff(wave)) !== undefined) {
+    const seenTierBuffs = new Set<string>()
+    waveBuffs(wave).forEach((entry, j) => {
+      if (buffById(entry.buff) === undefined) return
+
+      const pair = `${entry.buff}|${entry.target}`
+      if (seenTierBuffs.has(pair)) {
+        warnings.push({
+          field: `boss.arena.waves.${i}.buffs.${j}.buff`,
+          message: `Wave ${i + 1}: "${entry.buff}" is already applied to ${entry.target} on this tier — the second copy does nothing.`
+        })
+      }
+      seenTierBuffs.add(pair)
+
       // The boss is already dead by this tier, so a buff aimed at the horde has
       // only whatever that tier itself spawns to land on.
-      if (i === BOSS_DEATH_WAVE && waveBuffTarget(wave) === 'monsters' && wave.monsters.length === 0) {
+      if (i === BOSS_DEATH_WAVE && entry.target === 'monsters' && wave.monsters.length === 0) {
         warnings.push({
-          field: `boss.arena.waves.${i}.buffTarget`,
+          field: `boss.arena.waves.${i}.buffs.${j}.target`,
           message:
             'The after-the-boss-dies buff catches monsters, but that tier spawns none — nothing will be buffed on the walk to the orb.'
         })
       }
       // Same reasoning as the per-floor warning: aiming a strengthener at the
       // party is legitimate, so this only fires the other way round.
-      if (BUFF_HELPFUL_IDS.includes(waveBuff(wave)) && waveBuffTarget(wave) !== 'players') {
+      if (BUFF_HELPFUL_IDS.includes(entry.buff) && entry.target !== 'players') {
         warnings.push({
-          field: `boss.arena.waves.${i}.buffTarget`,
-          message: `Wave ${i + 1}: "${waveBuff(wave)}" strengthens whatever it catches, and this one catches ${waveBuffTarget(wave)}.`
+          field: `boss.arena.waves.${i}.buffs.${j}.target`,
+          message: `Wave ${i + 1}: "${entry.buff}" strengthens whatever it catches, and this one catches ${entry.target}.`
         })
       }
-    }
+    })
 
     for (const id of wave.monsters) {
       const mode = waveSpawnMode(wave, id)

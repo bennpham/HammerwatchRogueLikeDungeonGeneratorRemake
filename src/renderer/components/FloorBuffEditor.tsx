@@ -1,16 +1,12 @@
-import React from 'react'
-import { BUFF_DEFS, MAX_BUFFS_PER_FLOOR, buffById } from '../../generator'
+import { MAX_BUFFS_PER_FLOOR, buffById } from '../../generator'
 import type { DungeonParameters, FloorBuff, ValidationIssue } from '../../generator'
-import { BuffPicker } from './BuffPicker'
+import { BuffListEditor } from './BuffListEditor'
 
 interface FloorBuffEditorProps {
   params: DungeonParameters
   issues: ValidationIssue[]
   onChange: (params: DungeonParameters) => void
 }
-
-/** What "Add buff" starts a new row on — the first entry of the first group. */
-const FIRST_BUFF = BUFF_DEFS[0].id
 
 /**
  * Buff auras: a floor can wear any number of the game's buffs, each aimed at
@@ -36,23 +32,6 @@ export function FloorBuffEditor({ params, issues, onChange }: FloorBuffEditorPro
     const next = floors()
     next[level] = buffs
     onChange({ ...params, levelBuffs: next })
-  }
-
-  const patch = (level: number, index: number, change: Partial<FloorBuff>) => {
-    const buffs = floors()[level]
-    buffs[index] = { ...buffs[index], ...change }
-    setFloor(level, buffs)
-  }
-
-  const add = (level: number) => {
-    setFloor(level, [...floors()[level], { buff: FIRST_BUFF, target: 'players' }])
-  }
-
-  const remove = (level: number, index: number) => {
-    setFloor(
-      level,
-      floors()[level].filter((_, i) => i !== index)
-    )
   }
 
   const copyDown = (level: number) => {
@@ -88,55 +67,14 @@ export function FloorBuffEditor({ params, issues, onChange }: FloorBuffEditorPro
               <span className="pool-summary">{summary}</span>
             </summary>
             <div className="section-body">
-              {buffs.map((entry, index) => (
-                <React.Fragment key={index}>
-                  <BuffPicker
-                    buff={entry.buff}
-                    target={entry.target}
-                    onChange={(change) => patch(level, index, change)}
-                  >
-                    <button
-                      type="button"
-                      className="buff-remove"
-                      onClick={() => remove(level, index)}
-                      title="Remove this buff from the floor"
-                    >
-                      Remove
-                    </button>
-                  </BuffPicker>
-                  {issues
-                    .filter(
-                      (i) =>
-                        i.field === `levelBuffs.${level}.${index}.buff` ||
-                        i.field === `levelBuffs.${level}.${index}.target`
-                    )
-                    .map((issue, i) => (
-                      <p key={i} className="field-message">
-                        {issue.message}
-                      </p>
-                    ))}
-                </React.Fragment>
-              ))}
-              {issues
-                .filter((i) => i.field === `levelBuffs.${level}`)
-                .map((issue, i) => (
-                  <p key={i} className="field-message">
-                    {issue.message}
-                  </p>
-                ))}
-              <button
-                type="button"
-                className="copy-down"
-                onClick={() => add(level)}
-                disabled={buffs.length >= MAX_BUFFS_PER_FLOOR}
-                title={
-                  buffs.length >= MAX_BUFFS_PER_FLOOR
-                    ? `A floor may carry at most ${MAX_BUFFS_PER_FLOOR} buffs`
-                    : 'Hang another buff on this floor'
-                }
-              >
-                Add buff
-              </button>
+              <BuffListEditor
+                value={buffs}
+                onChange={(next) => setFloor(level, next)}
+                max={MAX_BUFFS_PER_FLOOR}
+                noun="floor"
+                issuePrefix={`levelBuffs.${level}`}
+                issues={issues}
+              />
               {level < count - 1 && (
                 <button type="button" className="copy-down" onClick={() => copyDown(level)}>
                   Copy to floors below

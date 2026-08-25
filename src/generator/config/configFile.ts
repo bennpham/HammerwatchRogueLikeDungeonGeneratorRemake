@@ -12,8 +12,7 @@ import {
   defaultFloorTimer,
   defaultParameters,
   isScatterMode,
-  waveBuff,
-  waveBuffTarget
+  waveBuffs
 } from './parameters'
 import type { BossFloorPattern, BossOptions, BossSpawnMode, BuffTarget, FloorBuff } from './parameters'
 import { MONSTER_TYPES } from '../objects/monsterTypes'
@@ -323,10 +322,13 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       }
       continue
     }
-    // bossWaveBuffN=<id>:<target> — one line per tier carrying an arena buff,
-    // written only for those tiers. Must be tested BEFORE the bossWaveN branch:
-    // `bosswavebuff1` would otherwise never match anything, since that branch's
-    // pattern is anchored and would simply fall through to unknownKeys.
+    // bossWaveBuffN=<id>:<target>|<id>:<target> — one line per tier carrying
+    // arena buffs, written only for those tiers, in the same form as the
+    // per-floor `buffN` key above. A file written when a tier could only hold
+    // one buff has a single segment and parses to a one-entry list. Must be
+    // tested BEFORE the bossWaveN branch: `bosswavebuff1` would otherwise never
+    // match anything, since that branch's pattern is anchored and would simply
+    // fall through to unknownKeys.
     const waveBuffMatch = keyLower.match(/^bosswavebuff(\d)$/)
     if (waveBuffMatch) {
       const idx = parseInt(waveBuffMatch[1], 10) - 1
@@ -334,21 +336,27 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
         result.unknownKeys.push(key)
         continue
       }
-      const trimmed = value.trim()
-      const colon = trimmed.indexOf(':')
-      const id = (colon === -1 ? trimmed : trimmed.slice(0, colon)).trim()
-      const target = (colon === -1 ? 'players' : trimmed.slice(colon + 1).trim()) as BuffTarget
+      const entries: FloorBuff[] = []
 
-      if (buffById(id) === undefined) {
-        result.unknownKeys.push(`${key} buff "${id}"`)
-        continue
+      for (const segment of value.split('|')) {
+        const trimmed = segment.trim()
+        if (trimmed === '') continue
+        const colon = trimmed.indexOf(':')
+        const id = (colon === -1 ? trimmed : trimmed.slice(0, colon)).trim()
+        const target = (colon === -1 ? 'players' : trimmed.slice(colon + 1).trim()) as BuffTarget
+
+        if (buffById(id) === undefined) {
+          result.unknownKeys.push(`${key} buff "${id}"`)
+          continue
+        }
+        if (!BUFF_TARGETS.includes(target)) {
+          result.unknownKeys.push(`${key} target "${target}"`)
+          continue
+        }
+        entries.push({ buff: id, target })
       }
-      if (!BUFF_TARGETS.includes(target)) {
-        result.unknownKeys.push(`${key} target "${target}"`)
-        continue
-      }
-      params.boss.arena.waves[idx].buff = id
-      params.boss.arena.waves[idx].buffTarget = target
+
+      params.boss.arena.waves[idx].buffs = entries
       continue
     }
 
@@ -746,8 +754,9 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
     // A separate key rather than a sixth field on the line above: appending one
     // would put a trailing `|` on every stock export, so a file written before
     // wave buffs existed would no longer round-trip to the same bytes.
-    if (waveBuff(wave) !== '') {
-      lines.push(`bossWaveBuff${i + 1}=${waveBuff(wave)}:${waveBuffTarget(wave)}`)
+    const buffs = waveBuffs(wave)
+    if (buffs.length > 0) {
+      lines.push(`bossWaveBuff${i + 1}=${buffs.map((b) => `${b.buff}:${b.target}`).join('|')}`)
     }
   }
 
