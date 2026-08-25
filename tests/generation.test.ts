@@ -260,8 +260,23 @@ describe('generateDungeon', () => {
         // and buries them (OVERHANG_ROWS). Theme h and the bonus themes anchor
         // every wall piece at yOffset 0 and overhang nothing, so there the two
         // rows were open floor and the player walked around the seal.
+        // The second regression, and why the flat themes carry extra seeds: a
+        // DOWN seal sits one row past the doorway plus however many rows that
+        // wall buries (`overhangRows`). Assuming the lettered themes' 2 on a
+        // theme that buries nothing put the barrier two rows beyond the corridor
+        // mouth — and where the corridor was shorter than that, inside the room
+        // it gates, seven tiles of wall across a fifteen-tile room. Seeds 12, 29,
+        // 59 and 60 are that case; they fail `after` below without the fix.
+        //
+        // They are NOT swept on the lettered themes: those have the same
+        // overshoot and no room to correct it, since the rows the barrier would
+        // move onto are inside their own wall art. Pre-existing, unfixed, and
+        // recorded in the discovery log — do not add them here without fixing it.
+        const FLAT_ONLY_SEEDS = [12, 29, 59, 60]
+
         for (const theme of ['a', 'h', 'bonus1']) {
-          for (const seed of [3, 555, 90210]) {
+          const flat = theme !== 'a'
+          for (const seed of flat ? [3, 555, 90210, ...FLAT_ONLY_SEEDS] : [3, 555, 90210]) {
             const params = defaultParameters()
             params.themes = params.themes.map(() => theme)
             const result = generateDungeon(params, seed)
@@ -307,6 +322,75 @@ describe('generateDungeon', () => {
           }
         }
       }, 60_000)
+
+      it('fences the same tile edge as the band it plugs', () => {
+        // The regression this guards: on a fence theme, being on the right tile
+        // and fencing the right edge are two separate constraints. `entrance.x`
+        // is the room's wall column for a LEFT door and a RIGHT one alike, but
+        // the band uses a mirrored piece on each side — TRight/h_v_8_r fences
+        // its tile's LEFT edge, TLeft/h_v_8_l its RIGHT one. The seal is always
+        // h_v_8_l, so at `entrance.x` it lands on the band's line for a RIGHT
+        // door and a full tile off it for a LEFT one, and the player slips up
+        // into the doorway tile and around. The along-axis test above cannot see
+        // this: a column on the wrong x still runs into wall at both ends.
+        //
+        // `h_v_8_l` blocks the boundary at x + 1, `h_v_8_r` the one at x. Both
+        // ends of the break must name the same boundary.
+        const edgeOf = (path: string, x: number): number =>
+          path.endsWith('h_v_8_l.xml') ? x + 1 : x
+
+        let sawLeftDoor = false
+        let sawRightDoor = false
+
+        for (let seed = 1; seed <= 40; seed++) {
+          const params = defaultParameters()
+          params.themes = params.themes.map(() => 'h')
+          const result = generateDungeon(params, seed)
+          if (!result.ok) continue
+          const ok = result as DungeonResult
+          const xml = lastLevelXML(ok)
+
+          const doodads = [
+            ...xml.matchAll(
+              /<string name="type">(doodads\/theme_h\/h_v_8_[lr]\.xml)<\/string>\s*<float name="x">(-?[\d.]+)<\/float>\s*<float name="y">(-?[\d.]+)<\/float>\s*<bool name="need-sync">(True|False)<\/bool>/g
+            )
+          ].map((m) => ({
+            path: m[1],
+            x: parseFloat(m[2]),
+            y: parseFloat(m[3]),
+            seal: m[4] === 'True'
+          }))
+
+          const seal = doodads.filter((d) => d.seal)
+          // vertical seals only — a horizontal one is a different pair of pieces
+          if (seal.length === 0 || new Set(seal.map((d) => d.x)).size !== 1) continue
+
+          const sealX = seal[0].x
+          const top = Math.min(...seal.map((d) => d.y))
+
+          // the band piece that flanks the doorway, one row above the seal's top.
+          // A seal whose top already meets a corner has none; skip those rather
+          // than model the corner art.
+          const band = doodads.filter(
+            (d) => !d.seal && d.y === top - 1 && (d.x === sealX || d.x === sealX + 1)
+          )
+          if (band.length === 0) continue
+
+          for (const b of band) {
+            expect(edgeOf(b.path, b.x), `seed ${seed} band ${b.path} @${b.x}`).toBe(
+              edgeOf(seal[0].path, sealX)
+            )
+          }
+          // h_v_8_r above means the band fences its left edge: a LEFT doorway,
+          // the case that needed the column moved. h_v_8_l means a RIGHT one.
+          if (band.some((b) => b.path.endsWith('h_v_8_r.xml'))) sawLeftDoor = true
+          if (band.some((b) => b.path.endsWith('h_v_8_l.xml'))) sawRightDoor = true
+        }
+
+        // both doorway orientations, or only half the rule is under test
+        expect(sawLeftDoor).toBe(true)
+        expect(sawRightDoor).toBe(true)
+      }, 120_000)
 
       it('reaches into the wall band on fence themes, so a door cannot be walked around', () => {
         // The regression this guards: a locked door used to span exactly its

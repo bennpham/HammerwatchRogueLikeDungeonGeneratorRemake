@@ -6,6 +6,8 @@ import {
   NodePlaySound,
   NodeRectangleShape
 } from '../objects/nodes'
+import { overhangRows } from './reachability'
+import { getTheme } from '../config/themes'
 import type { Room } from './room'
 import type { GenerationContext } from '../core/context'
 
@@ -85,7 +87,17 @@ export function sealRoomWithButton(room: Room, ctx: GenerationContext, rooms: Ro
     case 'UP':
     case 'DOWN': {
       // a vertical corridor occupies columns entrance.x .. entrance.x + width - 1
-      const lineY = entrance.dir.name === 'UP' ? entrance.y : entrance.y + 3
+      //
+      // UP bars the doorway row itself; DOWN has to clear the doorway's own art
+      // first, which is what the offset buys — one row past the wall, plus
+      // however many rows that wall buries beneath it. On the lettered themes
+      // that is the 3 it has always been; on a flat theme it is 1, and assuming
+      // 3 there overshoots the corridor mouth. Where the corridor is shorter
+      // than the overshoot the barrier lands inside the room it is supposed to
+      // gate — seven tiles of wall across a fifteen-tile room, walked around at
+      // either end. [VERIFIED] 2026-08-24 in game, theme h.
+      const lineY =
+        entrance.dir.name === 'UP' ? entrance.y : entrance.y + 1 + overhangRows(room.theme)
       for (let xOffset = -1; xOffset <= p.width; xOffset++) {
         seals.push(Doodad.create(ctx, entrance.x + xOffset, lineY, 'Horizontal', room.theme))
       }
@@ -96,8 +108,28 @@ export function sealRoomWithButton(room: Room, ctx: GenerationContext, rooms: Ro
     case 'RIGHT': {
       // a horizontal corridor occupies rows entrance.y .. entrance.y + width + 1
       // (Passage.contains walks width + 2 rows for a horizontal leg)
+      //
+      // Which column, and why the two directions differ. `entrance.x` is the
+      // room's own wall column either way (`placePassageDoor` puts a LEFT door at
+      // `r.x - 1` and a RIGHT one at `r.x + r.width + 1`), but a
+      // `directionalFences` theme's pieces fence one *edge* of their tile, and
+      // the band uses a different piece on each side:
+      //
+      //   RIGHT door -> band is TLeft  -> h_v_8_l, polygon x 0.63..1.13 -> right edge
+      //   LEFT  door -> band is TRight -> h_v_8_r, polygon x -0.13..0.38 -> left edge
+      //
+      // The seal is always `Vertical` -> h_v_8_l, a right-edge fence. That is the
+      // band's own line for a RIGHT door and one tile off it for a LEFT one, so
+      // the LEFT column has to start a tile earlier to land on the same line.
+      // Get it wrong and the barrier stops the sideways step into the room but
+      // not the one *up* into the doorway tile and around — the corner piece
+      // there (h_crn_r_dn) is a 7x8px nub, not a full edge. [VERIFIED]
+      // 2026-08-24 in game, theme h. Solid-tile themes seal from either column,
+      // so they keep the doorway column and their art stays put.
+      const fenced = getTheme(room.theme)?.directionalFences === true
+      const lineX = entrance.dir.name === 'LEFT' && fenced ? entrance.x - 1 : entrance.x
       for (let yOffset = -1; yOffset <= p.width + 2; yOffset++) {
-        seals.push(Doodad.create(ctx, entrance.x, entrance.y + yOffset, 'Vertical', room.theme))
+        seals.push(Doodad.create(ctx, lineX, entrance.y + yOffset, 'Vertical', room.theme))
       }
       break
     }

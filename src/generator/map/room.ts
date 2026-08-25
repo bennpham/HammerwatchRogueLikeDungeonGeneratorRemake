@@ -2,6 +2,7 @@ import { Monster } from '../objects/monster'
 import { Item, ItemType } from '../objects/item'
 import { ObjectSet } from '../objects/objectSet'
 import { getTheme } from '../config/themes'
+import { overhangRows } from './reachability'
 import type { MonsterTypeDef } from '../objects/monsterTypes'
 import type { Passage } from './passage'
 import type { GenerationContext } from '../core/context'
@@ -373,8 +374,13 @@ export class Room {
         break
 
       case 'DOWN':
+        // One row past the doorway, plus whatever that wall buries beneath
+        // itself — the 3 this has always been on the lettered themes, and 1 on a
+        // flat one. See map/buttonSeal.ts's `lineY`, which had the same latent
+        // overshoot and was the one caught in game.
         for (let xOffset = -margin; xOffset < p.width + margin; xOffset++) {
-          Item.create(ctx, entrance.x + xOffset + 0.5, entrance.y + 3, 'Door', lockTier)
+          const row = entrance.y + 1 + overhangRows(this.theme)
+          Item.create(ctx, entrance.x + xOffset + 0.5, row, 'Door', lockTier)
         }
         break
 

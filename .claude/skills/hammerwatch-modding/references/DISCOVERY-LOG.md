@@ -8,6 +8,77 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-24 — a barrier needs the right tile AND the right edge, and "+3" was really "1 + overhang"
+**Tag:** [VERIFIED] — two theme-h campaigns played and hand-fixed in the editor.
+**Context:** The button seal failed to gate the final room twice more, in two
+unrelated ways. Both were in `map/buttonSeal.ts`'s choice of *where* to put the
+barrier, not its span (that was the earlier overhang entry) nor the wall band
+(the entry below).
+
+| Seed | Corridor | Generated | Hand-fixed |
+| --- | --- | --- | --- |
+| `dungeon1613495514` | LEFT | 8x `h_v_8_l` at x **12**, rows 22..29 | x **11** |
+| `dungeon1986970473` | DOWN | 7x `h_h_8_dn` at y **41**, x 34..40 | y **39** |
+
+**Evidence — the edge.** A fence theme's piece blocks one edge of its tile, and
+the band uses a *mirrored* piece on each side of a corridor:
+
+| Piece | Polygon | Blocks the boundary at |
+| --- | --- | --- |
+| `h_v_8_l` (`Vertical`, `TLeft`) | x 10..18 px | `x + 1` |
+| `h_v_8_r` (`TRight`) | x -2..6 px | `x` |
+
+`placePassageDoor` puts a LEFT door at `r.x - 1` and a RIGHT one at
+`r.x + r.width + 1` — the room's wall column either way. But a LEFT doorway's
+band is `TRight` and a RIGHT one's is `TLeft`, so the boundary to continue is
+`entrance.x` on the left and `entrance.x + 1` on the right. The seal is always
+`Vertical` -> `h_v_8_l`, which blocks `x + 1`: right for a RIGHT door, one tile
+off for a LEFT one. The gap is not walked through sideways — it is walked
+*around*: the corner at the doorway, `h_crn_r_dn`, has polygon (0,3)(-5,0)(1,-5)(2,0),
+a 7x8px nub in the tile's top-left corner rather than a full edge, so the player
+enters the doorway tile from the standable wall row below the nub, steps up past
+`h_v_8_r`'s x 11.87..12.38 fence at x≈12.6, and walks into the room.
+
+**Evidence — the offset.** `lineY = entrance.y + 3` for a DOWN corridor is
+`1 + OVERHANG_ROWS`: one row past the doorway, plus the two rows the lettered
+themes' three-tile-tall art buries. A `flatWalls` theme buries none, so +3 is two
+rows too far. In `dungeon1986970473` the corridor is a single row — room wall at
+38, mouth at 39, orb room from 40 spanning x 35..49 — so the seal landed at 41
+*inside the orb room*, 7 tiles against 15, and was walked around at its right
+end. At `entrance.y + 1` the cross-section is exactly `p.width` and the line
+joins the orb room's own top wall, which is the same `h_h_8_dn` top-edge fence.
+
+**Impact:** new `flatWalls` flag on `ThemeDef` (theme h and every bonus theme) and
+`overhangRows(theme)` in `map/reachability.ts`; `buttonSeal.ts` gains a `lineX`
+mirroring its `lineY`, and both it and `Room.lockRoom()`'s DOWN case now read
+`entrance.y + 1 + overhangRows(theme)`. Lettered themes are byte-identical —
+`overhangRows` returns 2, so `1 + 2` is the 3 they already had.
+
+**Why the gold door never showed either:** a door is a solid 1-tile collider
+centred on `entrance.x + 0.5`, covering `entrance.x`..`entrance.x + 1`, so it
+spans *both* candidate boundaries and edge direction cannot matter to it —
+`dungeon300445903`'s theme-h gold columns held at the door line and leaked only
+over the top. It does share the DOWN overshoot exactly, which is why `lockRoom`
+was fixed alongside.
+
+**Sharp edges left in place, all pre-existing:**
+1. **The lettered themes have the same DOWN overshoot** and no room to correct
+   it — the rows the barrier would move onto are inside their own wall art.
+   Reproduces on themes a and f at seeds 12, 29, 35, 59, 60, where the seal's
+   far end abuts floor instead of wall. `tests/generation.test.ts` sweeps those
+   seeds on the flat themes only and says so at the loop.
+2. **A separate end-of-barrier failure on every theme**, seeds 13, 20 and 35:
+   the seal's *near* end abuts floor, i.e. the wall band beside the corridor is
+   thinner than the one tile of margin the seal allows for. Not diagnosed.
+3. `sealRoomWithButton` reads `passages[0].path[0]`, the doorway of the
+   passage's **begin** room, which may not be the room being sealed — it is not
+   in `dungeon1986970473`. Harmless (barring either end of a one-way corridor
+   gates it equally, and `p.width` is the passage's own width), and the gold door
+   has always worked the same way.
+4. `blockedGrid` models `OVERHANG_ROWS` on every theme, including flat ones. It
+   is over-conservative there, never unsafe — but making it theme-aware would
+   change which floors get re-rolled and with them every flat-theme seed.
+
 ### 2026-08-24 — theme h's wall *band* is standable, so a barrier must reach one tile into it
 **Tag:** [VERIFIED] in game for the vertical case — the user walked around a gold
 door on a theme-h floor and fixed it by hand. [UNVERIFIED] for the horizontal

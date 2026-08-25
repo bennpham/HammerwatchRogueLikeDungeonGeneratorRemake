@@ -1,3 +1,4 @@
+import { getTheme } from '../config/themes'
 import type { Level } from './level'
 import type { GenerationContext } from '../core/context'
 import type { ObjectSet } from '../objects/objectSet'
@@ -19,6 +20,26 @@ import type { ObjectSet } from '../objects/objectSet'
  * the overhang of the wall above it.
  */
 export const OVERHANG_ROWS = 2
+
+/**
+ * How many rows *this theme's* wall art buries beneath itself.
+ *
+ * `OVERHANG_ROWS` is the lettered themes' figure. Theme h and every bonus theme
+ * anchor their pieces on their own tile and bury nothing (`flatWalls`), so
+ * anything placed to clear a doorway's own art — the button seal's DOWN line,
+ * `lockRoom`'s DOWN doors — must ask rather than assume. Assuming 2 there puts
+ * the barrier two rows past the corridor mouth and, where the corridor is
+ * shorter than that, inside the next room where it can be walked around.
+ * [VERIFIED] 2026-08-24 in game, theme h.
+ *
+ * `blockedGrid` below deliberately does NOT use this: it models the overhang on
+ * every theme, which is over-conservative on a flat one but only ever rejects a
+ * floor that would have been fine. Making it theme-aware would change which
+ * floors get re-rolled, and with them every flat-theme seed's layout.
+ */
+export function overhangRows(theme: string): number {
+  return getTheme(theme)?.flatWalls === true ? 0 : OVERHANG_ROWS
+}
 
 /**
  * Cells the player can actually stand on: floor that is not buried by the
