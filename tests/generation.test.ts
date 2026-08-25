@@ -308,6 +308,131 @@ describe('generateDungeon', () => {
         }
       }, 60_000)
 
+      it('reaches into the wall band on fence themes, so a door cannot be walked around', () => {
+        // The regression this guards: a locked door used to span exactly its
+        // corridor. On theme h the wall pieces are edge fences, so the band
+        // tile beside a corridor is somewhere the player can stand — they
+        // stepped into the row above a gold door, walked its length and
+        // dropped back in past the door with no key. Ordinary themes have a
+        // solid band and must NOT gain the extra door, which is why theme a
+        // is swept here too.
+        let sawColumn = false
+        let sawRow = false
+
+        for (const [theme, fenced] of [
+          ['a', false],
+          ['h', true]
+        ] as const) {
+          for (const seed of [3, 555, 90210]) {
+            const params = defaultParameters()
+            params.themes = params.themes.map(() => theme)
+            params.lockChance = 1 // every floor gets a chance-gated lock
+            const result = generateDungeon(params, seed)
+            expect(result.ok, `${theme} seed ${seed}`).toBe(true)
+            const ok = result as DungeonResult
+
+            // every numeric floor, not just the first: whether a lock lands on a
+            // left/right corridor (a `_v` column) or an up/down one (a `_h_v2`
+            // row) is down to the roll, and floor 0 of a given seed often has
+            // only one of the two
+            for (let floor = 0; floor < params.levels; floor++) {
+              const level = ok.levels[floor]
+              const xml = ok.files.find((f) => f.path === `levels/level${floor}.xml`)!.content
+              const wallAt = (x: number, y: number): boolean =>
+                level.walls[x + y * level.mapWidth] === '1'
+
+              const doors = [
+                ...xml.matchAll(
+                  /<string name="type">(items\/door_[^<]+)<\/string>\s*<float name="x">(-?[\d.]+)<\/float>\s*<float name="y">(-?[\d.]+)<\/float>/g
+                )
+              ].map((m) => ({ path: m[1], x: parseFloat(m[2]) - 0.5, y: parseFloat(m[3]) }))
+              expect(doors.length, `${theme} seed ${seed} floor ${floor}`).toBeGreaterThan(0)
+
+              // one barrier per line of doors: group by the axis they share, then
+              // split each group into contiguous runs, since two unrelated locks
+              // on one floor can land on the same column or row
+              const group = (
+                keyOf: (d: (typeof doors)[number]) => number,
+                alongOf: (d: (typeof doors)[number]) => number,
+                keep: (path: string) => boolean
+              ): Array<{ key: number; along: number[] }> => {
+                const byKey = new Map<number, number[]>()
+                for (const d of doors) {
+                  if (!keep(d.path)) continue
+                  const k = keyOf(d)
+                  byKey.set(k, [...(byKey.get(k) ?? []), alongOf(d)])
+                }
+                const runs: Array<{ key: number; along: number[] }> = []
+                for (const [key, values] of byKey) {
+                  let run: number[] = []
+                  for (const v of [...values].sort((a, b) => a - b)) {
+                    if (run.length > 0 && v !== run[run.length - 1] + 1) {
+                      runs.push({ key, along: run })
+                      run = []
+                    }
+                    run.push(v)
+                  }
+                  if (run.length > 0) runs.push({ key, along: run })
+                }
+                return runs
+              }
+
+              // A `_v` door is 32px tall anchored at its base: it blocks from two
+              // tiles above its position down to its own. A `_h_v2` blocks its own
+              // column only. So a column of `_v` doors covers `min - 2 .. max`.
+              const columns = group(
+                (d) => d.x,
+                (d) => d.y,
+                (p) => p.endsWith('_v.xml')
+              ).map(({ key, along }) => ({
+                x: key,
+                first: along[0] - 2,
+                last: along[along.length - 1]
+              }))
+              const rows = group(
+                (d) => d.y,
+                (d) => d.x,
+                (p) => p.endsWith('_h_v2.xml')
+              ).map(({ key, along }) => ({
+                y: key,
+                first: along[0],
+                last: along[along.length - 1]
+              }))
+              expect(
+                columns.length + rows.length,
+                `${theme} seed ${seed} floor ${floor}`
+              ).toBeGreaterThan(0)
+              sawColumn ||= columns.length > 0
+              sawRow ||= rows.length > 0
+
+              for (const c of columns) {
+                const span = []
+                for (let y = c.first; y <= c.last; y++) span.push(wallAt(c.x, y))
+                // it really stands in a corridor rather than being buried in wall
+                expect(span.some((w) => !w), `${theme} seed ${seed} column ${c.x}`).toBe(true)
+                // the bottom end reaches the wall row under the corridor on every
+                // theme — the `_v` art's downward reach already paid for that
+                expect(wallAt(c.x, c.last), `${theme} seed ${seed} column ${c.x} bottom`).toBe(true)
+                // the top is the end this fix added, and only fence themes need it
+                expect(wallAt(c.x, c.first), `${theme} seed ${seed} column ${c.x} top`).toBe(fenced)
+              }
+
+              for (const r of rows) {
+                const span = []
+                for (let x = r.first; x <= r.last; x++) span.push(wallAt(x, r.y))
+                expect(span.some((w) => !w), `${theme} seed ${seed} row ${r.y}`).toBe(true)
+                expect(wallAt(r.first, r.y), `${theme} seed ${seed} row ${r.y} left`).toBe(fenced)
+                expect(wallAt(r.last, r.y), `${theme} seed ${seed} row ${r.y} right`).toBe(fenced)
+              }
+            }
+          }
+        }
+
+        // both orientations have to have been seen, or half the fix is untested
+        expect(sawColumn).toBe(true)
+        expect(sawRow).toBe(true)
+      }, 120_000)
+
       it('hides the button in a room the player can open without it', () => {
         for (let seed = 1; seed <= 25; seed++) {
           const result = generateOk(seed)

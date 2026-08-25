@@ -8,6 +8,52 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-24 — theme h's wall *band* is standable, so a barrier must reach one tile into it
+**Tag:** [VERIFIED] in game for the vertical case — the user walked around a gold
+door on a theme-h floor and fixed it by hand. [UNVERIFIED] for the horizontal
+case, which is the same mechanism but has not been seen.
+**Context:** A locked door on theme h did not seal its corridor. This is a
+*different* fault from the 2026-08-24 overhang entry below: there the corridor's
+own rows were uncovered, here they were covered and the player went around
+through the wall.
+**Evidence:** Theme h's pieces barricade one edge of their tile, so a boundary
+tile is somewhere the player can stand — already documented in
+`config/themes.ts` under `directionalFences`. The row above a corridor takes
+`TDown` -> `h_h_8_dn`, which fences only that tile's top edge (y -0.13..0.38):
+steppable from the corridor floor, connected along the corridor's whole length,
+and therefore a way over the top of a door column and back down past it. In
+`dungeon300445903/levels/level0.xml` the two gold columns ran y 7..12 and 36..39;
+`level0_modified.xml` adds one `items/door_a_gold_v_v2.xml` per column at
+`21.5 5` and `46.5 34` — `entrance.y` in both cases.
+
+The ends are not symmetric, and the art is why:
+
+| End | Piece | Coverage | Needs an extra door? |
+| --- | --- | --- | --- |
+| Row above a horizontal corridor | `h_h_8_dn` | top edge only, y -0.13..0.38 | **yes** |
+| Row below a horizontal corridor | `h_h_8_up` @ `yOffset: -1` | x 0..1, y -0.19..1.0 — near solid | no |
+| Both columns beside a vertical corridor | `h_v_8_r` / `h_v_8_l` | ~25% edge fences | **yes, both** |
+
+Door geometry, read from `assetsExtract/items/`: `door_a_*_v.xml` is a 12x32
+sprite at `<origin>6 32</origin>` with collision y -32..+8 px, so it blocks from
+two tiles above its position down to half a tile below; `door_a_*_v_v2.xml` is
+the 16px variant (collision y -16..+8); `door_a_*_h_v2.xml` blocks one tile,
+x -8..+8, y -16..0. That is why an extra **full** `_v` door at `entrance.y + 1`
+is equivalent to the hand-placed `_v_v2` at `entrance.y` — same collision top
+edge, same visual top edge, no new asset — and why the vertical case already
+reached the wall row *below* the corridor without help.
+**Impact:** `Room.lockRoom()` takes a `margin` of 1 when
+`getTheme(this.theme)?.directionalFences === true`, and 0 otherwise: UP/DOWN
+gains a door in the wall column on each side, LEFT/RIGHT one above. Non-fence
+themes emit byte-identical levels, which the new `tests/generation.test.ts`
+sweep asserts by requiring theme a's columns to *stop* on corridor floor at the
+top. No RNG draw moves — `Item.create(..., 'Door', tier)` passes an explicit
+index — so theme-h seeds keep their layout and only gain items and shifted ids.
+**Caveat:** the extra door occupies a wall-band tile. Where that tile is floor
+belonging to an unrelated passage hard against the corridor, the door gates that
+passage too; reachability does not model doors and will not catch it. The
+existing doors already carry the same exposure at their other ends.
+
 ### 2026-08-24 — a doodad's `pos` is its art anchor; a `RectangleShape`'s is its **centre**
 **Tag:** [VERIFIED] — from the shipped campaign, plus the user's hand-fix in the
 editor.
