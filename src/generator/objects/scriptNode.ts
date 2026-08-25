@@ -19,6 +19,7 @@ export type NodeTypeName =
   | 'ToggleImmortality'
   | 'DangerArea'
   | 'PlaySound'
+  | 'ChangeDoodadState'
 
 /**
  * Base scripting node (ported from ScriptNode.java). Most subclasses override

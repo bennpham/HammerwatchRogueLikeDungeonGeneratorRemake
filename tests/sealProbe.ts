@@ -173,9 +173,13 @@ export function passabilityOf(level: LevelPreview, xml: string): Passability {
       if (level.walls[x + y * w] === '1') pass.setSolid(x, y)
     }
   }
-  // the seal stands on corridor floor, so it has to be added by hand
+  // The seal stands on corridor floor, so it has to be added by hand. The button
+  // is `need-sync` too — for its *state*, not a collider it does not have — so
+  // it is skipped: counting it would both invent an obstacle and, since
+  // `sealPiece` would read it as a `Horizontal`, undo a `yOffset` never applied
+  // and land that obstacle on the wrong tile.
   for (const d of doodads) {
-    if (!d.sync) continue
+    if (!d.sync || d.name === 'trigger_button_floor') continue
     const off = doodadOffset(sealPiece(d.name), level.theme)
     pass.setSolid(Math.round(d.x - off.x), Math.round(d.y - off.y))
   }

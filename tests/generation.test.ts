@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { generateDungeon, defaultParameters, DungeonResult } from '../src/generator'
 import { doodadOffset, doodadPath } from '../src/generator/objects/doodad'
-import { oneShotRespawn } from './xmlHelpers'
+import { nodesOfType, oneShotRespawn } from './xmlHelpers'
 import type { DoodadTypeName } from '../src/generator/objects/doodad'
 
 function generateOk(seed: number, mutate?: (p: ReturnType<typeof defaultParameters>) => void): DungeonResult {
@@ -214,6 +214,26 @@ describe('generateDungeon', () => {
           expect(xml).toContain('<string name="type">PlaySound</string>')
           expect(xml).toContain('<string name="sound">sound/misc.xml:button_hatch</string>')
           expect(xml).toContain('<string name="type">DestroyObject</string>')
+
+          // and the button visibly presses: one ChangeDoodadState, aimed at the
+          // button's own doodad id, fired by the same one-shot trigger
+          const press = nodesOfType(xml, 'ChangeDoodadState')
+          expect(press, `seed ${seed}`).toHaveLength(1)
+          expect(press[0].body).toContain('<string name="state">pressed</string>')
+
+          const plate = /<int name="id">(\d+)<\/int>\s*<string name="type">doodads\/special\/trigger_button_floor\.xml<\/string>/.exec(
+            xml
+          )!
+          expect(press[0].body, `seed ${seed}`).toContain(
+            `<int-arr name="static">${plate[1]}</int-arr>`
+          )
+
+          const oneShot = nodesOfType(xml, 'AreaTrigger').find((n) =>
+            /<int name="trigger-times">1<\/int>/.test(n.body)
+          )!
+          expect(oneShot, `seed ${seed}`).toBeDefined()
+          const wired = /<int-arr name="connections">([^<]+)<\/int-arr>/.exec(oneShot.body)!
+          expect(wired[1].split(' '), `seed ${seed}`).toContain(String(press[0].id))
         }
       })
 
@@ -221,17 +241,26 @@ describe('generateDungeon', () => {
         for (const seed of [3, 555, 90210]) {
           const xml = lastLevelXML(generateOk(seed))
 
-          // every need-sync doodad on the floor is a seal, and the
-          // DestroyObject array must name all of them and nothing else
-          const syncedIds = [
+          // `need-sync` means "this doodad's runtime changes replicate", which
+          // covers the seal (destroyed) AND the button (its state changes) — so
+          // the DestroyObject array must name every synced doodad except the
+          // button, and the button must be synced without being destroyed.
+          const synced = [
             ...xml.matchAll(
-              /<int name="id">(\d+)<\/int>\s*<string name="type">[^<]+<\/string>\s*<float name="x">[^<]+<\/float>\s*<float name="y">[^<]+<\/float>\s*<bool name="need-sync">True<\/bool>/g
+              /<int name="id">(\d+)<\/int>\s*<string name="type">([^<]+)<\/string>\s*<float name="x">[^<]+<\/float>\s*<float name="y">[^<]+<\/float>\s*<bool name="need-sync">True<\/bool>/g
             )
-          ].map((m) => m[1])
-          expect(syncedIds.length).toBeGreaterThan(0)
+          ].map((m) => ({ id: m[1], path: m[2] }))
+
+          const buttons = synced.filter(
+            (d) => d.path === 'doodads/special/trigger_button_floor.xml'
+          )
+          expect(buttons, `seed ${seed}`).toHaveLength(1)
+
+          const sealIds = synced.filter((d) => d !== buttons[0]).map((d) => d.id)
+          expect(sealIds.length).toBeGreaterThan(0)
 
           const destroyed = /<string name="type">DestroyObject<\/string>[\s\S]*?<int-arr name="static">([^<]+)<\/int-arr>/.exec(xml)!
-          expect(destroyed[1].split(' ').sort()).toEqual([...syncedIds].sort())
+          expect(destroyed[1].split(' ').sort()).toEqual([...sealIds].sort())
         }
       })
 
@@ -285,12 +314,15 @@ describe('generateDungeon', () => {
             const last = ok.levels[finalFloorIndex]
             const xml = lastLevelXML(ok)
 
-            // the seal is exactly the floor's need-sync doodads
+            // the seal is the floor's need-sync doodads, less the button — which
+            // is synced for its *state*, not because it is part of the barrier
             const seal = [
               ...xml.matchAll(
                 /<string name="type">([^<]+)<\/string>\s*<float name="x">(-?[\d.]+)<\/float>\s*<float name="y">(-?[\d.]+)<\/float>\s*<bool name="need-sync">True<\/bool>/g
               )
-            ].map((m) => ({ path: m[1], x: parseFloat(m[2]), y: parseFloat(m[3]) }))
+            ]
+              .map((m) => ({ path: m[1], x: parseFloat(m[2]), y: parseFloat(m[3]) }))
+              .filter((d) => d.path !== 'doodads/special/trigger_button_floor.xml')
             expect(seal.length, `${theme} seed ${seed}`).toBeGreaterThan(0)
             expect(new Set(seal.map((s) => s.path)).size).toBe(1)
 

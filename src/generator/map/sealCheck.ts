@@ -171,9 +171,15 @@ function passabilityOf(level: Level, ctx: GenerationContext): Passability {
   // they are the one thing the tile grid does not already carry; on a fence
   // theme they were applied above with every other doodad, and blocking their
   // tile outright here would make the barrier stronger than the art really is.
+  //
+  // `need-sync` marks a doodad whose runtime changes replicate, which is not the
+  // same as "blocks the player" — the button carries it too, for its *state*.
+  // `trigger_button_floor.xml` declares no collision element at all, so counting
+  // it here would invent an obstacle, and an invented obstacle shrinks the
+  // reachable set: this check would start passing floors it should reject.
   if (!fenced) {
     for (const d of ctx.doodads) {
-      if (d.needSync) pass.setSolid(d.x, d.y)
+      if (d.needSync && d.type !== 'TriggerButton') pass.setSolid(d.x, d.y)
     }
   }
 

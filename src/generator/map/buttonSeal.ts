@@ -2,6 +2,7 @@ import { Doodad, doodadOffset } from '../objects/doodad'
 import {
   NodeAnnounceText,
   NodeAreaTrigger,
+  NodeChangeDoodadState,
   NodeDestroyObject,
   NodePlaySound,
   NodeRectangleShape
@@ -17,6 +18,18 @@ import type { GenerationContext } from '../core/context'
  * level6 that loaded and played it.
  */
 export const SEAL_SOUND = 'sound/misc.xml:button_hatch'
+
+/**
+ * The state the button is switched to when it fires.
+ *
+ * `trigger_button_floor.xml` declares three sprites — `raised` (its default),
+ * `activate` (two frames, 50ms each) and `pressed` — plus
+ * `<transition from="activate" to="pressed"/>`. So `activate` would animate the
+ * press and land on `pressed` by itself, which is what the shipped
+ * campaign/levels/level_1.xml node 2180 does. `pressed` snaps straight to the
+ * final frame instead. That is deliberate, not an oversight — do not "fix" it.
+ */
+const SEAL_BUTTON_STATE = 'pressed'
 
 /** How long the "it opened" banner stays up, in ms. */
 const SEAL_ANNOUNCE_MS = 2500
@@ -42,12 +55,16 @@ const MAX_BUTTON_ATTEMPTS = 2000
  * The rig, which mirrors the arena's alcove seals:
  *
  *   RectangleShape (over the button) -> AreaTrigger (one shot)
- *     -> PlaySound   the hatch cue
- *     -> DestroyObject  the wall pieces
- *     -> AnnounceText   so the party knows something opened
+ *     -> PlaySound         the hatch cue
+ *     -> DestroyObject     the wall pieces
+ *     -> AnnounceText      so the party knows something opened
+ *     -> ChangeDoodadState so the button itself reads as pressed
  *
  * The wall pieces carry `need-sync`, which is what makes their destruction
- * replicate to every client — the same requirement the arena's seals have.
+ * replicate to every client — the same requirement the arena's seals have. So
+ * does the button, for the same reason applied to its *state*: the shipped
+ * campaign's two floor buttons differ on exactly this, the one driven by a
+ * ChangeDoodadState being `True` and the plain one `False`.
  *
  * Returns false if the room is not a lockable dead end, or if the floor has
  * nowhere unlocked to hide the button — exactly as `lockRoom()` does, in which
@@ -137,7 +154,15 @@ export function sealRoomWithButton(room: Room, ctx: GenerationContext, rooms: Ro
 
   for (const s of seals) s.needSync = true
 
-  Doodad.create(ctx, button.x, button.y, 'TriggerButton', room.theme)
+  // `need-sync` because a script changes its state below — without it the press
+  // would only be seen by the client who stepped on it. [VERIFIED] against
+  // campaign/levels/level_1.xml, whose two floor buttons differ on exactly this
+  // point: the one with a ChangeDoodadState is True (line 9804), the plain one
+  // False (7111). It is NOT part of the barrier — the asset declares no
+  // collision element at all — so anything treating `need-sync` as "blocks the
+  // player" has to exclude it (see map/sealCheck.ts).
+  const plate = Doodad.create(ctx, button.x, button.y, 'TriggerButton', room.theme)
+  plate.needSync = true
 
   // A button the party cannot walk to is as fatal as an unreachable key, and
   // the flood fill cannot see the wall (it is doodads, not tiles) — so say so
@@ -174,9 +199,13 @@ export function sealRoomWithButton(room: Room, ctx: GenerationContext, rooms: Ro
   announce.time = SEAL_ANNOUNCE_MS
   announce.textType = SEAL_ANNOUNCE_TYPE
 
+  const press = new NodeChangeDoodadState(ctx, nodeX, nodeY, SEAL_BUTTON_STATE)
+  press.setTarget(plate)
+
   trigger.connectTo(sound)
   trigger.connectTo(destroy)
   trigger.connectTo(announce)
+  trigger.connectTo(press)
 
   return true
 }

@@ -84,6 +84,43 @@ export class NodeToggleImmortality extends ScriptNode {
   }
 }
 
+/**
+ * Switches a doodad to one of the named states its asset declares.
+ *
+ * `object` holds a **doodad** id, not a script-node id — hence `setTarget(d)`
+ * rather than a connectTo(node), the same distinction `NodeToggleImmortality`
+ * above draws for actor ids. [VERIFIED] 2026-08-24 against the shipped
+ * campaign/levels/level_1.xml node 2180, which drives a floor button this way.
+ *
+ * The state names come from the target asset's `<sprite name="...">` entries and
+ * its `<states>` block, so they are per-doodad strings, not an enum.
+ */
+export class NodeChangeDoodadState extends ScriptNode {
+  target = 0
+
+  constructor(
+    ctx: GenerationContext,
+    x: number,
+    y: number,
+    public state: string
+  ) {
+    super(ctx, x, y, 'ChangeDoodadState')
+  }
+
+  setTarget(d: Doodad): void {
+    this.target = d.id
+  }
+
+  protected getParametersDict(): XMLDictionary {
+    const d = new XMLDictionary('parameters')
+    d.addData(new XMLString('state', this.state))
+    const oDict = new XMLDictionary('object')
+    oDict.addData(new XMLIntArray('static', [this.target]))
+    d.addData(oDict)
+    return d
+  }
+}
+
 /** Ported from NodeAnnounceText.java */
 export class NodeAnnounceText extends ScriptNode {
   text = 'You win!!!'

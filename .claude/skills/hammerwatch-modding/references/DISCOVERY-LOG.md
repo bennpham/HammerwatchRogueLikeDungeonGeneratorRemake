@@ -8,6 +8,59 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-24 — `ChangeDoodadState`, and `need-sync` is about *change*, not collision
+**Tag:** [VERIFIED] for the schema and the `need-sync` rule — both read off the
+shipped campaign. [EMITTED] for our own rig until the campaign is played.
+**Context:** The floor button that opens the final room never changed its art —
+it stayed in its `raised` sprite after being stepped on.
+**Evidence — the node.** `campaign/levels/level_1.xml` node 2180 drives its own
+floor button with a `ChangeDoodadState`:
+
+```xml
+<dictionary name="parameters">
+  <string name="state">activate</string>
+  <dictionary name="object"><int-arr name="static">65</int-arr></dictionary>
+</dictionary>
+```
+
+`object` holds a **doodad** id, not a script-node id — the same distinction
+`NodeToggleImmortality` draws for actor ids. The state names are per-asset
+strings, not an enum: `doodads/special/trigger_button_floor.xml` declares three
+sprites — `raised` (its default), `activate` (two frames, 50ms each) and
+`pressed` — plus `<states default="raised"><transition from="activate"
+to="pressed"/></states>`. So `activate` animates the press and lands on
+`pressed` by itself, while `pressed` snaps straight to the final frame. We emit
+`pressed` by choice; `SEAL_BUTTON_STATE` in `map/buttonSeal.ts` says so, because
+it otherwise reads like an error against the campaign's own usage.
+
+**Evidence — `need-sync`.** The same file carries two floor buttons and they
+differ on exactly this point: the one with a `ChangeDoodadState` on it is
+`need-sync True` (line 9804), the plain one `False` (line 7111). So the flag
+means "this doodad's runtime changes replicate to every client" — destruction
+for the seal pieces, *state* for the button — and not "this doodad blocks".
+**Impact:** `NodeChangeDoodadState` in `objects/nodes.ts`, wired as a fourth
+fan-out on the seal's one-shot `AreaTrigger`, and the button now ships
+`need-sync True`.
+
+That last distinction quietly retired an assumption three places relied on, all
+of which read "need-sync ⇒ part of the barrier" and were only ever right by
+accident:
+
+1. `map/sealCheck.ts` marked every synced doodad solid on a solid-tile theme.
+   The button carries no `<collision>` and no `<polygon>` at all, so this would
+   invent an obstacle — and an invented obstacle *shrinks* the reachable set,
+   meaning the check would start passing floors it should reject. It fails
+   towards a false pass, which is the dangerous direction.
+2. `tests/sealProbe.ts` did the same, and would additionally have read the button
+   as a `Horizontal` piece and undone a `yOffset: 2` never applied to it, landing
+   the phantom obstacle on the wrong tile.
+3. `tests/generation.test.ts` asserted the `DestroyObject` array named *every*
+   synced doodad, and that the floor's synced doodads were all one type. The
+   button is synced, is not destroyed, and is a different type.
+
+The rule to reach for is not "is it synced" but "does its art declare a
+collider".
+
 ### 2026-08-24 — the gated room was open on a second side, and nothing ever checked the gate held
 **Tag:** [VERIFIED] — a seal-aware reachability sweep, calibrated against the two
 walk-arounds the user confirmed in game, and since confirmed in play: a theme-h
