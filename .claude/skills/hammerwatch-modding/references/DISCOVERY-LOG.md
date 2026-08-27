@@ -8,6 +8,61 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-27 — a centre boss swallows the C spawn anchor, and one frame cannot absorb 480 actors
+**Tag:** **[VERIFIED]** in game (4-player playtest, no warlock, stock Castle
+preset). Both findings were observed directly, not inferred.
+**Context:** First multiplayer playtest of the generated boss arena at the
+stock defaults.
+**Evidence:**
+
+1. **Monsters spawned inside the queen.** `arena.ts` placed a `centre` boss at
+   `(midX, midY)`; `anchors()` placed the `C` spawn anchor at `(midX, midY)`.
+   The queen's collider is the largest of the seven — 81x83 px, i.e.
+   5.06 x 5.19 tiles — so every monster the anchor rig round-robined onto `C`
+   materialised inside her body, where the party could not reach it. The code
+   knew: `cover.ts` dropped `C` from its reachability targets for centre
+   bosses, and `boss.test.ts` skipped `C` in its "no anchor inside the boss"
+   assertion. Both were working around the bug rather than fixing it.
+2. **The frame budget is far below the wave tables.** Every scattered monster
+   emitted one `SpawnObject` with `trigger-times: 1` hung directly off its tier
+   trigger, so the whole tier arrived on a single frame: 480 actors at 100%,
+   and — because nothing ever disables a lower tier's rig — roughly 1140 alive
+   by the 50% threshold. The fight was pathfinding-bound well before that.
+   Four players with no warlock (no mass clear) is the honest test case; a
+   party that can vaporise a horde masks it.
+3. **The floor ran out before the count did.** `placeSpawnPoints` accumulated
+   one `placed` rect list across all five tiers, and `spacing: 2` reserves a
+   2x2 box per point, so a 28x38 interior held ~250 disjoint points against the
+   ~1200 the tables asked for. Once saturated, every pattern placed nothing and
+   the pad fell back to the 9 anchors — which is exactly what the playtest saw
+   and reported as "random only places things on the corners and NWES".
+
+**Impact:**
+
+- `anchors()` takes an `AnchorClearance` object: `northClearance` for a
+  `topWall` boss (unchanged behaviour) and `centreBoss` for a centre one, which
+  pushes `C` south by half the collider plus a tile, clamped clear of `S`. The
+  workaround in `cover.ts` and the test exception are both gone.
+- Scatter spawning gained a batch budget: `boss.arena.spawn.batchSize` (8) and
+  `batchIntervalMs` (1500). Past the budget a monster gets `batchSize` points
+  and its count split round-robin over them on a shared per-tier timer, the same
+  way the anchor rig splits a horde over its 9 anchors. Inside the budget the
+  old one-shot shape is emitted unchanged.
+- `placeSpawnPoints` resets its `placed` list per tier, filters candidates
+  against `cover.ts`'s new `reachableMask` (so no monster lands in a pocket the
+  pillars sealed off), retries a short request at `spacing: 1`, and pads onto
+  real spare floor before ever considering the anchors.
+- Stock Castle counts cut ~60% (152/137/117/38/21 per tier), arena grown to
+  66-88 on both axes, cover moved to `symmetric` at density 0.12.
+- New validation warning when a tier wants more scatter points than the
+  smallest arena it can roll has floor for — the check whose absence let this
+  ship.
+
+**Still open:** the arena is now up to 88x88 where the largest previously
+emitted was 32x44. Nothing is known to clamp it (`arena.ts` rasterizes its own
+grid, independent of `mapWidth`/`mapHeight`) but no 88x88 arena has been packed
+by `LevelPacker.exe` or loaded in game yet. Tagged `[EMITTED]` until it is.
+
 ### 2026-08-25 — the eight free upgrade item paths, and light ids are not renumbered
 **Tag:** **[VERIFIED]** for the item paths and the two lighting entries (read
 from levels saved by the game's own editor); **[EMITTED]** for stacking more

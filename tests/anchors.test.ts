@@ -13,10 +13,12 @@ import {
 // hard floor validation.ts enforces (ARENA_MIN_WIDTH/HEIGHT).
 const SIZES: Array<[number, number]> = [
   [ARENA_MIN_WIDTH, ARENA_MIN_HEIGHT], // the hard floor
-  [24, 32], // default min
-  [32, 44], // default max
+  [24, 32], // the old default min — still a legal size, so it must still hold
+  [32, 44], // the old default max
   [28, 38], // something in between
-  [40, 50] // comfortably above the default range, still must hold
+  [66, 66], // new default min (both axes)
+  [88, 88], // new default max
+  [77, 71] // something in between
 ]
 
 function entranceRect(width: number, height: number) {
@@ -122,10 +124,10 @@ describe('boss arena anchors — topWall boss clearance', () => {
       const bossY = topWallBossY(dragon)
       const clearance = topWallBossClearance(dragon, bossY)
       const plain = anchors(width, height)
-      const cleared = anchors(width, height, clearance)
+      const cleared = anchors(width, height, { northClearance: clearance })
 
       it('omitting the argument changes nothing at all', () => {
-        expect(anchors(width, height, undefined)).toEqual(plain)
+        expect(anchors(width, height, {})).toEqual(plain)
       })
 
       it('moves only the N anchor', () => {
@@ -153,7 +155,7 @@ describe('boss arena anchors — topWall boss clearance', () => {
       })
 
       it('an absurd clearance clamps at the centre row rather than escaping the arena', () => {
-        const n = anchors(width, height, height * 10).find((a) => a.id === 'N')!
+        const n = anchors(width, height, { northClearance: height * 10 }).find((a) => a.id === 'N')!
         expect(n.y).toBe(Math.trunc(height / 2))
       })
 
@@ -164,6 +166,66 @@ describe('boss arena anchors — topWall boss clearance', () => {
           expect(a.y).toBeGreaterThan(0)
           expect(a.y).toBeLessThan(height - 1)
         }
+      })
+    })
+  }
+})
+
+/**
+ * The other half of the same problem the topWall clearance above solves, found
+ * in the 4-player playtest of 2026-08-27: `arena.ts` puts a `centre` boss at
+ * exactly `(midX, midY)`, which is exactly where the C anchor sat, so every
+ * monster the anchor rig sent to C spawned inside the boss. Visibly so with the
+ * queen, whose collider is the largest of the seven at 5.06 x 5.19 tiles.
+ */
+describe('boss arena anchors — centre boss clearance', () => {
+  const centreBosses = BOSS_DEF_LIST.filter((d) => d.placement === 'centre')
+
+  for (const [width, height] of SIZES) {
+    describe(`${width}x${height}`, () => {
+      const midX = Math.trunc(width / 2)
+      const midY = Math.trunc(height / 2)
+
+      for (const def of centreBosses) {
+        const boss = { width: def.footprintWidth, height: def.footprintHeight }
+        const cleared = anchors(width, height, { centreBoss: boss })
+        const c = cleared.find((a) => a.id === 'C')!
+
+        it(`${def.id}: C is outside the boss collider`, () => {
+          const insideX = Math.abs(c.x - midX) < boss.width / 2
+          const insideY = Math.abs(c.y - midY) < boss.height / 2
+          expect(insideX && insideY).toBe(false)
+        })
+
+        it(`${def.id}: C still sits on interior floor, and not on another anchor`, () => {
+          expect(c.x).toBeGreaterThan(0)
+          expect(c.x).toBeLessThan(width - 1)
+          expect(c.y).toBeGreaterThan(0)
+          expect(c.y).toBeLessThan(height - 1)
+          const others = cleared.filter((a) => a.id !== 'C')
+          expect(others.some((a) => a.x === c.x && a.y === c.y)).toBe(false)
+        })
+
+        it(`${def.id}: nothing but C moves`, () => {
+          const plain = anchors(width, height)
+          for (const a of cleared) {
+            if (a.id === 'C') continue
+            expect(a).toEqual(plain.find((p) => p.id === a.id))
+          }
+        })
+      }
+
+      it('omitting centreBoss leaves C on the arena centre, as it always was', () => {
+        const c = anchors(width, height).find((a) => a.id === 'C')!
+        expect(c).toEqual({ id: 'C', x: midX, y: midY })
+      })
+
+      it('the queen — the largest footprint — clears by at least half of it', () => {
+        const queen = BOSS_DEFS.boss_queen
+        const c = anchors(width, height, {
+          centreBoss: { width: queen.footprintWidth, height: queen.footprintHeight }
+        }).find((a) => a.id === 'C')!
+        expect(c.y - midY).toBeGreaterThanOrEqual(Math.ceil(queen.footprintHeight / 2))
       })
     })
   }

@@ -665,12 +665,68 @@ describe('boss validation', () => {
     const result = withBoss({
       arena: {
         ...defaultParameters().boss.arena,
-        spawn: { spacing: 0, ringSpacing: 0, clusters: 0 }
+        spawn: { spacing: 0, ringSpacing: 0, clusters: 0, batchSize: 0, batchIntervalMs: 1500 }
       }
     })
     expect(fieldsOf(result.errors)).toContain('boss.arena.spawn.spacing')
     expect(fieldsOf(result.errors)).toContain('boss.arena.spawn.ringSpacing')
     expect(fieldsOf(result.errors)).toContain('boss.arena.spawn.clusters')
+    expect(fieldsOf(result.errors)).toContain('boss.arena.spawn.batchSize')
+  })
+
+  it('rejects a batch interval outside the wave interval bounds', () => {
+    const spawn = defaultParameters().boss.arena.spawn
+    for (const batchIntervalMs of [99, 60001, 1500.5]) {
+      const result = withBoss({
+        arena: { ...defaultParameters().boss.arena, spawn: { ...spawn, batchIntervalMs } }
+      })
+      expect(fieldsOf(result.errors), `${batchIntervalMs} should be rejected`).toContain(
+        'boss.arena.spawn.batchIntervalMs'
+      )
+    }
+  })
+
+  it('accepts the batch interval at both ends of its range', () => {
+    const spawn = defaultParameters().boss.arena.spawn
+    for (const batchIntervalMs of [100, 60000]) {
+      const result = withBoss({
+        arena: { ...defaultParameters().boss.arena, spawn: { ...spawn, batchIntervalMs } }
+      })
+      expect(fieldsOf(result.errors)).not.toContain('boss.arena.spawn.batchIntervalMs')
+    }
+  })
+
+  // The rule the 2026-08-27 playtest was missing: nothing checked whether the
+  // arena had floor to put the scatter points on, so a tier that wanted more
+  // than it could fit silently stacked monsters instead of saying so.
+  it('warns when a tier wants more scatter points than the smallest arena fits', () => {
+    const arena = defaultParameters().boss.arena
+    const p = defaultParameters()
+    p.boss = {
+      ...p.boss,
+      arena: {
+        ...arena,
+        minWidth: 16,
+        maxWidth: 20,
+        minHeight: 20,
+        maxHeight: 24,
+        spawn: { ...arena.spawn, spacing: 4, batchSize: 500 },
+        waves: arena.waves.map((w, i) =>
+          i === 0 ? { ...w, monsterMax: { ...w.monsterMax, bat1: 400 }, spawnMode: { bat1: 'random' as const } } : w
+        )
+      }
+    }
+    const result = validateParameters(p)
+    // a warning, not an error — every monster still spawns, just stacked
+    expect(result.valid).toBe(true)
+    expect(fieldsOf(result.warnings)).toContain('boss.arena.waves.0')
+  })
+
+  it('does not warn about capacity on the stock defaults', () => {
+    // The whole point of the 66-88 arena plus the batch budget: the stock
+    // waves fit with room to spare.
+    const result = validateParameters(defaultParameters())
+    expect(fieldsOf(result.warnings).filter((f) => /^boss\.arena\.waves\.\d+$/.test(f))).toEqual([])
   })
 
   it('rejects a negative arena multiplier', () => {

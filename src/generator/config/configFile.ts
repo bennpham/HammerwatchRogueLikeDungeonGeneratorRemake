@@ -356,7 +356,10 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       // same per-field NaN guard as bossCover above — a malformed segment is
       // reported and only that field keeps its default
       const parts = value.split(',').map((s) => s.trim())
-      const fields = ['spacing', 'ringSpacing', 'clusters'] as const
+      // Appending to the tail keeps every file written before batching valid:
+      // a three-field line simply leaves batchSize/batchIntervalMs at their
+      // defaults (invariant #5 — the old format keeps working).
+      const fields = ['spacing', 'ringSpacing', 'clusters', 'batchSize', 'batchIntervalMs'] as const
       for (let f = 0; f < fields.length; f++) {
         if (parts.length <= f) break
         const n = parseInt(parts[f], 10)
@@ -760,7 +763,7 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
     `bossCover=${params.boss.arena.cover.pattern},${params.boss.arena.cover.density},${params.boss.arena.cover.ringSpacing},${params.boss.arena.cover.clusters}`
   )
   lines.push(
-    `bossSpawn=${params.boss.arena.spawn.spacing},${params.boss.arena.spawn.ringSpacing},${params.boss.arena.spawn.clusters}`
+    `bossSpawn=${params.boss.arena.spawn.spacing},${params.boss.arena.spawn.ringSpacing},${params.boss.arena.spawn.clusters},${params.boss.arena.spawn.batchSize},${params.boss.arena.spawn.batchIntervalMs}`
   )
   // `off` keeps the window lengths out of the file entirely when the feature is
   // disabled — importing it back leaves them at their defaults, which is what a

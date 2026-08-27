@@ -68,26 +68,54 @@ export const ENTRANCE_WIDTH = 3
 export const ENTRANCE_DEPTH = 2
 
 /**
+ * How `anchors()` is displaced by the boss that shares the arena with it.
+ *
+ * Both fields are optional and independent: a `topWall` boss supplies
+ * `northClearance`, a `centre` boss supplies `centreBoss`, and an arena that
+ * somehow had neither gets the historical anchor layout unchanged.
+ */
+export interface AnchorClearance {
+  /**
+   * The first interior row free of a wall-mounted (`topWall`) boss's collider —
+   * see bosses.ts's `topWallBossClearance`.
+   */
+  northClearance?: number
+  /**
+   * A `centre`-placed boss's collider footprint, in tiles. Only its height and
+   * width matter; its position is `(midX, midY)` by construction.
+   */
+  centreBoss?: { width: number; height: number }
+}
+
+/**
  * The 9 spawn anchors for an arena of this interior size, inset from the wall
  * band by ANCHOR_INSET — except on the north edge, which uses the deeper
  * NORTH_ANCHOR_INSET. Order is fixed (N, S, E, W, NE, NW, SE, SW, C) so
  * callers that zip this against another fixed-order-9 list (round-robin
  * horde splitting in waves.ts) get a stable pairing.
  *
- * `bossClearance`, when given, is the first interior row free of a wall-mounted
- * (`topWall`) boss's collider — see bosses.ts's `topWallBossClearance`. Only
- * the N anchor can collide with such a boss: it shares the boss's midX, while
- * NE/NW sit at ANCHOR_INSET from the side walls, far outside the widest boss
- * footprint. So only N is pushed south, and only far enough to clear; it is
- * clamped above midY so a minimum-height arena cannot fold N onto C. Omitting
- * the argument leaves every anchor exactly where it has always been, which is
- * what every centre-placed boss does.
+ * `clearance.northClearance`, when given, is the first interior row free of a
+ * wall-mounted (`topWall`) boss's collider — see bosses.ts's
+ * `topWallBossClearance`. Only the N anchor can collide with such a boss: it
+ * shares the boss's midX, while NE/NW sit at ANCHOR_INSET from the side walls,
+ * far outside the widest boss footprint. So only N is pushed south, and only far
+ * enough to clear; it is clamped above midY so a minimum-height arena cannot
+ * fold N onto C.
  *
  * Pushing N further from the north wall never conflicts with
  * NORTH_ANCHOR_INSET's own reason for existing (projectiles absorbed by the
  * wall band) — that is a lower bound, and this only ever raises it.
+ *
+ * `clearance.centreBoss` is the other half of the same problem, and the one the
+ * 2026-08-27 playtest found the hard way: `arena.ts` puts a `centre` boss at
+ * exactly `(midX, midY)`, which is exactly the C anchor, so every monster the
+ * anchor rig sent to C spawned *inside* the boss — visibly so with the queen,
+ * whose collider is 5.06 x 5.19 tiles. C is pushed clear along whichever axis
+ * has room; see `centreAnchor` below. N/S/E/W and the corners sit at their
+ * insets from the walls, far outside even the queen's footprint, so C is the
+ * only anchor a centre boss can swallow.
  */
-export function anchors(width: number, height: number, bossClearance?: number): Anchor[] {
+export function anchors(width: number, height: number, clearance: AnchorClearance = {}): Anchor[] {
   const left = ANCHOR_INSET
   const right = width - 1 - ANCHOR_INSET
   const top = NORTH_ANCHOR_INSET
@@ -95,7 +123,10 @@ export function anchors(width: number, height: number, bossClearance?: number): 
   const midX = Math.trunc(width / 2)
   const midY = Math.trunc(height / 2)
 
-  const northMid = bossClearance === undefined ? top : Math.min(Math.max(top, bossClearance), midY)
+  const northMid =
+    clearance.northClearance === undefined ? top : Math.min(Math.max(top, clearance.northClearance), midY)
+
+  const centre = centreAnchor(midX, midY, right, bottom, clearance.centreBoss)
 
   return [
     { id: 'N', x: midX, y: northMid },
@@ -106,7 +137,49 @@ export function anchors(width: number, height: number, bossClearance?: number): 
     { id: 'NW', x: left, y: top },
     { id: 'SE', x: right, y: bottom },
     { id: 'SW', x: left, y: bottom },
-    { id: 'C', x: midX, y: midY }
+    centre
   ]
 }
 
+/**
+ * Where the C anchor goes once a `centre` boss's collider is taken into account.
+ *
+ * With no boss C stays at `(midX, midY)`, which is where it has always been —
+ * that is what every `topWall` boss's arena passes. Every `centre` boss moves
+ * it, even the small ones: krilith's collider is under half a tile, but a
+ * monster sharing a tile with any boss is a monster the party cannot hit, so the
+ * push is at least a tile in every case rather than scaled down to nothing.
+ *
+ * Otherwise it moves **south** by half the footprint plus one tile — south
+ * because that is the direction the party arrives from, so a monster pushed
+ * there lands between the boss and the players rather than behind it. The push
+ * is clamped to `bottom - 1`: `bottom` is the S anchor's own row, and two
+ * anchors on one tile would hand the round-robin split a duplicate. If the arena
+ * is too short for even that (C would land on or past S) the push goes **east**
+ * instead, on the same half-footprint-plus-one and clamped to `right - 1` short
+ * of the E anchor. An arena too small for either is already below
+ * ARENA_MIN_WIDTH/HEIGHT and rejected by validation, but the final clamp still
+ * leaves C somewhere legal rather than off the floor.
+ */
+function centreAnchor(
+  midX: number,
+  midY: number,
+  right: number,
+  bottom: number,
+  boss?: { width: number; height: number }
+): Anchor {
+  if (!boss) return { id: 'C', x: midX, y: midY }
+
+  const southPush = Math.ceil(boss.height / 2) + 1
+  const eastPush = Math.ceil(boss.width / 2) + 1
+
+  const southY = midY + southPush
+  if (southY <= bottom - 1) return { id: 'C', x: midX, y: southY }
+
+  const eastX = midX + eastPush
+  if (eastX <= right - 1) return { id: 'C', x: eastX, y: midY }
+
+  // Degenerate arena: take whatever room is left rather than leaving C inside
+  // the boss. Never below 0, never on top of S or E.
+  return { id: 'C', x: midX, y: Math.max(midY, bottom - 1) }
+}

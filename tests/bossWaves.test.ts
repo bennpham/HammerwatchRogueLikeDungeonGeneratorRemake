@@ -14,10 +14,16 @@ function freshCtx(seed = 12345): GenerationContext {
   return new GenerationContext(defaultParameters(), seed)
 }
 
-function buildRig(ctx: GenerationContext, waves: BossWave[], monsterMultiplier = 1.0, spawnPoints?: SpawnPointMap) {
+function buildRig(
+  ctx: GenerationContext,
+  waves: BossWave[],
+  monsterMultiplier = 1.0,
+  spawnPoints?: SpawnPointMap,
+  batchIntervalMs?: number
+) {
   const anchorList = anchors(30, 40)
   const entranceShape = new NodeRectangleShape(ctx, 15, 38)
-  buildWaveRig(ctx, waves, monsterMultiplier, anchorList, entranceShape, spawnPoints)
+  buildWaveRig(ctx, waves, monsterMultiplier, anchorList, entranceShape, spawnPoints, batchIntervalMs)
   return { anchorList, entranceShape }
 }
 
@@ -498,6 +504,13 @@ describe('boss wave rig — scattered spawn modes (issue #21)', () => {
   })
 })
 
+/**
+ * A batch budget high enough that every count below stays one point per monster
+ * — the shape these cases were written for. The batched shape gets its own
+ * describe block below.
+ */
+const NO_BATCHING = 100000
+
 describe('scatterRequests', () => {
   it('lists only scattered monsters, in tier then pool order, with counts scaled', () => {
     const waves: BossWave[] = [
@@ -507,10 +520,10 @@ describe('scatterRequests', () => {
       { monsters: [], monsterMax: {}, defaultIntervalMs: 3000 }
     ]
 
-    expect(scatterRequests(waves, 2.0)).toEqual([
-      { tier: 0, key: 'tick1', mode: 'ring', count: 20 },
-      { tier: 2, key: 'slime', mode: 'random', count: 10 },
-      { tier: 2, key: 'eye', mode: 'gaussian', count: 14 }
+    expect(scatterRequests(waves, 2.0, NO_BATCHING)).toEqual([
+      { tier: 0, key: 'tick1', mode: 'ring', count: 20, points: 20 },
+      { tier: 2, key: 'slime', mode: 'random', count: 10, points: 10 },
+      { tier: 2, key: 'eye', mode: 'gaussian', count: 14, points: 14 }
     ])
   })
 
@@ -524,12 +537,12 @@ describe('scatterRequests', () => {
       }
     ]
 
-    expect(scatterRequests(waves, 1.0)).toEqual([{ tier: 0, key: 'maggot', mode: 'random', count: 4 }])
+    expect(scatterRequests(waves, 1.0, NO_BATCHING)).toEqual([{ tier: 0, key: 'maggot', mode: 'random', count: 4, points: 4 }])
   })
 
   it('covers the stock waves except their anchored tail', () => {
     const waves = defaultParameters().boss.arena.waves
-    const requests = scatterRequests(waves, 1.0)
+    const requests = scatterRequests(waves, 1.0, NO_BATCHING)
 
     // every stock entry is scattered except the blocking-wreck towers, which
     // validation forbids scattering
@@ -545,7 +558,7 @@ describe('scatterRequests', () => {
 
   it('is empty once every monster is back on the anchors mode', () => {
     const waves = defaultParameters().boss.arena.waves.map((w) => ({ ...w, spawnMode: undefined }))
-    expect(scatterRequests(waves, 1.0)).toEqual([])
+    expect(scatterRequests(waves, 1.0, NO_BATCHING)).toEqual([])
   })
 })
 
@@ -642,12 +655,13 @@ describe('boss wave rig — the boss-death tier', () => {
     })
     const withDeath = scatterRequests(
       [scattered(2), scattered(3), scattered(4), scattered(5), scattered(6)],
-      1.0
+      1.0,
+      NO_BATCHING
     )
-    const withoutDeath = scatterRequests([scattered(2), scattered(3), scattered(4), scattered(5)], 1.0)
+    const withoutDeath = scatterRequests([scattered(2), scattered(3), scattered(4), scattered(5)], 1.0, NO_BATCHING)
 
     expect(withDeath.slice(0, 4)).toEqual(withoutDeath)
-    expect(withDeath[4]).toEqual({ tier: 4, key: 'bat1', mode: 'random', count: 6 })
+    expect(withDeath[4]).toEqual({ tier: 4, key: 'bat1', mode: 'random', count: 6, points: 6 })
   })
 
   it('the stock death tier is populated, and its scatters come after every other tier', () => {
@@ -655,7 +669,7 @@ describe('boss wave rig — the boss-death tier', () => {
     const last = waves.length - 1
     expect(waves[last].monsters.length).toBeGreaterThan(0)
 
-    const requests = scatterRequests(waves, 1.0)
+    const requests = scatterRequests(waves, 1.0, NO_BATCHING)
     const deathAt = requests.findIndex((r) => r.tier === last)
     expect(deathAt).toBeGreaterThanOrEqual(0)
     // every death-tier request sits at the end of the list, so populating the
@@ -663,5 +677,95 @@ describe('boss wave rig — the boss-death tier', () => {
     expect(requests.slice(deathAt).every((r) => r.tier === last)).toBe(true)
     // the anchored tower stays out of the scatter list
     expect(requests.some((r) => r.key === 'tower_static_frost')).toBe(false)
+  })
+})
+
+/**
+ * Batching (playtest 2026-08-27). A scattered monster whose `points` list is
+ * shorter than its count no longer fires all at once: the count is split
+ * round-robin over the points it got and hung off a timer, so a big entry
+ * trickles in instead of putting every actor on the floor in one frame.
+ */
+describe('boss wave rig — batched scatter spawns', () => {
+  const scattered = (key: string, max: number): BossWave => ({
+    monsters: [key],
+    monsterMax: { [key]: max },
+    defaultIntervalMs: 3000,
+    spawnMode: { [key]: 'random' }
+  })
+
+  it('one point per monster still hangs straight off the tier trigger, untimed', () => {
+    const ctx = freshCtx()
+    buildRig(ctx, [scattered('bat1', 6)], 1.0, spawnMap([[0, 'bat1', points(6)]]))
+
+    expect(nodesOfType(ctx, 'TimerTrigger')).toHaveLength(0)
+    expect(nodesOfType(ctx, 'ToggleElement')).toHaveLength(0)
+    const spawns = nodesOfType(ctx, 'SpawnObject') as NodeSpawnObject[]
+    expect(spawns).toHaveLength(6)
+    for (const spawn of spawns) expect(spawn.triggerTimes).toBe(1)
+  })
+
+  it('a count past its points is split round-robin over them, on a timer', () => {
+    const ctx = freshCtx()
+    // 20 bats over 8 points: three points carry 3, five carry 2
+    buildRig(ctx, [scattered('bat1', 20)], 1.0, spawnMap([[0, 'bat1', points(8)]]), 2500)
+
+    const timers = nodesOfType(ctx, 'TimerTrigger') as NodeTimerTrigger[]
+    expect(timers).toHaveLength(1)
+    expect(timers[0].intervalMs).toBe(2500)
+    expect(nodesOfType(ctx, 'ToggleElement')).toHaveLength(1)
+
+    const spawns = nodesOfType(ctx, 'SpawnObject') as NodeSpawnObject[]
+    expect(spawns).toHaveLength(8)
+    expect(spawns.map((s) => s.triggerTimes).sort((a, b) => b - a)).toEqual([3, 3, 3, 3, 2, 2, 2, 2])
+    // the whole horde still spawns — the budget moves it in time, not away
+    expect(spawns.reduce((n, s) => n + s.triggerTimes, 0)).toBe(20)
+    expect(connectionsResolve(ctx)).toBe(true)
+  })
+
+  it('every batched monster of a tier shares one toggle and one timer', () => {
+    const ctx = freshCtx()
+    const tier: BossWave = {
+      monsters: ['bat1', 'tick1', 'maggot'],
+      monsterMax: { bat1: 40, tick1: 30, maggot: 20 },
+      defaultIntervalMs: 3000,
+      spawnMode: { bat1: 'random', tick1: 'random', maggot: 'random' }
+    }
+    buildRig(ctx, [tier], 1.0, spawnMap([
+      [0, 'bat1', points(8, 5, 5)],
+      [0, 'tick1', points(8, 5, 9)],
+      [0, 'maggot', points(8, 5, 13)]
+    ]))
+
+    expect(nodesOfType(ctx, 'TimerTrigger')).toHaveLength(1)
+    expect(nodesOfType(ctx, 'ToggleElement')).toHaveLength(1)
+    const spawns = nodesOfType(ctx, 'SpawnObject') as NodeSpawnObject[]
+    expect(spawns.reduce((n, s) => n + s.triggerTimes, 0)).toBe(90)
+  })
+
+  it('a tier can mix a one-shot entry and a batched one', () => {
+    const ctx = freshCtx()
+    const tier: BossWave = {
+      monsters: ['bat1', 'tick1'],
+      monsterMax: { bat1: 3, tick1: 40 },
+      defaultIntervalMs: 3000,
+      spawnMode: { bat1: 'random', tick1: 'random' }
+    }
+    buildRig(ctx, [tier], 1.0, spawnMap([[0, 'bat1', points(3, 5, 5)], [0, 'tick1', points(8, 5, 9)]]))
+
+    const spawns = nodesOfType(ctx, 'SpawnObject') as NodeSpawnObject[]
+    expect(spawns).toHaveLength(11)
+    // the one-shot three keep trigger-times 1; the batched eight carry 5 each
+    expect(spawns.filter((s) => s.triggerTimes === 1)).toHaveLength(3)
+    expect(spawns.filter((s) => s.triggerTimes === 5)).toHaveLength(8)
+    expect(nodesOfType(ctx, 'TimerTrigger')).toHaveLength(1)
+    expect(connectionsResolve(ctx)).toBe(true)
+  })
+
+  it('the batch multiplier is applied before the split, not after', () => {
+    const ctx = freshCtx()
+    buildRig(ctx, [scattered('bat1', 20)], 0.5, spawnMap([[0, 'bat1', points(4)]]))
+    const spawns = nodesOfType(ctx, 'SpawnObject') as NodeSpawnObject[]
+    expect(spawns.reduce((n, s) => n + s.triggerTimes, 0)).toBe(10)
   })
 })

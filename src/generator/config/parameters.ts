@@ -339,6 +339,24 @@ export interface BossOptions {
       ringSpacing: number
       /** seeded cluster centres for the `gaussian` mode */
       clusters: number
+      /**
+       * How many spawn *points* one monster entry of one tier may occupy, and
+       * therefore how many of it can appear on a single frame.
+       *
+       * A scattered monster used to get one point per monster, all fired off the
+       * tier trigger at once — a 120-bat entry was 120 actors materialising on
+       * one frame, and five tiers of that saturated the floor so badly that the
+       * placement pass ran out of room and fell back to the 9 anchors (#43).
+       * Now a count above this budget is spread over `batchSize` points, each
+       * carrying a share of the total on a `batchIntervalMs` timer, exactly the
+       * way the anchor rig splits a horde over its 9 anchors.
+       *
+       * An entry whose count is at or below the budget keeps the old one-shot
+       * shape, so a small wave emits byte-identical XML.
+       */
+      batchSize: number
+      /** the timer, in ms, batched scatter spawns trickle in on */
+      batchIntervalMs: number
     }
     /**
      * Temporary boss immortality on each health threshold (75/50/25%), with an
@@ -450,9 +468,14 @@ export const BOSS_IDS = [
 /**
  * The default boss options: feature on, a prep room that sells every column
  * *including* power (extra lives matter more right before a boss than at the
- * start of a run) and 20000 gold on the floor, a `g - mixed` arena 24–32 × 32–44
- * with the four castle bosses in the pool, random cover, and four waves whose
+ * start of a run) and 20000 gold on the floor, a `g - mixed` arena 66–88 × 66–88
+ * with the four castle bosses in the pool, symmetric cover, and four waves whose
  * shared intervals tighten as the fight goes on.
+ *
+ * The arena size and the cover block were re-tuned after the 4-player playtest of
+ * 2026-08-27 (DISCOVERY-LOG): the old 24–32 × 32–44 floor could not hold the wave
+ * line-up without the horde stacking on itself, and 0.08 random cover left too
+ * little to break line of sight on a floor this size.
  */
 export function defaultBossOptions(): BossOptions {
   return {
@@ -471,34 +494,41 @@ export function defaultBossOptions(): BossOptions {
     arena: {
       theme: 'g_mixed',
       floorPattern: 'random',
-      minWidth: 24,
-      maxWidth: 32,
-      minHeight: 32,
-      maxHeight: 44,
+      minWidth: 66,
+      maxWidth: 88,
+      minHeight: 66,
+      maxHeight: 88,
       // The castle default fights the four castle-flavoured bosses; anubis and
       // worm belong to the desert and krilith to the ice caves, so they are in
       // BOSS_IDS for the checkbox grid but out of the stock pool.
       bossPool: ['boss_knight', 'boss_lich', 'boss_dragon', 'boss_queen'],
       waves: castleWaves(),
       cover: {
-        pattern: 'random',
+        // symmetric reads as deliberate architecture rather than rubble, and on
+        // a floor this size that legibility is what lets a party call out
+        // positions. Playtest preference, 2026-08-27.
+        pattern: 'symmetric',
         // density is the fraction of the free floor cover fills, so this is a
-        // much smaller number than it looks: 0.08 is ~31 pillars on a mid-size
-        // arena. The original 0.5 filled nearly half the floor and playtested
-        // as physically impassable — neither the player nor the boss could
-        // move. BOSS_COVER_DENSITY_MAX caps it; boss/cover.ts additionally
-        // guarantees the boss and every anchor stay reachable.
-        density: 0.08,
+        // much smaller number than it looks. The original 0.5 filled nearly half
+        // the floor and playtested as physically impassable — neither the player
+        // nor the boss could move. 0.08 was tuned for the old ~28x38 arena; on
+        // the 66–88 floor it left the middle a bare field, so the playtest
+        // settled on 0.12. BOSS_COVER_DENSITY_MAX caps it; boss/cover.ts
+        // additionally guarantees the boss and every anchor stay reachable.
+        density: 0.12,
         ringSpacing: 4,
         clusters: 3
       },
       // Inert until a monster is put on a scatter mode; `spacing: 2` keeps
       // scattered spawns a tile apart so a horde does not materialise stacked
-      // on one square.
+      // on one square. `batchSize`/`batchIntervalMs` are what stop a big entry
+      // arriving on one frame — see the interface comment.
       spawn: {
         spacing: 2,
         ringSpacing: 4,
-        clusters: 3
+        clusters: 3,
+        batchSize: 8,
+        batchIntervalMs: 1500
       },
       // 30 seconds on every threshold, countdown on. Long enough that a burst
       // party cannot skip a tier, short enough that a slow fight barely notices.
@@ -611,54 +641,61 @@ export function scatterWave(
  *
  * The `id#n` keys are variant keys (see monsterTypes.ts): `#0` is the spawner
  * prop, higher indices the elite tiers.
+ *
+ * Counts were cut ~60% after the 4-player playtest of 2026-08-27. Nothing ever
+ * disables a lower tier's rig (waves.ts's header), so the tiers are additive:
+ * the old table had spawned ~1140 monsters by the 50% threshold and the fight
+ * was pathfinding-bound long before that. The `#0` spawner props are cut hardest
+ * because they keep emitting for the rest of the fight — they are a rate, not a
+ * quantity. Totals now: 152 / 137 / 117 / 38 / 21.
  */
 function castleWaves(): BossWave[] {
   return [
     scatterWave(
       [
-        ['bat1', 120],
-        ['bat2', 80],
-        ['maggot', 60],
-        ['maggot#2', 40],
-        ['maggot#3', 20],
-        ['tick1', 80],
-        ['tick1#2', 60],
-        ['tick1#0', 8],
-        ['tower_flower1_small', 12]
+        ['bat1', 42],
+        ['bat2', 24],
+        ['maggot', 20],
+        ['maggot#2', 12],
+        ['maggot#3', 6],
+        ['tick1', 24],
+        ['tick1#2', 16],
+        ['tick1#0', 2],
+        ['tower_flower1_small', 6]
       ],
       [],
       4000
     ),
     scatterWave(
       [
-        ['archer1', 30],
-        ['archer2', 15],
-        ['skeleton1', 60],
-        ['skeleton1#2', 80],
-        ['slime', 120],
-        ['tower_archer1', 12],
-        ['mb_tick', 6],
-        ['mb_maggot', 2],
-        ['skeleton1#0', 6],
-        ['archer1#0', 6],
-        ['slime#0', 20]
+        ['archer1', 14],
+        ['archer2', 7],
+        ['skeleton1', 24],
+        ['skeleton1#2', 28],
+        ['slime', 44],
+        ['tower_archer1', 6],
+        ['mb_tick', 3],
+        ['mb_maggot', 1],
+        ['skeleton1#0', 2],
+        ['archer1#0', 2],
+        ['slime#0', 6]
       ],
       [],
       3000
     ),
     scatterWave(
       [
-        ['eye', 120],
-        ['eye#2', 80],
-        ['wisp1', 30],
-        ['wisp1#2', 10],
-        ['wisp2', 20],
-        ['lich#3', 20],
-        ['tower_flower1', 6],
-        ['tower_flower2', 3],
+        ['eye', 44],
+        ['eye#2', 30],
+        ['wisp1', 12],
+        ['wisp1#2', 4],
+        ['wisp2', 8],
+        ['lich#3', 8],
+        ['tower_flower1', 3],
+        ['tower_flower2', 2],
         ['tower_flower3', 1],
-        ['mb_skeleton', 8],
-        ['mb_eye', 2]
+        ['mb_skeleton', 4],
+        ['mb_eye', 1]
       ],
       [],
       2000
@@ -666,29 +703,29 @@ function castleWaves(): BossWave[] {
     scatterWave(
       [
         ['lich', 4],
-        ['lich#0', 8],
-        ['lich#2', 8],
-        ['mb_eye', 4],
+        ['lich#0', 4],
+        ['lich#2', 6],
+        ['mb_eye', 2],
         ['mb_lich', 1],
-        ['tower_archer3', 8],
-        ['eye#0', 12],
-        ['archer2#0', 8],
-        ['skeleton2#0', 8]
+        ['tower_archer3', 5],
+        ['eye#0', 5],
+        ['archer2#0', 4],
+        ['skeleton2#0', 4]
       ],
-      [['tower_nova1', 4]],
+      [['tower_nova1', 3]],
       1000
     ),
     // boss death — the arena keeps fighting after the kill, see BOSS_DEATH_WAVE.
     // tower_static_frost is anchored because its wreck blocks.
     scatterWave(
       [
-        ['lich#2', 16],
-        ['lich', 6],
-        ['lich#0', 10],
-        ['mb_lich', 2],
-        ['mb_doomspawn', 4]
+        ['lich#2', 8],
+        ['lich', 3],
+        ['lich#0', 4],
+        ['mb_lich', 1],
+        ['mb_doomspawn', 2]
       ],
-      [['tower_static_frost', 4]],
+      [['tower_static_frost', 3]],
       1000
     )
   ]

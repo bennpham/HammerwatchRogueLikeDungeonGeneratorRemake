@@ -288,9 +288,23 @@ describe('parameters.txt parsing', () => {
     expect(parsed.params.boss.arena.waves[0].intervalMs).toBeUndefined()
   })
 
+  it('accepts a bossSpawn line written before batching existed', () => {
+    // Invariant #5: the old three-field form keeps working, and the two fields
+    // it predates keep their defaults rather than becoming NaN.
+    const parsed = parseParametersTxt('bossSpawn=3,6,5\n')
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.boss.arena.spawn).toEqual({
+      spacing: 3,
+      ringSpacing: 6,
+      clusters: 5,
+      batchSize: defaultParameters().boss.arena.spawn.batchSize,
+      batchIntervalMs: defaultParameters().boss.arena.spawn.batchIntervalMs
+    })
+  })
+
   it('round-trips the scatter spawn knobs and per-monster spawn modes', () => {
     const original = defaultParameters()
-    original.boss.arena.spawn = { spacing: 3, ringSpacing: 6, clusters: 5 }
+    original.boss.arena.spawn = { spacing: 3, ringSpacing: 6, clusters: 5, batchSize: 12, batchIntervalMs: 2500 }
     original.boss.arena.waves[0] = {
       monsters: ['bat1', 'tick1', 'maggot'],
       monsterMax: { bat1: 10, tick1: 10, maggot: 10 },
@@ -299,7 +313,7 @@ describe('parameters.txt parsing', () => {
     }
 
     const text = serializeParametersTxt(original)
-    expect(text).toContain('bossSpawn=3,6,5')
+    expect(text).toContain('bossSpawn=3,6,5,12,2500')
     // the fifth wave field, sorted by id like the interval overrides before it
     expect(text).toContain('bossWave1=bat1,tick1,maggot|4000|bat1:10,tick1:10,maggot:10||bat1:gaussian,maggot:ring')
 
