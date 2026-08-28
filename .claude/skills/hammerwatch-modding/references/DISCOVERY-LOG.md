@@ -8,6 +8,44 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-27 — exact heal/mana/upgrade amounts, and health_4 heals less than health_3
+**Tag:** **[VERIFIED]** — read directly from the owner's local
+`editor/assetsExtract/items/*.xml`, the game's own shipped asset files.
+**Context:** Wiring pickup dropdown tooltips to real numbers instead of size
+adjectives.
+
+1. **Exact amounts**, from each item's `<entry name="hp">` / `<entry
+   name="mana">` / `<array name="upgrades">`:
+
+   | item | amount |
+   | --- | --- |
+   | `health_1` | 10 HP |
+   | `health_2` | 25 HP |
+   | `health_3` | 75 HP |
+   | `health_4` | 50 HP |
+   | `powerup_health` | 250 HP (already recorded below) |
+   | `mana_1` | 15 MP |
+   | `mana_2` | 50 MP |
+   | `upgrade_damage` | +5% damage (`dmg-mul` 0.05) |
+   | `upgrade_damage_2` | +10% damage (`dmg-mul` 0.1) |
+   | `upgrade_defense` | +1 armor (`dmg-reduction` 1) |
+   | `upgrade_defense_2` | +2 armor (`dmg-reduction` 2) |
+   | `upgrade_health` | +5 max HP |
+   | `upgrade_health_2` | +10 max HP |
+   | `upgrade_mana` | +10 max MP |
+   | `upgrade_mana_2` | +20 max MP |
+
+2. **`health_4` heals *less* than `health_3` (50 HP vs 75 HP), despite the
+   dropdown label order Small/Medium/Large/XLarge below.** The label ladder
+   documented in the 2026-08-28 `powerup_health` entry ("Small → Medium →
+   Large → XLarge → Huge") describes dropdown position, not heal size — it was
+   written before anyone had read the actual `hp` values. `pickupTypes.ts`'s
+   description strings now say the real amount and call this out; the labels
+   themselves are left alone since renaming them is a bigger, separate change.
+   The three potions and the two life pickups carry no numeric payload in
+   their XML (potions are a `type` string the engine interprets; lives are a
+   `num` of lives, already documented) so their descriptions stay qualitative.
+
 ### 2026-08-28 — items as boss-tier drops, and two health sizes we have not seen load
 **Tag:** **[VERIFIED]** throughout. The emission shape and the paths under (1)
 came from the editor-resaved file; `items/health_2.xml` and `items/health_3.xml`

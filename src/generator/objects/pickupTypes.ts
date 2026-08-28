@@ -32,6 +32,10 @@
  *   [VERIFIED]   health_2, health_3 — confirmed in game by the owner,
  *                2026-08-28. See DISCOVERY-LOG.md.
  *   [VERIFIED]   powerup_7up — grants seven lives. Owner, 2026-08-28.
+ *   [VERIFIED]   Exact heal/mana/upgrade amounts in each description below —
+ *                read from the game's own editor/assetsExtract/items/*.xml,
+ *                2026-08-27. See DISCOVERY-LOG.md. Note health_4 (50 HP)
+ *                heals less than health_3 (75 HP) despite the label order.
  *
  * Nothing in this roster is [UNVERIFIED] any more.
  */
@@ -69,7 +73,7 @@ export const PICKUP_DEFS: readonly PickupDef[] = [
     label: 'Health (Small)',
     group: 'Health',
     lane: 'health',
-    description: 'The smallest health pickup — the one scattered around the arena as food.'
+    description: 'Heals 10 HP — the one scattered around the arena as food.'
   },
   {
     id: 'health_2',
@@ -77,7 +81,7 @@ export const PICKUP_DEFS: readonly PickupDef[] = [
     label: 'Health (Medium)',
     group: 'Health',
     lane: 'health',
-    description: 'A mid-sized health pickup.'
+    description: 'Heals 25 HP.'
   },
   {
     id: 'health_3',
@@ -85,7 +89,7 @@ export const PICKUP_DEFS: readonly PickupDef[] = [
     label: 'Health (Large)',
     group: 'Health',
     lane: 'health',
-    description: 'A large health pickup.'
+    description: 'Heals 75 HP.'
   },
   {
     id: 'health_4',
@@ -93,7 +97,7 @@ export const PICKUP_DEFS: readonly PickupDef[] = [
     label: 'Health (XLarge)',
     group: 'Health',
     lane: 'health',
-    description: 'The biggest of the four numbered health pickups.'
+    description: 'Heals 50 HP — despite the name, less than Health (Large); it is the game\'s own numbering.'
   },
   {
     id: 'powerup_health',
@@ -110,7 +114,7 @@ export const PICKUP_DEFS: readonly PickupDef[] = [
     label: 'Mana (Small)',
     group: 'Mana',
     lane: 'mana',
-    description: 'The smallest mana pickup — the one scattered around the arena as food.'
+    description: 'Restores 15 MP.'
   },
   {
     id: 'mana_2',
@@ -118,7 +122,7 @@ export const PICKUP_DEFS: readonly PickupDef[] = [
     label: 'Mana (Large)',
     group: 'Mana',
     lane: 'mana',
-    description: 'The larger of the two mana pickups. There is no third size.'
+    description: 'Restores 50 MP.'
   },
   // --- Potions -------------------------------------------------------------
   {
@@ -127,7 +131,7 @@ export const PICKUP_DEFS: readonly PickupDef[] = [
     label: 'Potion — invincibility',
     group: 'Potions',
     lane: 'potion',
-    description: 'Invincibility potion. Powerful mid-fight; the whole party can grab one each.'
+    description: 'Invincibility potion.'
   },
   {
     id: 'potion_2',
@@ -135,7 +139,7 @@ export const PICKUP_DEFS: readonly PickupDef[] = [
     label: 'Potion — rejuvenation',
     group: 'Potions',
     lane: 'potion',
-    description: 'Rejuvenation potion — restores health and mana. The stock 25% drop.'
+    description: 'Rejuvenation potion — restores health and mana.'
   },
   {
     id: 'potion_3',
@@ -143,7 +147,73 @@ export const PICKUP_DEFS: readonly PickupDef[] = [
     label: 'Potion — damage',
     group: 'Potions',
     lane: 'potion',
-    description: 'Damage potion. Shortens the rest of the fight rather than surviving it.'
+    description: 'Damage potion.'
+  },
+  // --- Upgrades I ----------------------------------------------------------
+  {
+    id: 'upgrade_damage',
+    path: 'items/upgrade_damage.xml',
+    label: 'Damage upgrade I',
+    group: 'Upgrades I',
+    lane: 'upgrade',
+    description: 'A free +5% damage upgrade.'
+  },
+  {
+    id: 'upgrade_defense',
+    path: 'items/upgrade_defense.xml',
+    label: 'Defense upgrade I',
+    group: 'Upgrades I',
+    lane: 'upgrade',
+    description: 'A free +1 armor upgrade.'
+  },
+  {
+    id: 'upgrade_health',
+    path: 'items/upgrade_health.xml',
+    label: 'Health upgrade I',
+    group: 'Upgrades I',
+    lane: 'upgrade',
+    description: 'A free +5 max-health upgrade.'
+  },
+  {
+    id: 'upgrade_mana',
+    path: 'items/upgrade_mana.xml',
+    label: 'Mana upgrade I',
+    group: 'Upgrades I',
+    lane: 'upgrade',
+    description: 'A free +10 max-mana upgrade.'
+  },
+  // --- Upgrades II ---------------------------------------------------------
+  {
+    id: 'upgrade_damage_2',
+    path: 'items/upgrade_damage_2.xml',
+    label: 'Damage upgrade II',
+    group: 'Upgrades II',
+    lane: 'upgrade',
+    description: 'A free +10% damage upgrade.'
+  },
+  {
+    id: 'upgrade_defense_2',
+    path: 'items/upgrade_defense_2.xml',
+    label: 'Defense upgrade II',
+    group: 'Upgrades II',
+    lane: 'upgrade',
+    description: 'A free +2 armor upgrade.'
+  },
+  {
+    id: 'upgrade_health_2',
+    path: 'items/upgrade_health_2.xml',
+    label: 'Health upgrade II',
+    group: 'Upgrades II',
+    lane: 'upgrade',
+    description: 'A free +10 max-health upgrade.'
+  },
+  {
+    id: 'upgrade_mana_2',
+    path: 'items/upgrade_mana_2.xml',
+    label: 'Mana upgrade II',
+    group: 'Upgrades II',
+    lane: 'upgrade',
+    description: 'A free +20 max-mana upgrade.'
   },
   // --- Lives ---------------------------------------------------------------
   // Never in the stock table: an extra life is a real swing in a fight the
@@ -156,7 +226,7 @@ export const PICKUP_DEFS: readonly PickupDef[] = [
     label: 'Extra life (1up)',
     group: 'Lives',
     lane: 'potion',
-    description: 'One extra life. Off by default — add a row to hand the party one.'
+    description: 'One extra life.'
   },
   {
     id: 'powerup_7up',
@@ -164,73 +234,7 @@ export const PICKUP_DEFS: readonly PickupDef[] = [
     label: 'Extra lives (7up)',
     group: 'Lives',
     lane: 'potion',
-    description: 'Seven extra lives in one pickup. Off by default, and a big swing — add it deliberately.'
-  },
-  // --- Upgrades I ----------------------------------------------------------
-  {
-    id: 'upgrade_damage',
-    path: 'items/upgrade_damage.xml',
-    label: 'Damage upgrade I',
-    group: 'Upgrades I',
-    lane: 'upgrade',
-    description: 'A free first-tier damage upgrade — the same pickup the prep room can hand out.'
-  },
-  {
-    id: 'upgrade_defense',
-    path: 'items/upgrade_defense.xml',
-    label: 'Defense upgrade I',
-    group: 'Upgrades I',
-    lane: 'upgrade',
-    description: 'A free first-tier defense upgrade.'
-  },
-  {
-    id: 'upgrade_health',
-    path: 'items/upgrade_health.xml',
-    label: 'Health upgrade I',
-    group: 'Upgrades I',
-    lane: 'upgrade',
-    description: 'A free first-tier max-health upgrade.'
-  },
-  {
-    id: 'upgrade_mana',
-    path: 'items/upgrade_mana.xml',
-    label: 'Mana upgrade I',
-    group: 'Upgrades I',
-    lane: 'upgrade',
-    description: 'A free first-tier max-mana upgrade.'
-  },
-  // --- Upgrades II ---------------------------------------------------------
-  {
-    id: 'upgrade_damage_2',
-    path: 'items/upgrade_damage_2.xml',
-    label: 'Damage upgrade II',
-    group: 'Upgrades II',
-    lane: 'upgrade',
-    description: "A free second-tier damage upgrade. The `2` is the game's own tier, not a count."
-  },
-  {
-    id: 'upgrade_defense_2',
-    path: 'items/upgrade_defense_2.xml',
-    label: 'Defense upgrade II',
-    group: 'Upgrades II',
-    lane: 'upgrade',
-    description: 'A free second-tier defense upgrade.'
-  },
-  {
-    id: 'upgrade_health_2',
-    path: 'items/upgrade_health_2.xml',
-    label: 'Health upgrade II',
-    group: 'Upgrades II',
-    lane: 'upgrade',
-    description: 'A free second-tier max-health upgrade.'
-  },
-  {
-    id: 'upgrade_mana_2',
-    path: 'items/upgrade_mana_2.xml',
-    label: 'Mana upgrade II',
-    group: 'Upgrades II',
-    lane: 'upgrade',
-    description: 'A free second-tier max-mana upgrade.'
+    description: 'Seven extra lives in one pickup.'
   }
 ]
 
