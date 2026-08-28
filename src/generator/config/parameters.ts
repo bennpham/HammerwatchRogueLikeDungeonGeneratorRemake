@@ -8,6 +8,7 @@ import type { UpgradeCounts } from '../levelTemplate/surgery'
 // the key QuickSetup's checkbox writes. tweak/ imports nothing from config/,
 // so this direction adds no cycle
 import { removeKey } from '../tweak/chains'
+import type { CampaignSlot } from '../campaign'
 
 /** Ids of every theme the generator can emit — see themes.ts for the registry. */
 export const THEMES: readonly string[] = THEME_DEFS.map((t) => t.id)
@@ -240,6 +241,20 @@ export interface DungeonParameters {
    * the pre-feature generator for every seed.
    */
   levelTimers?: FloorTimer[]
+  /**
+   * The order the campaign's floors and boss fights are played in.
+   *
+   * Optional, and absent is the historical shape: every dungeon floor in order,
+   * then every boss fight. Same byte-identity contract as `levelBuffs` and
+   * `levelTimers` — a params object without it must generate exactly what the
+   * generator produced before floors could be rearranged.
+   *
+   * One entry per floor and per boss FIGHT (a fight is one slot even though it
+   * emits a prep room and an arena). Both sequences stay ascending — only the
+   * interleaving is free, so `1, 2, B1, 3` and `B1, 1, 2, 3` are both legal but
+   * `2, 1` is not. `campaign.ts` owns the model and the repair.
+   */
+  levelOrder?: CampaignSlot[]
   /** max horde size per monster id */
   monsterMax: Record<string, number>
   /**

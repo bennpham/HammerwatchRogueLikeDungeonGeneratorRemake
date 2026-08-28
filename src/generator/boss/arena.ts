@@ -805,6 +805,9 @@ function buildArenaPreview(
 
   return {
     level: levelNumber,
+    // a placeholder: generateDungeon overwrites it with the slot's own label
+    // once it knows where in the campaign order this fight sits
+    label: String(levelNumber + 1),
     theme,
     mapWidth: gridWidth,
     mapHeight: gridHeight,

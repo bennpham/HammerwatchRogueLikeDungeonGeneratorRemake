@@ -1,11 +1,12 @@
 import React from 'react'
-import { THEME_DEFS, defaultFloorTimer } from '../../generator'
+import { THEME_DEFS, defaultFloorTimer, isDefaultOrder, normalizeOrder } from '../../generator'
 import type { DungeonParameters, FinalLockMode, ValidationIssue } from '../../generator'
 import { BoolField, NumberField, Section, ToggleGroup } from './fields'
 import { MonsterPoolsEditor } from './MonsterPoolsEditor'
 import { MonsterMaxTable } from './MonsterMaxTable'
 import { FloorTimerEditor } from './FloorTimerEditor'
 import { FloorBuffEditor } from './FloorBuffEditor'
+import { FloorOrderEditor } from './FloorOrderEditor'
 
 /** Themes bucketed by their registry group, in registry order. */
 const THEME_GROUPS = THEME_DEFS.reduce<[string, (typeof THEME_DEFS)[number][]][]>((groups, def) => {
@@ -46,6 +47,17 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
       const timers = (params.levelTimers ?? []).map((t) => ({ ...t }))
       while (timers.length < levels) timers.push({ ...(timers[timers.length - 1] ?? defaultFloorTimer()) })
       next.levelTimers = timers.slice(0, Math.max(levels, 1))
+
+      // A stored order names floors that may no longer exist, or may now be
+      // missing one. Repairing keeps the arrangement the dungeon master made
+      // instead of throwing it away every time the count changes; an order that
+      // repairs back to the default is dropped, since absent IS the default.
+      if (params.levelOrder !== undefined) {
+        const fightCount = params.boss?.enabled === true ? (params.boss.fights?.length ?? 0) : 0
+        const repaired = normalizeOrder(params.levelOrder, levels, fightCount)
+        if (isDefaultOrder(repaired, levels, fightCount)) delete next.levelOrder
+        else next.levelOrder = repaired
+      }
     }
     onChange(next)
   }
@@ -165,6 +177,8 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
             </p>
           ))}
       </Section>
+
+      <FloorOrderEditor params={params} issues={issues} onChange={onChange} />
 
       <Section title="Monster pools per level">
         <MonsterPoolsEditor params={params} issues={issues} onChange={onChange} />

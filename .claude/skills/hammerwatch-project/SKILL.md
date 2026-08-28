@@ -40,10 +40,13 @@ src/
 │   │   ├── themes.ts     THEME_DEFS — tileset path, tile count, doodad token
 │   │   ├── configFile.ts parameters.txt parse/serialize (original format)
 │   │   └── validation.ts every crash path of the original, as a rule
-│   ├── campaign.ts       the campaign's level ids — bossPrepId/bossArenaId and
-│   │                     their paths. Shared, because both ends of every link
-│   │                     need them (index.ts names the files, objectSet.ts and
-│   │                     bossprep/build.ts point exits at them)
+│   ├── campaign.ts       the campaign's PLAY ORDER and level ids —
+│   │                     CampaignSlot, campaignOrder/normalizeOrder,
+│   │                     gatewayAfter, slotEntryId/slotLabel, and
+│   │                     bossPrepId/bossArenaId with their paths. Shared,
+│   │                     because both ends of every link need them (index.ts
+│   │                     names the files, level.ts/room.ts/objectSet.ts read
+│   │                     the gateway, bossprep/build.ts points at an arena)
 │   ├── xml/              XMLDictionary/Array/Int/Float/Bool/String/IntArray
 │   ├── map/              level.ts, room.ts, passage.ts, tile.ts,
 │   │                     wallPattern.ts, posDir.ts, reachability.ts,
@@ -183,7 +186,13 @@ reference/hammerwatch-tweak-stats.md
    lights are on the RNG-free side of this line too: however many upgrades a
    room hands out, every `levels/level*.xml` stays byte-identical, and a kind
    left at 0 emits no item array at all.
-9. **A floor the player cannot finish is invalid.** `map/reachability.ts`
+9. **The campaign order changes links, never generation.** `levelOrder`
+   (`campaign.ts`) decides where each level leads, what `levels.xml` lists and
+   in what order, and which slot ends the campaign — through `ctx.gateway`.
+   Floors are still built in numeric order off `ctx.rand` and arenas in list
+   order off `ctx.bossRand`. An absent `levelOrder` is byte-identical to the
+   pre-feature generator, so the default order is stored as **absent**.
+10. **A floor the player cannot finish is invalid.** `map/reachability.ts`
    flood-fills the finished grid and rejects a floor unless the entrance
    reaches the exit (or orb/portal) and every key. Tile connectivity is not
    enough: lettered wall pieces are three tiles tall, so the two rows under any
@@ -218,6 +227,7 @@ reference/hammerwatch-tweak-stats.md
 | `lobby` | on, 10000 gold, all 21 columns, no free upgrades | prebuilt starting level: `enabled`, `startingGold` (whole multiple of 500, no upper cap beyond `GOLD_SAFETY_MAX`), `shopCategories`, `upgrades`. `enabled: false` reproduces the pre-lobby campaign exactly |
 | `lobby.upgrades` | every kind 0 | free upgrade pickups on the lobby floor, one count per `UPGRADE_KINDS` entry (`damage`, `defense`, `health`, `mana`, then the four `*2` tiers). Whole number 0…`UPGRADE_COUNT_MAX` (10000) each; **0 emits no item array**. One authored slot per kind, so a count above one *stacks* on that slot rather than needing the room's layout to grow. `lobbyUpgrades` in `parameters.txt`. See *Free upgrades* below |
 | `boss` | **on** | the finale: `{enabled, fights}`, two appended levels **per fight**. See the sub-table below and *Boss finale* |
+| `levelOrder` | absent | the campaign's play order, one `CampaignSlot` per floor and per boss **fight**. Absent = every floor then every fight, the pre-feature shape, and the only value that is guaranteed byte-identical. Both sequences stay ascending; only the interleaving is free. `levelOrder=1,2,B1,3` in `parameters.txt`, written only when it differs from the default. See *Campaign order* |
 
 `BossOptions` (`config/parameters.ts`) is `{enabled, fights: BossFight[]}`, and a
 `BossFight` is `{prep: BossPrepOptions, arena: BossArenaOptions}`. Defaults from
@@ -493,6 +503,43 @@ warning at `TIMER_COUNTDOWN_NODE_WARN` is about.
 `parameters.txt` carries `timerN=enabled|seconds|damage|freqMs|countdown`, and
 **only for floors whose timer is on** — a stock export has no `timer` line at
 all.
+
+## Campaign order (`campaign.ts`)
+
+The campaign is an ordered list of **slots**: a dungeon floor, or a boss fight
+(one slot, two levels — the prep room comes with the fight). `levelOrder` stores
+it; absent means the historical order and is what the byte-identity contract is
+written against, so the form and the importer both store the default as
+**absent** rather than as an explicit list.
+
+Two things follow from position in that list, and nothing else does:
+
+- **Where each level leads.** `gatewayAfter(order, position)` returns the one
+  `Gateway` a slot gets — `exit` (stairs to the next floor), `portal` (into a
+  fight's prep room) or `orb` (the campaign ends here). The generator writes it
+  to `ctx.gateway` before each `new Level()`, and `map/level.ts`,
+  `map/room.ts` and `objects/objectSet.ts` read it there. That is why the
+  finality tests `level < params.levels - 1` and `level === params.levels - 1`
+  are gone: a rearranged campaign can end on a dungeon floor, and several floors
+  can lead into fights. `lockFinalRoom` likewise gates whichever room carries a
+  gateway prefab (`gateway.kind !== 'exit'`), not floor `levels - 1`.
+- **What `levels.xml` lists, and in what order** — plus the `lvl.floor?floor=`
+  label, which counts positions rather than floor indices, and the preview
+  array, whose entries carry a `label` (`3`, `B2`) from `slotLabel`.
+
+What does **not** follow from it: how anything is generated. Floors are still
+built in numeric order off `ctx.rand` and arenas in list order off
+`ctx.bossRand`, and each is stashed and emitted afterwards in campaign order.
+Rearranging is a linking change; generating in a different sequence would move
+every seed.
+
+`normalizeOrder` repairs a stale order — drops slots that no longer exist,
+appends missing ones, drops duplicates, and deals each kind's indices back into
+the positions that kind already occupies so the interleaving survives while the
+numbering is made ascending. The importer and `ParameterForm.setLevels` both use
+it, so a stale file or a changed floor count is never fatal. `validation.ts`
+still reports a broken stored order, because the form edits the value directly
+and must not have it silently rewritten underneath.
 
 ## Boss finale (`bossprep/` + `boss/`)
 
@@ -782,8 +829,10 @@ unseeded randomness; changes RNG draw order without flagging it; draws arena
 randomness from `ctx.rand`/`ctx.cosmeticRand` instead of `ctx.bossRand`; draws
 before the early return in a no-op theme path; adds a parameter without a
 validation rule; adds an unbounded loop; sends file contents through IPC;
-weakens `reachability.ts` instead of letting a bad floor re-roll; or lands
-generator behaviour without a test.
+weakens `reachability.ts` instead of letting a bad floor re-roll; generates
+floors or arenas in campaign order instead of their own fixed sequences, or
+stores the default `levelOrder` as an explicit list rather than as absent; or
+lands generator behaviour without a test.
 
 Tweak-specific: reject a diff that hand-writes a `TweakFieldDef` instead of
 deriving it from `baseline.ts`; mutates `TWEAK_BASELINE` in place (`applyTweaks`

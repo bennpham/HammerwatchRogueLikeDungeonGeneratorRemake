@@ -114,6 +114,13 @@ The lobby and the boss finale are **on by default**; timer mode is **off**.
   carry **arena-wide buffs** aimed at players, monsters or both; unlike the
   spawns, each tier's buffs replace the previous tier's, so only one tier's
   aura is ever live and the fight reads as phases.
+- **Floor order** — the campaign's floors and boss fights can be **rearranged**
+  from the Dungeon tab: a row of chips reading `1 2 B1 3 4 B2` that the ◀ ▶
+  buttons shuffle. A fight can go anywhere — before the first floor, between two
+  floors, or at the end. Floors keep their own order and so do fights, so only
+  the interleaving is up to you and the arrows refuse a move that would break
+  it. Whichever slot ends up **last** carries the victory orb, so a run can
+  equally well finish on a dungeon floor as in an arena.
 - **Player tweaks** — `tweak/*.xml` overrides for class stats, upgrade costs
   and shop contents, edited per field or through bulk knobs. Purely a balance
   layer: it draws no random values at all.
@@ -226,6 +233,7 @@ stock player tweak are all **on by default**:
 | `lobbyGold` | 10000 | Starting gold, a multiple of 500 (one red diamond each). Past the 12 floor spots the diamonds simply stack on the same spots — there is no upper cap beyond a safety limit that stops a typo emitting millions of items |
 | `lobbyShops` | all 21 columns | Space-separated shop columns the lobby stalls sell |
 | `lobbyUpgrades` | `0 0 0 0 0 0 0 0` | Free upgrade pickups lying on the lobby floor: eight space-separated counts, in the order damage, defense, health, mana, then the four tier-2 versions. Each kind has one spot on the floor, so a count above one simply stacks there — there is no gameplay cap, only a safety limit. `0` means the kind is not laid out at all |
+| `levelOrder` | *(absent)* | The order the campaign is played in: floors by their 1-based number, boss fights as `B1`, `B2`, … — e.g. `1,2,B1,3,4,B2` or `B1,1,2,3`. A fight is one entry even though it is two levels. Floors keep their own order and so do fights; only the interleaving is free. Whichever entry is last holds the victory orb, so a campaign can end on a dungeon floor. Omit for the default order (every floor, then every fight) |
 | `boss` | 1 | Append a prep room and a boss arena after the final floor |
 | `bossFights` | 1 | How many boss fights the campaign chains. Each has its own prep room and arena, and every key below carries its fight index — `boss0Theme` is the first fight's, `boss1Theme` the second's. No upper limit, same as `levels` |
 | `boss<i>Gold` | 20000 | Gold paid out in the prep room, same 500-multiple rule |

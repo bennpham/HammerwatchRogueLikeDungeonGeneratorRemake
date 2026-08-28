@@ -146,6 +146,12 @@ export class ObjectSet {
         this.scriptNodes.push(shape)
 
         const exit = new NodeLevelExit(ctx, x + 3, y + 6)
+        // The next floor in the campaign ORDER, which under the default order
+        // is the `currentLevel + 1` the Java original hardcoded and
+        // NodeLevelExit still defaults to. A rearranged campaign can put a boss
+        // fight between two floors, so the number is no longer implied by this
+        // floor's own index.
+        if (ctx.gateway?.kind === 'exit') exit.level = ctx.gateway.target
         exit.connectToShape(shape)
         this.scriptNodes.push(exit)
 

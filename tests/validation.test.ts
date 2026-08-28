@@ -1057,3 +1057,90 @@ describe('multiple boss fights (issue #43)', () => {
     ).toEqual([])
   })
 })
+
+describe('levelOrder (issue #43)', () => {
+  const withOrder = (order: unknown) => {
+    const p = defaultParameters()
+    p.levels = 3
+    p.themes = p.themes.slice(0, 3)
+    p.levelMonsters = p.levelMonsters.slice(0, 3)
+    p.levelBuffs = p.levelBuffs?.slice(0, 3)
+    p.levelTimers = p.levelTimers?.slice(0, 3)
+    p.levelOrder = order as typeof p.levelOrder
+    return validateParameters(p)
+  }
+
+  const floor = (index: number) => ({ kind: 'floor' as const, index })
+  const boss = (index: number) => ({ kind: 'boss' as const, index })
+
+  it('accepts an absent order — that is the default campaign', () => {
+    const p = defaultParameters()
+    expect(p.levelOrder).toBeUndefined()
+    expect(validateParameters(p).errors).toEqual([])
+  })
+
+  it('accepts a legal interleaving, including one that opens on a boss', () => {
+    expect(withOrder([floor(0), floor(1), boss(0), floor(2)]).errors).toEqual([])
+    expect(withOrder([boss(0), floor(0), floor(1), floor(2)]).errors).toEqual([])
+  })
+
+  it('rejects floors out of order', () => {
+    const result = withOrder([floor(1), floor(0), boss(0), floor(2)])
+    expect(fieldsOf(result.errors)).toContain('levelOrder')
+    expect(result.errors.some((e) => e.message.includes('after a later one'))).toBe(true)
+  })
+
+  it('rejects boss fights out of order', () => {
+    const p = defaultParameters()
+    p.levels = 2
+    p.themes = p.themes.slice(0, 2)
+    p.levelMonsters = p.levelMonsters.slice(0, 2)
+    p.levelBuffs = p.levelBuffs?.slice(0, 2)
+    p.levelTimers = p.levelTimers?.slice(0, 2)
+    p.boss = { ...p.boss, fights: [p.boss.fights[0], JSON.parse(JSON.stringify(p.boss.fights[0]))] }
+    p.levelOrder = [boss(1), floor(0), boss(0), floor(1)]
+
+    const result = validateParameters(p)
+    expect(result.errors.some((e) => e.message.includes('after a later one'))).toBe(true)
+  })
+
+  it('rejects a duplicated slot', () => {
+    const result = withOrder([floor(0), floor(0), floor(1), floor(2), boss(0)])
+    expect(result.errors.some((e) => e.message.includes('more than once'))).toBe(true)
+  })
+
+  it('rejects a slot the campaign does not have', () => {
+    const result = withOrder([floor(0), floor(1), floor(2), floor(7), boss(0)])
+    expect(result.errors.some((e) => e.message.includes('does not have'))).toBe(true)
+  })
+
+  it('rejects an order that leaves a floor unplaced', () => {
+    const result = withOrder([floor(0), floor(1), boss(0)])
+    expect(result.errors.some((e) => e.message.includes('never places floor 3'))).toBe(true)
+  })
+
+  it('rejects an entry that is not a slot at all', () => {
+    const result = withOrder([floor(0), 'lobby', floor(1), floor(2), boss(0)])
+    expect(result.errors.some((e) => e.message.includes('neither a floor nor a boss fight'))).toBe(
+      true
+    )
+  })
+
+  // With the boss off there are no fights to place, so an order naming one is
+  // wrong — the same way naming a floor past `levels` is.
+  it('counts no boss slots while the boss is disabled', () => {
+    const p = defaultParameters()
+    p.levels = 2
+    p.themes = p.themes.slice(0, 2)
+    p.levelMonsters = p.levelMonsters.slice(0, 2)
+    p.levelBuffs = p.levelBuffs?.slice(0, 2)
+    p.levelTimers = p.levelTimers?.slice(0, 2)
+    p.boss = { ...p.boss, enabled: false }
+
+    p.levelOrder = [floor(0), floor(1)]
+    expect(validateParameters(p).errors).toEqual([])
+
+    p.levelOrder = [floor(0), boss(0), floor(1)]
+    expect(validateParameters(p).errors.some((e) => e.message.includes('does not have'))).toBe(true)
+  })
+})

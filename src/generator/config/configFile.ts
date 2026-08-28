@@ -31,6 +31,8 @@ import { MONSTER_TYPES } from '../objects/monsterTypes'
 import { buffById } from '../objects/buffTypes'
 import { pickupById } from '../objects/pickupTypes'
 import { isLobbyCategory } from '../lobby/shops'
+import { campaignOrder, isDefaultOrder, normalizeOrder, parseSlotLabel, slotLabel } from '../campaign'
+import type { CampaignSlot } from '../campaign'
 import { TWEAK_FIELD_MAP, pruneTweaks } from '../tweak/overrides'
 
 export interface ParsedConfig {
@@ -595,6 +597,23 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       continue
     }
 
+    if (keyLower === 'levelorder') {
+      // `1,2,B1,3` — floors by their 1-based number, boss fights as B<n>. A
+      // malformed token is reported and dropped; the order is repaired against
+      // the campaign's real shape in the post-pass below, so a stale or partial
+      // line is never fatal (invariant #5).
+      const slots: CampaignSlot[] = []
+      for (const token of value.split(',')) {
+        const trimmed = token.trim()
+        if (trimmed === '') continue
+        const slot = parseSlotLabel(trimmed)
+        if (slot === null) result.unknownKeys.push(`${key} value "${trimmed}"`)
+        else slots.push(slot)
+      }
+      params.levelOrder = slots
+      continue
+    }
+
     if (keyLower === 'boss') {
       params.boss.enabled = value === '1'
       continue
@@ -787,6 +806,20 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     fights.length = wanted
   }
 
+  // The order is only meaningful next to the campaign it describes, and both
+  // `levels` and `bossFights` may be parsed after it, so it is repaired here
+  // rather than inline. An order that turns out to be the default one is
+  // dropped entirely: absent is the shape that guarantees byte-identical
+  // output, and a file saying "1,2,3,B1" should not behave differently from one
+  // that says nothing.
+  if (params.levelOrder !== undefined) {
+    const repaired = normalizeOrder(params.levelOrder, params.levels, params.boss.fights?.length ?? 0)
+    params.levelOrder = isDefaultOrder(repaired, params.levels, params.boss.fights?.length ?? 0)
+      ? undefined
+      : repaired
+    if (params.levelOrder === undefined) delete params.levelOrder
+  }
+
   for (const [index, state] of fightState) {
     const arena = fights[index]?.arena
     if (arena === undefined) continue
@@ -925,6 +958,15 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
   // form as fight 0, which is what keeps older files importable, but nothing
   // writes it any more — an export is always fully indexed.
   const fights = params.boss.fights ?? []
+
+  // Written only when the campaign was actually rearranged, so a stock export
+  // gains no line and still round-trips byte for byte against one written
+  // before floors could be reordered.
+  const order = campaignOrder(params.levels, fights.length, params.levelOrder)
+  if (!isDefaultOrder(order, params.levels, fights.length)) {
+    lines.push(`levelOrder=${order.map(slotLabel).join(',')}`)
+  }
+
   lines.push(`boss=${params.boss.enabled ? 1 : 0}`)
   lines.push(`bossFights=${fights.length}`)
   fights.forEach((fight, f) => {

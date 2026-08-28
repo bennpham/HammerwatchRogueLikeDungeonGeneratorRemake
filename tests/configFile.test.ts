@@ -1018,3 +1018,66 @@ describe('parameters.txt — multiple boss fights (issue #43)', () => {
     expect(parsed.params.boss.fights[0].arena.waves[0].monsters).toEqual(['bat1'])
   })
 })
+
+describe('parameters.txt — levelOrder (issue #43)', () => {
+  const rearranged = () => {
+    const p = defaultParameters()
+    p.levels = 3
+    p.themes = p.themes.slice(0, 3)
+    p.levelMonsters = p.levelMonsters.slice(0, 3)
+    p.levelBuffs = p.levelBuffs?.slice(0, 3)
+    p.levelTimers = p.levelTimers?.slice(0, 3)
+    p.levelOrder = [
+      { kind: 'boss', index: 0 },
+      { kind: 'floor', index: 0 },
+      { kind: 'floor', index: 1 },
+      { kind: 'floor', index: 2 }
+    ]
+    return p
+  }
+
+  it('writes a rearranged order and reads it back', () => {
+    const original = rearranged()
+    const text = serializeParametersTxt(original)
+    expect(text).toContain('levelOrder=B1,1,2,3')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.levelOrder).toEqual(original.levelOrder)
+  })
+
+  // Absent is the shape that guarantees byte-identical output, so a campaign
+  // in the default order must not gain a key — an export from before the
+  // feature has to keep round-tripping to the same bytes.
+  it('writes no key for the default order', () => {
+    expect(serializeParametersTxt(defaultParameters())).not.toMatch(/^levelOrder=/m)
+  })
+
+  it('stores an explicitly-default order as absent, not as a list', () => {
+    const parsed = parseParametersTxt(['levels=3', 'levelOrder=1,2,3,B1'].join('\r\n'))
+    expect(parsed.params.levelOrder).toBeUndefined()
+  })
+
+  it('repairs a stale order against the campaign it is attached to', () => {
+    // names floor 5 of a 3-floor campaign, and never mentions floor 3
+    const parsed = parseParametersTxt(['levels=3', 'levelOrder=1,B1,5,2'].join('\r\n'))
+    expect(parsed.params.levelOrder).toEqual([
+      { kind: 'floor', index: 0 },
+      { kind: 'boss', index: 0 },
+      { kind: 'floor', index: 1 },
+      { kind: 'floor', index: 2 }
+    ])
+  })
+
+  it('reports a malformed token and keeps the rest of the line', () => {
+    const parsed = parseParametersTxt(['levels=3', 'levelOrder=1,nope,B1,2,3'].join('\r\n'))
+    expect(parsed.unknownKeys).toEqual(['levelOrder value "nope"'])
+    expect(parsed.params.levelOrder?.map((s) => s.kind)).toEqual(['floor', 'boss', 'floor', 'floor'])
+  })
+
+  it('falls back to the default order rather than failing on a garbage line', () => {
+    const parsed = parseParametersTxt(['levels=3', 'levelOrder=???'].join('\r\n'))
+    expect(parsed.unknownKeys).toEqual(['levelOrder value "???"'])
+    expect(parsed.params.levelOrder).toBeUndefined()
+  })
+})

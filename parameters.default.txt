@@ -54,6 +54,18 @@ lobbyShops=combo1 combo2 combo3 combo4 combo5 def1 def2 def3 def4 def5 misc1 mis
 # the game's own second-tier items). Each kind has one spot on the floor, so a
 # count above one stacks there; 0 lays none of that kind out at all.
 lobbyUpgrades=0 0 0 0 0 0 0 0
+# levelOrder is the order the campaign is PLAYED in: dungeon floors by their
+# 1-based number, boss fights as B1, B2, ... e.g. levelOrder=1,2,B1,3,4,B2, or
+# levelOrder=B1,1,2,3 to open on a boss fight. A boss fight is one entry even
+# though it is two levels — its prep room comes with it.
+#
+# Floors keep their own order and so do fights (2 can never come before 1);
+# only how the two interleave is free. Whichever entry is LAST holds the
+# victory orb, so a campaign can equally well end on a dungeon floor.
+#
+# Omit the key for the default order — every floor, then every boss fight —
+# which is what the stock campaign uses and why no line is written here.
+#
 # Boss fight after the last dungeon floor: 1 = a shop room (prep) then a
 # generated arena with a boss, 0 = campaign ends on the final floor.
 #

@@ -6,7 +6,7 @@ import { emitTweakFiles } from './tweak/overrides'
 import { LOBBY_ASSETS, LOBBY_LEVEL_ID, LOBBY_LEVEL_PATH, buildLobby } from './lobby'
 import { buildBossPrep } from './bossprep'
 import { buildBossArena } from './boss'
-import { bossArenaId, bossArenaPath, bossPrepId, bossPrepPath } from './campaign'
+import { bossArenaId, bossArenaPath, bossPrepId, bossPrepPath, campaignOrder, gatewayAfter, slotEntryId, slotLabel } from './campaign'
 import { buildFloorHazardRig } from './timer/hazard'
 import { buildFloorBuffRig } from './buffs/field'
 
@@ -53,6 +53,19 @@ export type { ThemeDef } from './config/themes'
 export { ARENA_PATTERN_LABELS, isShapePattern } from './boss/arenaPattern'
 export type { ArenaPatternKind } from './boss/arenaPattern'
 export { defaultParameters }
+export {
+  bossArenaId,
+  bossPrepId,
+  campaignOrder,
+  defaultOrder,
+  gatewayAfter,
+  isDefaultOrder,
+  normalizeOrder,
+  parseSlotLabel,
+  slotEntryId,
+  slotLabel
+} from './campaign'
+export type { CampaignSlot, Gateway } from './campaign'
 export { CAMPAIGN_PRESETS, DEFAULT_PRESET_ID, campaignPresetById } from './config/presets'
 export type { CampaignPreset } from './config/presets'
 export { validateParameters } from './config/validation'
@@ -218,6 +231,12 @@ export interface PreviewRoom {
 
 export interface LevelPreview {
   level: number
+  /**
+   * What to call this level in the preview tabs: `3` for the third dungeon
+   * floor, `B2` for the second boss fight, both 1-based. Filled from the
+   * campaign order, so a rearranged campaign's tabs read in play order.
+   */
+  label: string
   theme: string
   mapWidth: number
   mapHeight: number
@@ -267,10 +286,40 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
 
   const campaignName = `dungeon${usedSeed}`
   const files: GeneratedFile[] = []
-  const previews: LevelPreview[] = []
+  // Levels are BUILT in their own fixed sequences — floors in numeric order off
+  // ctx.rand, then arenas in list order off ctx.bossRand — but LISTED in
+  // campaign order, so each slot's preview is stashed here and walked at the
+  // end. Under the default order the walk reproduces the old append order
+  // exactly.
+  const floorPreviews = new Map<number, LevelPreview>()
+  const arenaPreviews = new Map<number, LevelPreview>()
   let levelString = ''
 
+  // The campaign's play order — every floor then every fight by default, or
+  // whatever `levelOrder` arranged. Everything below reads position in THIS
+  // list rather than a floor's own index: which prefab a floor's way out gets,
+  // where it points, what `start` is, and what order levels.xml lists.
+  const fights = bossFights(params.boss)
+  const order = campaignOrder(params.levels, fights.length, params.levelOrder)
+
+  // Floors are still generated in numeric order, whatever the campaign order
+  // is. Their draws come off ctx.rand one floor after another, so generating
+  // them in a different sequence would move every seed — the order changes how
+  // the floors are LINKED, never how they are built.
+  const floorPosition = new Map<number, number>()
+  order.forEach((slot, position) => {
+    if (slot.kind === 'floor') floorPosition.set(slot.index, position)
+  })
+
   for (let i = 0; i < params.levels; i++) {
+    // Set before the constructor runs: `Level` and `Room.transform` both read
+    // it while placing the exit/orb room, and objectSet.ts reads it for the
+    // stairs' target. A floor the order somehow never mentions cannot happen —
+    // normalizeOrder appends every missing slot — but fall back to the orb
+    // rather than a null gateway if it ever did.
+    const position = floorPosition.get(i)
+    ctx.gateway = position === undefined ? { kind: 'orb' } : gatewayAfter(order, position)
+
     let level: Level | null = null
     for (let attempt = 0; attempt < MAX_LEVEL_ATTEMPTS; attempt++) {
       const candidate = new Level(ctx, i)
@@ -302,8 +351,7 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
     buildFloorHazardRig(ctx, params.levelTimers?.[i], params.mapWidth, params.mapHeight)
 
     files.push({ path: `levels/level${i}.xml`, content: level.getXML() })
-    levelString += `<level id="${i}" res="levels/level${i}.xml" name="lvl.floor?floor=${i}" />\n`
-    previews.push(buildPreview(ctx, level))
+    floorPreviews.set(i, buildPreview(ctx, level))
     ctx.clearLevel()
   }
 
@@ -312,13 +360,17 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
   // Same seed means the same dungeon whether the lobby is on or off; it only
   // prepends a level entry and moves the campaign's `start`.
   //
-  // With 0 floors there is no floor 0 for it to teleport to — LOBBY_EXIT_TARGET
-  // is the hardcoded '0' (see lobby/build.ts) — so the lobby is skipped rather
-  // than stranding the party. Gating it here and not only in the GUI also covers
-  // a parameters.txt that imports `levels=0` alongside `lobby=true`.
+  // With 0 floors there is nothing for it to teleport to, so the lobby is
+  // skipped rather than stranding the party. Gating it here and not only in the
+  // GUI also covers a parameters.txt that imports `levels=0` alongside
+  // `lobby=true`.
   const lobbyEnabled = params.lobby?.enabled === true && params.levels > 0
   if (lobbyEnabled) {
-    files.push({ path: LOBBY_LEVEL_PATH, content: buildLobby(params.lobby) })
+    // whatever the campaign opens on — floor 0 by default, but a rearranged
+    // campaign can start on a boss fight's prep room
+    const firstSlot = order[0]
+    const lobbyTarget = firstSlot === undefined ? '0' : slotEntryId(firstSlot)
+    files.push({ path: LOBBY_LEVEL_PATH, content: buildLobby(params.lobby, lobbyTarget) })
     files.push(...LOBBY_ASSETS)
     levelString =
       `<level id="${LOBBY_LEVEL_ID}" res="${LOBBY_LEVEL_PATH}" name="lvl.floor?floor=0" />\n` + levelString
@@ -339,27 +391,53 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
   // They share ctx.bossRand in list order, so fight 0 draws precisely what a
   // single-fight campaign has always drawn and each extra fight continues the
   // stream after it. Adding a second fight therefore cannot move the first.
-  const fights = bossFights(params.boss)
+  const bossPosition = new Map<number, number>()
+  order.forEach((slot, position) => {
+    if (slot.kind === 'boss') bossPosition.set(slot.index, position)
+  })
+
   fights.forEach((fight, i) => {
-    const isLast = i === fights.length - 1
     files.push({ path: bossPrepPath(i), content: buildBossPrep(fight.prep, bossArenaId(i)) })
+
+    // Where this arena leads follows the campaign ORDER, exactly like a floor's
+    // stairs: the last slot ends the campaign and keeps the victory orb,
+    // whether that slot is an arena or — in a rearranged campaign — a dungeon
+    // floor. `gatewayAfter` is the same function the floors use.
+    const position = bossPosition.get(i)
+    const gateway = position === undefined ? { kind: 'orb' as const } : gatewayAfter(order, position)
 
     const { xml, preview } = buildBossArena(
       ctx,
       fight.arena,
       params.levels + i,
-      isLast ? null : bossPrepId(i + 1)
+      gateway.kind === 'orb' ? null : gateway.target
     )
     files.push({ path: bossArenaPath(i), content: xml })
-    previews.push(preview)
-
-    // the floor labels keep counting on from the last dungeon floor, two per
-    // fight, so the in-game floor indicator never repeats a number
-    const prepFloor = params.levels + i * 2
-    levelString +=
-      `<level id="${bossPrepId(i)}" res="${bossPrepPath(i)}" name="lvl.floor?floor=${prepFloor}" />\n` +
-      `<level id="${bossArenaId(i)}" res="${bossArenaPath(i)}" name="lvl.floor?floor=${prepFloor + 1}" />\n`
+    arenaPreviews.set(i, preview)
   })
+
+  // levels.xml lists the campaign in PLAY order, and the in-game floor label
+  // counts positions in that order rather than a floor's own index — a fight
+  // takes two labels because it is two levels. Under the default order this is
+  // floors 0..N-1 then the fights, which is exactly what was emitted before the
+  // order was configurable.
+  const previews: LevelPreview[] = []
+  let floorLabel = 0
+  for (const slot of order) {
+    if (slot.kind === 'floor') {
+      levelString += `<level id="${slot.index}" res="levels/level${slot.index}.xml" name="lvl.floor?floor=${floorLabel}" />\n`
+      floorLabel += 1
+      const preview = floorPreviews.get(slot.index)
+      if (preview !== undefined) previews.push({ ...preview, label: slotLabel(slot) })
+    } else {
+      levelString +=
+        `<level id="${bossPrepId(slot.index)}" res="${bossPrepPath(slot.index)}" name="lvl.floor?floor=${floorLabel}" />\n` +
+        `<level id="${bossArenaId(slot.index)}" res="${bossArenaPath(slot.index)}" name="lvl.floor?floor=${floorLabel + 1}" />\n`
+      floorLabel += 2
+      const preview = arenaPreviews.get(slot.index)
+      if (preview !== undefined) previews.push({ ...preview, label: slotLabel(slot) })
+    }
+  }
 
   files.push({
     path: 'info.xml',
@@ -371,9 +449,14 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
       '</info>'
   })
 
-  // The lobby comes first when it is there, otherwise floor 0 — and with no
-  // floors at all the campaign opens straight into the boss prep room.
-  const startLevel = lobbyEnabled ? LOBBY_LEVEL_ID : params.levels > 0 ? '0' : bossPrepId(0)
+  // The lobby comes first when it is there, otherwise whatever the campaign
+  // order opens on — floor 0 by default, a boss fight's prep room when the
+  // order was rearranged to put one first or when there are no floors at all.
+  const startLevel = lobbyEnabled
+    ? LOBBY_LEVEL_ID
+    : order.length > 0
+      ? slotEntryId(order[0])
+      : bossPrepId(0)
 
   files.push({
     path: 'levels.xml',
@@ -400,6 +483,8 @@ function buildPreview(ctx: GenerationContext, level: Level): LevelPreview {
 
   return {
     level: level.levelNum,
+    // as in the arena's preview: a placeholder the campaign-order walk replaces
+    label: String(level.levelNum + 1),
     theme: level.theme,
     mapWidth: level.width,
     mapHeight: level.height,

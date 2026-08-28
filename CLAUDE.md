@@ -54,7 +54,15 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    defaults are not empty any more: `defaultParameters()` ships the lobby on,
    the boss on, and `player.shared.remove.life`, so a stock run emits a lobby,
    a prep room, an arena and exactly one tweak file.
-7. **A floor the player cannot finish is invalid.** `map/reachability.ts`
+7. **The campaign order changes links, never generation.** `levelOrder`
+   (`campaign.ts`) decides where each level leads, what `levels.xml` lists and
+   in what order, and which slot carries the victory orb — via `ctx.gateway`,
+   which `map/level.ts`, `map/room.ts` and `objects/objectSet.ts` read. Floors
+   are still built in numeric order off `ctx.rand` and arenas in list order off
+   `ctx.bossRand`; generating them in a rearranged sequence would move every
+   seed. An absent `levelOrder` must stay byte-identical to the pre-feature
+   generator, so the default order is stored as absent, never as a list.
+8. **A floor the player cannot finish is invalid.** `map/reachability.ts`
    flood-fills with the wall art's two-row overhang modelled (`OVERHANG_ROWS`)
    and rejects a floor unless the entrance reaches the exit/orb/portal and
    every key; the bounded retry loop re-rolls it. Never relax the check, or

@@ -23,6 +23,7 @@ import {
   wavePickups
 } from './parameters'
 import type { BossFight, BossOptions } from './parameters'
+import type { CampaignSlot } from '../campaign'
 import { getTheme } from './themes'
 import {
   defaultTier,
@@ -266,6 +267,7 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
   validateLevelTimers(p, errors, warnings)
   validateLobby(p, errors, warnings)
   validateBoss(p, errors, warnings)
+  validateLevelOrder(p, errors)
 
   return { errors, warnings, valid: errors.length === 0 }
 }
@@ -319,6 +321,71 @@ function validateUpgrades(
         field,
         message: `The ${kind} upgrade count cannot exceed ${UPGRADE_COUNT_MAX} — not a game limit, just the point past which the stack is too large to emit.`
       })
+    }
+  }
+}
+
+/**
+ * The campaign's play order, when one is stored.
+ *
+ * Absent is always valid — it means the default order, which is what every
+ * campaign had before this was configurable. A stored order has to describe
+ * exactly this campaign: one entry per floor and per boss fight, no duplicates,
+ * nothing that does not exist, and each of the two sequences ascending. Only
+ * the interleaving is free.
+ *
+ * `campaign.normalizeOrder` can repair every one of these, and the importer
+ * uses it so a stale file is never fatal — but the form edits the stored value
+ * directly, so a broken order still has to be reportable rather than silently
+ * rewritten under the dungeon master.
+ */
+function validateLevelOrder(p: DungeonParameters, errors: ValidationIssue[]): void {
+  const order = p.levelOrder
+  if (order === undefined) return
+
+  const fightCount = p.boss?.enabled === true ? (p.boss.fights?.length ?? 0) : 0
+  const limit = (kind: string): number => (kind === 'floor' ? p.levels : fightCount)
+  const name = (slot: CampaignSlot): string => (slot.kind === 'floor' ? `floor ${slot.index + 1}` : `boss fight ${slot.index + 1}`)
+
+  const seen = new Set<string>()
+  const last = new Map<string, number>()
+  for (const slot of order) {
+    if (slot === null || typeof slot !== 'object' || (slot.kind !== 'floor' && slot.kind !== 'boss')) {
+      errors.push({ field: 'levelOrder', message: 'The floor order contains an entry that is neither a floor nor a boss fight.' })
+      continue
+    }
+    if (!Number.isInteger(slot.index) || slot.index < 0 || slot.index >= limit(slot.kind)) {
+      errors.push({
+        field: 'levelOrder',
+        message: `The floor order names ${name(slot)}, which this campaign does not have.`
+      })
+      continue
+    }
+
+    const key = `${slot.kind}:${slot.index}`
+    if (seen.has(key)) {
+      errors.push({ field: 'levelOrder', message: `The floor order lists ${name(slot)} more than once.` })
+      continue
+    }
+    seen.add(key)
+
+    // ascending within each kind — the interleaving is free, the numbering is not
+    const previous = last.get(slot.kind)
+    if (previous !== undefined && slot.index < previous) {
+      errors.push({
+        field: 'levelOrder',
+        message: `The floor order puts ${name(slot)} after a later one. Floors and boss fights each stay in order; only how they interleave is up to you.`
+      })
+    }
+    last.set(slot.kind, slot.index)
+  }
+
+  for (const slot of [
+    ...Array.from({ length: Math.max(0, p.levels) }, (_, index) => ({ kind: 'floor' as const, index })),
+    ...Array.from({ length: Math.max(0, fightCount) }, (_, index) => ({ kind: 'boss' as const, index }))
+  ]) {
+    if (!seen.has(`${slot.kind}:${slot.index}`)) {
+      errors.push({ field: 'levelOrder', message: `The floor order never places ${name(slot)}.` })
     }
   }
 }

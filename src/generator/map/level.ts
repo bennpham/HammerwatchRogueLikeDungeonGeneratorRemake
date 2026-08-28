@@ -131,7 +131,12 @@ export class Level {
       this.levelValid = false
     }
 
-    if (level < params.levels - 1) {
+    // Which way out this floor gets is a property of the campaign ORDER, not of
+    // the floor's index — see GenerationContext.gateway. Under the default
+    // order the two are the same thing (floor `levels - 1` is the last slot, or
+    // the one before the first boss fight), which is why this moved without
+    // changing any seed.
+    if (ctx.gateway?.kind === 'exit') {
       // exit stairs down to the next floor
       success = false
       for (let attempt = 0; attempt < 2000; attempt++) {
@@ -145,7 +150,9 @@ export class Level {
         this.levelValid = false
       }
     } else {
-      // final level gets the victory orb instead
+      // Nothing follows, or a boss fight does: the victory orb, or the portal
+      // that Room.transform swaps in for it. Same room selection either way —
+      // both prefabs register the same ids off the same draws.
       success = false
       for (let attempt = 0; attempt < 2000; attempt++) {
         const r = this.rooms[rand.iRand(0, this.rooms.length)]
@@ -192,7 +199,12 @@ export class Level {
     // Runs last on purpose: the chance-gated lock above already refuses an Orb
     // room so it can never steal this one, and writing ctx.lastLockType here at
     // the very end of the final level cannot leak into a later level.
-    if (params.lockFinalRoom && level === params.levels - 1) {
+    // Gates whichever room carries the campaign's gateway prefab — the victory
+    // orb, or a boss portal. Under the default order there is exactly one such
+    // room, on floor `levels - 1`, which is what this used to test for
+    // directly; a rearranged campaign can have several, and each is the last
+    // gate before something that matters.
+    if (params.lockFinalRoom && ctx.gateway?.kind !== 'exit') {
       // transform('Orb') already refused every room with more than one
       // passage, so the orb room is a dead end and lockRoom accepts it
       const orbRoom = this.rooms.find((r) => r.type === 'Orb')

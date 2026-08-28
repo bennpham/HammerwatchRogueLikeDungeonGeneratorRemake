@@ -1162,6 +1162,57 @@ button.primary:hover:not(:disabled) {
   color: var(--text);
 }
 
+/* --- Floor order ---------------------------------------------------------- */
+
+.floor-order {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.floor-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-input);
+}
+
+/* A boss fight reads as a different KIND of slot, not a differently numbered
+   one — the whole constraint is that the two sequences interleave but never
+   mix, so they should not look alike. */
+.floor-chip-boss {
+  border-color: #c0455f;
+}
+
+.floor-chip .chip-label {
+  min-width: 20px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.floor-chip-boss .chip-label {
+  color: #e08095;
+}
+
+.chip-move {
+  border: none;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.chip-move:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
 /* --- Boss form ------------------------------------------------------------ */
 
 .boss-subtabs {
