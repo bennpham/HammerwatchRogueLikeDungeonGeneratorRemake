@@ -31,7 +31,7 @@ describe('campaign presets', () => {
 
   it('gives every preset the full set of wave tiers, including a populated boss-death one', () => {
     for (const preset of CAMPAIGN_PRESETS) {
-      const waves = preset.build().boss.arena.waves
+      const waves = preset.build().boss.fights[0].arena.waves
       expect(waves, preset.id).toHaveLength(BOSS_WAVE_COUNT)
       // The arena keeps fighting after the kill, so this tier ships full. Its
       // scatter points are extra bossRand draws, which is why every saved
@@ -43,12 +43,12 @@ describe('campaign presets', () => {
   it('gives every preset the same arena size and cover — a preset overrides neither', () => {
     // withBoss() re-points only theme, pool and waves, so the 2026-08-28
     // playtest figures have to reach all three presets unchanged.
-    const arena = defaultParameters().boss.arena
+    const arena = defaultParameters().boss.fights[0].arena
     expect([arena.minWidth, arena.maxWidth, arena.minHeight, arena.maxHeight]).toEqual([42, 64, 42, 64])
     expect(arena.cover).toEqual({ pattern: 'symmetric', density: 0.08, ringSpacing: 4, clusters: 3 })
 
     for (const preset of CAMPAIGN_PRESETS) {
-      const a = preset.build().boss.arena
+      const a = preset.build().boss.fights[0].arena
       expect(
         [a.minWidth, a.maxWidth, a.minHeight, a.maxHeight],
         preset.id
@@ -60,7 +60,7 @@ describe('campaign presets', () => {
 
   it('only puts scatter-safe monsters on a scatter mode, in every tier of every preset', () => {
     for (const preset of CAMPAIGN_PRESETS) {
-      for (const [i, wave] of preset.build().boss.arena.waves.entries()) {
+      for (const [i, wave] of preset.build().boss.fights[0].arena.waves.entries()) {
         for (const key of wave.monsters) {
           expect(isKnownMonsterKey(key), `${preset.id} wave ${i}: ${key}`).toBe(true)
           expect(wave.monsterMax[key], `${preset.id} wave ${i}: ${key}`).toBeGreaterThan(0)

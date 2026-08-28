@@ -9,6 +9,7 @@ import {
   DEFAULT_WAVE_MONSTER_MAX,
   DungeonParameters,
   defaultFloorBuffs,
+  defaultBossFight,
   defaultFloorTimer,
   defaultParameters,
   isScatterMode,
@@ -18,8 +19,9 @@ import {
 import { UPGRADE_KINDS, noUpgrades } from '../levelTemplate/surgery'
 import type { UpgradeCounts } from '../levelTemplate/surgery'
 import type {
+  BossArenaOptions,
+  BossFight,
   BossFloorPattern,
-  BossOptions,
   BossSpawnMode,
   BuffTarget,
   FloorBuff,
@@ -118,6 +120,355 @@ function parseUpgradeCounts(key: string, value: string, unknownKeys: string[]): 
   return counts as UpgradeCounts
 }
 
+/**
+ * Per-fight bookkeeping for the two wave post-passes. One of these per fight
+ * index the file mentioned: the keys of one fight say nothing about another, so
+ * a file that fully describes fight 0's tiers must not clear fight 1's.
+ */
+interface BossFightParseState {
+  /** whether the file carried any `bossNWaveM=` line for this fight */
+  sawAnyWave: boolean
+  /** whether one of them was the death tier */
+  sawDeathWave: boolean
+  // Which tiers a wave line described, and which of those also carried a pickup
+  // line. A tier in the first set but not the second was described by a file
+  // that gave it no drops, so the stock drop table the defaults supplied has to
+  // go — see the post-pass. Two sets rather than clearing inline, so the two
+  // keys may appear in either order.
+  sawWaveLine: Set<number>
+  sawPickupLine: Set<number>
+}
+
+function newBossFightParseState(): BossFightParseState {
+  return { sawAnyWave: false, sawDeathWave: false, sawWaveLine: new Set(), sawPickupLine: new Set() }
+}
+
+/**
+ * Parse one `boss<i><suffix>` key into one fight. Returns false when the suffix
+ * is not a boss key at all, so the caller can report it like any other unknown.
+ *
+ * Everything here is per-fight state; the campaign-wide `boss` (enabled) and
+ * `bossFights` (count) keys are handled by the caller, before the index is
+ * even parsed.
+ */
+function parseBossFightKey(
+  suffix: string,
+  key: string,
+  value: string,
+  fight: BossFight,
+  state: BossFightParseState,
+  unknownKeys: string[]
+): boolean {
+  const prep = fight.prep
+  const arena = fight.arena
+
+  if (suffix === 'gold') {
+    const n = parseInt(value, 10)
+    if (Number.isNaN(n)) unknownKeys.push(key)
+    else prep.startingGold = n
+    return true
+  }
+  if (suffix === 'upgrades') {
+    prep.upgrades = parseUpgradeCounts(key, value, unknownKeys)
+    return true
+  }
+  if (suffix === 'shops') {
+    const wanted = value.split(/\s+/).filter((c) => c !== '')
+    prep.shopCategories = wanted.filter(isLobbyCategory)
+    for (const bad of wanted.filter((c) => !isLobbyCategory(c))) {
+      unknownKeys.push(`${key} value "${bad}"`)
+    }
+    return true
+  }
+  if (suffix === 'invuln') {
+    // `off` (or a bare 0) turns the feature off and leaves the window lengths
+    // alone, so toggling it in a file and back does not lose the numbers. One
+    // value sets all three thresholds; three set them individually. Same
+    // per-field NaN guard as bossCover: a malformed segment is reported and
+    // only that field keeps its default.
+    if (value.toLowerCase() === 'off') {
+      arena.invulnerability.enabled = false
+      return true
+    }
+    arena.invulnerability.enabled = true
+    const parts = value.split(',').map((s) => s.trim()).filter((s) => s !== '')
+    const seconds = [...arena.invulnerability.seconds]
+    for (let i = 0; i < BOSS_INVULN_COUNT; i++) {
+      // one value means "same for every threshold"
+      const raw = parts.length === 1 ? parts[0] : parts[i]
+      if (raw === undefined) break
+      const n = parseInt(raw, 10)
+      if (Number.isNaN(n)) unknownKeys.push(`${key} value "${raw}"`)
+      else seconds[i] = n
+    }
+    arena.invulnerability.seconds = seconds
+    return true
+  }
+  if (suffix === 'invulncountdown') {
+    arena.invulnerability.countdown = value === '1'
+    return true
+  }
+  if (suffix === 'theme') {
+    arena.theme = value
+    return true
+  }
+  if (suffix === 'floorpattern') {
+    // same guard as bosscover's pattern segment: an unrecognized name is
+    // reported and the field keeps its default, rather than casting an
+    // arbitrary string into the union
+    if (!(BOSS_FLOOR_PATTERNS as readonly string[]).includes(value)) {
+      unknownKeys.push(`${key} value "${value}"`)
+    } else {
+      arena.floorPattern = value as BossFloorPattern
+    }
+    return true
+  }
+  if (suffix === 'monstermultiplier' || suffix === 'foodmultiplier') {
+    // The arena's own multipliers, kept out of the global monsterMultiplier /
+    // foodMultiplier so a hectic arena does not imply a hectic dungeon.
+    // Same NaN guard as every other numeric boss key: report and keep the
+    // default rather than writing a NaN into the params.
+    const n = parseFloat(value)
+    if (Number.isNaN(n)) {
+      unknownKeys.push(`${key} value "${value}"`)
+    } else if (suffix === 'monstermultiplier') {
+      arena.monsterMultiplier = n
+    } else {
+      arena.foodMultiplier = n
+    }
+    return true
+  }
+  if (suffix === 'width' || suffix === 'height') {
+    const parts = value.split(',').map((s) => parseInt(s.trim(), 10))
+    if (parts.length === 2 && !parts.some(Number.isNaN)) {
+      if (suffix === 'width') {
+        arena.minWidth = parts[0]
+        arena.maxWidth = parts[1]
+      } else {
+        arena.minHeight = parts[0]
+        arena.maxHeight = parts[1]
+      }
+    } else {
+      unknownKeys.push(key)
+    }
+    return true
+  }
+  if (suffix === 'pool') {
+    arena.bossPool = value.split(',').map((s) => s.trim()).filter((s) => s !== '')
+    return true
+  }
+  if (suffix === 'cover') {
+    // mirrors width/height's NaN guard, but per-field rather than per-line: a
+    // malformed segment is reported and its own field keeps its default instead
+    // of the whole line being dropped or an arbitrary string being cast into
+    // the pattern union.
+    const parts = value.split(',').map((s) => s.trim())
+    const pattern = parts[0]
+    if (!(BOSS_COVER_PATTERNS as readonly string[]).includes(pattern)) {
+      unknownKeys.push(`${key} value "${pattern}"`)
+    } else {
+      arena.cover.pattern = pattern as BossArenaOptions['cover']['pattern']
+    }
+    if (parts.length >= 2) {
+      const density = parseFloat(parts[1])
+      if (Number.isNaN(density)) unknownKeys.push(`${key} value "${parts[1]}"`)
+      else arena.cover.density = density
+    }
+    if (parts.length >= 3) {
+      const ringSpacing = parseInt(parts[2], 10)
+      if (Number.isNaN(ringSpacing)) unknownKeys.push(`${key} value "${parts[2]}"`)
+      else arena.cover.ringSpacing = ringSpacing
+    }
+    if (parts.length >= 4) {
+      const clusters = parseInt(parts[3], 10)
+      if (Number.isNaN(clusters)) unknownKeys.push(`${key} value "${parts[3]}"`)
+      else arena.cover.clusters = clusters
+    }
+    return true
+  }
+  if (suffix === 'spawn') {
+    // same per-field NaN guard as cover above — a malformed segment is
+    // reported and only that field keeps its default
+    const parts = value.split(',').map((s) => s.trim())
+    // Appending to the tail keeps every file written before batching valid:
+    // a three-field line simply leaves batchSize/batchIntervalMs at their
+    // defaults (invariant #5 — the old format keeps working).
+    const fields = ['spacing', 'ringSpacing', 'clusters', 'batchSize', 'batchIntervalMs'] as const
+    for (let f = 0; f < fields.length; f++) {
+      if (parts.length <= f) break
+      const n = parseInt(parts[f], 10)
+      if (Number.isNaN(n)) unknownKeys.push(`${key} value "${parts[f]}"`)
+      else arena.spawn[fields[f]] = n
+    }
+    return true
+  }
+
+  // wavePickupN=<item>:<count>|<item>:<count> — one line per tier that drops
+  // items, written only for those tiers. Absent means the tier drops none, so a
+  // file written before pickups existed parses exactly as it always did. Must
+  // be tested BEFORE the waveN branch, for the same anchored-pattern reason as
+  // waveBuffN below.
+  const wavePickupMatch = suffix.match(/^wavepickup(\d+)$/)
+  if (wavePickupMatch) {
+    const idx = parseInt(wavePickupMatch[1], 10) - 1
+    if (idx < 0 || idx >= BOSS_WAVE_COUNT) {
+      unknownKeys.push(key)
+      return true
+    }
+    const entries: WavePickup[] = []
+
+    for (const segment of value.split('|')) {
+      const trimmed = segment.trim()
+      if (trimmed === '') continue
+      const colon = trimmed.indexOf(':')
+      const id = (colon === -1 ? trimmed : trimmed.slice(0, colon)).trim()
+      // A bare item with no count is one copy — the friendliest reading of a
+      // hand-written line, and never fatal (invariant #5).
+      const countText = colon === -1 ? '1' : trimmed.slice(colon + 1).trim()
+
+      if (pickupById(id) === undefined) {
+        unknownKeys.push(`${key} item "${id}"`)
+        continue
+      }
+      const count = parseInt(countText, 10)
+      if (Number.isNaN(count)) {
+        unknownKeys.push(`${key} count "${countText}"`)
+        continue
+      }
+      entries.push({ item: id, count })
+    }
+
+    arena.waves[idx].pickups = entries
+    state.sawPickupLine.add(idx)
+    return true
+  }
+
+  // waveBuffN=<id>:<target>|<id>:<target> — one line per tier carrying arena
+  // buffs, written only for those tiers, in the same form as the per-floor
+  // `buffN` key. A file written when a tier could only hold one buff has a
+  // single segment and parses to a one-entry list. Must be tested BEFORE the
+  // waveN branch: `wavebuff1` would otherwise never match anything, since that
+  // branch's pattern is anchored and would simply fall through to unknownKeys.
+  const waveBuffMatch = suffix.match(/^wavebuff(\d+)$/)
+  if (waveBuffMatch) {
+    const idx = parseInt(waveBuffMatch[1], 10) - 1
+    if (idx < 0 || idx >= BOSS_WAVE_COUNT) {
+      unknownKeys.push(key)
+      return true
+    }
+    const entries: FloorBuff[] = []
+
+    for (const segment of value.split('|')) {
+      const trimmed = segment.trim()
+      if (trimmed === '') continue
+      const colon = trimmed.indexOf(':')
+      const id = (colon === -1 ? trimmed : trimmed.slice(0, colon)).trim()
+      const target = (colon === -1 ? 'players' : trimmed.slice(colon + 1).trim()) as BuffTarget
+
+      if (buffById(id) === undefined) {
+        unknownKeys.push(`${key} buff "${id}"`)
+        continue
+      }
+      if (!BUFF_TARGETS.includes(target)) {
+        unknownKeys.push(`${key} target "${target}"`)
+        continue
+      }
+      entries.push({ buff: id, target })
+    }
+
+    arena.waves[idx].buffs = entries
+    return true
+  }
+
+  const waveMatch = suffix.match(/^wave(\d+)$/)
+  if (waveMatch) {
+    const idx = parseInt(waveMatch[1], 10) - 1
+    if (idx < 0 || idx >= BOSS_WAVE_COUNT) {
+      unknownKeys.push(key)
+      return true
+    }
+    // five |-separated fields:
+    // monsters|defaultIntervalMs|monsterMax|intervalMs|spawnMode.
+    // Everything after the first is optional on parse, so the legacy two-,
+    // three- and four-field forms all still work. monsterMax is REBUILT from
+    // the parsed monster pool rather than merged onto whatever was there,
+    // which is what guarantees its keys always match the pool exactly.
+    //
+    // A file written before the boss-death tier existed carries wave1..4
+    // only; the fifth tier is simply never visited and keeps the empty pool
+    // the defaults gave it, which is exactly what that file described.
+    state.sawAnyWave = true
+    state.sawWaveLine.add(idx)
+    if (idx === BOSS_DEATH_WAVE) state.sawDeathWave = true
+    const parts = value.split('|')
+    const monsters = (parts[0] ?? '').split(',').map((s) => s.trim()).filter((s) => s !== '')
+    arena.waves[idx].monsters = monsters
+    // The line is the whole truth about this wave: the two optional records
+    // are cleared before they are re-read, so a file that omits them (or
+    // whose entries are all rejected) cannot leave the stock preset's
+    // per-monster intervals and spawn modes attached to a pool that no longer
+    // contains those monsters.
+    delete arena.waves[idx].intervalMs
+    delete arena.waves[idx].spawnMode
+
+    if (parts.length >= 2 && parts[1].trim() !== '') {
+      const ms = parseInt(parts[1].trim(), 10)
+      if (Number.isNaN(ms)) unknownKeys.push(`${key} interval "${parts[1]}"`)
+      else arena.waves[idx].defaultIntervalMs = ms
+    }
+
+    const parsedMax: Record<string, number> = {}
+    if (parts.length >= 3 && parts[2].trim() !== '') {
+      for (const entry of parts[2].split(',')) {
+        const [id, raw] = entry.split(':').map((s) => s.trim())
+        const n = raw === undefined ? NaN : parseInt(raw, 10)
+        if (id === '' || Number.isNaN(n)) {
+          unknownKeys.push(`${key} monsterMax "${entry}"`)
+          continue
+        }
+        parsedMax[id] = n
+      }
+    }
+    arena.waves[idx].monsterMax = Object.fromEntries(
+      monsters.map((id) => [id, parsedMax[id] ?? DEFAULT_WAVE_MONSTER_MAX])
+    )
+
+    if (parts.length >= 4 && parts[3].trim() !== '') {
+      const overrides: Record<string, number> = {}
+      for (const entry of parts[3].split(',')) {
+        const [id, raw] = entry.split(':').map((s) => s.trim())
+        const n = raw === undefined ? NaN : parseInt(raw, 10)
+        if (id === '' || Number.isNaN(n)) {
+          unknownKeys.push(`${key} intervalMs "${entry}"`)
+          continue
+        }
+        overrides[id] = n
+      }
+      if (Object.keys(overrides).length > 0) arena.waves[idx].intervalMs = overrides
+    }
+
+    // spawn modes, keyed like the two fields above. An unknown mode is
+    // reported and dropped rather than cast into the union; a key for a
+    // monster outside the parsed pool is dropped too, so the record can
+    // never disagree with `monsters`.
+    if (parts.length >= 5 && parts[4].trim() !== '') {
+      const modes: Record<string, BossSpawnMode> = {}
+      for (const entry of parts[4].split(',')) {
+        const [id, raw] = entry.split(':').map((s) => s.trim())
+        if (id === '' || raw === undefined || !monsters.includes(id) || !(BOSS_SPAWN_MODES as readonly string[]).includes(raw)) {
+          unknownKeys.push(`${key} spawnMode "${entry}"`)
+          continue
+        }
+        modes[id] = raw as BossSpawnMode
+      }
+      if (Object.keys(modes).length > 0) arena.waves[idx].spawnMode = modes
+    }
+    return true
+  }
+
+  return false
+}
+
 export function parseParametersTxt(content: string, base?: DungeonParameters): ParsedConfig {
   const params: DungeonParameters = base
     ? JSON.parse(JSON.stringify(base))
@@ -137,16 +488,25 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   let highestTimerIndex = -1
   // Highest `buffN=` seen, same purpose again.
   let highestBuffIndex = -1
-  /** whether the file carried any `bossWaveN=` line, and whether one was the death tier */
-  let sawAnyWave = false
-  let sawDeathWave = false
-  // Which tiers a `bossWaveN` line described, and which of those also carried a
-  // `bossWavePickupN` line. A tier in the first set but not the second was
-  // described by a file that gave it no drops, so the stock drop table the
-  // defaults supplied has to go — see the post-pass below. Two sets rather than
-  // clearing inline, so the two keys may appear in either order.
-  const sawWaveLine = new Set<number>()
-  const sawPickupLine = new Set<number>()
+  // Per-fight bookkeeping for the wave post-passes below. Boss keys carry a
+  // fight index (`boss0Wave1`), the count may be declared after them, and the
+  // keys of one fight say nothing about another — so every fight gets its own
+  // state and its own grown-on-demand entry in `params.boss.fights`.
+  const fightState = new Map<number, BossFightParseState>()
+  /** the keys that named each fight index, so an index past `bossFights` can be reported */
+  const fightKeys = new Map<number, string[]>()
+  /** the `bossFights=` count, or null when the file never declared one */
+  let declaredFightCount: number | null = null
+
+  const fightAt = (index: number, key: string): BossFight => {
+    const fights = params.boss.fights ?? (params.boss.fights = [])
+    while (fights.length <= index) fights.push(defaultBossFight())
+    if (!fightState.has(index)) fightState.set(index, newBossFightParseState())
+    const named = fightKeys.get(index)
+    if (named === undefined) fightKeys.set(index, [key])
+    else named.push(key)
+    return fights[index]
+  }
 
   const intKeys: Record<string, (v: number) => void> = {
     levels: (v) => (params.levels = v),
@@ -239,314 +599,33 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       params.boss.enabled = value === '1'
       continue
     }
-    if (keyLower === 'bossgold') {
+    if (keyLower === 'bossfights') {
       const n = parseInt(value, 10)
-      if (Number.isNaN(n)) result.unknownKeys.push(key)
-      else params.boss.prep.startingGold = n
+      if (Number.isNaN(n) || n < 0) result.unknownKeys.push(`${key} value "${value}"`)
+      else declaredFightCount = n
       continue
     }
-    if (keyLower === 'bossupgrades') {
-      params.boss.prep.upgrades = parseUpgradeCounts(key, value, result.unknownKeys)
-      continue
-    }
-    if (keyLower === 'bossshops') {
-      const wanted = value.split(/\s+/).filter((c) => c !== '')
-      params.boss.prep.shopCategories = wanted.filter(isLobbyCategory)
-      for (const bad of wanted.filter((c) => !isLobbyCategory(c))) {
-        result.unknownKeys.push(`${key} value "${bad}"`)
-      }
-      continue
-    }
-    if (keyLower === 'bossinvuln') {
-      // `off` (or a bare 0) turns the feature off and leaves the window lengths
-      // alone, so toggling it in a file and back does not lose the numbers. One
-      // value sets all three thresholds; three set them individually. Same
-      // per-field NaN guard as bossCover: a malformed segment is reported and
-      // only that field keeps its default.
-      if (value.toLowerCase() === 'off') {
-        params.boss.arena.invulnerability.enabled = false
+
+    // Every other boss key is `boss<i><suffix>` — the fight index sits directly
+    // after `boss`, so `boss0Theme` and `boss2Wave1` name different fights of
+    // the same campaign. The index is captured greedily and the suffix is what
+    // is left, which is why `boss0wave1` splits as (0, "wave1") and never as
+    // (0, "wave") plus a stray digit.
+    //
+    // An unprefixed key (`bossTheme`, `bossWave1`) is read as fight 0. Nothing
+    // writes that form any more — the serializer always emits the index — but
+    // reading it keeps every parameters.txt written before multiple fights
+    // existed importing exactly as it did, per invariant #5.
+    const bossMatch = keyLower.match(/^boss(\d*)(.+)$/)
+    if (bossMatch) {
+      const suffix = bossMatch[2]
+      const index = bossMatch[1] === '' ? 0 : parseInt(bossMatch[1], 10)
+      if (parseBossFightKey(suffix, key, value, fightAt(index, key), fightState.get(index)!, result.unknownKeys)) {
         continue
       }
-      params.boss.arena.invulnerability.enabled = true
-      const parts = value.split(',').map((s) => s.trim()).filter((s) => s !== '')
-      const seconds = [...params.boss.arena.invulnerability.seconds]
-      for (let i = 0; i < BOSS_INVULN_COUNT; i++) {
-        // one value means "same for every threshold"
-        const raw = parts.length === 1 ? parts[0] : parts[i]
-        if (raw === undefined) break
-        const n = parseInt(raw, 10)
-        if (Number.isNaN(n)) result.unknownKeys.push(`${key} value "${raw}"`)
-        else seconds[i] = n
-      }
-      params.boss.arena.invulnerability.seconds = seconds
-      continue
+      // fell through: a `boss…` key this parser does not know. Reported by the
+      // catch-all below, exactly as before.
     }
-    if (keyLower === 'bossinvulncountdown') {
-      params.boss.arena.invulnerability.countdown = value === '1'
-      continue
-    }
-    if (keyLower === 'bosstheme') {
-      params.boss.arena.theme = value
-      continue
-    }
-    if (keyLower === 'bossfloorpattern') {
-      // same guard as bosscover's pattern segment: an unrecognized name is
-      // reported and the field keeps its default, rather than casting an
-      // arbitrary string into the union
-      if (!(BOSS_FLOOR_PATTERNS as readonly string[]).includes(value)) {
-        result.unknownKeys.push(`${key} value "${value}"`)
-      } else {
-        params.boss.arena.floorPattern = value as BossFloorPattern
-      }
-      continue
-    }
-    if (keyLower === 'bossmonstermultiplier' || keyLower === 'bossfoodmultiplier') {
-      // The arena's own multipliers, kept out of the global monsterMultiplier /
-      // foodMultiplier so a hectic arena does not imply a hectic dungeon.
-      // Same NaN guard as every other numeric boss key: report and keep the
-      // default rather than writing a NaN into the params.
-      const n = parseFloat(value)
-      if (Number.isNaN(n)) {
-        result.unknownKeys.push(`${key} value "${value}"`)
-      } else if (keyLower === 'bossmonstermultiplier') {
-        params.boss.arena.monsterMultiplier = n
-      } else {
-        params.boss.arena.foodMultiplier = n
-      }
-      continue
-    }
-    if (keyLower === 'bosswidth') {
-      const parts = value.split(',').map((s) => parseInt(s.trim(), 10))
-      if (parts.length === 2 && !parts.some(Number.isNaN)) {
-        params.boss.arena.minWidth = parts[0]
-        params.boss.arena.maxWidth = parts[1]
-      } else {
-        result.unknownKeys.push(key)
-      }
-      continue
-    }
-    if (keyLower === 'bossheight') {
-      const parts = value.split(',').map((s) => parseInt(s.trim(), 10))
-      if (parts.length === 2 && !parts.some(Number.isNaN)) {
-        params.boss.arena.minHeight = parts[0]
-        params.boss.arena.maxHeight = parts[1]
-      } else {
-        result.unknownKeys.push(key)
-      }
-      continue
-    }
-    if (keyLower === 'bosspool') {
-      params.boss.arena.bossPool = value.split(',').map((s) => s.trim()).filter((s) => s !== '')
-      continue
-    }
-    if (keyLower === 'bosscover') {
-      // mirrors bosswidth/bossheight's NaN guard, but per-field rather than
-      // per-line: a malformed segment is reported and its own field keeps its
-      // default instead of the whole line being dropped or an arbitrary
-      // string being cast into the pattern union.
-      const parts = value.split(',').map((s) => s.trim())
-      const pattern = parts[0]
-      if (!(BOSS_COVER_PATTERNS as readonly string[]).includes(pattern)) {
-        result.unknownKeys.push(`${key} value "${pattern}"`)
-      } else {
-        params.boss.arena.cover.pattern = pattern as BossOptions['arena']['cover']['pattern']
-      }
-      if (parts.length >= 2) {
-        const density = parseFloat(parts[1])
-        if (Number.isNaN(density)) result.unknownKeys.push(`${key} value "${parts[1]}"`)
-        else params.boss.arena.cover.density = density
-      }
-      if (parts.length >= 3) {
-        const ringSpacing = parseInt(parts[2], 10)
-        if (Number.isNaN(ringSpacing)) result.unknownKeys.push(`${key} value "${parts[2]}"`)
-        else params.boss.arena.cover.ringSpacing = ringSpacing
-      }
-      if (parts.length >= 4) {
-        const clusters = parseInt(parts[3], 10)
-        if (Number.isNaN(clusters)) result.unknownKeys.push(`${key} value "${parts[3]}"`)
-        else params.boss.arena.cover.clusters = clusters
-      }
-      continue
-    }
-    if (keyLower === 'bossspawn') {
-      // same per-field NaN guard as bossCover above — a malformed segment is
-      // reported and only that field keeps its default
-      const parts = value.split(',').map((s) => s.trim())
-      // Appending to the tail keeps every file written before batching valid:
-      // a three-field line simply leaves batchSize/batchIntervalMs at their
-      // defaults (invariant #5 — the old format keeps working).
-      const fields = ['spacing', 'ringSpacing', 'clusters', 'batchSize', 'batchIntervalMs'] as const
-      for (let f = 0; f < fields.length; f++) {
-        if (parts.length <= f) break
-        const n = parseInt(parts[f], 10)
-        if (Number.isNaN(n)) result.unknownKeys.push(`${key} value "${parts[f]}"`)
-        else params.boss.arena.spawn[fields[f]] = n
-      }
-      continue
-    }
-    // bossWavePickupN=<item>:<count>|<item>:<count> — one line per tier that
-    // drops items, written only for those tiers. Absent means the tier drops
-    // none, so a file written before pickups existed parses exactly as it
-    // always did. Must be tested BEFORE the bossWaveN branch, for the same
-    // anchored-pattern reason as bossWaveBuffN below.
-    const wavePickupMatch = keyLower.match(/^bosswavepickup(\d)$/)
-    if (wavePickupMatch) {
-      const idx = parseInt(wavePickupMatch[1], 10) - 1
-      if (idx < 0 || idx >= BOSS_WAVE_COUNT) {
-        result.unknownKeys.push(key)
-        continue
-      }
-      const entries: WavePickup[] = []
-
-      for (const segment of value.split('|')) {
-        const trimmed = segment.trim()
-        if (trimmed === '') continue
-        const colon = trimmed.indexOf(':')
-        const id = (colon === -1 ? trimmed : trimmed.slice(0, colon)).trim()
-        // A bare item with no count is one copy — the friendliest reading of a
-        // hand-written line, and never fatal (invariant #5).
-        const countText = colon === -1 ? '1' : trimmed.slice(colon + 1).trim()
-
-        if (pickupById(id) === undefined) {
-          result.unknownKeys.push(`${key} item "${id}"`)
-          continue
-        }
-        const count = parseInt(countText, 10)
-        if (Number.isNaN(count)) {
-          result.unknownKeys.push(`${key} count "${countText}"`)
-          continue
-        }
-        entries.push({ item: id, count })
-      }
-
-      params.boss.arena.waves[idx].pickups = entries
-      sawPickupLine.add(idx)
-      continue
-    }
-    // bossWaveBuffN=<id>:<target>|<id>:<target> — one line per tier carrying
-    // arena buffs, written only for those tiers, in the same form as the
-    // per-floor `buffN` key above. A file written when a tier could only hold
-    // one buff has a single segment and parses to a one-entry list. Must be
-    // tested BEFORE the bossWaveN branch: `bosswavebuff1` would otherwise never
-    // match anything, since that branch's pattern is anchored and would simply
-    // fall through to unknownKeys.
-    const waveBuffMatch = keyLower.match(/^bosswavebuff(\d)$/)
-    if (waveBuffMatch) {
-      const idx = parseInt(waveBuffMatch[1], 10) - 1
-      if (idx < 0 || idx >= BOSS_WAVE_COUNT) {
-        result.unknownKeys.push(key)
-        continue
-      }
-      const entries: FloorBuff[] = []
-
-      for (const segment of value.split('|')) {
-        const trimmed = segment.trim()
-        if (trimmed === '') continue
-        const colon = trimmed.indexOf(':')
-        const id = (colon === -1 ? trimmed : trimmed.slice(0, colon)).trim()
-        const target = (colon === -1 ? 'players' : trimmed.slice(colon + 1).trim()) as BuffTarget
-
-        if (buffById(id) === undefined) {
-          result.unknownKeys.push(`${key} buff "${id}"`)
-          continue
-        }
-        if (!BUFF_TARGETS.includes(target)) {
-          result.unknownKeys.push(`${key} target "${target}"`)
-          continue
-        }
-        entries.push({ buff: id, target })
-      }
-
-      params.boss.arena.waves[idx].buffs = entries
-      continue
-    }
-
-    const waveMatch = keyLower.match(/^bosswave(\d)$/)
-    if (waveMatch) {
-      const idx = parseInt(waveMatch[1], 10) - 1
-      if (idx < 0 || idx >= BOSS_WAVE_COUNT) {
-        result.unknownKeys.push(key)
-        continue
-      }
-      // five |-separated fields:
-      // monsters|defaultIntervalMs|monsterMax|intervalMs|spawnMode.
-      // Everything after the first is optional on parse, so the legacy two-,
-      // three- and four-field forms all still work. monsterMax is REBUILT from
-      // the parsed monster pool rather than merged onto whatever was there,
-      // which is what guarantees its keys always match the pool exactly.
-      //
-      // A file written before the boss-death tier existed carries bossWave1..4
-      // only; the fifth tier is simply never visited and keeps the empty pool
-      // the defaults gave it, which is exactly what that file described.
-      sawAnyWave = true
-      sawWaveLine.add(idx)
-      if (idx === BOSS_DEATH_WAVE) sawDeathWave = true
-      const parts = value.split('|')
-      const monsters = (parts[0] ?? '').split(',').map((s) => s.trim()).filter((s) => s !== '')
-      params.boss.arena.waves[idx].monsters = monsters
-      // The line is the whole truth about this wave: the two optional records
-      // are cleared before they are re-read, so a file that omits them (or
-      // whose entries are all rejected) cannot leave the stock preset's
-      // per-monster intervals and spawn modes attached to a pool that no longer
-      // contains those monsters.
-      delete params.boss.arena.waves[idx].intervalMs
-      delete params.boss.arena.waves[idx].spawnMode
-
-      if (parts.length >= 2 && parts[1].trim() !== '') {
-        const ms = parseInt(parts[1].trim(), 10)
-        if (Number.isNaN(ms)) result.unknownKeys.push(`${key} interval "${parts[1]}"`)
-        else params.boss.arena.waves[idx].defaultIntervalMs = ms
-      }
-
-      const parsedMax: Record<string, number> = {}
-      if (parts.length >= 3 && parts[2].trim() !== '') {
-        for (const entry of parts[2].split(',')) {
-          const [id, raw] = entry.split(':').map((s) => s.trim())
-          const n = raw === undefined ? NaN : parseInt(raw, 10)
-          if (id === '' || Number.isNaN(n)) {
-            result.unknownKeys.push(`${key} monsterMax "${entry}"`)
-            continue
-          }
-          parsedMax[id] = n
-        }
-      }
-      params.boss.arena.waves[idx].monsterMax = Object.fromEntries(
-        monsters.map((id) => [id, parsedMax[id] ?? DEFAULT_WAVE_MONSTER_MAX])
-      )
-
-      if (parts.length >= 4 && parts[3].trim() !== '') {
-        const overrides: Record<string, number> = {}
-        for (const entry of parts[3].split(',')) {
-          const [id, raw] = entry.split(':').map((s) => s.trim())
-          const n = raw === undefined ? NaN : parseInt(raw, 10)
-          if (id === '' || Number.isNaN(n)) {
-            result.unknownKeys.push(`${key} intervalMs "${entry}"`)
-            continue
-          }
-          overrides[id] = n
-        }
-        if (Object.keys(overrides).length > 0) params.boss.arena.waves[idx].intervalMs = overrides
-      }
-
-      // spawn modes, keyed like the two fields above. An unknown mode is
-      // reported and dropped rather than cast into the union; a key for a
-      // monster outside the parsed pool is dropped too, so the record can
-      // never disagree with `monsters`.
-      if (parts.length >= 5 && parts[4].trim() !== '') {
-        const modes: Record<string, BossSpawnMode> = {}
-        for (const entry of parts[4].split(',')) {
-          const [id, raw] = entry.split(':').map((s) => s.trim())
-          if (id === '' || raw === undefined || !monsters.includes(id) || !(BOSS_SPAWN_MODES as readonly string[]).includes(raw)) {
-            result.unknownKeys.push(`${key} spawnMode "${entry}"`)
-            continue
-          }
-          modes[id] = raw as BossSpawnMode
-        }
-        if (Object.keys(modes).length > 0) params.boss.arena.waves[idx].spawnMode = modes
-      }
-      continue
-    }
-
     // buffN=<id>:<target>|<id>:<target> — one line per floor that carries at
     // least one buff aura. Absent floors keep the default (none), so a file
     // written before buffs existed parses exactly as it always did. Split on
@@ -689,25 +768,49 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     timers.length = params.levels
   }
 
-  // A tier the file described but gave no `bossWavePickupN` drops nothing. The
-  // `bossWaveN` branch cannot do this inline the way it clears intervalMs and
-  // spawnMode, because the two keys are independent lines and a hand-written
-  // file may order them either way. Without this, importing any file written
-  // before pickups existed would silently hand every tier the stock drop table.
-  for (const idx of sawWaveLine) {
-    if (!sawPickupLine.has(idx)) delete params.boss.arena.waves[idx].pickups
+  // How many fights the campaign ends up with. An explicit `bossFights` wins;
+  // otherwise the highest index any key named decides it, so a hand-written
+  // file that just writes a `boss1…` block gets two fights without having to
+  // say so. Either way at least one, since `enabled` alone means "one fight".
+  const grown = params.boss.fights?.length ?? 0
+  const wanted = Math.max(1, declaredFightCount ?? grown)
+  const fights = params.boss.fights ?? (params.boss.fights = [])
+  while (fights.length < wanted) fights.push(defaultBossFight())
+  if (fights.length > wanted) {
+    // The count is the whole truth about how many fights the file describes, so
+    // keys past it are dropped rather than silently adding a fight the dungeon
+    // master did not ask for. Reported by key, the same way an off-array
+    // `boss0Wave6` is, so the import panel names what was ignored.
+    for (let i = wanted; i < fights.length; i++) {
+      for (const named of fightKeys.get(i) ?? []) result.unknownKeys.push(named)
+    }
+    fights.length = wanted
   }
 
-  // A file written before the boss-death tier existed carries bossWave1..4 and
-  // nothing else. It described a fight that stops when the boss dies, so the
-  // stock death tier the defaults supplied is dropped rather than inherited —
-  // otherwise importing an old file would silently add a wave it never had.
-  if (sawAnyWave && !sawDeathWave) {
-    const death = params.boss.arena.waves[BOSS_DEATH_WAVE]
-    death.monsters = []
-    death.monsterMax = {}
-    delete death.intervalMs
-    delete death.spawnMode
+  for (const [index, state] of fightState) {
+    const arena = fights[index]?.arena
+    if (arena === undefined) continue
+
+    // A tier the file described but gave no pickup line drops nothing. The wave
+    // branch cannot do this inline the way it clears intervalMs and spawnMode,
+    // because the two keys are independent lines and a hand-written file may
+    // order them either way. Without this, importing any file written before
+    // pickups existed would silently hand every tier the stock drop table.
+    for (const idx of state.sawWaveLine) {
+      if (!state.sawPickupLine.has(idx)) delete arena.waves[idx].pickups
+    }
+
+    // A file written before the boss-death tier existed carries wave1..4 and
+    // nothing else. It described a fight that stops when the boss dies, so the
+    // stock death tier the defaults supplied is dropped rather than inherited —
+    // otherwise importing an old file would silently add a wave it never had.
+    if (state.sawAnyWave && !state.sawDeathWave) {
+      const death = arena.waves[BOSS_DEATH_WAVE]
+      death.monsters = []
+      death.monsterMax = {}
+      delete death.intervalMs
+      delete death.spawnMode
+    }
   }
 
   return result
@@ -815,77 +918,87 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
   // Add boss params after the lobby params. Keys past the flag mirror the
   // lobby's camelCase (lobbyGold/lobbyShops) — parsing is case-insensitive, so
   // this is cosmetic with zero compatibility cost.
+  //
+  // Every per-fight key carries its fight index (`boss0Gold`, `boss1Wave3`), so
+  // a campaign with several fights writes one full block per fight and each is
+  // read back onto the fight it names. The parser still accepts the unprefixed
+  // form as fight 0, which is what keeps older files importable, but nothing
+  // writes it any more — an export is always fully indexed.
+  const fights = params.boss.fights ?? []
   lines.push(`boss=${params.boss.enabled ? 1 : 0}`)
-  lines.push(`bossGold=${params.boss.prep.startingGold}`)
-  lines.push(`bossShops=${params.boss.prep.shopCategories.join(' ')}`)
-  lines.push(`bossUpgrades=${upgradeCountsLine(params.boss.prep.upgrades)}`)
-  lines.push(`bossTheme=${params.boss.arena.theme}`)
-  lines.push(`bossFloorPattern=${params.boss.arena.floorPattern}`)
-  lines.push(`bossWidth=${params.boss.arena.minWidth},${params.boss.arena.maxWidth}`)
-  lines.push(`bossHeight=${params.boss.arena.minHeight},${params.boss.arena.maxHeight}`)
-  lines.push(`bossPool=${params.boss.arena.bossPool.join(',')}`)
-  lines.push(
-    `bossCover=${params.boss.arena.cover.pattern},${params.boss.arena.cover.density},${params.boss.arena.cover.ringSpacing},${params.boss.arena.cover.clusters}`
-  )
-  lines.push(
-    `bossSpawn=${params.boss.arena.spawn.spacing},${params.boss.arena.spawn.ringSpacing},${params.boss.arena.spawn.clusters},${params.boss.arena.spawn.batchSize},${params.boss.arena.spawn.batchIntervalMs}`
-  )
-  // `off` keeps the window lengths out of the file entirely when the feature is
-  // disabled — importing it back leaves them at their defaults, which is what a
-  // file that never mentions them does too.
-  lines.push(
-    `bossInvuln=${
-      params.boss.arena.invulnerability.enabled ? params.boss.arena.invulnerability.seconds.join(',') : 'off'
-    }`
-  )
-  lines.push(`bossInvulnCountdown=${params.boss.arena.invulnerability.countdown ? 1 : 0}`)
-  // six decimals, matching the global multipliers above
-  lines.push(`bossMonsterMultiplier=${params.boss.arena.monsterMultiplier.toFixed(6)}`)
-  lines.push(`bossFoodMultiplier=${params.boss.arena.foodMultiplier.toFixed(6)}`)
-  for (let i = 0; i < params.boss.arena.waves.length; i++) {
-    const wave = params.boss.arena.waves[i]
-    // fixed arity of five fields; monsterMax is always rebuilt from the
-    // monster pool (never merged), and the fourth and fifth are left empty
-    // when there are no per-monster interval overrides or spawn modes.
-    const monsterMax = wave.monsters
-      .map((id) => `${id}:${wave.monsterMax[id] ?? DEFAULT_WAVE_MONSTER_MAX}`)
-      .join(',')
-    // sorted by id, so the same params always serialize to the same bytes no
-    // matter what order the overrides were inserted in
-    const overrides = wave.intervalMs
-      ? Object.entries(wave.intervalMs)
-          .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-          .map(([id, ms]) => `${id}:${ms}`)
-          .join(',')
-      : ''
-    // fifth field, same sorted shape: only monsters actually on a non-default
-    // mode are written, so a campaign that never touched spawn modes
-    // serializes exactly as it did before they existed
-    const modes = wave.spawnMode
-      ? Object.entries(wave.spawnMode)
-          .filter(([id, mode]) => isScatterMode(mode) && wave.monsters.includes(id))
-          .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-          .map(([id, mode]) => `${id}:${mode}`)
-          .join(',')
-      : ''
+  lines.push(`bossFights=${fights.length}`)
+  fights.forEach((fight, f) => {
+    const prep = fight.prep
+    const arena = fight.arena
+    lines.push(`boss${f}Gold=${prep.startingGold}`)
+    lines.push(`boss${f}Shops=${prep.shopCategories.join(' ')}`)
+    lines.push(`boss${f}Upgrades=${upgradeCountsLine(prep.upgrades)}`)
+    lines.push(`boss${f}Theme=${arena.theme}`)
+    lines.push(`boss${f}FloorPattern=${arena.floorPattern}`)
+    lines.push(`boss${f}Width=${arena.minWidth},${arena.maxWidth}`)
+    lines.push(`boss${f}Height=${arena.minHeight},${arena.maxHeight}`)
+    lines.push(`boss${f}Pool=${arena.bossPool.join(',')}`)
     lines.push(
-      `bossWave${i + 1}=${wave.monsters.join(',')}|${wave.defaultIntervalMs}|${monsterMax}|${overrides}|${modes}`
+      `boss${f}Cover=${arena.cover.pattern},${arena.cover.density},${arena.cover.ringSpacing},${arena.cover.clusters}`
     )
-    // A separate key rather than a sixth field on the line above: appending one
-    // would put a trailing `|` on every stock export, so a file written before
-    // wave buffs existed would no longer round-trip to the same bytes.
-    const buffs = waveBuffs(wave)
-    if (buffs.length > 0) {
-      lines.push(`bossWaveBuff${i + 1}=${buffs.map((b) => `${b.buff}:${b.target}`).join('|')}`)
+    lines.push(
+      `boss${f}Spawn=${arena.spawn.spacing},${arena.spawn.ringSpacing},${arena.spawn.clusters},${arena.spawn.batchSize},${arena.spawn.batchIntervalMs}`
+    )
+    // `off` keeps the window lengths out of the file entirely when the feature is
+    // disabled — importing it back leaves them at their defaults, which is what a
+    // file that never mentions them does too.
+    lines.push(
+      `boss${f}Invuln=${arena.invulnerability.enabled ? arena.invulnerability.seconds.join(',') : 'off'}`
+    )
+    lines.push(`boss${f}InvulnCountdown=${arena.invulnerability.countdown ? 1 : 0}`)
+    // six decimals, matching the global multipliers above
+    lines.push(`boss${f}MonsterMultiplier=${arena.monsterMultiplier.toFixed(6)}`)
+    lines.push(`boss${f}FoodMultiplier=${arena.foodMultiplier.toFixed(6)}`)
+    for (let i = 0; i < arena.waves.length; i++) {
+      const wave = arena.waves[i]
+      // fixed arity of five fields; monsterMax is always rebuilt from the
+      // monster pool (never merged), and the fourth and fifth are left empty
+      // when there are no per-monster interval overrides or spawn modes.
+      const monsterMax = wave.monsters
+        .map((id) => `${id}:${wave.monsterMax[id] ?? DEFAULT_WAVE_MONSTER_MAX}`)
+        .join(',')
+      // sorted by id, so the same params always serialize to the same bytes no
+      // matter what order the overrides were inserted in
+      const overrides = wave.intervalMs
+        ? Object.entries(wave.intervalMs)
+            .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+            .map(([id, ms]) => `${id}:${ms}`)
+            .join(',')
+        : ''
+      // fifth field, same sorted shape: only monsters actually on a non-default
+      // mode are written, so a campaign that never touched spawn modes
+      // serializes exactly as it did before they existed
+      const modes = wave.spawnMode
+        ? Object.entries(wave.spawnMode)
+            .filter(([id, mode]) => isScatterMode(mode) && wave.monsters.includes(id))
+            .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+            .map(([id, mode]) => `${id}:${mode}`)
+            .join(',')
+        : ''
+      lines.push(
+        `boss${f}Wave${i + 1}=${wave.monsters.join(',')}|${wave.defaultIntervalMs}|${monsterMax}|${overrides}|${modes}`
+      )
+      // A separate key rather than a sixth field on the line above: appending one
+      // would put a trailing `|` on every stock export, so a file written before
+      // wave buffs existed would no longer round-trip to the same bytes.
+      const buffs = waveBuffs(wave)
+      if (buffs.length > 0) {
+        lines.push(`boss${f}WaveBuff${i + 1}=${buffs.map((b) => `${b.buff}:${b.target}`).join('|')}`)
+      }
+      // Same story again: its own key, written only for tiers that drop
+      // something, so an export from before pickups existed round-trips byte for
+      // byte.
+      const pickups = wavePickups(wave)
+      if (pickups.length > 0) {
+        lines.push(`boss${f}WavePickup${i + 1}=${pickups.map((d) => `${d.item}:${d.count}`).join('|')}`)
+      }
     }
-    // Same story again: its own key, written only for tiers that drop
-    // something, so an export from before pickups existed round-trips byte for
-    // byte.
-    const pickups = wavePickups(wave)
-    if (pickups.length > 0) {
-      lines.push(`bossWavePickup${i + 1}=${pickups.map((d) => `${d.item}:${d.count}`).join('|')}`)
-    }
-  }
+  })
 
   return lines.join('\r\n') + '\r\n'
 }

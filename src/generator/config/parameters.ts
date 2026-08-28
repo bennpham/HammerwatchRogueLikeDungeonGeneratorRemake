@@ -280,114 +280,135 @@ export interface LobbyOptions {
   upgrades: UpgradeCounts
 }
 
+/** The prep room half of one boss fight: a straight copy of the lobby's shop rig. */
+export interface BossPrepOptions {
+  /** shop columns the five stalls sell — ALL_LOBBY_CATEGORIES, power INCLUDED */
+  shopCategories: string[]
+  /** multiple of 500 — each 500 is one red diamond on the prep floor */
+  startingGold: number
+  /** free upgrade pickups on the prep floor; see `LobbyOptions.upgrades` */
+  upgrades: UpgradeCounts
+}
+
+/** The generated-arena half of one boss fight. */
+export interface BossArenaOptions {
+  /** one theme letter from THEME_DEFS, independent of the dungeon floors' themes */
+  theme: string
+  /**
+   * Which pattern a `- mixed` arena theme arranges its floor palette in.
+   * `random` (the default) lets the seed choose. Ignored for every other
+   * theme, which has no palette to arrange.
+   */
+  floorPattern: BossFloorPattern
+  minWidth: number
+  maxWidth: number
+  minHeight: number
+  maxHeight: number
+  /** ids of the end-boss actors the seed may pick from */
+  bossPool: string[]
+  /**
+   * exactly BOSS_WAVE_COUNT waves: the four health tiers 100 / 75 / 50 / 25,
+   * then BOSS_DEATH_WAVE — the pool that spawns when the boss dies, while the
+   * player is walking to the orb that ends the campaign.
+   */
+  waves: BossWave[]
+  cover: {
+    pattern: (typeof BOSS_COVER_PATTERNS)[number]
+    density: number
+    ringSpacing: number
+    clusters: number
+  }
+  /**
+   * Tuning for the scatter spawn modes — deliberately its own block rather
+   * than a second reading of `cover`, so a monster ring and a pillar ring can
+   * be spaced differently. Ignored entirely while every monster is on
+   * `anchors`, which is the default.
+   */
+  spawn: {
+    /** minimum gap, in tiles, kept between two scattered spawn points */
+    spacing: number
+    /** minimum gap between adjacent points on the `ring` mode */
+    ringSpacing: number
+    /** seeded cluster centres for the `gaussian` mode */
+    clusters: number
+    /**
+     * How many spawn *points* one monster entry of one tier may occupy, and
+     * therefore how many of it can appear on a single frame.
+     *
+     * A scattered monster used to get one point per monster, all fired off the
+     * tier trigger at once — a 120-bat entry was 120 actors materialising on
+     * one frame, and five tiers of that saturated the floor so badly that the
+     * placement pass ran out of room and fell back to the 9 anchors (#43).
+     * Now a count above this budget is spread over `batchSize` points, each
+     * carrying a share of the total on a `batchIntervalMs` timer, exactly the
+     * way the anchor rig splits a horde over its 9 anchors.
+     *
+     * An entry whose count is at or below the budget keeps the old one-shot
+     * shape, so a small wave emits byte-identical XML.
+     */
+    batchSize: number
+    /** the timer, in ms, batched scatter spawns trickle in on */
+    batchIntervalMs: number
+  }
+  /**
+   * Temporary boss immortality on each health threshold (75/50/25%), with an
+   * optional per-second countdown announced to the party.
+   *
+   * Two problems, one mechanism: a fully upgraded party can burst a boss down
+   * fast enough that all three thresholds fire in the same second, which both
+   * ends the fight before any of the wave design is seen and switches every
+   * wave tier's spawners on at once (the arena floods and the framerate dies).
+   * Holding the boss immortal for a fixed window forces the thresholds apart.
+   *
+   * Independent of `waves`: a threshold gets a window whether or not its tier
+   * has any monsters in it.
+   */
+  invulnerability: {
+    enabled: boolean
+    /**
+     * One window length in seconds per threshold, in BOSS_INVULN_THRESHOLDS
+     * order (75%, 50%, 25%). 0 disables that one threshold. The GUI drives all
+     * three from a single field unless "set per threshold" is on, but the
+     * stored shape is always the full array.
+     */
+    seconds: number[]
+    /** announce a ticking M:SS countdown for the length of each window */
+    countdown: boolean
+  }
+  /** scales each wave tier's monsterMax (except -1/endless, which stays endless) */
+  monsterMultiplier: number
+  /** scales the sparse health/mana pickup clusters scattered around the arena */
+  foodMultiplier: number
+}
+
 /**
- * The boss fight appended after the last dungeon floor: a hand-authored prep
- * room (shop + starting gold, like the lobby) then a generated arena.
+ * One boss fight: a hand-authored prep room (shop + starting gold, like the
+ * lobby) then a generated arena. A campaign may carry several, and each one is
+ * edited independently — nothing is shared between them.
+ */
+export interface BossFight {
+  prep: BossPrepOptions
+  arena: BossArenaOptions
+}
+
+/**
+ * The boss fights appended after the last dungeon floor.
  *
- * `enabled: false` reproduces today's campaign byte-for-byte — the arena draws
- * from a dedicated RNG stream, `ctx.bossRand`, and never touches `ctx.rand` or
- * `ctx.cosmeticRand`, so every existing seed's dungeon is unchanged.
+ * `enabled: false` reproduces the pre-boss campaign byte-for-byte — every arena
+ * draws from a dedicated RNG stream, `ctx.bossRand`, and never touches
+ * `ctx.rand` or `ctx.cosmeticRand`, so every existing seed's dungeon is
+ * unchanged whatever this holds.
+ *
+ * `fights` is ordered and, like `levels`, has a lower bound but no upper one:
+ * a campaign may chain as many arenas as the dungeon master wants. Fight N's
+ * arena teleports the party into fight N+1's prep room; only the last one ends
+ * the campaign. They share `ctx.bossRand` in order, so fight 0 draws exactly
+ * what a single-fight campaign always did and the extra fights continue the
+ * same stream after it.
  */
 export interface BossOptions {
   enabled: boolean
-  /** the prep room: a straight copy of the lobby's shop rig */
-  prep: {
-    /** shop columns the five stalls sell — ALL_LOBBY_CATEGORIES, power INCLUDED */
-    shopCategories: string[]
-    /** multiple of 500 — each 500 is one red diamond on the prep floor */
-    startingGold: number
-    /** free upgrade pickups on the prep floor; see `LobbyOptions.upgrades` */
-    upgrades: UpgradeCounts
-  }
-  arena: {
-    /** one theme letter from THEME_DEFS, independent of the dungeon floors' themes */
-    theme: string
-    /**
-     * Which pattern a `- mixed` arena theme arranges its floor palette in.
-     * `random` (the default) lets the seed choose. Ignored for every other
-     * theme, which has no palette to arrange.
-     */
-    floorPattern: BossFloorPattern
-    minWidth: number
-    maxWidth: number
-    minHeight: number
-    maxHeight: number
-    /** ids of the end-boss actors the seed may pick from */
-    bossPool: string[]
-    /**
-     * exactly BOSS_WAVE_COUNT waves: the four health tiers 100 / 75 / 50 / 25,
-     * then BOSS_DEATH_WAVE — the pool that spawns when the boss dies, while the
-     * player is walking to the orb that ends the campaign.
-     */
-    waves: BossWave[]
-    cover: {
-      pattern: (typeof BOSS_COVER_PATTERNS)[number]
-      density: number
-      ringSpacing: number
-      clusters: number
-    }
-    /**
-     * Tuning for the scatter spawn modes — deliberately its own block rather
-     * than a second reading of `cover`, so a monster ring and a pillar ring can
-     * be spaced differently. Ignored entirely while every monster is on
-     * `anchors`, which is the default.
-     */
-    spawn: {
-      /** minimum gap, in tiles, kept between two scattered spawn points */
-      spacing: number
-      /** minimum gap between adjacent points on the `ring` mode */
-      ringSpacing: number
-      /** seeded cluster centres for the `gaussian` mode */
-      clusters: number
-      /**
-       * How many spawn *points* one monster entry of one tier may occupy, and
-       * therefore how many of it can appear on a single frame.
-       *
-       * A scattered monster used to get one point per monster, all fired off the
-       * tier trigger at once — a 120-bat entry was 120 actors materialising on
-       * one frame, and five tiers of that saturated the floor so badly that the
-       * placement pass ran out of room and fell back to the 9 anchors (#43).
-       * Now a count above this budget is spread over `batchSize` points, each
-       * carrying a share of the total on a `batchIntervalMs` timer, exactly the
-       * way the anchor rig splits a horde over its 9 anchors.
-       *
-       * An entry whose count is at or below the budget keeps the old one-shot
-       * shape, so a small wave emits byte-identical XML.
-       */
-      batchSize: number
-      /** the timer, in ms, batched scatter spawns trickle in on */
-      batchIntervalMs: number
-    }
-    /**
-     * Temporary boss immortality on each health threshold (75/50/25%), with an
-     * optional per-second countdown announced to the party.
-     *
-     * Two problems, one mechanism: a fully upgraded party can burst a boss down
-     * fast enough that all three thresholds fire in the same second, which both
-     * ends the fight before any of the wave design is seen and switches every
-     * wave tier's spawners on at once (the arena floods and the framerate dies).
-     * Holding the boss immortal for a fixed window forces the thresholds apart.
-     *
-     * Independent of `waves`: a threshold gets a window whether or not its tier
-     * has any monsters in it.
-     */
-    invulnerability: {
-      enabled: boolean
-      /**
-       * One window length in seconds per threshold, in BOSS_INVULN_THRESHOLDS
-       * order (75%, 50%, 25%). 0 disables that one threshold. The GUI drives all
-       * three from a single field unless "set per threshold" is on, but the
-       * stored shape is always the full array.
-       */
-      seconds: number[]
-      /** announce a ticking M:SS countdown for the length of each window */
-      countdown: boolean
-    }
-    /** scales each wave tier's monsterMax (except -1/endless, which stays endless) */
-    monsterMultiplier: number
-    /** scales the sparse health/mana pickup clusters scattered around the arena */
-    foodMultiplier: number
-  }
+  fights: BossFight[]
 }
 
 /**
@@ -513,6 +534,17 @@ export const BOSS_IDS = [
 export function defaultBossOptions(): BossOptions {
   return {
     enabled: true,
+    fights: [defaultBossFight()]
+  }
+}
+
+/**
+ * One stock boss fight. A fresh object every call, like `CampaignPreset.build`:
+ * the fight list is edited in place by the form and imported by configFile.ts,
+ * so two fights must never share a `prep`, an `arena` or a `waves` array.
+ */
+export function defaultBossFight(): BossFight {
+  return {
     prep: {
       // unlike the lobby, power is on by default — see the interface comment
       shopCategories: [...ALL_LOBBY_CATEGORIES],
@@ -575,6 +607,19 @@ export function defaultBossOptions(): BossOptions {
       foodMultiplier: 1.2
     }
   }
+}
+
+/**
+ * The fights a campaign will actually build.
+ *
+ * Read every fight through this rather than off `boss.fights`: an object
+ * imported from an older `parameters.txt`, or hand-built by a test, may predate
+ * the list and carry no fights at all, and a boss that is switched off builds
+ * nothing whatever the list holds.
+ */
+export function bossFights(boss: BossOptions | undefined): BossFight[] {
+  if (boss === undefined || !boss.enabled) return []
+  return boss.fights ?? []
 }
 
 /**

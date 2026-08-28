@@ -17,6 +17,7 @@ import {
   buffById,
   pickupById,
   corpseCollision,
+  defaultBossFight,
   defaultTier,
   diamondCount,
   getTheme,
@@ -31,8 +32,11 @@ import {
 } from '../../generator'
 import type {
   ArenaPatternKind,
+  BossArenaOptions,
+  BossFight,
   BossFloorPattern,
   BossOptions,
+  BossPrepOptions,
   BossSpawnMode,
   BossWave,
   DungeonParameters,
@@ -71,13 +75,46 @@ const WAVE_LABELS = ['Tier 100%', 'Tier 75%', 'Tier 50%', 'Tier 25%', 'After the
 
 export function BossForm({ params, issues, onChange }: BossFormProps) {
   const [subTab, setSubTab] = useState<'prep' | 'room'>('prep')
+  // Which fight the two sub-tabs below are editing. Clamped rather than reset
+  // when the count shrinks, so trimming the list does not throw away the view.
+  const [fightIndex, setFightIndex] = useState(0)
   const boss = params.boss
+  const fights = boss.fights ?? []
+  const active = Math.min(fightIndex, Math.max(0, fights.length - 1))
+  const fight = fights[active]
+
   const set = (patch: Partial<BossOptions>) => onChange({ ...params, boss: { ...boss, ...patch } })
-  const setPrep = (patch: Partial<BossOptions['prep']>) => set({ prep: { ...boss.prep, ...patch } })
-  const setArena = (patch: Partial<BossOptions['arena']>) => set({ arena: { ...boss.arena, ...patch } })
+  const setFight = (index: number, patch: Partial<BossFight>) =>
+    set({ fights: fights.map((f, i) => (i === index ? { ...f, ...patch } : f)) })
+  const setPrep = (patch: Partial<BossPrepOptions>) =>
+    setFight(active, { prep: { ...fight.prep, ...patch } })
+  const setArena = (patch: Partial<BossArenaOptions>) =>
+    setFight(active, { arena: { ...fight.arena, ...patch } })
   const setWave = (index: number, patch: Partial<BossWave>) => {
-    const waves = boss.arena.waves.map((w, i) => (i === index ? { ...w, ...patch } : w))
+    const waves = fight.arena.waves.map((w, i) => (i === index ? { ...w, ...patch } : w))
     setArena({ waves })
+  }
+
+  // Grow by cloning the LAST fight, not the default one: a dungeon master who
+  // has tuned fight 1 and asks for a second almost always wants a variation on
+  // it rather than the stock castle arena back. Same growth rule the per-floor
+  // arrays use in ParameterForm.setLevels.
+  const setFightCount = (countRaw: number) => {
+    const count = Math.max(1, Math.trunc(countRaw))
+    if (count === fights.length) return
+    const next = fights.slice(0, count)
+    while (next.length < count) next.push(cloneFight(next[next.length - 1] ?? defaultBossFight()))
+    set({ fights: next })
+    if (active >= count) setFightIndex(count - 1)
+  }
+
+  // Copies the whole fight — prep room and arena both. The waves are the
+  // expensive part to set up, and a fight that differs only in its boss pool is
+  // the common reason to ask for this.
+  const copyToNext = () => {
+    if (active + 1 >= fights.length) return
+    setFight(active + 1, cloneFight(fight))
+    setFightIndex(active + 1)
   }
 
   return (
@@ -93,36 +130,99 @@ export function BossForm({ params, issues, onChange }: BossFormProps) {
           checked={boss.enabled}
           onChange={(enabled) => set({ enabled })}
         />
+        <NumberField
+          label="Number of boss fights"
+          field="boss.fights"
+          value={fights.length}
+          issues={issues}
+          min={1}
+          step={1}
+          onChange={setFightCount}
+        />
+        <p className="hint">
+          Each fight is its own prep room and arena. Beating one teleports the party into the next
+          fight's shop, so a chain reads fight, shop, fight — only the last arena ends the campaign.
+        </p>
       </Section>
 
-      <div className="panel-tabs boss-subtabs">
-        <button className={subTab === 'prep' ? 'tab active' : 'tab'} onClick={() => setSubTab('prep')}>
-          Prep room
-        </button>
-        <button className={subTab === 'room' ? 'tab active' : 'tab'} onClick={() => setSubTab('room')}>
-          Boss room
-        </button>
-      </div>
+      {fight !== undefined && (
+        <>
+          {fights.length > 1 && (
+            <div className="panel-tabs boss-fight-tabs">
+              {fights.map((_, i) => (
+                <button
+                  key={i}
+                  className={i === active ? 'tab active' : 'tab'}
+                  onClick={() => setFightIndex(i)}
+                >
+                  Fight {i + 1}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="copy-down"
+                onClick={copyToNext}
+                disabled={active + 1 >= fights.length}
+                title="Replace the next fight's prep room and arena with this one's"
+              >
+                Copy to next fight
+              </button>
+            </div>
+          )}
 
-      {subTab === 'prep' && (
-        <PrepTab params={params} prep={boss.prep} issues={issues} setPrep={setPrep} />
-      )}
-      {subTab === 'room' && (
-        <ArenaTab arena={boss.arena} issues={issues} setArena={setArena} setWave={setWave} />
+          <div className="panel-tabs boss-subtabs">
+            <button className={subTab === 'prep' ? 'tab active' : 'tab'} onClick={() => setSubTab('prep')}>
+              Prep room
+            </button>
+            <button className={subTab === 'room' ? 'tab active' : 'tab'} onClick={() => setSubTab('room')}>
+              Boss room
+            </button>
+          </div>
+
+          {subTab === 'prep' && (
+            <PrepTab
+              params={params}
+              prep={fight.prep}
+              fieldPrefix={`boss.fights.${active}.prep`}
+              issues={issues}
+              setPrep={setPrep}
+            />
+          )}
+          {subTab === 'room' && (
+            <ArenaTab
+              arena={fight.arena}
+              fieldPrefix={`boss.fights.${active}.arena`}
+              issues={issues}
+              setArena={setArena}
+              setWave={setWave}
+            />
+          )}
+        </>
       )}
     </div>
   )
 }
 
+/**
+ * A deep-enough copy that two fights never share a mutable sub-object. The
+ * arrays and records inside a wave are edited in place by the pool pickers, so
+ * a shallow spread would make an edit to one fight show up in the other.
+ */
+function cloneFight(fight: BossFight): BossFight {
+  return JSON.parse(JSON.stringify(fight)) as BossFight
+}
+
 interface PrepTabProps {
   params: DungeonParameters
-  prep: BossOptions['prep']
+  prep: BossPrepOptions
+  /** validation field root for this fight, e.g. `boss.fights.0.prep` */
+  fieldPrefix: string
   issues: ValidationIssue[]
-  setPrep: (patch: Partial<BossOptions['prep']>) => void
+  setPrep: (patch: Partial<BossPrepOptions>) => void
 }
 
 /** Mirrors LobbyForm.tsx — the prep room is the same shop rig, a different template. */
-function PrepTab({ params, prep, issues, setPrep }: PrepTabProps) {
+function PrepTab({ params, prep, fieldPrefix, issues, setPrep }: PrepTabProps) {
   const counts = lobbyCategoryCounts((params.playerTweaks ?? {}) as PlayerTweaks)
   const selected = new Set(prep.shopCategories)
 
@@ -150,7 +250,7 @@ function PrepTab({ params, prep, issues, setPrep }: PrepTabProps) {
         <div className="field-grid">
           <NumberField
             label="Gold on the prep room floor"
-            field="boss.prep.startingGold"
+            field={`${fieldPrefix}.startingGold`}
             value={prep.startingGold}
             onChange={(startingGold) => setPrep({ startingGold })}
             issues={issues}
@@ -165,7 +265,7 @@ function PrepTab({ params, prep, issues, setPrep }: PrepTabProps) {
 
       <UpgradeCountFields
         upgrades={prep.upgrades}
-        field="boss.prep.upgrades"
+        field={`${fieldPrefix}.upgrades`}
         issues={issues}
         onChange={(upgrades) => setPrep({ upgrades })}
       />
@@ -220,7 +320,7 @@ function PrepTab({ params, prep, issues, setPrep }: PrepTabProps) {
         })}
 
         {issues
-          .filter((i) => i.field === 'boss.prep.shopCategories')
+          .filter((i) => i.field === `${fieldPrefix}.shopCategories`)
           .map((issue, i) => (
             <p key={i} className="field-message">
               {issue.message}
@@ -239,13 +339,15 @@ function goldDescription(startingGold: number): string {
 }
 
 interface ArenaTabProps {
-  arena: BossOptions['arena']
+  arena: BossArenaOptions
+  /** validation field root for this fight, e.g. `boss.fights.0.arena` */
+  fieldPrefix: string
   issues: ValidationIssue[]
-  setArena: (patch: Partial<BossOptions['arena']>) => void
+  setArena: (patch: Partial<BossArenaOptions>) => void
   setWave: (index: number, patch: Partial<BossWave>) => void
 }
 
-function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
+function ArenaTab({ arena, fieldPrefix, issues, setArena, setWave }: ArenaTabProps) {
   // Which scatter modes any wave actually uses, so the knobs that only matter
   // for `ring` and `gaussian` stay hidden until they mean something — the same
   // conditional shape the Cover section uses for its own two knobs.
@@ -291,7 +393,7 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
         <div className="field-grid">
           <NumberField
             label="Min width"
-            field="boss.arena.minWidth"
+            field={`${fieldPrefix}.minWidth`}
             value={arena.minWidth}
             onChange={(minWidth) => setArena({ minWidth })}
             issues={issues}
@@ -299,7 +401,7 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
           />
           <NumberField
             label="Max width"
-            field="boss.arena.maxWidth"
+            field={`${fieldPrefix}.maxWidth`}
             value={arena.maxWidth}
             onChange={(maxWidth) => setArena({ maxWidth })}
             issues={issues}
@@ -307,7 +409,7 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
           />
           <NumberField
             label="Min height"
-            field="boss.arena.minHeight"
+            field={`${fieldPrefix}.minHeight`}
             value={arena.minHeight}
             onChange={(minHeight) => setArena({ minHeight })}
             issues={issues}
@@ -315,7 +417,7 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
           />
           <NumberField
             label="Max height"
-            field="boss.arena.maxHeight"
+            field={`${fieldPrefix}.maxHeight`}
             value={arena.maxHeight}
             onChange={(maxHeight) => setArena({ maxHeight })}
             issues={issues}
@@ -328,7 +430,7 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
         <div className="field-grid">
           <NumberField
             label="Monster ×"
-            field="boss.arena.monsterMultiplier"
+            field={`${fieldPrefix}.monsterMultiplier`}
             value={arena.monsterMultiplier}
             onChange={(v) => setArena({ monsterMultiplier: v })}
             issues={issues}
@@ -338,7 +440,7 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
           />
           <NumberField
             label="Food ×"
-            field="boss.arena.foodMultiplier"
+            field={`${fieldPrefix}.foodMultiplier`}
             value={arena.foodMultiplier}
             onChange={(v) => setArena({ foodMultiplier: v })}
             issues={issues}
@@ -373,7 +475,7 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
           </select>
         </label>
         {issues
-          .filter((i) => i.field === 'boss.arena.theme')
+          .filter((i) => i.field === `${fieldPrefix}.theme`)
           .map((issue, i) => (
             <p key={i} className="field-message">
               {issue.message}
@@ -398,7 +500,7 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
           </label>
         )}
         {issues
-          .filter((i) => i.field === 'boss.arena.floorPattern')
+          .filter((i) => i.field === `${fieldPrefix}.floorPattern`)
           .map((issue, i) => (
             <p key={i} className="field-message">
               {issue.message}
@@ -421,7 +523,7 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
           ))}
         </div>
         {issues
-          .filter((i) => i.field === 'boss.arena.bossPool')
+          .filter((i) => i.field === `${fieldPrefix}.bossPool`)
           .map((issue, i) => (
             <p key={i} className="field-message">
               {issue.message}
@@ -432,6 +534,7 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
       <Section title="Boss invulnerability" badge={invulnBadge(arena.invulnerability)}>
         <InvulnerabilityEditor
           invuln={arena.invulnerability}
+          fieldPrefix={fieldPrefix}
           issues={issues}
           onChange={(invulnerability) => setArena({ invulnerability })}
         />
@@ -446,11 +549,17 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
         </p>
         {arena.waves.map((wave, i) => (
           <Subsection key={i} title={WAVE_LABELS[i] ?? `Tier ${i + 1}`} badge={`${wave.monsters.length} monster(s)`}>
-            <WaveEditor wave={wave} index={i} issues={issues} onWaveChange={(patch) => setWave(i, patch)} />
+            <WaveEditor
+              wave={wave}
+              index={i}
+              fieldPrefix={fieldPrefix}
+              issues={issues}
+              onWaveChange={(patch) => setWave(i, patch)}
+            />
           </Subsection>
         ))}
         {issues
-          .filter((i) => i.field === 'boss.arena.waves')
+          .filter((i) => i.field === `${fieldPrefix}.waves`)
           .map((issue, i) => (
             <p key={i} className="field-message">
               {issue.message}
@@ -485,7 +594,7 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
                 value={buffs}
                 onChange={(next) => setWave(i, { buffs: next })}
                 noun="tier"
-                issuePrefix={`boss.arena.waves.${i}.buffs`}
+                issuePrefix={`${fieldPrefix}.waves.${i}.buffs`}
                 issues={issues}
               />
               {i < arena.waves.length - 1 && (
@@ -533,7 +642,7 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
                 value={pickups}
                 onChange={(next) => setWave(i, { pickups: next })}
                 noun="tier"
-                issuePrefix={`boss.arena.waves.${i}.pickups`}
+                issuePrefix={`${fieldPrefix}.waves.${i}.pickups`}
                 issues={issues}
               />
               {i < arena.waves.length - 1 && (
@@ -559,7 +668,7 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
           options={BOSS_COVER_PATTERNS.map((p) => ({ value: p, label: p }))}
         />
         {issues
-          .filter((i) => i.field === 'boss.arena.cover.pattern')
+          .filter((i) => i.field === `${fieldPrefix}.cover.pattern`)
           .map((issue, i) => (
             <p key={i} className="field-message">
               {issue.message}
@@ -568,7 +677,7 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
         <div className="field-grid">
           <NumberField
             label="Density"
-            field="boss.arena.cover.density"
+            field={`${fieldPrefix}.cover.density`}
             value={arena.cover.density}
             onChange={(density) => setArena({ cover: { ...arena.cover, density } })}
             issues={issues}
@@ -580,7 +689,7 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
           {arena.cover.pattern === 'ring' && (
             <NumberField
               label="Ring spacing"
-              field="boss.arena.cover.ringSpacing"
+              field={`${fieldPrefix}.cover.ringSpacing`}
               value={arena.cover.ringSpacing}
               onChange={(ringSpacing) => setArena({ cover: { ...arena.cover, ringSpacing } })}
               issues={issues}
@@ -591,7 +700,7 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
           {arena.cover.pattern === 'gaussian' && (
             <NumberField
               label="Clusters"
-              field="boss.arena.cover.clusters"
+              field={`${fieldPrefix}.cover.clusters`}
               value={arena.cover.clusters}
               onChange={(clusters) => setArena({ cover: { ...arena.cover, clusters } })}
               issues={issues}
@@ -611,7 +720,7 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
         <div className="field-grid">
           <NumberField
             label="Spacing"
-            field="boss.arena.spawn.spacing"
+            field={`${fieldPrefix}.spawn.spacing`}
             value={arena.spawn.spacing}
             onChange={(spacing) => setArena({ spawn: { ...arena.spawn, spacing } })}
             issues={issues}
@@ -621,7 +730,7 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
           {scatterModesInUse.has('ring') && (
             <NumberField
               label="Ring spacing"
-              field="boss.arena.spawn.ringSpacing"
+              field={`${fieldPrefix}.spawn.ringSpacing`}
               value={arena.spawn.ringSpacing}
               onChange={(ringSpacing) => setArena({ spawn: { ...arena.spawn, ringSpacing } })}
               issues={issues}
@@ -632,7 +741,7 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
           {scatterModesInUse.has('gaussian') && (
             <NumberField
               label="Clusters"
-              field="boss.arena.spawn.clusters"
+              field={`${fieldPrefix}.spawn.clusters`}
               value={arena.spawn.clusters}
               onChange={(clusters) => setArena({ spawn: { ...arena.spawn, clusters } })}
               issues={issues}
@@ -642,7 +751,7 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
           )}
           <NumberField
             label="Batch size"
-            field="boss.arena.spawn.batchSize"
+            field={`${fieldPrefix}.spawn.batchSize`}
             value={arena.spawn.batchSize}
             onChange={(batchSize) => setArena({ spawn: { ...arena.spawn, batchSize } })}
             issues={issues}
@@ -651,7 +760,7 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
           />
           <NumberField
             label="Batch interval (ms)"
-            field="boss.arena.spawn.batchIntervalMs"
+            field={`${fieldPrefix}.spawn.batchIntervalMs`}
             value={arena.spawn.batchIntervalMs}
             onChange={(batchIntervalMs) => setArena({ spawn: { ...arena.spawn, batchIntervalMs } })}
             issues={issues}
@@ -672,7 +781,7 @@ function bossLabel(id: string): string {
   return name.charAt(0).toUpperCase() + name.slice(1)
 }
 
-type Invulnerability = BossOptions['arena']['invulnerability']
+type Invulnerability = BossArenaOptions['invulnerability']
 
 /** Section-header summary: `off`, `30s`, or the three windows spelled out. */
 function invulnBadge(invuln: Invulnerability): string {
@@ -687,6 +796,8 @@ const INVULN_LABELS = ['At 75% health', 'At 50% health', 'At 25% health']
 
 interface InvulnerabilityEditorProps {
   invuln: Invulnerability
+  /** validation field root of the owning fight's arena */
+  fieldPrefix: string
   issues: ValidationIssue[]
   onChange: (invuln: Invulnerability) => void
 }
@@ -697,7 +808,7 @@ interface InvulnerabilityEditorProps {
  * whether the stored windows already differ, because the params always carry the
  * full array either way.
  */
-function InvulnerabilityEditor({ invuln, issues, onChange }: InvulnerabilityEditorProps) {
+function InvulnerabilityEditor({ invuln, fieldPrefix, issues, onChange }: InvulnerabilityEditorProps) {
   const [perThreshold, setPerThreshold] = useState(!invuln.seconds.every((s) => s === invuln.seconds[0]))
 
   const setAll = (seconds: number) => onChange({ ...invuln, seconds: invuln.seconds.map(() => seconds) })
@@ -736,7 +847,7 @@ function InvulnerabilityEditor({ invuln, issues, onChange }: InvulnerabilityEdit
                 <NumberField
                   key={i}
                   label={INVULN_LABELS[i] ?? `Threshold ${i + 1}`}
-                  field={`boss.arena.invulnerability.seconds.${i}`}
+                  field={`${fieldPrefix}.invulnerability.seconds.${i}`}
                   value={seconds}
                   onChange={(v) => setOne(i, v)}
                   issues={issues}
@@ -747,7 +858,7 @@ function InvulnerabilityEditor({ invuln, issues, onChange }: InvulnerabilityEdit
             ) : (
               <NumberField
                 label="Duration (seconds)"
-                field="boss.arena.invulnerability.seconds.0"
+                field={`${fieldPrefix}.invulnerability.seconds.0`}
                 value={invuln.seconds[0] ?? DEFAULT_BOSS_INVULN_SECONDS}
                 onChange={setAll}
                 issues={issues}
@@ -768,7 +879,7 @@ function InvulnerabilityEditor({ invuln, issues, onChange }: InvulnerabilityEdit
       )}
       {issues
         .filter(
-          (i) => i.field === 'boss.arena.invulnerability.seconds' || i.field === 'boss.arena.invulnerability.countdown'
+          (i) => i.field === `${fieldPrefix}.invulnerability.seconds` || i.field === `${fieldPrefix}.invulnerability.countdown`
         )
         .map((issue, i) => (
           <p key={i} className="field-message">
@@ -782,6 +893,8 @@ function InvulnerabilityEditor({ invuln, issues, onChange }: InvulnerabilityEdit
 interface WaveEditorProps {
   wave: BossWave
   index: number
+  /** validation field root of the owning fight's arena */
+  fieldPrefix: string
   issues: ValidationIssue[]
   onWaveChange: (patch: Partial<BossWave>) => void
 }
@@ -793,12 +906,12 @@ function noteSuffix(key: string): string {
   return note ? ` — ${note}` : ''
 }
 
-function WaveEditor({ wave, index, issues, onWaveChange }: WaveEditorProps) {
+function WaveEditor({ wave, index, fieldPrefix, issues, onWaveChange }: WaveEditorProps) {
   const filter = useMonsterFilter()
   // Session-only, like the act filter — nothing here reaches DungeonParameters,
   // so hiding an option can never change generated output.
   const [passableOnly, setPassableOnly] = useState(false)
-  const prefix = `boss.arena.waves.${index}`
+  const prefix = `${fieldPrefix}.waves.${index}`
 
   const toggleMonster = (id: string) => {
     const has = wave.monsters.includes(id)

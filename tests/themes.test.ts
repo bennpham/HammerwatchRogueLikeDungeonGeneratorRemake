@@ -3,6 +3,7 @@ import { generateDungeon, defaultParameters, getTheme, THEMES, THEME_DEFS, Dunge
 import { DoodadType, doodadPath, doodadOffset } from '../src/generator/objects/doodad'
 import { THEMED_WALL_PIECES } from '../src/generator/config/themes'
 import type { DoodadTypeName } from '../src/generator/objects/doodad'
+import type { BossFloorPattern } from '../src/generator'
 
 function generateWithTheme(theme: string, seed: number, levels?: number): DungeonResult {
   const params = defaultParameters()
@@ -202,10 +203,10 @@ describe('overlay themes — an alternate tileset layered over a base theme', ()
   it('stacks water, theme and overlay in the boss arena', () => {
     const params = defaultParameters()
     params.boss.enabled = true
-    params.boss.arena.theme = 'f_frozen'
+    params.boss.fights[0].arena.theme = 'f_frozen'
     const result = generateDungeon(params, 4242)
     expect(result.ok).toBe(true)
-    const boss = (result as DungeonResult).files.find((f) => f.path === 'levels/boss.xml')!.content
+    const boss = (result as DungeonResult).files.find((f) => f.path === 'levels/boss0.xml')!.content
     const sets = boss.match(/<string name="tileset">([^<]*)<\/string>/g) ?? []
     expect(sets.length).toBeGreaterThan(0)
     expect(sets.length % 3).toBe(0)
@@ -441,10 +442,10 @@ describe('mixed themes — the plain floor and its overlays varied per region', 
   it('lays a mixed arena theme out as a pattern, leaving the alcove plain', () => {
     const params = defaultParameters()
     params.boss.enabled = true
-    params.boss.arena.theme = 'f_mixed'
+    params.boss.fights[0].arena.theme = 'f_mixed'
     const result = generateDungeon(params, 4242)
     expect(result.ok).toBe(true)
-    const boss = (result as DungeonResult).files.find((f) => f.path === 'levels/boss.xml')!.content
+    const boss = (result as DungeonResult).files.find((f) => f.path === 'levels/boss0.xml')!.content
 
     const datasets = readDatasets(boss)
     const tilesets = new Set(datasets.map((d) => d.tileset))
@@ -483,11 +484,11 @@ describe('mixed themes — the plain floor and its overlays varied per region', 
     const build = (floorPattern: string) => {
       const params = defaultParameters()
       params.boss.enabled = true
-      params.boss.arena.theme = 'g_mixed'
-      params.boss.arena.floorPattern = floorPattern as typeof params.boss.arena.floorPattern
+      params.boss.fights[0].arena.theme = 'g_mixed'
+      params.boss.fights[0].arena.floorPattern = floorPattern as BossFloorPattern
       const result = generateDungeon(params, 4242)
       expect(result.ok).toBe(true)
-      return (result as DungeonResult).files.find((f) => f.path === 'levels/boss.xml')!.content
+      return (result as DungeonResult).files.find((f) => f.path === 'levels/boss0.xml')!.content
     }
 
     const checker = build('checker')
@@ -511,11 +512,11 @@ describe('mixed themes — the plain floor and its overlays varied per region', 
     const build = (floorPattern: string) => {
       const params = defaultParameters()
       params.boss.enabled = true
-      params.boss.arena.theme = 'g'
-      params.boss.arena.floorPattern = floorPattern as typeof params.boss.arena.floorPattern
+      params.boss.fights[0].arena.theme = 'g'
+      params.boss.fights[0].arena.floorPattern = floorPattern as BossFloorPattern
       const result = generateDungeon(params, 4242)
       expect(result.ok).toBe(true)
-      return (result as DungeonResult).files.find((f) => f.path === 'levels/boss.xml')!.content
+      return (result as DungeonResult).files.find((f) => f.path === 'levels/boss0.xml')!.content
     }
     // a plain theme takes no pattern draws at all, so the knob cannot move it
     expect(build('checker')).toBe(build('random'))
@@ -526,10 +527,10 @@ describe('mixed themes — the plain floor and its overlays varied per region', 
     const run = (theme: string) => {
       const params = defaultParameters()
       params.boss.enabled = true
-      params.boss.arena.theme = theme
+      params.boss.fights[0].arena.theme = theme
       const result = generateDungeon(params, 909)
       expect(result.ok).toBe(true)
-      return (result as DungeonResult).files.find((f) => f.path === 'levels/boss.xml')!.content
+      return (result as DungeonResult).files.find((f) => f.path === 'levels/boss0.xml')!.content
     }
     expect(run('g')).toBe(run('g'))
     expect(run('g_mixed')).toBe(run('g_mixed'))

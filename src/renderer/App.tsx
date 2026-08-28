@@ -232,7 +232,13 @@ export function App() {
               onClick={() => setLeftTab('boss')}
             >
               Boss
-              <span className="tab-count">{params.boss.enabled ? 'on' : 'off'}</span>
+              <span className="tab-count">
+                {!params.boss.enabled
+                  ? 'off'
+                  : (params.boss.fights?.length ?? 0) > 1
+                    ? `${params.boss.fights.length} fights`
+                    : 'on'}
+              </span>
             </button>
           </div>
 

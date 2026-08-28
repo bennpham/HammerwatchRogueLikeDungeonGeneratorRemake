@@ -115,12 +115,12 @@ describe('boss wave buffs — none means none', () => {
 
   it('leaves a whole generated arena byte-identical with no tier buffed', () => {
     const params = defaultParameters()
-    const plain = buildBossArena(freshCtx(4242), params.boss.arena, 0)
+    const plain = buildBossArena(freshCtx(4242), params.boss.fights[0].arena, 0)
 
     // The same arena, with the buff fields explicitly cleared rather than absent
     const cleared = {
-      ...params.boss.arena,
-      waves: params.boss.arena.waves.map((w) => ({ ...w, buff: '', buffTarget: 'players' as BuffTarget }))
+      ...params.boss.fights[0].arena,
+      waves: params.boss.fights[0].arena.waves.map((w) => ({ ...w, buff: '', buffTarget: 'players' as BuffTarget }))
     }
     const explicit = buildBossArena(freshCtx(4242), cleared, 0)
 
@@ -186,7 +186,7 @@ describe('boss wave buffs — the field rig', () => {
     // fight, and the horde that spawns on the kill fights strengthened. One
     // field, switched on by Boss Died, with no earlier field to switch off.
     for (const preset of CAMPAIGN_PRESETS) {
-      const waves = preset.build().boss.arena.waves
+      const waves = preset.build().boss.fights[0].arena.waves
       expect(waves.map(waveBuffs), preset.id).toEqual([
         [],
         [],
@@ -339,7 +339,7 @@ describe('boss wave buffs — several buffs on one tier', () => {
 describe('boss wave buffs — validation', () => {
   const withWaveBuffs = (index: number, buffs: [string, BuffTarget][]) => {
     const params = defaultParameters()
-    params.boss.arena.waves = params.boss.arena.waves.map((w, i) =>
+    params.boss.fights[0].arena.waves = params.boss.fights[0].arena.waves.map((w, i) =>
       i === index ? { ...w, buffs: buffs.map(([buff, target]) => ({ buff, target })) } : w
     )
     return validateParameters(params)
@@ -365,13 +365,13 @@ describe('boss wave buffs — validation', () => {
   it('rejects an unknown buff id', () => {
     const result = withWaveBuff(1, 'no_such_buff')
     expect(result.valid).toBe(false)
-    expect(result.errors.map((e) => e.field)).toContain('boss.arena.waves.1.buffs.0.buff')
+    expect(result.errors.map((e) => e.field)).toContain('boss.fights.0.arena.waves.1.buffs.0.buff')
   })
 
   it('rejects an unknown target', () => {
     const result = withWaveBuff(1, 'frost', 'everyone' as BuffTarget)
     expect(result.valid).toBe(false)
-    expect(result.errors.map((e) => e.field)).toContain('boss.arena.waves.1.buffs.0.target')
+    expect(result.errors.map((e) => e.field)).toContain('boss.fights.0.arena.waves.1.buffs.0.target')
   })
 
   it('puts no upper bound on how many buffs a tier carries', () => {
@@ -384,7 +384,7 @@ describe('boss wave buffs — validation', () => {
   it('warns about a duplicate buff/target pair on one tier', () => {
     const result = withWaveBuffs(1, [['frost', 'monsters'], ['frost', 'monsters']])
     expect(result.valid).toBe(true)
-    expect(result.warnings.map((w) => w.field)).toContain('boss.arena.waves.1.buffs.1.buff')
+    expect(result.warnings.map((w) => w.field)).toContain('boss.fights.0.arena.waves.1.buffs.1.buff')
   })
 
   it('does not warn when a strengthening buff catches the horde', () => {
@@ -394,7 +394,7 @@ describe('boss wave buffs — validation', () => {
     // a message on every stock run.
     const result = withWaveBuff(2, 'bloodlust', 'monsters')
     expect(result.valid).toBe(true)
-    expect(result.warnings.map((w) => w.field)).not.toContain('boss.arena.waves.2.buffs.0.target')
+    expect(result.warnings.map((w) => w.field)).not.toContain('boss.fights.0.arena.waves.2.buffs.0.target')
   })
 
   it('leaves the stock defaults warning-free about their own arena buffs', () => {
@@ -416,23 +416,23 @@ describe('boss wave buffs — validation', () => {
 
   it('warns when the death tier buffs monsters it does not spawn', () => {
     const params = defaultParameters()
-    params.boss.arena.waves = params.boss.arena.waves.map((w, i) =>
+    params.boss.fights[0].arena.waves = params.boss.fights[0].arena.waves.map((w, i) =>
       i === 4
         ? { ...w, monsters: [], monsterMax: {}, buffs: [{ buff: 'frost', target: 'monsters' as BuffTarget }] }
         : w
     )
     const result = validateParameters(params)
     expect(result.valid).toBe(true)
-    expect(result.warnings.map((w) => w.field)).toContain('boss.arena.waves.4.buffs.0.target')
+    expect(result.warnings.map((w) => w.field)).toContain('boss.fights.0.arena.waves.4.buffs.0.target')
   })
 
   it('still validates a tier stored in the legacy single-buff form', () => {
     const params = defaultParameters()
-    params.boss.arena.waves = params.boss.arena.waves.map((w, i) =>
+    params.boss.fights[0].arena.waves = params.boss.fights[0].arena.waves.map((w, i) =>
       i === 1 ? { ...w, buff: 'no_such_buff', buffTarget: 'players' as BuffTarget } : w
     )
     const result = validateParameters(params)
     expect(result.valid).toBe(false)
-    expect(result.errors.map((e) => e.field)).toContain('boss.arena.waves.1.buffs.0.buff')
+    expect(result.errors.map((e) => e.field)).toContain('boss.fights.0.arena.waves.1.buffs.0.buff')
   })
 })

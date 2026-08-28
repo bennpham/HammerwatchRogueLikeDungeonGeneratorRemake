@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { GenerationContext } from '../src/generator/core/context'
 import { defaultParameters } from '../src/generator/config/parameters'
 import { ObjectSet } from '../src/generator/objects/objectSet'
+import { bossPrepId } from '../src/generator/campaign'
 
 function newContext(): GenerationContext {
   return new GenerationContext(defaultParameters(), 5)
@@ -51,10 +52,19 @@ describe('ObjectSet — Orb vs BossPortal parity', () => {
     expect(afterValues).toEqual(untouchedValues)
   })
 
-  it('targets the prep room, not a numeric next floor', () => {
+  it("targets the first fight's prep room, not a numeric next floor", () => {
     const ctx = newContext()
     const set = ObjectSet.create(ctx, 0, 0, 'BossPortal', 'a')
     const xml = set.scriptNodes.map((n) => n.getXML()).join('')
-    expect(xml).toContain('<string name="level">bossprep</string>')
+    expect(xml).toContain(`<string name="level">${bossPrepId(0)}</string>`)
+  })
+
+  // The same rig ends a non-final arena, where it points at the NEXT fight's
+  // prep room — which is the whole mechanism a multi-fight campaign chains on.
+  it('takes an explicit target when one is given', () => {
+    const ctx = newContext()
+    const set = ObjectSet.create(ctx, 0, 0, 'BossPortal', 'a', bossPrepId(3))
+    const xml = set.scriptNodes.map((n) => n.getXML()).join('')
+    expect(xml).toContain('<string name="level">bossprep3</string>')
   })
 })

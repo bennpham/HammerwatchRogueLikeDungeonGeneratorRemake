@@ -47,7 +47,8 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
 6. **The optional layers never move a seed's dungeon.**
    `src/generator/tweak/**`, `lobby/**` and `bossprep/**` draw **no** random
    values and run after every level is built; `boss/**` draws only from
-   `ctx.bossRand`. Turning any of them on or off must leave every
+   `ctx.bossRand` — once per boss fight, in list order, so adding a second
+   fight cannot move the first. Turning any of them on or off must leave every
    `levels/level*.xml` byte-identical — only which extra files exist may
    change, and clearing every tweak emits no `tweak/` folder at all. The stock
    defaults are not empty any more: `defaultParameters()` ships the lobby on,

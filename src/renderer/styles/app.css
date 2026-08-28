@@ -1168,6 +1168,18 @@ button.primary:hover:not(:disabled) {
   margin-bottom: 10px;
 }
 
+/* The fight selector sits above the Prep/Boss room tabs and only appears once a
+   campaign has more than one fight, so it needs its own spacing rather than
+   .boss-subtabs'. The copy button is pushed to the far end. */
+.boss-fight-tabs {
+  margin-bottom: 6px;
+  align-items: center;
+}
+
+.boss-fight-tabs .copy-down {
+  margin-left: auto;
+}
+
 .boss-prep-actions {
   display: flex;
   justify-content: flex-end;

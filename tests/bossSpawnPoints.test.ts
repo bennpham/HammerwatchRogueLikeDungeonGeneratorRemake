@@ -8,7 +8,7 @@ import type { SpawnPointOptions, SpawnRequest } from '../src/generator/boss/spaw
 import { reachableMask } from '../src/generator/boss/cover'
 import type { CoverArena, Rect } from '../src/generator/boss/cover'
 
-/** The same self-contained fixture bossCover.test.ts uses — cover.ts's unit shape, not arena.ts's real geometry. */
+/** The same self-contained fixture boss0Cover.test.ts uses — cover.ts's unit shape, not arena.ts's real geometry. */
 function buildArena(width: number, height: number, theme = 'g'): CoverArena {
   const midX = Math.trunc(width / 2)
   return {
@@ -23,7 +23,7 @@ function buildArena(width: number, height: number, theme = 'g'): CoverArena {
 }
 
 function options(overrides: Partial<SpawnPointOptions> = {}): SpawnPointOptions {
-  return { ...defaultParameters().boss.arena.spawn, ...overrides }
+  return { ...defaultParameters().boss.fights[0].arena.spawn, ...overrides }
 }
 
 function overlaps(a: Rect, b: Rect): boolean {

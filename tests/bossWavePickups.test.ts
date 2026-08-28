@@ -136,8 +136,8 @@ describe('boss wave pickups — none means none', () => {
   it('leaves a whole generated arena byte-identical with no tier dropping', () => {
     const params = defaultParameters()
     const cleared = {
-      ...params.boss.arena,
-      waves: params.boss.arena.waves.map((w) => {
+      ...params.boss.fights[0].arena,
+      waves: params.boss.fights[0].arena.waves.map((w) => {
         const next = { ...w }
         delete next.pickups
         return next
@@ -147,8 +147,8 @@ describe('boss wave pickups — none means none', () => {
 
     // the same arena with the lists explicitly empty rather than absent
     const explicit = {
-      ...params.boss.arena,
-      waves: params.boss.arena.waves.map((w) => ({ ...w, pickups: [] as WavePickup[] }))
+      ...params.boss.fights[0].arena,
+      waves: params.boss.fights[0].arena.waves.map((w) => ({ ...w, pickups: [] as WavePickup[] }))
     }
     expect(buildBossArena(freshCtx(4242), explicit, 0).xml).toBe(absent.xml)
   })
@@ -412,15 +412,15 @@ describe('boss wave pickups — determinism and invariant 6', () => {
 
   it('is byte-identical for the same seed and the same drop table', () => {
     const params = defaultParameters()
-    const a = buildBossArena(freshCtx(777), params.boss.arena, 0)
-    const b = buildBossArena(freshCtx(777), params.boss.arena, 0)
+    const a = buildBossArena(freshCtx(777), params.boss.fights[0].arena, 0)
+    const b = buildBossArena(freshCtx(777), params.boss.fights[0].arena, 0)
     expect(a.xml).toBe(b.xml)
   })
 
   it('moves no dungeon floor when the drop table changes', () => {
     const withDrops = defaultParameters()
     const without = defaultParameters()
-    without.boss.arena.waves = without.boss.arena.waves.map((w) => {
+    without.boss.fights[0].arena.waves = without.boss.fights[0].arena.waves.map((w) => {
       const next = { ...w }
       delete next.pickups
       return next
@@ -440,8 +440,8 @@ describe('boss wave pickups — determinism and invariant 6', () => {
 
       // only the arena moves, and it must actually move — otherwise this test
       // would pass on a rig that emits nothing
-      expect(on.files.find((f) => f.path === 'levels/boss.xml')!.content, `seed ${seed} arena`).not.toBe(
-        off.files.find((f) => f.path === 'levels/boss.xml')!.content
+      expect(on.files.find((f) => f.path === 'levels/boss0.xml')!.content, `seed ${seed} arena`).not.toBe(
+        off.files.find((f) => f.path === 'levels/boss0.xml')!.content
       )
     }
   })
@@ -450,7 +450,7 @@ describe('boss wave pickups — determinism and invariant 6', () => {
 describe('boss wave pickups — stock defaults', () => {
   it('every preset resupplies at 50%, potions at 25% and doubles after the kill', () => {
     for (const preset of CAMPAIGN_PRESETS) {
-      const waves = preset.build().boss.arena.waves
+      const waves = preset.build().boss.fights[0].arena.waves
       expect(wavePickups(waves[0]), `${preset.id} 100%`).toEqual([])
       expect(wavePickups(waves[1]), `${preset.id} 75%`).toEqual([])
       expect(wavePickups(waves[2]), `${preset.id} 50%`).toEqual([
@@ -471,7 +471,7 @@ describe('boss wave pickups — stock defaults', () => {
     const lives = new Set(PICKUP_DEFS.filter((d) => d.group === 'Lives').map((d) => d.id))
     expect(lives).toEqual(new Set(['powerup_1up', 'powerup_7up']))
     for (const preset of CAMPAIGN_PRESETS) {
-      for (const w of preset.build().boss.arena.waves) {
+      for (const w of preset.build().boss.fights[0].arena.waves) {
         for (const entry of wavePickups(w)) {
           expect(lives.has(entry.item), `${preset.id} drops ${entry.item}`).toBe(false)
         }
@@ -481,7 +481,7 @@ describe('boss wave pickups — stock defaults', () => {
 
   it('every stock drop names an item the registry knows', () => {
     for (const preset of CAMPAIGN_PRESETS) {
-      for (const wave of preset.build().boss.arena.waves) {
+      for (const wave of preset.build().boss.fights[0].arena.waves) {
         for (const entry of wavePickups(wave)) {
           expect(pickupById(entry.item), `${preset.id}: ${entry.item}`).toBeDefined()
         }
@@ -500,20 +500,20 @@ describe('boss wave pickups — stock defaults', () => {
 describe('boss wave pickups — validation', () => {
   function issuesFor(pickups: WavePickup[]) {
     const params = defaultParameters()
-    params.boss.arena.waves[2].pickups = pickups
+    params.boss.fights[0].arena.waves[2].pickups = pickups
     return validateParameters(params)
   }
 
   it('rejects an item the game does not ship', () => {
     const { errors } = issuesFor([{ item: 'health_9', count: 1 }])
-    expect(errors.some((e) => e.field === 'boss.arena.waves.2.pickups.0.item')).toBe(true)
+    expect(errors.some((e) => e.field === 'boss.fights.0.arena.waves.2.pickups.0.item')).toBe(true)
   })
 
   it('rejects a count below one, fractional, or past the bound', () => {
     for (const count of [0, -3, 1.5, MAX_PICKUP_COUNT + 1]) {
       const { errors } = issuesFor([{ item: 'health_4', count }])
       expect(
-        errors.some((e) => e.field === 'boss.arena.waves.2.pickups.0.count'),
+        errors.some((e) => e.field === 'boss.fights.0.arena.waves.2.pickups.0.count'),
         `count ${count}`
       ).toBe(true)
     }
@@ -521,7 +521,7 @@ describe('boss wave pickups — validation', () => {
 
   it('accepts the bound itself', () => {
     const { errors } = issuesFor([{ item: 'health_4', count: MAX_PICKUP_COUNT }])
-    expect(errors.filter((e) => e.field.startsWith('boss.arena.waves.2.pickups'))).toEqual([])
+    expect(errors.filter((e) => e.field.startsWith('boss.fights.0.arena.waves.2.pickups'))).toEqual([])
   })
 
   it('warns about the same item listed twice on one tier', () => {
@@ -529,13 +529,13 @@ describe('boss wave pickups — validation', () => {
       { item: 'health_4', count: 1 },
       { item: 'health_4', count: 2 }
     ])
-    expect(warnings.some((w) => w.field === 'boss.arena.waves.2.pickups.1.item')).toBe(true)
+    expect(warnings.some((w) => w.field === 'boss.fights.0.arena.waves.2.pickups.1.item')).toBe(true)
   })
 
   it('does not warn about the same item on two different tiers', () => {
     const params = defaultParameters()
-    params.boss.arena.waves[1].pickups = [{ item: 'health_4', count: 1 }]
-    params.boss.arena.waves[2].pickups = [{ item: 'health_4', count: 1 }]
+    params.boss.fights[0].arena.waves[1].pickups = [{ item: 'health_4', count: 1 }]
+    params.boss.fights[0].arena.waves[2].pickups = [{ item: 'health_4', count: 1 }]
     const { warnings } = validateParameters(params)
     expect(warnings.filter((w) => w.field.endsWith('pickups.0.item'))).toEqual([])
   })

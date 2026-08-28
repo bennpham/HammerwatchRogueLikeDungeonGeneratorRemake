@@ -14,6 +14,7 @@ import {
   NodeToggleElement
 } from './nodes'
 import type { GenerationContext } from '../core/context'
+import { bossPrepId } from '../campaign'
 
 export type SetTypeName = 'ExitUp' | 'ExitDn' | 'Shop' | 'Orb' | 'RestoreOrb' | 'BossPortal'
 
@@ -33,8 +34,15 @@ export class ObjectSet {
   wallHeight = 0
   replaceWalls = false
 
-  static create(ctx: GenerationContext, x: number, y: number, type: SetTypeName, theme: string): ObjectSet {
-    const s = new ObjectSet(ctx, x, y, type, theme)
+  static create(
+    ctx: GenerationContext,
+    x: number,
+    y: number,
+    type: SetTypeName,
+    theme: string,
+    exitTarget?: string
+  ): ObjectSet {
+    const s = new ObjectSet(ctx, x, y, type, theme, exitTarget)
     ctx.objectSets.push(s)
     return s
   }
@@ -76,7 +84,8 @@ export class ObjectSet {
     public x: number,
     public y: number,
     public type: SetTypeName,
-    theme: string
+    theme: string,
+    exitTarget?: string
   ) {
     switch (type) {
       case 'ExitUp': {
@@ -196,10 +205,13 @@ export class ObjectSet {
         shape.height = 3
         this.scriptNodes.push(shape)
 
-        // points at the prep room, not the next numeric floor — the boss
-        // fight sits between the last dungeon floor and the arena itself
+        // Points at a named level, not the next numeric floor. On a dungeon
+        // floor that is the first fight's prep room — the boss fight sits
+        // between the last dungeon floor and the arena itself. The same rig
+        // also ends a non-final arena, where it points at the NEXT fight's prep
+        // room, which is how a multi-fight campaign chains: fight, shop, fight.
         const exit = new NodeLevelExit(ctx, x, y + 2)
-        exit.level = 'bossprep'
+        exit.level = exitTarget ?? bossPrepId(0)
         exit.connectToShape(shape)
         this.scriptNodes.push(exit)
 

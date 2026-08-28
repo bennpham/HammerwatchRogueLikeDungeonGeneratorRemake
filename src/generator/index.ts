@@ -1,15 +1,16 @@
 import { GenerationContext } from './core/context'
 import { Level } from './map/level'
-import { DungeonParameters, defaultParameters } from './config/parameters'
+import { DungeonParameters, defaultParameters, bossFights } from './config/parameters'
 import { validateParameters, ValidationResult } from './config/validation'
 import { emitTweakFiles } from './tweak/overrides'
 import { LOBBY_ASSETS, LOBBY_LEVEL_ID, LOBBY_LEVEL_PATH, buildLobby } from './lobby'
-import { BOSSPREP_LEVEL_ID, BOSSPREP_LEVEL_PATH, buildBossPrep } from './bossprep'
+import { buildBossPrep } from './bossprep'
 import { buildBossArena } from './boss'
+import { bossArenaId, bossArenaPath, bossPrepId, bossPrepPath } from './campaign'
 import { buildFloorHazardRig } from './timer/hazard'
 import { buildFloorBuffRig } from './buffs/field'
 
-export type { DungeonParameters, LobbyOptions, BossOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FinalLockMode, FloorBuff, BuffTarget, WavePickup } from './config/parameters'
+export type { DungeonParameters, LobbyOptions, BossOptions, BossFight, BossPrepOptions, BossArenaOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FinalLockMode, FloorBuff, BuffTarget, WavePickup } from './config/parameters'
 export {
   THEMES,
   BOSS_IDS,
@@ -25,6 +26,8 @@ export {
   MAX_BOSS_INVULN_SECONDS,
   DEFAULT_WAVE_MONSTER_MAX,
   defaultBossOptions,
+  defaultBossFight,
+  bossFights,
   defaultFloorTimer,
   FINAL_LOCK_MODES,
   defaultFloorBuffs,
@@ -245,14 +248,6 @@ export interface DungeonError {
 const MAX_LEVEL_ATTEMPTS = 60
 
 /**
- * The generated boss arena's level id and path. Like `BOSSPREP_LEVEL_ID`,
- * a string — numeric floor ids `0..N-1` must not move, so this can never
- * collide with them.
- */
-const BOSS_LEVEL_ID = 'boss'
-const BOSS_LEVEL_PATH = 'levels/boss.xml'
-
-/**
  * Generate a complete campaign in memory: one XML file per level plus
  * info.xml and levels.xml, exactly the folder LevelPacker.exe expects
  * (ported from HammerwatchGen.main).
@@ -329,22 +324,42 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
       `<level id="${LOBBY_LEVEL_ID}" res="${LOBBY_LEVEL_PATH}" name="lvl.floor?floor=0" />\n` + levelString
   }
 
-  // The boss fight is a hand-authored prep room plus a generated arena,
+  // Each boss fight is a hand-authored prep room plus a generated arena,
   // appended after every numeric dungeon floor — same shape as the lobby
-  // above: emitted after the level loop, draws nothing from ctx.rand or
-  // ctx.cosmeticRand (the arena has its own ctx.bossRand stream), so the
+  // above: emitted after the level loop, drawing nothing from ctx.rand or
+  // ctx.cosmeticRand (the arenas have their own ctx.bossRand stream), so the
   // same seed produces the same dungeon whether the boss is on or off. It
-  // only appends two level entries; `start` is untouched.
-  const bossEnabled = params.boss?.enabled === true
-  if (bossEnabled) {
-    files.push({ path: BOSSPREP_LEVEL_PATH, content: buildBossPrep(params.boss.prep) })
-    const { xml, preview } = buildBossArena(ctx, params.boss.arena, params.levels)
-    files.push({ path: BOSS_LEVEL_PATH, content: xml })
+  // only appends level entries; `start` is untouched.
+  //
+  // The fights chain: fight i's prep room leads into fight i's arena, and that
+  // arena leads into fight i+1's PREP room, not straight into the next arena —
+  // the party shops between bosses. Only the last arena keeps the victory orb,
+  // so a campaign still has exactly one way to win.
+  //
+  // They share ctx.bossRand in list order, so fight 0 draws precisely what a
+  // single-fight campaign has always drawn and each extra fight continues the
+  // stream after it. Adding a second fight therefore cannot move the first.
+  const fights = bossFights(params.boss)
+  fights.forEach((fight, i) => {
+    const isLast = i === fights.length - 1
+    files.push({ path: bossPrepPath(i), content: buildBossPrep(fight.prep, bossArenaId(i)) })
+
+    const { xml, preview } = buildBossArena(
+      ctx,
+      fight.arena,
+      params.levels + i,
+      isLast ? null : bossPrepId(i + 1)
+    )
+    files.push({ path: bossArenaPath(i), content: xml })
     previews.push(preview)
+
+    // the floor labels keep counting on from the last dungeon floor, two per
+    // fight, so the in-game floor indicator never repeats a number
+    const prepFloor = params.levels + i * 2
     levelString +=
-      `<level id="${BOSSPREP_LEVEL_ID}" res="${BOSSPREP_LEVEL_PATH}" name="lvl.floor?floor=${params.levels}" />\n` +
-      `<level id="${BOSS_LEVEL_ID}" res="${BOSS_LEVEL_PATH}" name="lvl.floor?floor=${params.levels + 1}" />\n`
-  }
+      `<level id="${bossPrepId(i)}" res="${bossPrepPath(i)}" name="lvl.floor?floor=${prepFloor}" />\n` +
+      `<level id="${bossArenaId(i)}" res="${bossArenaPath(i)}" name="lvl.floor?floor=${prepFloor + 1}" />\n`
+  })
 
   files.push({
     path: 'info.xml',
@@ -358,7 +373,7 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
 
   // The lobby comes first when it is there, otherwise floor 0 — and with no
   // floors at all the campaign opens straight into the boss prep room.
-  const startLevel = lobbyEnabled ? LOBBY_LEVEL_ID : params.levels > 0 ? '0' : BOSSPREP_LEVEL_ID
+  const startLevel = lobbyEnabled ? LOBBY_LEVEL_ID : params.levels > 0 ? '0' : bossPrepId(0)
 
   files.push({
     path: 'levels.xml',

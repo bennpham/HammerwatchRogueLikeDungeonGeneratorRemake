@@ -664,11 +664,11 @@ describe('generateDungeon', () => {
       expect(levelsXml).toContain(`<level id="${i}" res="levels/level${i}.xml"`)
     }
     // and the boss's own two entries follow them, in order
-    expect(levelsXml).toContain('<level id="bossprep" res="levels/bossprep.xml"')
-    expect(levelsXml).toContain('<level id="boss" res="levels/boss.xml"')
+    expect(levelsXml).toContain('<level id="bossprep0" res="levels/bossprep0.xml"')
+    expect(levelsXml).toContain('<level id="boss0" res="levels/boss0.xml"')
     const lastFloorPath = `levels/level${defaultParameters().levels - 1}.xml`
-    expect(levelsXml.indexOf(lastFloorPath)).toBeLessThan(levelsXml.indexOf('levels/bossprep.xml'))
-    expect(levelsXml.indexOf('levels/bossprep.xml')).toBeLessThan(levelsXml.indexOf('levels/boss.xml'))
+    expect(levelsXml.indexOf(lastFloorPath)).toBeLessThan(levelsXml.indexOf('levels/bossprep0.xml'))
+    expect(levelsXml.indexOf('levels/bossprep0.xml')).toBeLessThan(levelsXml.indexOf('levels/boss0.xml'))
   })
 
   it('respects the level count parameter', () => {

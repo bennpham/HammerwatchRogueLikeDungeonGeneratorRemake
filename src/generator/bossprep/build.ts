@@ -8,7 +8,7 @@ import {
   BOSSPREP_TEMPLATE_IDS
 } from './template'
 import { LOBBY_VENDORS, categoriesFor } from '../lobby/shops'
-import type { BossOptions } from '../config/parameters'
+import type { BossPrepOptions } from '../config/parameters'
 import {
   DIAMOND_VALUE,
   diamondArray,
@@ -30,14 +30,6 @@ export { diamondCount }
 /** The prep room's own name for the shared per-diamond value (see DIAMOND_VALUE). */
 export const BOSSPREP_DIAMOND_VALUE = DIAMOND_VALUE
 
-/**
- * The level id the prep room's exit teleports to.
- *
- * The boss arena ships as level id `"boss"` for the same reason the lobby's
- * exit targets `"0"` and not a moved dungeon id: numeric floor ids `0..N-1`
- * must not move, and `"boss"` cannot collide with them.
- */
-export const BOSSPREP_EXIT_TARGET = 'boss'
 
 /**
  * The first of the four ids the respawn rig allocates.
@@ -56,8 +48,12 @@ export const BOSSPREP_RESPAWN_ID_BASE = 9000
  * theme substitution, no round trip through src/generator/xml/. The only
  * differences from the lobby are which template it edits and what the exit
  * points at.
+ *
+ * `exitTarget` is the level id of the arena this prep room feeds — a campaign
+ * with several boss fights builds one prep room per fight, so the target
+ * cannot be a constant here. See src/generator/campaign.ts for the ids.
  */
-export function buildBossPrep(options: BossOptions['prep']): string {
+export function buildBossPrep(options: BossPrepOptions, exitTarget: string): string {
   let xml = BOSSPREP_TEMPLATE
 
   for (const vendor of LOBBY_VENDORS) {
@@ -92,7 +88,7 @@ export function buildBossPrep(options: BossOptions['prep']): string {
     xml,
     BOSSPREP_EXIT_NODE_ID,
     /<string name="level">[^<]*<\/string>/,
-    `<string name="level">${BOSSPREP_EXIT_TARGET}</string>`,
+    `<string name="level">${exitTarget}</string>`,
     'bossprep'
   )
 

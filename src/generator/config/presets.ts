@@ -32,12 +32,17 @@ export interface CampaignPreset {
 /**
  * `defaultParameters()` with the boss arena re-pointed at a preset's own theme
  * and boss line-up. Spread by hand rather than mutated, because `build()` must
- * hand back a fresh object every call and `boss.arena` is two levels deep — a
- * shallow `{...base, boss}` would otherwise share the arena between callers.
+ * hand back a fresh object every call and the arena is now three levels deep
+ * (`boss` -> `fights` -> `fights[0]` -> `arena`) — a shallow `{...base, boss}`
+ * would otherwise share the fight, and its arena, between callers.
+ *
+ * A preset ships a single fight. The count is a campaign-shaping choice rather
+ * than a flavour one, so it is left to the dungeon master.
  */
 function withBoss(theme: string, bossPool: string[], waves: BossWave[]): DungeonParameters['boss'] {
   const boss = defaultParameters().boss
-  return { ...boss, arena: { ...boss.arena, theme, bossPool, waves } }
+  const fight = boss.fights[0]
+  return { ...boss, fights: [{ ...fight, arena: { ...fight.arena, theme, bossPool, waves } }] }
 }
 
 /**

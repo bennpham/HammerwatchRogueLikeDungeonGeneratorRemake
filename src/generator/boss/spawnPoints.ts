@@ -65,7 +65,7 @@ export interface SpawnRequest {
    * batchSize)`. Above the batch budget a monster no longer gets a point each:
    * it gets `points` of them, and `waves.ts` splits `count` over them on a timer
    * so the group trickles in instead of landing on one frame. See
-   * `BossOptions['arena']['spawn']['batchSize']`.
+   * `BossArenaOptions['spawn']['batchSize']`.
    */
   points: number
 }
