@@ -8,6 +8,140 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-27 — exact heal/mana/upgrade amounts, and health_4 heals less than health_3
+**Tag:** **[VERIFIED]** — read directly from the owner's local
+`editor/assetsExtract/items/*.xml`, the game's own shipped asset files.
+**Context:** Wiring pickup dropdown tooltips to real numbers instead of size
+adjectives.
+
+1. **Exact amounts**, from each item's `<entry name="hp">` / `<entry
+   name="mana">` / `<array name="upgrades">`:
+
+   | item | amount |
+   | --- | --- |
+   | `health_1` | 10 HP |
+   | `health_2` | 25 HP |
+   | `health_3` | 75 HP |
+   | `health_4` | 50 HP |
+   | `powerup_health` | 250 HP (already recorded below) |
+   | `mana_1` | 15 MP |
+   | `mana_2` | 50 MP |
+   | `upgrade_damage` | +5% damage (`dmg-mul` 0.05) |
+   | `upgrade_damage_2` | +10% damage (`dmg-mul` 0.1) |
+   | `upgrade_defense` | +1 armor (`dmg-reduction` 1) |
+   | `upgrade_defense_2` | +2 armor (`dmg-reduction` 2) |
+   | `upgrade_health` | +5 max HP |
+   | `upgrade_health_2` | +10 max HP |
+   | `upgrade_mana` | +10 max MP |
+   | `upgrade_mana_2` | +20 max MP |
+
+2. **`health_4` heals *less* than `health_3` (50 HP vs 75 HP), despite the
+   dropdown label order Small/Medium/Large/XLarge below.** The label ladder
+   documented in the 2026-08-28 `powerup_health` entry ("Small → Medium →
+   Large → XLarge → Huge") describes dropdown position, not heal size — it was
+   written before anyone had read the actual `hp` values. `pickupTypes.ts`'s
+   description strings now say the real amount and call this out; the labels
+   themselves are left alone since renaming them is a bigger, separate change.
+   The three potions and the two life pickups carry no numeric payload in
+   their XML (potions are a `type` string the engine interprets; lives are a
+   `num` of lives, already documented) so their descriptions stay qualitative.
+
+### 2026-08-28 — items as boss-tier drops, and two health sizes we have not seen load
+**Tag:** **[VERIFIED]** throughout. The emission shape and the paths under (1)
+came from the editor-resaved file; `items/health_2.xml` and `items/health_3.xml`
+were confirmed in game by the owner later the same day (see item 3).
+**Context:** Building Wave pickups (`src/generator/boss/wavePickups.ts`), which
+drops items at each boss health threshold. The
+project owner supplied a boss level resaved by the game's own editor
+(`boss_test_perks.xml`) with a spread of item spawns hand-placed in it.
+
+1. **An item spawns through the same `SpawnObject` node an actor does** — the
+   node's `parameters` is simply an `items/…xml` path instead of an
+   `actors/…xml` one. The editor wrote these itself, so both the node shape and
+   every path below are **[VERIFIED]**:
+
+   | | path |
+   | --- | --- |
+   | health / mana | `items/health_4.xml`, `items/mana_2.xml` |
+   | potions | `items/powerup_potion1.xml` (invincibility), `items/powerup_potion2.xml` (rejuvenation), `items/powerup_potion3.xml` (damage) |
+   | upgrades | all eight, as already recorded above |
+
+   The three potions' effects are the owner's, from play. `powerup_potion2` is
+   what the stock 25% tier drops.
+
+2. **A count is copies, not `trigger-times`.** A `SpawnObject` spawns one actor
+   per incoming trigger, and a tier trigger fires once, so `trigger-times: 4` on
+   a single node drops one item and banks three. Four copies means four nodes —
+   which is also how the owner described building it ("just stack them on top of
+   each other"). `trigger-times: 1` still matters on the 100% tier, whose
+   AreaTrigger re-fires every time a player walks back over the entrance.
+
+3. **`items/health_2.xml` and `items/health_3.xml` load — [VERIFIED].** They
+   started as `[UNVERIFIED]` names from the owner's asset extract, appearing in
+   no file the editor or the game had been seen to write. The owner confirmed
+   both in game on 2026-08-28, so they are promoted here and into
+   `ASSET-REGISTRY.md`, and their dropdown tooltips no longer disclaim them.
+   There is still no `mana_3` — the owner checked the extract; mana has two
+   sizes only.
+
+### 2026-08-28 — the extra-life pickups
+**Tag:** **[VERIFIED]** for both paths.
+**Context:** The owner added one more `SpawnObject` to `boss_test_perks.xml` and
+asked for both life pickups in the Wave pickups roster.
+
+1. **`items/powerup_1up.xml` grants an extra life** and is **[VERIFIED]**: it is
+   hand-placed in a level the game's own editor then resaved, so the path loads.
+
+2. **`items/powerup_7up.xml` grants seven lives** and is **[VERIFIED]** — the
+   owner confirmed it in game. It was recorded `[UNVERIFIED]` for a few hours
+   first, on the rule that a path nobody has watched load gets a label that says
+   so; that rule stands, this one just cleared it.
+
+3. **Neither is in any stock drop table, deliberately.** An extra life is a large
+   swing in the campaign's final fight, so both are opt-in — present in the
+   dropdown, dropping nothing until somebody adds a row. `tests/
+   bossWavePickups.test.ts` pins that across all three presets.
+
+They share the drop pad's potion lane rather than getting a lane of their own:
+the bottom row by the door is the consumables row, and lives belong in it. Their
+dropdown group ("Lives") is separate, which is exactly the split `PickupDef`'s
+`group` vs `lane` fields exist for.
+
+### 2026-08-28 — `powerup_health` is a 250 HP heal, and drops belong by the door
+**Tag:** **[VERIFIED]** in game — the owner ran a generated arena and read both
+findings off the floor.
+**Context:** First playtest of Wave pickups. Two things came back wrong.
+
+1. **`items/powerup_health.xml` is a flat 250 HP heal, not a potion.** It sits
+   in `objects/item.ts`'s `POWERUPS` pool next to the three timed potions and
+   the chests, which is the only reason it was ever grouped with them — nothing
+   had named it deliberately, so nobody had watched one get picked up. It is the
+   single biggest heal the game ships, bigger than `items/health_4.xml`.
+
+   The roster's health labels now run **Small → Medium → Large → XLarge → Huge**
+   over `health_1, health_2, health_3, health_4, powerup_health`, and
+   `powerup_health` is what the stock 50% and boss-death tiers resupply with.
+   The previous label — "Full heal", in the Potions group — was invented from
+   the filename and asserted an effect nobody had checked. Don't do that again:
+   an unconfirmed item goes in `[UNVERIFIED]` with a label that says so.
+
+2. **Dealing drops onto the 9 spawn anchors was the wrong placement.** The
+   anchors exist to make a horde *surround* the party: deliberately far apart,
+   hugging the walls. Used for loot on a 58x54 arena that put the 50% heal and
+   the 25% rejuvenation potion on the north wall midpoint, ~47 tiles from the
+   door and behind the wave that had just spawned on the same tile. Neither was
+   ever found; of the six mana copies only the two nearest the entrance and the
+   exit were collected.
+
+   Drops now go to a fixed pad just inside the entrance
+   (`src/generator/boss/pickupPad.ts`), sorted into lanes by item kind — the
+   arrangement the owner laid out by hand in the game's editor. **Cover pillars
+   do land on that pad**: seed 777 puts a `g_special_pillar` squarely in the
+   mana lane. `cover.ts`'s `ANCHOR_PILLAR_CLEARANCE` only protects the anchors,
+   and adding a pad exclusion would shift `ctx.bossRand` and move every existing
+   arena's pillars, so the pad routes around pillars instead — each lane is two
+   columns wide and reads the reachability mask to skip a buried slot.
+
 ### 2026-08-28 — an arena can be too big: a scattered wave that never re-forms
 **Tag:** **[VERIFIED]** in game (same 4-player group, on the 2026-08-27 build)
 for the arena-size and cover findings; **[EMITTED]** for the boss-death

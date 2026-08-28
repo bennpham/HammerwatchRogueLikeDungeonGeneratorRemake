@@ -15,6 +15,7 @@ import {
   MONSTER_VARIANT_GROUPS,
   THEME_DEFS,
   buffById,
+  pickupById,
   corpseCollision,
   defaultTier,
   diamondCount,
@@ -25,6 +26,7 @@ import {
   monsterVariantsInGroup,
   resolveActorPath,
   waveBuffs,
+  wavePickups,
   waveSpawnMode
 } from '../../generator'
 import type {
@@ -40,6 +42,7 @@ import type {
 import { BoolField, NumberField, Section, Subsection, ToggleGroup } from './fields'
 import { UpgradeCountFields } from './UpgradeCountFields'
 import { BuffListEditor } from './BuffListEditor'
+import { PickupListEditor } from './PickupListEditor'
 import { InfoTip } from './InfoTip'
 import { MonsterFilterBar, useMonsterFilter } from './MonsterFilterBar'
 import { PoolGroup } from './PoolGroup'
@@ -265,6 +268,16 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
     })
   }
 
+  /** Gives every later tier this tier's drops. Twin of copyWaveBuffDown. */
+  const copyWavePickupDown = (index: number) => {
+    const source = wavePickups(arena.waves[index])
+    setArena({
+      waves: arena.waves.map((wave, i) =>
+        i > index ? { ...wave, pickups: source.map((d) => ({ ...d })) } : wave
+      )
+    })
+  }
+
   const toggleBoss = (id: string, on: boolean) => {
     const next = new Set(arena.bossPool)
     if (on) next.add(id)
@@ -481,6 +494,54 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
                   className="copy-down"
                   onClick={() => copyWaveBuffDown(i)}
                   title="Give every later tier these same buffs and targets"
+                >
+                  Copy to tiers below
+                </button>
+              )}
+            </Subsection>
+          )
+        })}
+      </Section>
+
+      <Section
+        title="Wave pickups"
+        badge={arena.waves.some((w) => wavePickups(w).length > 0) ? 'on' : undefined}
+      >
+        <p className="hint">
+          A tier's drops appear on the <strong>drop pad</strong> just inside the arena entrance the
+          moment its threshold fires, and stay on the floor until somebody walks over them — so
+          unlike the buffs above, the tiers do <strong>not</strong> replace one another, and the
+          health nobody collected at 50% is still there at 25%. The pad is laid out the same way on
+          every seed — health up the left, mana up the right, upgrades in the middle, potions and
+          extra lives in the row by the door — so the party can learn it once and run back to it. By default the fight
+          resupplies at 50%, hands out one rejuvenation potion at 25%, and doubles the resupply for
+          the walk to the orb.
+        </p>
+        {arena.waves.map((wave, i) => {
+          const pickups = wavePickups(wave)
+          return (
+            <Subsection
+              key={i}
+              title={WAVE_LABELS[i] ?? `Tier ${i + 1}`}
+              badge={
+                pickups.length === 0
+                  ? 'none'
+                  : pickups.map((d) => `${d.count}× ${pickupById(d.item)?.label ?? d.item}`).join(', ')
+              }
+            >
+              <PickupListEditor
+                value={pickups}
+                onChange={(next) => setWave(i, { pickups: next })}
+                noun="tier"
+                issuePrefix={`boss.arena.waves.${i}.pickups`}
+                issues={issues}
+              />
+              {i < arena.waves.length - 1 && (
+                <button
+                  type="button"
+                  className="copy-down"
+                  onClick={() => copyWavePickupDown(i)}
+                  title="Give every later tier these same drops and counts"
                 >
                   Copy to tiers below
                 </button>

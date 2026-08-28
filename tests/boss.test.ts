@@ -1377,14 +1377,15 @@ describe('boss arena — the boss-death wave tier', () => {
     return xml.split('<string name="parameters">Boss Died</string>').length - 1
   }
 
-  it('a stock arena carries three Boss Died triggers — the win chain, the death tier and its buff', () => {
-    // The death tier ships populated AND bloodlusted, so it has two triggers of
-    // its own alongside the win chain's: one switching its spawns on, one
-    // switching its buff field on. The two rigs are built independently
-    // (waves.ts and waveBuffs.ts) and neither shares the other's nodes.
+  it('a stock arena carries four Boss Died triggers — the win chain, the death tier, its buff and its drops', () => {
+    // The death tier ships populated, bloodlusted AND carrying the stock drop
+    // table, so it has three triggers of its own alongside the win chain's: one
+    // switching its spawns on, one switching its buff field on, one spawning its
+    // items. The three rigs are built independently (waves.ts, waveBuffs.ts and
+    // wavePickups.ts) and none shares another's nodes.
     for (const seed of [1, 4242, 999999]) {
       const { xml } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
-      expect(bossDiedTriggers(xml)).toBe(3)
+      expect(bossDiedTriggers(xml)).toBe(4)
     }
   })
 
@@ -1503,14 +1504,16 @@ describe('boss arena — invulnerability windows', () => {
 
   it('gives each threshold trigger real connection delays that end on the window', () => {
     const { xml } = buildBossArena(freshCtx(4242), arenaOptions(), 0)
+    // The wave tier and this rig listen on every threshold; the drop rig listens
+    // only on the thresholds the stock table actually drops on (50% and 25%).
+    const expected: Record<string, number> = { 'Boss 75%': 2, 'Boss 50%': 3, 'Boss 25%': 3 }
     for (const event of ['Boss 75%', 'Boss 50%', 'Boss 25%']) {
-      // Two triggers listen on each threshold — the wave tier's and this rig's.
-      // Only one carries real delays; the wave rig still ships the legacy
-      // `delays` line and no `connection-delays` at all.
+      // Only one of them carries real delays; the wave and drop rigs ship the
+      // legacy `delays` line and no `connection-delays` at all.
       const triggers = nodesOfType(xml, 'GlobalEventTrigger').filter((n) =>
         n.body.includes(`<string name="parameters">${event}</string>`)
       )
-      expect(triggers, event).toHaveLength(2)
+      expect(triggers, event).toHaveLength(expected[event])
       const delayed = triggers.filter((n) => n.body.includes('connection-delays'))
       expect(delayed, event).toHaveLength(1)
 

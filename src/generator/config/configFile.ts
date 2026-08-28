@@ -12,13 +12,22 @@ import {
   defaultFloorTimer,
   defaultParameters,
   isScatterMode,
-  waveBuffs
+  waveBuffs,
+  wavePickups
 } from './parameters'
 import { UPGRADE_KINDS, noUpgrades } from '../levelTemplate/surgery'
 import type { UpgradeCounts } from '../levelTemplate/surgery'
-import type { BossFloorPattern, BossOptions, BossSpawnMode, BuffTarget, FloorBuff } from './parameters'
+import type {
+  BossFloorPattern,
+  BossOptions,
+  BossSpawnMode,
+  BuffTarget,
+  FloorBuff,
+  WavePickup
+} from './parameters'
 import { MONSTER_TYPES } from '../objects/monsterTypes'
 import { buffById } from '../objects/buffTypes'
+import { pickupById } from '../objects/pickupTypes'
 import { isLobbyCategory } from '../lobby/shops'
 import { TWEAK_FIELD_MAP, pruneTweaks } from '../tweak/overrides'
 
@@ -131,6 +140,13 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   /** whether the file carried any `bossWaveN=` line, and whether one was the death tier */
   let sawAnyWave = false
   let sawDeathWave = false
+  // Which tiers a `bossWaveN` line described, and which of those also carried a
+  // `bossWavePickupN` line. A tier in the first set but not the second was
+  // described by a file that gave it no drops, so the stock drop table the
+  // defaults supplied has to go — see the post-pass below. Two sets rather than
+  // clearing inline, so the two keys may appear in either order.
+  const sawWaveLine = new Set<number>()
+  const sawPickupLine = new Set<number>()
 
   const intKeys: Record<string, (v: number) => void> = {
     levels: (v) => (params.levels = v),
@@ -368,6 +384,45 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       }
       continue
     }
+    // bossWavePickupN=<item>:<count>|<item>:<count> — one line per tier that
+    // drops items, written only for those tiers. Absent means the tier drops
+    // none, so a file written before pickups existed parses exactly as it
+    // always did. Must be tested BEFORE the bossWaveN branch, for the same
+    // anchored-pattern reason as bossWaveBuffN below.
+    const wavePickupMatch = keyLower.match(/^bosswavepickup(\d)$/)
+    if (wavePickupMatch) {
+      const idx = parseInt(wavePickupMatch[1], 10) - 1
+      if (idx < 0 || idx >= BOSS_WAVE_COUNT) {
+        result.unknownKeys.push(key)
+        continue
+      }
+      const entries: WavePickup[] = []
+
+      for (const segment of value.split('|')) {
+        const trimmed = segment.trim()
+        if (trimmed === '') continue
+        const colon = trimmed.indexOf(':')
+        const id = (colon === -1 ? trimmed : trimmed.slice(0, colon)).trim()
+        // A bare item with no count is one copy — the friendliest reading of a
+        // hand-written line, and never fatal (invariant #5).
+        const countText = colon === -1 ? '1' : trimmed.slice(colon + 1).trim()
+
+        if (pickupById(id) === undefined) {
+          result.unknownKeys.push(`${key} item "${id}"`)
+          continue
+        }
+        const count = parseInt(countText, 10)
+        if (Number.isNaN(count)) {
+          result.unknownKeys.push(`${key} count "${countText}"`)
+          continue
+        }
+        entries.push({ item: id, count })
+      }
+
+      params.boss.arena.waves[idx].pickups = entries
+      sawPickupLine.add(idx)
+      continue
+    }
     // bossWaveBuffN=<id>:<target>|<id>:<target> — one line per tier carrying
     // arena buffs, written only for those tiers, in the same form as the
     // per-floor `buffN` key above. A file written when a tier could only hold
@@ -424,6 +479,7 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       // only; the fifth tier is simply never visited and keeps the empty pool
       // the defaults gave it, which is exactly what that file described.
       sawAnyWave = true
+      sawWaveLine.add(idx)
       if (idx === BOSS_DEATH_WAVE) sawDeathWave = true
       const parts = value.split('|')
       const monsters = (parts[0] ?? '').split(',').map((s) => s.trim()).filter((s) => s !== '')
@@ -633,6 +689,15 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     timers.length = params.levels
   }
 
+  // A tier the file described but gave no `bossWavePickupN` drops nothing. The
+  // `bossWaveN` branch cannot do this inline the way it clears intervalMs and
+  // spawnMode, because the two keys are independent lines and a hand-written
+  // file may order them either way. Without this, importing any file written
+  // before pickups existed would silently hand every tier the stock drop table.
+  for (const idx of sawWaveLine) {
+    if (!sawPickupLine.has(idx)) delete params.boss.arena.waves[idx].pickups
+  }
+
   // A file written before the boss-death tier existed carries bossWave1..4 and
   // nothing else. It described a fight that stops when the boss dies, so the
   // stock death tier the defaults supplied is dropped rather than inherited —
@@ -812,6 +877,13 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
     const buffs = waveBuffs(wave)
     if (buffs.length > 0) {
       lines.push(`bossWaveBuff${i + 1}=${buffs.map((b) => `${b.buff}:${b.target}`).join('|')}`)
+    }
+    // Same story again: its own key, written only for tiers that drop
+    // something, so an export from before pickups existed round-trips byte for
+    // byte.
+    const pickups = wavePickups(wave)
+    if (pickups.length > 0) {
+      lines.push(`bossWavePickup${i + 1}=${pickups.map((d) => `${d.item}:${d.count}`).join('|')}`)
     }
   }
 

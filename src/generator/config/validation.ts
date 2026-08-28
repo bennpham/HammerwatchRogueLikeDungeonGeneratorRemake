@@ -19,7 +19,8 @@ import {
   THEMES,
   isScatterMode,
   waveSpawnMode,
-  waveBuffs
+  waveBuffs,
+  wavePickups
 } from './parameters'
 import { getTheme } from './themes'
 import {
@@ -32,6 +33,7 @@ import {
 } from '../objects/monsterTypes'
 import { corpseCollision } from '../objects/actorCollision'
 import { BUFF_HELPFUL_IDS, buffById } from '../objects/buffTypes'
+import { MAX_PICKUP_COUNT, pickupById } from '../objects/pickupTypes'
 import { LOBBY_DIAMOND_VALUE } from '../lobby/build'
 import { ALL_LOBBY_CATEGORIES, isLobbyCategory, lobbyCategoryCounts, vendorOfCategory } from '../lobby/shops'
 import { DIAMOND_VALUE, MAX_DIAMOND_COUNT, UPGRADE_KINDS } from '../levelTemplate/surgery'
@@ -560,6 +562,26 @@ function validateBoss(
       }
     })
 
+    // The tier's item drops. An empty list means none, which is what a tier
+    // that has never been touched carries and is never invalid.
+    wavePickups(wave).forEach((entry, j) => {
+      if (pickupById(entry.item) === undefined) {
+        errors.push({
+          field: `boss.arena.waves.${i}.pickups.${j}.item`,
+          message: `"${entry.item}" is not an item the game ships.`
+        })
+      }
+      // Every copy is its own SpawnObject node, so the count is a node count —
+      // see boss/wavePickups.ts. Bounded for the same reason every retry loop
+      // in the port is.
+      if (!Number.isInteger(entry.count) || entry.count < 1 || entry.count > MAX_PICKUP_COUNT) {
+        errors.push({
+          field: `boss.arena.waves.${i}.pickups.${j}.count`,
+          message: `Wave ${i + 1} drops ${entry.count} × "${entry.item}" — the count must be a whole number 1..${MAX_PICKUP_COUNT}.`
+        })
+      }
+    })
+
     // Spawn modes. A key for a monster that is no longer in the pool is
     // ignored rather than reported — the parser and the form both rebuild the
     // record from the pool, so a stale key is housekeeping, not user error.
@@ -778,6 +800,22 @@ function validateBoss(
       // the feature — the stock boss-death tier does exactly that (see
       // bossDeathBuffs()), and warning about it would put a message on every
       // stock run, which is the same trap the empty-tier rule above avoids.
+    })
+
+    const seenTierPickups = new Set<string>()
+    wavePickups(wave).forEach((entry, j) => {
+      if (pickupById(entry.item) === undefined) return
+
+      // Two rows of the same item work — they just take adjacent pad slots —
+      // but a single row with the counts added is what the author meant, and
+      // one row is what the form can then edit in one place.
+      if (seenTierPickups.has(entry.item)) {
+        warnings.push({
+          field: `boss.arena.waves.${i}.pickups.${j}.item`,
+          message: `Wave ${i + 1} already drops "${entry.item}" — fold the two rows into one count.`
+        })
+      }
+      seenTierPickups.add(entry.item)
     })
 
     for (const id of wave.monsters) {

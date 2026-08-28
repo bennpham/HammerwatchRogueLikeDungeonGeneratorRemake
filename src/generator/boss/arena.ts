@@ -74,6 +74,7 @@ import type { CoverArena, Rect } from './cover'
 import { buildWaveRig, scatterRequests } from './waves'
 import { buildInvulnerabilityRig } from './invulnerability'
 import { buildWaveBuffRig } from './waveBuffs'
+import { buildWavePickupRig } from './wavePickups'
 import { placeSpawnPoints } from './spawnPoints'
 
 /**
@@ -411,6 +412,22 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   // them, for the same reason — turning them on only ever APPENDS nodes, so no
   // existing arena seed moves. Draws no random values. ---
   buildWaveBuffRig(ctx, arena.waves, width, height, entranceShape.x, entranceShape.y)
+
+  // --- per-tier item drops: last of the three optional rigs, for the same
+  // append-only reason. Draws no random values — it only READS `walkable`, so
+  // cover placement and every ctx.bossRand draw stay exactly where they were. ---
+  buildWavePickupRig(
+    ctx,
+    arena.waves,
+    {
+      width,
+      height,
+      entranceCx: entranceRect.x + Math.trunc(entranceRect.width / 2),
+      entranceTop: entranceRect.y,
+      walkable
+    },
+    entranceShape
+  )
 
   // --- win chain: Boss Died -> DestroyObject(seals) -> the wall opens ->
   // the existing Orb prefab's own ObjectEventTrigger -> GameEnd fires when the

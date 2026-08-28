@@ -324,15 +324,34 @@ Keys and doors are index-matched: bronze/silver/gold at 0/1/2, and doors 0–2
 are horizontal while 3–5 are the vertical variants of the same three tiers.
 `ctx.lastLockType` carries the tier from the door to its key.
 
+### Health and life pickups beyond `Food` `[VERIFIED 2026-08-28]`
+
+Not in `item.ts`'s categories — individually addressable, used by the boss
+arena's Wave pickups (`src/generator/objects/pickupTypes.ts`):
+
+| Path | What it is |
+| --- | --- |
+| `items/health_1.xml` | heals **10 HP** `[VERIFIED 2026-08-27]` |
+| `items/health_2.xml` | heals **25 HP** `[VERIFIED 2026-08-27]` |
+| `items/health_3.xml` | heals **75 HP** `[VERIFIED 2026-08-27]` |
+| `items/health_4.xml` | heals **50 HP** `[VERIFIED 2026-08-27]` — less than `health_3`, despite the numbering; see the 2026-08-27 discovery-log entry |
+| `items/powerup_health.xml` | a flat **250 HP** heal — the biggest in the game, and listed under `Powerup` above only because that is the pool `item.ts` happens to keep it in. It is not a timed potion. |
+| `items/powerup_1up.xml` | one extra life |
+| `items/powerup_7up.xml` | seven extra lives |
+
+`items/mana_1.xml` restores **15 MP**, `items/mana_2.xml` restores **50 MP**
+`[VERIFIED 2026-08-27]`; there is no `mana_3`.
+Neither life pickup is in any stock drop table — both are opt-in.
+
 ### Free upgrade pickups `[VERIFIED 2026-08-25]`
 
 Not in `item.ts` — used by the lobby and the boss prep room templates only.
 Eight stock items, the shop upgrades handed out on the floor instead of sold:
 
-| Tier | Paths |
-| --- | --- |
-| 1 | `items/upgrade_damage.xml`, `items/upgrade_defense.xml`, `items/upgrade_health.xml`, `items/upgrade_mana.xml` |
-| 2 | `items/upgrade_damage_2.xml`, `items/upgrade_defense_2.xml`, `items/upgrade_health_2.xml`, `items/upgrade_mana_2.xml` |
+| Tier | Paths | Amounts `[VERIFIED 2026-08-27]` |
+| --- | --- | --- |
+| 1 | `items/upgrade_damage.xml`, `items/upgrade_defense.xml`, `items/upgrade_health.xml`, `items/upgrade_mana.xml` | +5% damage, +1 armor, +5 max HP, +10 max MP |
+| 2 | `items/upgrade_damage_2.xml`, `items/upgrade_defense_2.xml`, `items/upgrade_health_2.xml`, `items/upgrade_mana_2.xml` | +10% damage, +2 armor, +10 max HP, +20 max MP |
 
 The `_2` suffix is the game's own tier marker, not a copy count. Read off levels
 saved by the game's own editor; `UPGRADE_KINDS` and `upgradeItemPath` in

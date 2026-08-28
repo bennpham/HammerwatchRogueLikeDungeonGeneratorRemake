@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Wave pickups — item drops per boss health tier.** A new Boss-tab section under Wave buffs: each of the five tiers (100/75/50/25% and after the boss dies) can drop any mix of health, mana, potions and free upgrades, with a count per row. The copies appear the moment the threshold fires and stay on the floor — unlike the buffs, the tiers do **not** replace one another. They land on a **drop pad** just inside the arena entrance, laid out the same way on every seed (health up the left, mana up the right, the eight upgrades in the middle, potions in the row by the door) so the party can learn it once and run back to it mid-fight. Stock table (all three presets): 1× Health (Huge) + 2× Mana (Large) at 50%, one rejuvenation potion at 25%, and double the resupply once the boss is down. `parameters.txt`: `bossWavePickupN=<item>:<count>|…`, on its own key so files written before the feature still round-trip byte for byte — and a tier the file describes without a pickup line drops nothing rather than inheriting the stock table. This ships **on**, so a stock arena differs from one generated before it; dungeon floors are untouched, as always. Extra lives (`powerup_1up`, `powerup_7up`) are in the roster too but in no stock table — an extra life in the final fight is opt-in.
+
 ### Changed
 
 - **Boss arena rebalanced from two 4-player playtests.** Arena is now 42–64 on both axes (was 24–32 × 32–44): too small and the horde stacks on itself, too big and a scattered wave arrives dispersed, never re-forms, and gets picked off. Cover defaults to `symmetric` at 0.08 density. Castle's wave counts are cut ~60% (152/137/117/38/21 per tier) — the 100% tier used to ask for 480 monsters and roughly 1140 were alive by the 50% threshold. Desert and Bonus keep their tables. `parameters.txt`: `bossWidth`, `bossHeight`, `bossCover`.

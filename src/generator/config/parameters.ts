@@ -432,6 +432,29 @@ export interface BossWave {
   buff?: string
   /** Legacy target for `buff`. Defaults to `players`. */
   buffTarget?: BuffTarget
+  /**
+   * The items this tier drops when its health threshold fires, spread over the
+   * arena's nine spawn anchors. Optional for the same reason as `buffs`: every
+   * wave literal written before the feature keeps compiling, and an absent list
+   * everywhere leaves the arena byte-identical.
+   *
+   * Independent of both the tier's monsters and its buffs. Unlike buffs, a
+   * tier's pickups do NOT clear the previous tier's — items already on the
+   * floor stay there. See boss/wavePickups.ts.
+   */
+  pickups?: WavePickup[]
+}
+
+/**
+ * One row of a tier's drop list: an item from PICKUP_DEFS and how many copies
+ * of it land. Each copy becomes its own SpawnObject node — see
+ * boss/wavePickups.ts for why the count cannot live in `trigger-times`.
+ */
+export interface WavePickup {
+  /** a pickup id from PICKUP_DEFS (objects/pickupTypes.ts) */
+  item: string
+  /** how many copies drop; at least 1, at most MAX_PICKUP_COUNT */
+  count: number
 }
 
 /**
@@ -444,6 +467,11 @@ export function waveBuffs(wave: BossWave): FloorBuff[] {
     return [{ buff: wave.buff, target: wave.buffTarget ?? 'players' }]
   }
   return []
+}
+
+/** The items `wave` drops. An empty array means the tier drops none. */
+export function wavePickups(wave: BossWave): WavePickup[] {
+  return wave.pickups ?? []
 }
 
 /** The spawn mode `wave` uses for `id` — the stored one, or `anchors`. */
@@ -630,7 +658,8 @@ export function scatterWave(
   scattered: readonly WaveEntry[],
   timed: readonly WaveEntry[],
   defaultIntervalMs: number,
-  buffs: readonly FloorBuff[] = []
+  buffs: readonly FloorBuff[] = [],
+  pickups: readonly WavePickup[] = []
 ): BossWave {
   const all = [...scattered, ...timed]
   const wave: BossWave = {
@@ -643,6 +672,11 @@ export function scatterWave(
   }
   if (buffs.length > 0) {
     wave.buffs = buffs.map((entry) => ({ ...entry }))
+  }
+  // Left off the object entirely when empty, for the same round-trip reason as
+  // `buffs` above.
+  if (pickups.length > 0) {
+    wave.pickups = pickups.map((entry) => ({ ...entry }))
   }
   return wave
 }
@@ -658,6 +692,33 @@ export function scatterWave(
  */
 export function bossDeathBuffs(): FloorBuff[] {
   return [{ buff: 'bloodlust', target: 'monsters' }]
+}
+
+/**
+ * The stock drop table: a resupply at 50%, one rejuvenation potion at 25%, and
+ * a double resupply once the boss is down.
+ *
+ * The shape is deliberately back-loaded. The fight only becomes an attrition
+ * problem in its second half, so dropping at 100% or 75% would just be free
+ * health the party picks up at full bars. 25% is one potion rather than a
+ * resupply because that is the phase where all four tiers are spawning at once
+ * (waves.ts's header) and standing still to collect is the expensive move —
+ * rejuvenation is the one drop worth the detour. The death tier doubles the
+ * 50% table because the horde keeps coming after the kill and the walk to the
+ * orb is fought on whatever the party has left.
+ */
+export function stockWavePickups(): { half: WavePickup[]; quarter: WavePickup[]; death: WavePickup[] } {
+  return {
+    half: [
+      { item: 'powerup_health', count: 1 },
+      { item: 'mana_2', count: 2 }
+    ],
+    quarter: [{ item: 'potion_2', count: 1 }],
+    death: [
+      { item: 'powerup_health', count: 2 },
+      { item: 'mana_2', count: 4 }
+    ]
+  }
 }
 
 /**
@@ -679,6 +740,7 @@ export function bossDeathBuffs(): FloorBuff[] {
  * quantity. Totals now: 152 / 137 / 117 / 38 / 21.
  */
 function castleWaves(): BossWave[] {
+  const drops = stockWavePickups()
   return [
     scatterWave(
       [
@@ -727,7 +789,9 @@ function castleWaves(): BossWave[] {
         ['mb_eye', 1]
       ],
       [],
-      2000
+      2000,
+      [],
+      drops.half
     ),
     scatterWave(
       [
@@ -742,7 +806,9 @@ function castleWaves(): BossWave[] {
         ['skeleton2#0', 4]
       ],
       [['tower_nova1', 3]],
-      1000
+      1000,
+      [],
+      drops.quarter
     ),
     // boss death — the arena keeps fighting after the kill, see BOSS_DEATH_WAVE.
     // tower_static_frost is anchored because its wreck blocks, and the horde
@@ -757,7 +823,8 @@ function castleWaves(): BossWave[] {
       ],
       [['tower_static_frost', 3]],
       1000,
-      bossDeathBuffs()
+      bossDeathBuffs(),
+      drops.death
     )
   ]
 }
