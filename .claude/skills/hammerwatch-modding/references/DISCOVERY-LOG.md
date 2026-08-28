@@ -8,6 +8,42 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-28 — items as boss-tier drops, and two health sizes we have not seen load
+**Tag:** **[VERIFIED]** for the emission shape and the item paths listed under
+(1); **[UNVERIFIED]** for `items/health_2.xml` and `items/health_3.xml`.
+**Context:** Building Wave pickups (`src/generator/boss/wavePickups.ts`), which
+drops items on the arena's spawn anchors at each boss health threshold. The
+project owner supplied a boss level resaved by the game's own editor
+(`boss_test_perks.xml`) with a spread of item spawns hand-placed in it.
+
+1. **An item spawns through the same `SpawnObject` node an actor does** — the
+   node's `parameters` is simply an `items/…xml` path instead of an
+   `actors/…xml` one. The editor wrote these itself, so both the node shape and
+   every path below are **[VERIFIED]**:
+
+   | | path |
+   | --- | --- |
+   | health / mana | `items/health_4.xml`, `items/mana_2.xml` |
+   | potions | `items/powerup_potion1.xml` (invincibility), `items/powerup_potion2.xml` (rejuvenation), `items/powerup_potion3.xml` (damage) |
+   | upgrades | all eight, as already recorded above |
+
+   The three potions' effects are the owner's, from play. `powerup_potion2` is
+   what the stock 25% tier drops.
+
+2. **A count is copies, not `trigger-times`.** A `SpawnObject` spawns one actor
+   per incoming trigger, and a tier trigger fires once, so `trigger-times: 4` on
+   a single node drops one item and banks three. Four copies means four nodes —
+   which is also how the owner described building it ("just stack them on top of
+   each other"). `trigger-times: 1` still matters on the 100% tier, whose
+   AreaTrigger re-fires every time a player walks back over the entrance.
+
+3. **`items/health_2.xml` and `items/health_3.xml` are [UNVERIFIED].** They are
+   in the owner's asset extract but appear in no file we have seen the editor or
+   the game write, and neither has been walked over in game. They are offered in
+   the pickup dropdown and emitted on request; do NOT promote them into
+   `ASSET-REGISTRY.md` until a packed campaign loads a floor carrying one. There
+   is no `mana_3` — the owner checked the extract; mana has two sizes only.
+
 ### 2026-08-28 — an arena can be too big: a scattered wave that never re-forms
 **Tag:** **[VERIFIED]** in game (same 4-player group, on the 2026-08-27 build)
 for the arena-size and cover findings; **[EMITTED]** for the boss-death

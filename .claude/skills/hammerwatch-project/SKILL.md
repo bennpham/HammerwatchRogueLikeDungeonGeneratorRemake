@@ -79,8 +79,10 @@ src/
 │   │   ├── arenaPattern.ts geometric floor patterns for a `- mixed` arena
 │   │   ├── placement.ts  shared rect/perimeter/gaussian helpers
 │   │   ├── waves.ts      the five-tier spawn rig (health tiers + Boss Died)
-│   │   └── waveBuffs.ts  one arena-wide buff field per tier; they replace one
-│   │                     another rather than stacking
+│   │   ├── waveBuffs.ts  one arena-wide buff field per tier; they replace one
+│   │   │                 another rather than stacking
+│   │   └── wavePickups.ts item drops per tier, onto the 9 spawn anchors; these
+│   │                     do NOT replace one another
 │   ├── tweak/            player balance (tweak/*.xml) — NOT level generation
 │   │   ├── types.ts      TweakFile/TweakParam/TweakUpgrade, PlayerTweaks
 │   │   ├── baseline.ts   full stock transcription of the 9 game tweak files
@@ -400,6 +402,40 @@ as a sixth `bossWaveN` field: appending one would put a trailing `|` on every
 stock export and break byte-compatibility with files written before the
 feature. Its parse branch must be tested **before** `bossWaveN`'s, or
 `bosswavebuff1` falls through to `unknownKeys`.
+
+### Item drops per boss wave tier (`boss/wavePickups.ts`)
+
+The loot half of the same five tiers. Each `BossWave` may carry
+`pickups: WavePickup[]`, a list of `{ item, count }` rows naming an item from
+`PICKUP_DEFS` (`objects/pickupTypes.ts`). Read it through `wavePickups(wave)`.
+The stock table (all three presets) resupplies at 50%, drops one rejuvenation
+potion at 25%, and doubles the resupply on the boss-death tier.
+
+Three things separate it from `waveBuffs.ts`, which it is otherwise a twin of:
+
+- **The tiers do not replace one another.** An item is an object on the floor,
+  not a live effect — there is nothing to switch off, and the health nobody
+  collected at 50% is still lying there at 25%. So no `ToggleElement` chain.
+- **A count is copies.** A `SpawnObject` spawns one actor per incoming trigger
+  and a tier trigger fires once, so `trigger-times: N` would drop one item and
+  bank N-1. N copies means N nodes, each `trigger-times: 1` — and that bound
+  still matters on tier 0, whose `AreaTrigger` re-fires whenever a player walks
+  back over the entrance.
+- **It builds its own tier trigger** rather than sharing `waves.ts`'s: a tier
+  with drops but no monsters is legal, and `waves.ts` skips a monsterless tier.
+
+Copies walk a cursor over the 9 anchors that continues across the rows of one
+tier, so a 1×health + 2×mana tier lands on three different anchors. Nothing
+buries them: `cover.ts` already refuses a pillar within `ANCHOR_PILLAR_CLEARANCE`
+of any anchor. Built last in `arena.ts`, draws from **no** stream.
+
+`parameters.txt` carries `bossWavePickupN=<item>:<count>|…` on its own key, for
+the same byte-compatibility reason as `bossWaveBuffN`, and its parse branch must
+likewise be tested **before** `bossWaveN`'s. One difference worth knowing: a
+tier the file describes with a `bossWaveN` line but **no** `bossWavePickupN`
+line ends up with no drops — a post-pass clears the stock table, so importing a
+file written before the feature does not silently hand it three tiers of loot.
+(Order-independent by design: the two keys may appear either way round.)
 
 ## Timer mode (`src/generator/timer/`)
 

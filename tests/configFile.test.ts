@@ -8,7 +8,8 @@ import {
   BOSS_WAVE_COUNT,
   bossDeathBuffs,
   defaultParameters,
-  waveBuffs
+  waveBuffs,
+  wavePickups
 } from '../src/generator/config/parameters'
 import {
   SHOP_PRICE_MAX,
@@ -559,6 +560,99 @@ describe('parameters.txt — boss invulnerability', () => {
   it('leaves a legacy file with no invulnerability keys on the stock windows', () => {
     const parsed = parseParametersTxt('boss=1\nbossGold=500')
     expect(parsed.params.boss.arena.invulnerability).toEqual({ enabled: true, seconds: [30, 30, 30], countdown: true })
+  })
+})
+
+describe('bossWavePickupN — per-tier item drops', () => {
+  it('writes no wave-pickup line at all while no tier drops anything', () => {
+    // The stock defaults drop on three tiers, so this has to strip them first —
+    // the point of the test is that a dropless arena emits no key.
+    const params = defaultParameters()
+    params.boss.arena.waves = params.boss.arena.waves.map(({ pickups: _pickups, ...w }) => w)
+    const text = serializeParametersTxt(params)
+    expect(text).not.toMatch(/^bossWavePickup\d=/m)
+  })
+
+  it('writes the stock drop table and reads it back', () => {
+    const text = serializeParametersTxt(defaultParameters())
+    expect(text).toContain('bossWavePickup3=health_4:1|mana_2:2')
+    expect(text).toContain('bossWavePickup4=potion_2:1')
+    expect(text).toContain('bossWavePickup5=health_4:2|mana_2:4')
+    expect(text).not.toMatch(/^bossWavePickup[12]=/m)
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.boss.arena.waves[BOSS_DEATH_WAVE].pickups).toEqual([
+      { item: 'health_4', count: 2 },
+      { item: 'mana_2', count: 4 }
+    ])
+  })
+
+  it('writes one line per dropping tier and round-trips it', () => {
+    const params = defaultParameters()
+    params.boss.arena.waves = params.boss.arena.waves.map((w, i) => {
+      if (i === 0) return { ...w, pickups: [{ item: 'potion_1', count: 3 }] }
+      return { ...w, pickups: [] }
+    })
+
+    const text = serializeParametersTxt(params)
+    expect(text).toContain('bossWavePickup1=potion_1:3')
+    expect(text).not.toMatch(/^bossWavePickup[2-5]=/m)
+
+    const reparsed = parseParametersTxt(text)
+    expect(reparsed.unknownKeys).toEqual([])
+    expect(reparsed.params.boss.arena.waves[0].pickups).toEqual([{ item: 'potion_1', count: 3 }])
+  })
+
+  it('drops the stock table for a tier the file describes without a pickup line', () => {
+    // A file written before pickups existed describes a fight with no drops.
+    // Inheriting the stock table would hand it three tiers of loot it never had.
+    const parsed = parseParametersTxt('bossWave3=eye|2000|eye:10')
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.boss.arena.waves[2].pickups).toBeUndefined()
+    // untouched tiers keep theirs
+    expect(wavePickups(parsed.params.boss.arena.waves[BOSS_DEATH_WAVE])).toHaveLength(2)
+  })
+
+  it('accepts the two keys in either order', () => {
+    const pickupFirst = parseParametersTxt('bossWavePickup3=mana_2:2\r\nbossWave3=eye|2000|eye:10')
+    const waveFirst = parseParametersTxt('bossWave3=eye|2000|eye:10\r\nbossWavePickup3=mana_2:2')
+    expect(pickupFirst.params.boss.arena.waves[2].pickups).toEqual([{ item: 'mana_2', count: 2 }])
+    expect(waveFirst.params.boss.arena.waves[2].pickups).toEqual([{ item: 'mana_2', count: 2 }])
+  })
+
+  it('reads a bare item with no count as one copy', () => {
+    const parsed = parseParametersTxt('bossWavePickup1=health_4')
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.boss.arena.waves[0].pickups).toEqual([{ item: 'health_4', count: 1 }])
+  })
+
+  it('reports an unknown item and a junk count without failing the import', () => {
+    const parsed = parseParametersTxt('bossWavePickup1=no_such_item:2|health_4:lots|mana_2:3')
+    expect(parsed.unknownKeys).toEqual([
+      'bossWavePickup1 item "no_such_item"',
+      'bossWavePickup1 count "lots"'
+    ])
+    expect(parsed.params.boss.arena.waves[0].pickups).toEqual([{ item: 'mana_2', count: 3 }])
+  })
+
+  it('leaves the bossWaveN lines byte-identical — no trailing sixth field', () => {
+    // The drops ride their own key precisely so an export written before the
+    // feature still round-trips to the same bytes.
+    const params = defaultParameters()
+    const before = serializeParametersTxt(params)
+      .split('\r\n')
+      .filter((l) => /^bossWave\d=/.test(l))
+
+    params.boss.arena.waves = params.boss.arena.waves.map((w) => ({
+      ...w,
+      pickups: [{ item: 'health_1', count: 2 }]
+    }))
+    const after = serializeParametersTxt(params)
+      .split('\r\n')
+      .filter((l) => /^bossWave\d=/.test(l))
+
+    expect(after).toEqual(before)
   })
 })
 

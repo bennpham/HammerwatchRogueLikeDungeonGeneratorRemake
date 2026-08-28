@@ -9,7 +9,7 @@ import { buildBossArena } from './boss'
 import { buildFloorHazardRig } from './timer/hazard'
 import { buildFloorBuffRig } from './buffs/field'
 
-export type { DungeonParameters, LobbyOptions, BossOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FinalLockMode, FloorBuff, BuffTarget } from './config/parameters'
+export type { DungeonParameters, LobbyOptions, BossOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FinalLockMode, FloorBuff, BuffTarget, WavePickup } from './config/parameters'
 export {
   THEMES,
   BOSS_IDS,
@@ -38,10 +38,13 @@ export {
   TIMER_COUNTDOWN_NODE_WARN,
   isScatterMode,
   waveBuffs,
+  wavePickups,
   waveSpawnMode
 } from './config/parameters'
 export { BUFF_DEFS, BUFF_GROUPS, BUFF_HELPFUL_IDS, buffById } from './objects/buffTypes'
 export type { BuffDef } from './objects/buffTypes'
+export { PICKUP_DEFS, PICKUP_GROUPS, MAX_PICKUP_COUNT, pickupById } from './objects/pickupTypes'
+export type { PickupDef } from './objects/pickupTypes'
 export { THEME_DEFS, getTheme } from './config/themes'
 export type { ThemeDef } from './config/themes'
 export { ARENA_PATTERN_LABELS, isShapePattern } from './boss/arenaPattern'

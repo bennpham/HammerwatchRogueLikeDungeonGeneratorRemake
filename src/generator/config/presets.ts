@@ -3,7 +3,8 @@ import {
   defaultFloorBuffs,
   defaultFloorTimer,
   defaultParameters,
-  scatterWave
+  scatterWave,
+  stockWavePickups
 } from './parameters'
 import type { BossWave, DungeonParameters } from './parameters'
 
@@ -47,6 +48,7 @@ function withBoss(theme: string, bossPool: string[], waves: BossWave[]): Dungeon
  * three desert liches at once — see BOSS_DEATH_WAVE in parameters.ts.
  */
 function desertWaves(): BossWave[] {
+  const drops = stockWavePickups()
   return [
     scatterWave(
       [
@@ -82,7 +84,9 @@ function desertWaves(): BossWave[] {
         ['mb_mummy', 4]
       ],
       [],
-      2000
+      2000,
+      [],
+      drops.half
     ),
     scatterWave(
       [
@@ -95,7 +99,9 @@ function desertWaves(): BossWave[] {
         ['lich_desert#2', 24]
       ],
       [],
-      1000
+      1000,
+      [],
+      drops.quarter
     ),
     // boss death — the fire pillars and floaters wait for the kill, see
     // BOSS_DEATH_WAVE, and the whole send-off is bloodlusted, see bossDeathBuffs()
@@ -111,7 +117,8 @@ function desertWaves(): BossWave[] {
       ],
       [],
       1000,
-      bossDeathBuffs()
+      bossDeathBuffs(),
+      drops.death
     )
   ]
 }
@@ -123,6 +130,7 @@ function desertWaves(): BossWave[] {
  * replays the 25% line-up with wisps on top — see BOSS_DEATH_WAVE.
  */
 function bonusWaves(): BossWave[] {
+  const drops = stockWavePickups()
   return [
     scatterWave(
       [
@@ -162,7 +170,9 @@ function bonusWaves(): BossWave[] {
         ['skeleton2#0', 12]
       ],
       [['tower_nova1', 4]],
-      2000
+      2000,
+      [],
+      drops.half
     ),
     scatterWave(
       [
@@ -179,7 +189,9 @@ function bonusWaves(): BossWave[] {
         ['tower_static_frost', 1],
         ['tower_tracking1', 4]
       ],
-      1000
+      1000,
+      [],
+      drops.quarter
     ),
     // boss death — the same line-up plus wisps, see BOSS_DEATH_WAVE, and
     // bloodlusted like every preset's send-off, see bossDeathBuffs()
@@ -200,7 +212,8 @@ function bonusWaves(): BossWave[] {
         ['tower_tracking1', 4]
       ],
       1000,
-      bossDeathBuffs()
+      bossDeathBuffs(),
+      drops.death
     )
   ]
 }
