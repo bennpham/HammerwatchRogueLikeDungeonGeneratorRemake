@@ -16,9 +16,11 @@ const SIZES: Array<[number, number]> = [
   [24, 32], // the old default min — still a legal size, so it must still hold
   [32, 44], // the old default max
   [28, 38], // something in between
-  [66, 66], // new default min (both axes)
-  [88, 88], // new default max
-  [77, 71] // something in between
+  [42, 42], // the default min (both axes)
+  [64, 64], // the default max
+  [53, 47], // something in between
+  [66, 88], // the interim 2026-08-27 range — still legal, so it must still hold
+  [88, 88]
 ]
 
 function entranceRect(width: number, height: number) {

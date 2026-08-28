@@ -70,13 +70,13 @@ bossTheme=g_mixed
 # How a "- mixed" bossTheme arranges its floor palette; ignored by every other
 # theme. random | checker | bandsH | bandsV | bandsDiag | rings | diamond | cross | triangle
 bossFloorPattern=random
-bossWidth=66,88
-bossHeight=66,88
+bossWidth=42,64
+bossHeight=42,64
 bossPool=boss_knight,boss_lich,boss_dragon,boss_queen
 # bossCover is pattern,density,ringSpacing,clusters. Pattern is
 # random | ring | gaussian | symmetric; density is the fraction of free floor
 # filled with pillars and is capped at 0.25.
-bossCover=symmetric,0.12,4,3
+bossCover=symmetric,0.08,4,3
 # bossSpawn is spacing,ringSpacing,clusters for the scatter spawn modes below —
 # deliberately separate from bossCover so pillars and monsters can be spaced
 # differently. Ignored while every monster is on the default anchors mode.
@@ -123,7 +123,9 @@ bossWave5=lich#2,lich,lich#0,mb_lich,mb_doomspawn,tower_static_frost|1000|lich#2
 # previous tier's buffs off as it switches its own on, so exactly one tier's
 # aura is ever live. Its own key rather than a sixth bossWaveN field, so files
 # exported before the feature still round-trip. Written only for tiers that
-# carry one, so this file has none.
+# carry one: the stock defaults buff only the boss-death tier, so the horde that
+# spawns after the kill fights bloodlusted on the walk to the orb.
+bossWaveBuff5=bloodlust:monsters
 #
 # buff0..N hangs buff auras on a dungeon floor, same <id>:<target>|<id>:<target>
 # form, e.g. buff2=frost:players|bloodlust:monsters. A floor's aura covers the

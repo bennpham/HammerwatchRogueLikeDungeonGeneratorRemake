@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Boss arena rebalanced from two 4-player playtests.** Arena is now 42–64 on both axes (was 24–32 × 32–44): too small and the horde stacks on itself, too big and a scattered wave arrives dispersed, never re-forms, and gets picked off. Cover defaults to `symmetric` at 0.08 density. Castle's wave counts are cut ~60% (152/137/117/38/21 per tier) — the 100% tier used to ask for 480 monsters and roughly 1140 were alive by the 50% threshold. Desert and Bonus keep their tables. `parameters.txt`: `bossWidth`, `bossHeight`, `bossCover`.
+- **Scattered spawns arrive in batches instead of on one frame.** A monster entry gets at most `batchSize` (8) spawn points per tier and anything past that trickles in on `batchIntervalMs` (1500), the same way the anchor rig splits a horde over its nine anchors. Inside the budget the old one-shot shape is emitted unchanged. `parameters.txt`: `bossSpawn` grew two fields to `spacing,ringSpacing,clusters,batchSize,batchIntervalMs`; the three-field form still parses.
+- **The horde is bloodlusted after the boss dies.** Every preset's boss-death tier now carries `bloodlust` aimed at monsters (+50% damage, +50% move speed), so the walk to the orb is a fight. It is the only tier the stock presets buff. `parameters.txt`: `bossWaveBuff5=bloodlust:monsters`. This is the first 0.5.0-era feature that ships **on**, so a stock arena is no longer byte-identical to one generated before it — dungeon floors are untouched, as always.
+
+### Fixed
+
+- **Monsters spawned inside a centre-placed boss.** The arena put a `centre` boss on `(midX, midY)` and the `C` spawn anchor on the same tile, so anything sent to `C` appeared inside the queen and could not be hit. `C` is now pushed clear of the boss's collider.
+- **`random` scatter only used the corners and compass points.** Spawn placement accumulated one occupied-floor list across all five tiers, so the floor saturated and every overflow was padded onto the nine anchors. Placement now resets per tier, refuses tiles the pillars sealed off from the entrance, retries a short request at tighter spacing, and pads onto real spare floor before ever considering an anchor.
+
 ## [0.5.0]
 
 ### Added

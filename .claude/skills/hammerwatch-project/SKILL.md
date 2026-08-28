@@ -221,12 +221,12 @@ reference/hammerwatch-tweak-stats.md
 | `prep.upgrades` | every kind 0 | the same free upgrade pickups as the lobby, on the prep floor. `bossUpgrades` in `parameters.txt` |
 | `arena.theme` | `g_mixed` | any `THEME_DEFS` id, independent of the floors' themes |
 | `arena.floorPattern` | `random` | one of `BOSS_FLOOR_PATTERNS`; only meaningful for a `- mixed` theme |
-| `arena.minWidth`–`maxWidth` | 66–88 | ≥ `ARENA_MIN_WIDTH` (14). Grown from 24–32 after the 2026-08-27 playtest |
-| `arena.minHeight`–`maxHeight` | 66–88 | ≥ `ARENA_MIN_HEIGHT` (18). Grown from 32–44 |
+| `arena.minWidth`–`maxWidth` | 42–64 | ≥ `ARENA_MIN_WIDTH` (14). Found from both ends: 24–32 was too small to hold the horde, the 2026-08-27 interim 66–88 was so open a scattered wave never re-formed and got picked off piecemeal |
+| `arena.minHeight`–`maxHeight` | 42–64 | ≥ `ARENA_MIN_HEIGHT` (18); same story as the width |
 | `arena.bossPool` | the 4 castle bosses | non-empty subset of `BOSS_IDS` (7); the seed picks one per campaign |
 | `arena.waves` | 5 populated tiers | exactly `BOSS_WAVE_COUNT`; see *Boss finale* |
-| `arena.waves[i].buffs` | absent / none | any number of arena-wide buffs per tier, each `{buff, target}` aimed at `players`/`monsters`/`both`. Tiers **replace** one another rather than stacking. The pre-list fields `buff`/`buffTarget` still parse — read a tier through `waveBuffs(wave)`, never off the raw field. `bossWaveBuffN` in `parameters.txt`. See *Buffs per boss wave tier* |
-| `arena.cover` | `symmetric`, 0.12, 4, 3 | `density` is the fraction of free floor filled and is capped at `BOSS_COVER_DENSITY_MAX` (0.25). Playtest preference, 2026-08-27; every preset inherits it |
+| `arena.waves[i].buffs` | tier 5 only: `bloodlust` on `monsters` | any number of arena-wide buffs per tier, each `{buff, target}` aimed at `players`/`monsters`/`both`. Tiers **replace** one another rather than stacking. The pre-list fields `buff`/`buffTarget` still parse — read a tier through `waveBuffs(wave)`, never off the raw field. `bossWaveBuffN` in `parameters.txt`. Every preset ships `bossDeathBuffs()` on the boss-death tier and nothing on the other four, so the walk to the orb is fought against a strengthened horde. See *Buffs per boss wave tier* |
+| `arena.cover` | `symmetric`, 0.08, 4, 3 | `density` is the fraction of free floor filled and is capped at `BOSS_COVER_DENSITY_MAX` (0.25). Playtest preference, 2026-08-28; every preset inherits it |
 | `arena.spawn` | spacing 2, ring 4, clusters 3, batchSize 8, batchIntervalMs 1500 | tuning for the scatter modes only; deliberately separate from `cover`. `batchSize` caps how many of one monster may appear at once — see *Boss finale* |
 | `arena.invulnerability` | on, `[30, 30, 30]`, countdown on | seconds of boss immortality per health threshold (`BOSS_INVULN_THRESHOLDS`: 75/50/25%); 0 disables one threshold, `bossInvuln` / `bossInvulnCountdown` in `parameters.txt`. Independent of `waves` — see *Boss finale* |
 | `arena.monsterMultiplier` | 1.0 | scales each tier's `monsterMax`; `-1`/endless stays endless. `bossMonsterMultiplier` in `parameters.txt`, separate from the dungeon's |

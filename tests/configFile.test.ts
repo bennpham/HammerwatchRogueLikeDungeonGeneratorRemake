@@ -6,6 +6,7 @@ import { noUpgrades, oneOfEachUpgrade } from '../src/generator/levelTemplate/sur
 import {
   BOSS_DEATH_WAVE,
   BOSS_WAVE_COUNT,
+  bossDeathBuffs,
   defaultParameters,
   waveBuffs
 } from '../src/generator/config/parameters'
@@ -250,7 +251,11 @@ describe('parameters.txt parsing', () => {
       monsterMax: { eye: 12, wisp1: -1 },
       defaultIntervalMs: 1500,
       intervalMs: { wisp1: 6000 },
-      spawnMode: { eye: 'ring' }
+      spawnMode: { eye: 'ring' },
+      // The stock death tier is buffed, and buffs ride their own bossWaveBuff5
+      // key rather than a bossWave5 field — so replacing the wave leaves them
+      // alone, and the literal has to carry them for the round trip to match.
+      buffs: bossDeathBuffs()
     }
 
     const text = serializeParametersTxt(original)
@@ -559,8 +564,23 @@ describe('parameters.txt — boss invulnerability', () => {
 
 describe('bossWaveBuffN — per-tier arena buffs', () => {
   it('writes no wave-buff line at all while no tier carries one', () => {
-    const text = serializeParametersTxt(defaultParameters())
+    // The stock defaults buff the boss-death tier, so this has to strip them
+    // first — the point of the test is that an unbuffed arena emits no key.
+    const params = defaultParameters()
+    params.boss.arena.waves = params.boss.arena.waves.map(({ buffs: _buffs, ...w }) => w)
+    const text = serializeParametersTxt(params)
     expect(text).not.toMatch(/^bossWaveBuff\d=/m)
+  })
+
+  it('writes the stock boss-death bloodlust and reads it back', () => {
+    const text = serializeParametersTxt(defaultParameters())
+    expect(text).toContain('bossWaveBuff5=bloodlust:monsters')
+    expect(text).not.toMatch(/^bossWaveBuff[1-4]=/m)
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.params.boss.arena.waves[BOSS_DEATH_WAVE].buffs).toEqual([
+      { buff: 'bloodlust', target: 'monsters' }
+    ])
   })
 
   it('writes one line per buffed tier and round-trips it', () => {

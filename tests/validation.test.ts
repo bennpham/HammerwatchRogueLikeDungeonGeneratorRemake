@@ -5,6 +5,7 @@ import {
   UPGRADE_COUNT_MAX,
   validateParameters
 } from '../src/generator/config/validation'
+import { CAMPAIGN_PRESETS } from '../src/generator/config/presets'
 import { noUpgrades, oneOfEachUpgrade } from '../src/generator/levelTemplate/surgery'
 
 const fieldsOf = (issues: Array<{ field: string }>) => issues.map((i) => i.field)
@@ -723,10 +724,23 @@ describe('boss validation', () => {
   })
 
   it('does not warn about capacity on the stock defaults', () => {
-    // The whole point of the 66-88 arena plus the batch budget: the stock
-    // waves fit with room to spare.
+    // The whole point of the batch budget: even the smallest arena the stock
+    // 42-64 range can roll fits every tier's points with room to spare.
     const result = validateParameters(defaultParameters())
     expect(fieldsOf(result.warnings).filter((f) => /^boss\.arena\.waves\.\d+$/.test(f))).toEqual([])
+  })
+
+  it('does not warn about capacity on any preset at its smallest arena', () => {
+    // The Desert and Bonus tables are wider than Castle's — Bonus's 50% tier
+    // has the most scattered entries of any stock tier — so the check that
+    // matters is per preset, at min-size, not just for the default.
+    for (const preset of CAMPAIGN_PRESETS) {
+      const result = validateParameters(preset.build())
+      expect(
+        fieldsOf(result.warnings).filter((f) => /^boss\.arena\.waves\.\d+$/.test(f)),
+        preset.id
+      ).toEqual([])
+    }
   })
 
   it('rejects a negative arena multiplier', () => {

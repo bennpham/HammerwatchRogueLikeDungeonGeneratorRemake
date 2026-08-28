@@ -8,6 +8,54 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-28 — an arena can be too big: a scattered wave that never re-forms
+**Tag:** **[VERIFIED]** in game (same 4-player group, on the 2026-08-27 build)
+for the arena-size and cover findings; **[EMITTED]** for the boss-death
+bloodlust field, which is emitted and round-trips but has not been watched land
+on the post-kill horde in game yet.
+**Context:** Second playtest, checking the 2026-08-27 rebalance. The lag was
+gone; two of the three figures it shipped were wrong in the other direction.
+
+1. **66-88 overshot, and not because of the walking.** On a floor that size a
+   `random`-scattered wave arrives already dispersed and never converges: the
+   monsters spend the fight pathfinding across open ground and reach the party
+   in ones and twos, where they are picked off. The tuned counts stop applying
+   any pressure at all — the same tables that were unplayable on 24-32 x 32-44
+   were trivial on 66-88. This is the general finding, and it is about spawn
+   dispersion rather than tile count: arena size is the lever that sets how far
+   a scattered horde has to travel before it is a horde again. Settled range is
+   **42-64 on both axes** (the group's stated preference was "around 44x44").
+2. **0.12 cover was tuned for the bigger floor.** At 42-64 it reads as clutter;
+   0.08 — the pre-2026-08-27 density — is right at this size. The `symmetric`
+   pattern from that playtest was kept: it reads as deliberate architecture, and
+   the legibility is what lets a party call out positions.
+3. **The walk to the orb wanted teeth.** The boss-death tier already spawns a
+   send-off, but a party that has just won walks through it. Requested fix: the
+   post-kill horde fights buffed.
+
+**Impact:**
+
+- Arena default is 42-64 x 42-64; cover is `symmetric` at 0.08. Every preset
+  inherits both — `withBoss()` re-points only theme, pool and waves.
+- Wave counts are unchanged. The 2026-08-27 cut (152/137/117/38/21 for Castle)
+  plus the batch budget were confirmed balanced by this session.
+- Every preset's boss-death tier now carries `bloodlust` aimed at `monsters`
+  (`bossDeathBuffs()` in `config/parameters.ts`), so the horde that spawns on
+  the kill fights at +50% damage and +50% move speed. It is the only tier any
+  stock preset buffs, and tiers replace one another, so the field is dark for
+  the whole health fight and switches on at `Boss Died`. A stock arena therefore
+  carries three `Boss Died` triggers: the win chain, the death tier's spawns and
+  the death tier's buff field.
+- The boss-tier copy of validation's "a strengthener aimed at anything but
+  players" warning is gone. The arena's five tiers are an explicit difficulty
+  ladder, so buffing the horde there is the feature; the per-floor copy of the
+  rule stays, where a strengthener on monsters usually is a mis-aimed target.
+
+**Still open:** the 2026-08-27 entry's open question shrinks but does not close
+— the largest arena that can now roll is 64x64, still well above the 32x44 that
+was the previous maximum, and no arena above 32x44 has been packed by
+`LevelPacker.exe` or loaded in game. Stays `[EMITTED]`.
+
 ### 2026-08-27 — a centre boss swallows the C spawn anchor, and one frame cannot absorb 480 actors
 **Tag:** **[VERIFIED]** in game (4-player playtest, no warlock, stock Castle
 preset). Both findings were observed directly, not inferred.

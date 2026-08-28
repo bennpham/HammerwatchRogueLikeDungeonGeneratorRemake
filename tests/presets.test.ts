@@ -40,6 +40,24 @@ describe('campaign presets', () => {
     }
   })
 
+  it('gives every preset the same arena size and cover — a preset overrides neither', () => {
+    // withBoss() re-points only theme, pool and waves, so the 2026-08-28
+    // playtest figures have to reach all three presets unchanged.
+    const arena = defaultParameters().boss.arena
+    expect([arena.minWidth, arena.maxWidth, arena.minHeight, arena.maxHeight]).toEqual([42, 64, 42, 64])
+    expect(arena.cover).toEqual({ pattern: 'symmetric', density: 0.08, ringSpacing: 4, clusters: 3 })
+
+    for (const preset of CAMPAIGN_PRESETS) {
+      const a = preset.build().boss.arena
+      expect(
+        [a.minWidth, a.maxWidth, a.minHeight, a.maxHeight],
+        preset.id
+      ).toEqual([arena.minWidth, arena.maxWidth, arena.minHeight, arena.maxHeight])
+      expect(a.cover, preset.id).toEqual(arena.cover)
+      expect(a.spawn, preset.id).toEqual(arena.spawn)
+    }
+  })
+
   it('only puts scatter-safe monsters on a scatter mode, in every tier of every preset', () => {
     for (const preset of CAMPAIGN_PRESETS) {
       for (const [i, wave] of preset.build().boss.arena.waves.entries()) {

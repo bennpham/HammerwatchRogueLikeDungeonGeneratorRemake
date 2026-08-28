@@ -22,6 +22,8 @@ import {
   defaultParameters
 } from '../src/generator/config/parameters'
 import type { BossWave, BuffTarget } from '../src/generator/config/parameters'
+import { waveBuffs } from '../src/generator/config/parameters'
+import { CAMPAIGN_PRESETS } from '../src/generator/config/presets'
 import { validateParameters } from '../src/generator/config/validation'
 import { BUFF_DEFS } from '../src/generator/objects/buffTypes'
 import { buildBossArena } from '../src/generator/boss/arena'
@@ -177,6 +179,37 @@ describe('boss wave buffs — the field rig', () => {
     expect(toggles).toContainEqual({ state: 1, element: first.id }) // 1 disables
     expect(toggles).toContainEqual({ state: 0, element: second.id }) // 0 enables
     expect(toggles).toHaveLength(2)
+  })
+
+  it('the stock death tier is the only buffed tier, and it is bloodlust on monsters', () => {
+    // What every preset now ships: nothing is buffed for the whole health
+    // fight, and the horde that spawns on the kill fights strengthened. One
+    // field, switched on by Boss Died, with no earlier field to switch off.
+    for (const preset of CAMPAIGN_PRESETS) {
+      const waves = preset.build().boss.arena.waves
+      expect(waves.map(waveBuffs), preset.id).toEqual([
+        [],
+        [],
+        [],
+        [],
+        [{ buff: 'bloodlust', target: 'monsters' }]
+      ])
+
+      const ctx = freshCtx()
+      buildRig(ctx, waves)
+
+      const areas = fields(ctx)
+      expect(areas, preset.id).toHaveLength(1)
+      expect(areas[0].enabled).toBe(false)
+      expect(areas[0].buff).toBe('buffs/bloodlust.xml')
+      expect(areas[0].damage).toBe(0)
+
+      const triggers = nodesOfType(ctx, 'GlobalEventTrigger')
+      expect(triggers).toHaveLength(1)
+      expect(eventOf(triggers[0])).toBe(TIER_EVENT_NAMES[TIER_EVENT_NAMES.length - 1])
+      expect(togglesFrom(triggers[0])).toEqual([{ state: 0, element: areas[0].id }])
+      expect(connectionsResolve(ctx)).toBe(true)
+    }
   })
 
   it('switches off the nearest EARLIER buffed tier, skipping tiers that carry none', () => {
@@ -354,10 +387,31 @@ describe('boss wave buffs — validation', () => {
     expect(result.warnings.map((w) => w.field)).toContain('boss.arena.waves.1.buffs.1.buff')
   })
 
-  it('warns when a strengthening buff catches the horde', () => {
+  it('does not warn when a strengthening buff catches the horde', () => {
+    // Unlike a per-floor buff, where a strengthener on monsters usually means a
+    // mis-aimed target, the arena's five tiers are an explicit difficulty
+    // ladder — the stock death tier ships bloodlusted, so warning here would put
+    // a message on every stock run.
     const result = withWaveBuff(2, 'bloodlust', 'monsters')
     expect(result.valid).toBe(true)
-    expect(result.warnings.map((w) => w.field)).toContain('boss.arena.waves.2.buffs.0.target')
+    expect(result.warnings.map((w) => w.field)).not.toContain('boss.arena.waves.2.buffs.0.target')
+  })
+
+  it('leaves the stock defaults warning-free about their own arena buffs', () => {
+    const fields = validateParameters(defaultParameters()).warnings.map((w) => w.field)
+    expect(fields.filter((f) => /^boss\.arena\.waves\.\d+\.buffs\./.test(f))).toEqual([])
+  })
+
+  it('still warns about a strengthener on a dungeon floor', () => {
+    // The per-floor rule is untouched: a whole floor of bloodlusted monsters is
+    // still far more likely to be a slip than a design.
+    const params = defaultParameters()
+    params.levelBuffs = params.levelBuffs?.map((b, i) =>
+      i === 0 ? [{ buff: 'bloodlust', target: 'monsters' as BuffTarget }] : b
+    )
+    const result = validateParameters(params)
+    expect(result.valid).toBe(true)
+    expect(result.warnings.map((w) => w.field)).toContain('levelBuffs.0.0.target')
   })
 
   it('warns when the death tier buffs monsters it does not spawn', () => {

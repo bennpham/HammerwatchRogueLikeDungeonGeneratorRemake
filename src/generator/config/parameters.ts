@@ -468,14 +468,19 @@ export const BOSS_IDS = [
 /**
  * The default boss options: feature on, a prep room that sells every column
  * *including* power (extra lives matter more right before a boss than at the
- * start of a run) and 20000 gold on the floor, a `g - mixed` arena 66–88 × 66–88
+ * start of a run) and 20000 gold on the floor, a `g - mixed` arena 42–64 × 42–64
  * with the four castle bosses in the pool, symmetric cover, and four waves whose
  * shared intervals tighten as the fight goes on.
  *
- * The arena size and the cover block were re-tuned after the 4-player playtest of
- * 2026-08-27 (DISCOVERY-LOG): the old 24–32 × 32–44 floor could not hold the wave
- * line-up without the horde stacking on itself, and 0.08 random cover left too
- * little to break line of sight on a floor this size.
+ * The size is the settled answer to two playtests (DISCOVERY-LOG, 2026-08-27 and
+ * 2026-08-28), and it was found from both ends. The original 24–32 × 32–44 was
+ * too small to hold the wave line-up without the horde stacking on itself. 66–88
+ * fixed that and broke something else: on that much open floor a scattered wave
+ * arrives dispersed and never re-forms, so the monsters spend the fight
+ * pathfinding across empty ground, reach the party in ones and twos, and get
+ * picked off. 42–64 is the size at which the tuned counts actually apply
+ * pressure — shrinking the floor shortens every spawn-to-party path, which is
+ * the same lever from the monsters' side.
  */
 export function defaultBossOptions(): BossOptions {
   return {
@@ -494,10 +499,10 @@ export function defaultBossOptions(): BossOptions {
     arena: {
       theme: 'g_mixed',
       floorPattern: 'random',
-      minWidth: 66,
-      maxWidth: 88,
-      minHeight: 66,
-      maxHeight: 88,
+      minWidth: 42,
+      maxWidth: 64,
+      minHeight: 42,
+      maxHeight: 64,
       // The castle default fights the four castle-flavoured bosses; anubis and
       // worm belong to the desert and krilith to the ice caves, so they are in
       // BOSS_IDS for the checkbox grid but out of the stock pool.
@@ -511,11 +516,12 @@ export function defaultBossOptions(): BossOptions {
         // density is the fraction of the free floor cover fills, so this is a
         // much smaller number than it looks. The original 0.5 filled nearly half
         // the floor and playtested as physically impassable — neither the player
-        // nor the boss could move. 0.08 was tuned for the old ~28x38 arena; on
-        // the 66–88 floor it left the middle a bare field, so the playtest
-        // settled on 0.12. BOSS_COVER_DENSITY_MAX caps it; boss/cover.ts
-        // additionally guarantees the boss and every anchor stay reachable.
-        density: 0.12,
+        // nor the boss could move. 0.12 was tried on the 66–88 arena and read as
+        // clutter once that arena came back down to 42–64; 0.08 is what both
+        // playtests liked at this size. BOSS_COVER_DENSITY_MAX caps it;
+        // boss/cover.ts additionally guarantees the boss and every anchor stay
+        // reachable.
+        density: 0.08,
         ringSpacing: 4,
         clusters: 3
       },
@@ -613,11 +619,18 @@ export type WaveEntry = readonly [string, number]
  *
  * Pool order is `scattered` then `timed`, which is also the order spawnPoints.ts
  * places them in — so it is fixed data, not an incidental of how this is called.
+ *
+ * `buffs` is this tier's arena-wide buff fields. Like `spawnMode` it is left off
+ * the object entirely when there are none, rather than set to an empty array —
+ * that is what an untouched wave looks like and what configFile.ts reproduces
+ * for a line with no `bossWaveBuffN`, so the two would otherwise disagree on a
+ * round trip.
  */
 export function scatterWave(
   scattered: readonly WaveEntry[],
   timed: readonly WaveEntry[],
-  defaultIntervalMs: number
+  defaultIntervalMs: number,
+  buffs: readonly FloorBuff[] = []
 ): BossWave {
   const all = [...scattered, ...timed]
   const wave: BossWave = {
@@ -628,7 +641,23 @@ export function scatterWave(
   if (scattered.length > 0) {
     wave.spawnMode = Object.fromEntries(scattered.map(([key]) => [key, 'random' as BossSpawnMode]))
   }
+  if (buffs.length > 0) {
+    wave.buffs = buffs.map((entry) => ({ ...entry }))
+  }
   return wave
+}
+
+/**
+ * The send-off every preset's boss-death tier carries: the horde that spawns
+ * once the boss is down fights at +50% damage and +50% move speed, so the walk
+ * to the orb is a fight rather than a victory lap. Playtest request, 2026-08-28.
+ *
+ * A tier's buffs replace the previous tier's (see boss/waveBuffs.ts), and this is
+ * the only tier any stock preset buffs, so the field is dark for the whole health
+ * fight and switches on at the kill.
+ */
+export function bossDeathBuffs(): FloorBuff[] {
+  return [{ buff: 'bloodlust', target: 'monsters' }]
 }
 
 /**
@@ -716,7 +745,8 @@ function castleWaves(): BossWave[] {
       1000
     ),
     // boss death — the arena keeps fighting after the kill, see BOSS_DEATH_WAVE.
-    // tower_static_frost is anchored because its wreck blocks.
+    // tower_static_frost is anchored because its wreck blocks, and the horde
+    // arrives bloodlusted — see bossDeathBuffs().
     scatterWave(
       [
         ['lich#2', 8],
@@ -726,7 +756,8 @@ function castleWaves(): BossWave[] {
         ['mb_doomspawn', 2]
       ],
       [['tower_static_frost', 3]],
-      1000
+      1000,
+      bossDeathBuffs()
     )
   ]
 }

@@ -771,14 +771,13 @@ function validateBoss(
             'The after-the-boss-dies buff catches monsters, but that tier spawns none — nothing will be buffed on the walk to the orb.'
         })
       }
-      // Same reasoning as the per-floor warning: aiming a strengthener at the
-      // party is legitimate, so this only fires the other way round.
-      if (BUFF_HELPFUL_IDS.includes(entry.buff) && entry.target !== 'players') {
-        warnings.push({
-          field: `boss.arena.waves.${i}.buffs.${j}.target`,
-          message: `Wave ${i + 1}: "${entry.buff}" strengthens whatever it catches, and this one catches ${entry.target}.`
-        })
-      }
+      // No BUFF_HELPFUL_IDS check here, deliberately, and unlike the per-floor
+      // rule further down. On an ordinary floor a strengthener aimed at monsters
+      // is usually a mis-aimed target and worth naming. The arena's five tiers
+      // are an explicit difficulty ladder, so strengthening the horde there is
+      // the feature — the stock boss-death tier does exactly that (see
+      // bossDeathBuffs()), and warning about it would put a message on every
+      // stock run, which is the same trap the empty-tier rule above avoids.
     })
 
     for (const id of wave.monsters) {

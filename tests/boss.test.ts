@@ -456,11 +456,14 @@ describe('boss arena — scattered spawn modes (issue #21)', () => {
   /** Tier 0's wave, with `key` scattered by `mode` at `count`, everything else stock. */
   function scattered(mode: 'random' | 'ring' | 'gaussian' | 'symmetric', key = 'bat1', count = 12) {
     const arena = arenaOptions()
+    // Buffs are dropped along with the other tiers' monsters: these tests count
+    // the timer rig's own nodes, and the stock death tier's bloodlust field
+    // would otherwise add a trigger and a toggle of its own to every assertion.
     return arenaOptions({
       waves: arena.waves.map((w, i) =>
         i === 0
-          ? { ...w, monsters: [key], monsterMax: { [key]: count }, spawnMode: { [key]: mode } }
-          : { ...w, monsters: [], monsterMax: {} }
+          ? { ...w, monsters: [key], monsterMax: { [key]: count }, spawnMode: { [key]: mode }, buffs: [] }
+          : { ...w, monsters: [], monsterMax: {}, buffs: [] }
       )
     })
   }
@@ -1374,12 +1377,14 @@ describe('boss arena — the boss-death wave tier', () => {
     return xml.split('<string name="parameters">Boss Died</string>').length - 1
   }
 
-  it('a stock arena carries two Boss Died triggers — the win chain and the death tier', () => {
-    // The death tier ships populated, so it has a trigger of its own alongside
-    // the win chain's.
+  it('a stock arena carries three Boss Died triggers — the win chain, the death tier and its buff', () => {
+    // The death tier ships populated AND bloodlusted, so it has two triggers of
+    // its own alongside the win chain's: one switching its spawns on, one
+    // switching its buff field on. The two rigs are built independently
+    // (waves.ts and waveBuffs.ts) and neither shares the other's nodes.
     for (const seed of [1, 4242, 999999]) {
       const { xml } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
-      expect(bossDiedTriggers(xml)).toBe(2)
+      expect(bossDiedTriggers(xml)).toBe(3)
     }
   })
 
