@@ -31,8 +31,9 @@
  *                own editor then resaved.
  *   [VERIFIED]   health_2, health_3 — confirmed in game by the owner,
  *                2026-08-28. See DISCOVERY-LOG.md.
- *   [UNVERIFIED] powerup_7up — named from an asset extract, never yet loaded in
- *                game. See DISCOVERY-LOG.md, 2026-08-28.
+ *   [VERIFIED]   powerup_7up — grants seven lives. Owner, 2026-08-28.
+ *
+ * Nothing in this roster is [UNVERIFIED] any more.
  */
 
 /**
@@ -163,7 +164,7 @@ export const PICKUP_DEFS: readonly PickupDef[] = [
     label: 'Extra lives (7up)',
     group: 'Lives',
     lane: 'potion',
-    description: 'The seven-life pickup. Never yet confirmed in game — see the discovery log.'
+    description: 'Seven extra lives in one pickup. Off by default, and a big swing — add it deliberately.'
   },
   // --- Upgrades I ----------------------------------------------------------
   {

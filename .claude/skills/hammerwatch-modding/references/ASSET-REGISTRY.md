@@ -336,10 +336,10 @@ arena's Wave pickups (`src/generator/objects/pickupTypes.ts`):
 | `items/health_4.xml` | the largest of the four numbered sizes |
 | `items/powerup_health.xml` | a flat **250 HP** heal — the biggest in the game, and listed under `Powerup` above only because that is the pool `item.ts` happens to keep it in. It is not a timed potion. |
 | `items/powerup_1up.xml` | one extra life |
+| `items/powerup_7up.xml` | seven extra lives |
 
 `items/mana_2.xml` is the larger of the two mana pickups; there is no `mana_3`.
-`items/powerup_7up.xml` is offered by the roster but stays **[UNVERIFIED]** —
-see the discovery log.
+Neither life pickup is in any stock drop table — both are opt-in.
 
 ### Free upgrade pickups `[VERIFIED 2026-08-25]`
 

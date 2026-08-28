@@ -47,18 +47,17 @@ project owner supplied a boss level resaved by the game's own editor
    sizes only.
 
 ### 2026-08-28 — the extra-life pickups
-**Tag:** **[VERIFIED]** for `items/powerup_1up.xml`; **[UNVERIFIED]** for
-`items/powerup_7up.xml`.
+**Tag:** **[VERIFIED]** for both paths.
 **Context:** The owner added one more `SpawnObject` to `boss_test_perks.xml` and
 asked for both life pickups in the Wave pickups roster.
 
 1. **`items/powerup_1up.xml` grants an extra life** and is **[VERIFIED]**: it is
    hand-placed in a level the game's own editor then resaved, so the path loads.
 
-2. **`items/powerup_7up.xml` is [UNVERIFIED].** The owner named it; it appears in
-   no file we have seen the editor write, and nobody has watched one get picked
-   up. Its label says so, the way `health_2` / `health_3` did before they were
-   confirmed. Promote it only after it is seen working in game.
+2. **`items/powerup_7up.xml` grants seven lives** and is **[VERIFIED]** — the
+   owner confirmed it in game. It was recorded `[UNVERIFIED]` for a few hours
+   first, on the rule that a path nobody has watched load gets a label that says
+   so; that rule stands, this one just cleared it.
 
 3. **Neither is in any stock drop table, deliberately.** An extra life is a large
    swing in the campaign's final fight, so both are opt-in — present in the
