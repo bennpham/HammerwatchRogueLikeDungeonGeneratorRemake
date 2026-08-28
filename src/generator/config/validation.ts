@@ -806,7 +806,7 @@ function validateBoss(
     wavePickups(wave).forEach((entry, j) => {
       if (pickupById(entry.item) === undefined) return
 
-      // Two rows of the same item work — they just drop on different anchors —
+      // Two rows of the same item work — they just take adjacent pad slots —
       // but a single row with the counts added is what the author meant, and
       // one row is what the form can then edit in one place.
       if (seenTierPickups.has(entry.item)) {

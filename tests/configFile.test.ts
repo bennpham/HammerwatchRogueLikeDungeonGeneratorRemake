@@ -575,15 +575,15 @@ describe('bossWavePickupN — per-tier item drops', () => {
 
   it('writes the stock drop table and reads it back', () => {
     const text = serializeParametersTxt(defaultParameters())
-    expect(text).toContain('bossWavePickup3=health_4:1|mana_2:2')
+    expect(text).toContain('bossWavePickup3=powerup_health:1|mana_2:2')
     expect(text).toContain('bossWavePickup4=potion_2:1')
-    expect(text).toContain('bossWavePickup5=health_4:2|mana_2:4')
+    expect(text).toContain('bossWavePickup5=powerup_health:2|mana_2:4')
     expect(text).not.toMatch(/^bossWavePickup[12]=/m)
 
     const parsed = parseParametersTxt(text)
     expect(parsed.unknownKeys).toEqual([])
     expect(parsed.params.boss.arena.waves[BOSS_DEATH_WAVE].pickups).toEqual([
-      { item: 'health_4', count: 2 },
+      { item: 'powerup_health', count: 2 },
       { item: 'mana_2', count: 4 }
     ])
   })

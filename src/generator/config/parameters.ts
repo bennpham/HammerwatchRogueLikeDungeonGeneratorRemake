@@ -710,12 +710,12 @@ export function bossDeathBuffs(): FloorBuff[] {
 export function stockWavePickups(): { half: WavePickup[]; quarter: WavePickup[]; death: WavePickup[] } {
   return {
     half: [
-      { item: 'health_4', count: 1 },
+      { item: 'powerup_health', count: 1 },
       { item: 'mana_2', count: 2 }
     ],
     quarter: [{ item: 'potion_2', count: 1 }],
     death: [
-      { item: 'health_4', count: 2 },
+      { item: 'powerup_health', count: 2 },
       { item: 'mana_2', count: 4 }
     ]
   }

@@ -4,7 +4,7 @@
  *
  * Three things are being proved. First the emission shape: a count is COPIES,
  * so N copies means N SpawnObject nodes each with `trigger-times: 1`, and they
- * land on the arena's spawn anchors rather than anywhere else. Second the
+ * land on the entrance drop pad, in the lane their item kind belongs to. Second the
  * wiring: tier 0 hangs off an AreaTrigger on the entrance, every later tier off
  * a GlobalEventTrigger naming its own threshold, and no tier ever switches
  * another's drops off — items are objects on the floor, not live effects.
@@ -24,9 +24,8 @@ import { BOSS_DEATH_WAVE, wavePickups } from '../src/generator/config/parameters
 import { CAMPAIGN_PRESETS } from '../src/generator/config/presets'
 import { validateParameters } from '../src/generator/config/validation'
 import { MAX_PICKUP_COUNT, PICKUP_DEFS, pickupById } from '../src/generator/objects/pickupTypes'
-import { anchors } from '../src/generator/boss/anchors'
-import type { Anchor } from '../src/generator/boss/anchors'
 import { buildBossArena } from '../src/generator/boss/arena'
+import { PAD_ROWS, pickupPad } from '../src/generator/boss/pickupPad'
 import { buildWavePickupRig } from '../src/generator/boss/wavePickups'
 import { TIER_EVENT_NAMES } from '../src/generator/boss/waves'
 import { NodeRectangleShape } from '../src/generator/objects/nodes'
@@ -36,6 +35,10 @@ import type { DungeonResult } from '../src/generator'
 
 const ARENA_W = 30
 const ARENA_H = 40
+/** The entrance mouth arena.ts would build for an ARENA_W x ARENA_H arena. */
+const ENTRANCE_CX = 15
+const ENTRANCE_TOP = ARENA_H - 2
+const PAD = pickupPad(ENTRANCE_CX, ENTRANCE_TOP, ARENA_W, ARENA_H)
 
 function freshCtx(seed = 12345): GenerationContext {
   return new GenerationContext(defaultParameters(), seed)
@@ -53,11 +56,23 @@ function wave(...pickups: [string, number][]): BossWave {
  * shape is created first, so its id is stable across the cases that compare
  * node counts.
  */
-function buildRig(ctx: GenerationContext, waves: BossWave[], anchorList: Anchor[] = anchors(ARENA_W, ARENA_H)) {
-  const shape = new NodeRectangleShape(ctx, 15, 38)
-  buildWavePickupRig(ctx, waves, anchorList, shape)
+function buildRig(ctx: GenerationContext, waves: BossWave[], walkable?: Uint8Array) {
+  const shape = new NodeRectangleShape(ctx, ENTRANCE_CX, ENTRANCE_TOP)
+  buildWavePickupRig(
+    ctx,
+    waves,
+    { width: ARENA_W, height: ARENA_H, entranceCx: ENTRANCE_CX, entranceTop: ENTRANCE_TOP, walkable },
+    shape
+  )
   return shape
 }
+
+/** A mask where every interior tile is walkable — no cover pillars anywhere. */
+function openFloor(): Uint8Array {
+  return new Uint8Array(ARENA_W * ARENA_H).fill(1)
+}
+
+const tileOf = (s: { x: number; y: number }) => `${s.x},${s.y}`
 
 function nodesOfType(ctx: GenerationContext, type: string): ScriptNode[] {
   return ctx.scriptNodes.filter((n) => n.type === type)
@@ -155,10 +170,9 @@ describe('boss wave pickups — a count is copies', () => {
     }
   })
 
-  it('spreads a tier\'s copies over distinct anchors, continuing across rows', () => {
+  it("fills a lane in order, one cursor per lane carried across the rows", () => {
     const ctx = freshCtx()
-    const anchorList = anchors(ARENA_W, ARENA_H)
-    buildRig(ctx, [wave(['health_4', 1], ['mana_2', 2])], anchorList)
+    buildRig(ctx, [wave(['health_4', 1], ['mana_2', 2])])
 
     const all = spawns(ctx)
     expect(all).toHaveLength(3)
@@ -167,31 +181,138 @@ describe('boss wave pickups — a count is copies', () => {
       'items/mana_2.xml',
       'items/mana_2.xml'
     ])
-    // the cursor continues across the two rows, so no two copies share a tile
-    const tiles = all.map((s) => `${s.x},${s.y}`)
-    expect(new Set(tiles).size).toBe(3)
-    expect(tiles).toEqual(anchorList.slice(0, 3).map((a) => `${a.x},${a.y}`))
+    // The health copy takes the health lane's first slot; the two mana copies
+    // take the mana lane's first two. Separate cursors, so the health row does
+    // not push the mana row along.
+    expect(all.map(tileOf)).toEqual([
+      tileOf(PAD.health[0]),
+      tileOf(PAD.mana[0]),
+      tileOf(PAD.mana[1])
+    ])
   })
 
-  it('wraps back round the anchors once a tier asks for more copies than anchors', () => {
+  it('carries a lane cursor across tiers so later drops sit beside earlier ones', () => {
     const ctx = freshCtx()
-    const anchorList = anchors(ARENA_W, ARENA_H)
-    buildRig(ctx, [wave(['mana_2', anchorList.length + 2])], anchorList)
+    // 50% drops one health, boss death drops two more: three health in a column.
+    buildRig(ctx, [wave(), wave(), wave(['health_4', 1]), wave(), wave(['health_4', 2])])
+
+    const tiles = spawns(ctx).map(tileOf)
+    expect(tiles).toEqual([PAD.health[0], PAD.health[1], PAD.health[2]].map(tileOf))
+    expect(new Set(tiles).size).toBe(3)
+  })
+
+  it('routes each item kind to its own lane', () => {
+    const ctx = freshCtx()
+    buildRig(ctx, [wave(['health_4', 1], ['mana_2', 1], ['potion_2', 1], ['upgrade_damage', 1])])
+
+    const byPath = new Map(spawns(ctx).map((s) => [s.actorPath, tileOf(s)]))
+    expect(byPath.get('items/health_4.xml')).toBe(tileOf(PAD.health[0]))
+    expect(byPath.get('items/mana_2.xml')).toBe(tileOf(PAD.mana[0]))
+    expect(byPath.get('items/powerup_potion2.xml')).toBe(tileOf(PAD.potion[0]))
+    expect(byPath.get('items/upgrade_damage.xml')).toBe(tileOf(PAD.upgrade[0]))
+  })
+
+  it('lays the eight upgrades out as the two-wide block of the reference layout', () => {
+    const ctx = freshCtx()
+    const upgrades = PICKUP_DEFS.filter((d) => d.lane === 'upgrade')
+    expect(upgrades).toHaveLength(8)
+    buildRig(ctx, [wave(...upgrades.map((d): [string, number] => [d.id, 1]))])
+
+    const tiles = spawns(ctx).map(tileOf)
+    expect(new Set(tiles).size).toBe(8)
+    expect(tiles).toEqual(PAD.upgrade.slice(0, 8).map(tileOf))
+    // two columns, four rows
+    expect(new Set(spawns(ctx).map((s) => s.x)).size).toBe(2)
+    expect(new Set(spawns(ctx).map((s) => s.y)).size).toBe(4)
+  })
+
+  it('puts the potions in the bottom row, nearest the door', () => {
+    const ctx = freshCtx()
+    buildRig(ctx, [wave(['potion_1', 1], ['potion_2', 1], ['potion_3', 1])])
 
     const all = spawns(ctx)
-    expect(all).toHaveLength(anchorList.length + 2)
-    expect(`${all[0].x},${all[0].y}`).toBe(`${all[anchorList.length].x},${all[anchorList.length].y}`)
+    // one row, and further south than any other lane's first slot
+    expect(new Set(all.map((s) => s.y)).size).toBe(1)
+    expect(all[0].y).toBeGreaterThan(PAD.health[0].y)
+    expect(all[0].y).toBeGreaterThan(PAD.upgrade[0].y)
+    // centred on the entrance
+    expect(all.map((s) => s.x).sort((a, b) => a - b)).toEqual([
+      ENTRANCE_CX - 1,
+      ENTRANCE_CX,
+      ENTRANCE_CX + 1
+    ])
   })
 
-  it('places every copy on one of the arena\'s spawn anchors', () => {
+  it('spills into the overflow column before it ever stacks', () => {
     const ctx = freshCtx()
-    const anchorList = anchors(ARENA_W, ARENA_H)
-    buildRig(ctx, [wave(['health_4', 3]), wave(), wave(['potion_2', 2]), wave(), wave(['mana_2', 5])], anchorList)
+    // One more than the visible column holds: the extra widens the lane rather
+    // than landing on an occupied tile.
+    buildRig(ctx, [wave(['mana_2', PAD_ROWS + 1])])
 
-    const valid = new Set(anchorList.map((a) => `${a.x},${a.y}`))
+    const all = spawns(ctx)
+    expect(all).toHaveLength(PAD_ROWS + 1)
+    expect(new Set(all.map(tileOf)).size).toBe(PAD_ROWS + 1)
+    expect(new Set(all.map((s) => s.x)).size).toBe(2)
+  })
+
+  it('wraps within the lane once a tier asks for more copies than it has slots', () => {
+    const ctx = freshCtx()
+    const slots = PAD.mana.length
+    buildRig(ctx, [wave(['mana_2', slots + 2])])
+
+    const all = spawns(ctx)
+    expect(all).toHaveLength(slots + 2)
+    expect(tileOf(all[0])).toBe(tileOf(all[slots]))
+  })
+
+  it('keeps every drop on the pad, and the pad inside the arena', () => {
+    const ctx = freshCtx()
+    buildRig(ctx, [wave(['health_4', 3]), wave(), wave(['potion_2', 2]), wave(), wave(['mana_2', 5])])
+
+    const valid = new Set(Object.values(PAD).flat().map(tileOf))
     for (const s of spawns(ctx)) {
-      expect(valid.has(`${s.x},${s.y}`), `${s.x},${s.y}`).toBe(true)
+      expect(valid.has(tileOf(s)), tileOf(s)).toBe(true)
+      expect(s.x).toBeGreaterThanOrEqual(0)
+      expect(s.y).toBeGreaterThanOrEqual(0)
+      expect(s.x).toBeLessThan(ARENA_W)
+      expect(s.y).toBeLessThan(ARENA_H)
     }
+  })
+
+  it('drops near the entrance rather than out at the arena edges', () => {
+    const ctx = freshCtx()
+    buildRig(ctx, [wave(['health_4', 1], ['mana_2', 1], ['potion_2', 1], ['upgrade_mana', 1])])
+
+    // The bug this replaced dealt drops onto the 9 spawn anchors, which put one
+    // on the north wall ~36 tiles from the door. Nothing may be further than
+    // the pad is deep.
+    for (const s of spawns(ctx)) {
+      expect(ENTRANCE_TOP - s.y, tileOf(s)).toBeLessThanOrEqual(PAD_ROWS + 2)
+      expect(Math.abs(s.x - ENTRANCE_CX), tileOf(s)).toBeLessThanOrEqual(4)
+    }
+  })
+
+  it('skips a pad slot a cover pillar sits on', () => {
+    const mask = openFloor()
+    const blocked = PAD.health[0]
+    mask[blocked.x + blocked.y * ARENA_W] = 0
+
+    const ctx = freshCtx()
+    buildRig(ctx, [wave(['health_4', 1])], mask)
+
+    const all = spawns(ctx)
+    expect(all).toHaveLength(1)
+    expect(tileOf(all[0])).not.toBe(tileOf(blocked))
+    expect(tileOf(all[0])).toBe(tileOf(PAD.health[1]))
+  })
+
+  it('still drops the item when its whole lane is buried', () => {
+    const mask = openFloor()
+    for (const slot of PAD.mana) mask[slot.x + slot.y * ARENA_W] = 0
+
+    const ctx = freshCtx()
+    buildRig(ctx, [wave(['mana_2', 2])], mask)
+    expect(spawns(ctx)).toHaveLength(2)
   })
 
   it('resolves the path of every item in the registry', () => {
@@ -265,11 +386,6 @@ describe('boss wave pickups — wiring', () => {
     }
   })
 
-  it('does nothing when the arena has no anchors to drop onto', () => {
-    const ctx = freshCtx()
-    buildRig(ctx, [wave(['health_4', 3])], [])
-    expect(nodesOfType(ctx, 'SpawnObject')).toHaveLength(0)
-  })
 })
 
 describe('boss wave pickups — determinism and invariant 6', () => {
@@ -326,12 +442,12 @@ describe('boss wave pickups — stock defaults', () => {
       expect(wavePickups(waves[0]), `${preset.id} 100%`).toEqual([])
       expect(wavePickups(waves[1]), `${preset.id} 75%`).toEqual([])
       expect(wavePickups(waves[2]), `${preset.id} 50%`).toEqual([
-        { item: 'health_4', count: 1 },
+        { item: 'powerup_health', count: 1 },
         { item: 'mana_2', count: 2 }
       ])
       expect(wavePickups(waves[3]), `${preset.id} 25%`).toEqual([{ item: 'potion_2', count: 1 }])
       expect(wavePickups(waves[BOSS_DEATH_WAVE]), `${preset.id} death`).toEqual([
-        { item: 'health_4', count: 2 },
+        { item: 'powerup_health', count: 2 },
         { item: 'mana_2', count: 4 }
       ])
     }

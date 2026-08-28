@@ -81,8 +81,9 @@ src/
 │   │   ├── waves.ts      the five-tier spawn rig (health tiers + Boss Died)
 │   │   ├── waveBuffs.ts  one arena-wide buff field per tier; they replace one
 │   │   │                 another rather than stacking
-│   │   └── wavePickups.ts item drops per tier, onto the 9 spawn anchors; these
-│   │                     do NOT replace one another
+│   │   ├── wavePickups.ts item drops per tier, onto the entrance drop pad;
+│   │   │                 these do NOT replace one another
+│   │   └── pickupPad.ts  the pad's lane geometry (health/mana/potion/upgrade)
 │   ├── tweak/            player balance (tweak/*.xml) — NOT level generation
 │   │   ├── types.ts      TweakFile/TweakParam/TweakUpgrade, PlayerTweaks
 │   │   ├── baseline.ts   full stock transcription of the 9 game tweak files
@@ -424,10 +425,21 @@ Three things separate it from `waveBuffs.ts`, which it is otherwise a twin of:
 - **It builds its own tier trigger** rather than sharing `waves.ts`'s: a tier
   with drops but no monsters is legal, and `waves.ts` skips a monsterless tier.
 
-Copies walk a cursor over the 9 anchors that continues across the rows of one
-tier, so a 1×health + 2×mana tier lands on three different anchors. Nothing
-buries them: `cover.ts` already refuses a pillar within `ANCHOR_PILLAR_CLEARANCE`
-of any anchor. Built last in `arena.ts`, draws from **no** stream.
+Placement is `pickupPad.ts`, **not** the 9 spawn anchors. The anchors were the
+first attempt and were wrong: they are chosen to be far apart so a horde
+surrounds the party, which put the 50% heal on a wall midpoint ~25 tiles away
+behind the wave that had just spawned there (playtest 2026-08-28 — that heal and
+the 25% potion were never found). Drops now land on a fixed pad just inside the
+entrance: health up the left column, mana up the right, the eight upgrades in
+the 2-wide middle block, potions in the row nearest the door. Same layout every
+seed, so it can be learnt once.
+
+One cursor per lane, carried across **all** tiers rather than reset per tier, so
+the 50% drops and the boss-death drops fill a column side by side instead of
+landing on one tile. Cover pillars do land on the pad, so each lane is two
+columns wide and a buried slot is skipped for the lane's next one; the
+reachability mask is **read**, never written, so no pillar moves and no
+`ctx.bossRand` draw shifts. Built last in `arena.ts`, draws from **no** stream.
 
 `parameters.txt` carries `bossWavePickupN=<item>:<count>|…` on its own key, for
 the same byte-compatibility reason as `bossWaveBuffN`, and its parse branch must

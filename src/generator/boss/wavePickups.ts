@@ -3,8 +3,9 @@
  *
  * Each of the five tiers (100 / 75 / 50 / 25% and Boss Died) may carry any
  * number of drop rows, each naming an item from PICKUP_DEFS and how many copies
- * of it land. When the tier's threshold fires, the copies appear on the arena's
- * nine spawn anchors and stay on the floor until somebody walks over them.
+ * of it land. When the tier's threshold fires, the copies appear on the
+ * entrance drop pad (boss/pickupPad.ts) and stay on the floor until somebody
+ * walks over them.
  *
  *   tier 0 (100%)   AreaTrigger -> entranceShape
  *                        └─ SpawnObject{trigger-times: 1} × copies
@@ -33,11 +34,19 @@
  *    with drops but no monsters is legal, and waves.ts skips a monsterless tier
  *    entirely.
  *
- * Copies walk a cursor over the nine anchors that continues across the rows of
- * one tier, so a 1×health + 2×mana tier lands on three different anchors
- * instead of stacking two items on N. Cover never buries a drop: cover.ts
- * already refuses to place a pillar within ANCHOR_PILLAR_CLEARANCE of any
- * anchor.
+ * Placement is the drop pad, not the nine spawn anchors. The anchors were the
+ * first attempt and were wrong: they are chosen to be far apart so a horde
+ * surrounds the party, which turned a mid-fight heal into a cross-arena run
+ * through the wave that had just spawned on the same tile (playtest
+ * 2026-08-28 — the 50% health and the 25% potion were never found). Every drop
+ * now lands in one learnable place just inside the entrance, sorted into a
+ * lane by item kind.
+ *
+ * One cursor per lane, carried across every tier rather than reset per tier, so
+ * the 50% drops and the boss-death drops fill a column side by side instead of
+ * landing on the same tile. A slot with a cover pillar on it is skipped for the
+ * lane's next slot; the mask is read, never written, so cover placement is
+ * unaffected and no ctx.bossRand draw moves.
  *
  * Like waves.ts, waveBuffs.ts and invulnerability.ts this module draws **no**
  * random values from any stream — not from `ctx.bossRand` either — and writes
@@ -48,10 +57,28 @@
 import type { GenerationContext } from '../core/context'
 import type { BossWave, WavePickup } from '../config/parameters'
 import { wavePickups } from '../config/parameters'
+import type { PickupLane } from '../objects/pickupTypes'
 import { pickupById } from '../objects/pickupTypes'
 import { NodeAreaTrigger, NodeGlobalEventTrigger, NodeRectangleShape, NodeSpawnObject } from '../objects/nodes'
-import type { Anchor } from './anchors'
+import type { PadSlot } from './pickupPad'
+import { pickupPad } from './pickupPad'
 import { TIER_EVENT_NAMES } from './waves'
+
+/** The arena facts the rig needs to place a drop. Read-only, all of it. */
+export interface PickupArena {
+  width: number
+  height: number
+  /** The entrance mouth's centre column — `entranceRect` in arena.ts. */
+  entranceCx: number
+  /** The entrance mouth's northernmost row. */
+  entranceTop: number
+  /**
+   * Post-prune walkable floor, indexed `x + y * width`, from cover.ts's
+   * `reachableMask`. A pad slot outside it has a pillar on it. Optional so a
+   * test can build the rig without a map; every slot counts as free then.
+   */
+  walkable?: Uint8Array
+}
 
 /**
  * Builds the arena's per-tier drop rig. Emits nothing at all — not one node,
@@ -64,22 +91,39 @@ import { TIER_EVENT_NAMES } from './waves'
 export function buildWavePickupRig(
   ctx: GenerationContext,
   waves: readonly BossWave[],
-  anchorList: readonly Anchor[],
+  arena: PickupArena,
   entranceShape: NodeRectangleShape
 ): void {
-  if (anchorList.length === 0) return
-
   const carried: WavePickup[][] = waves.map((wave) =>
     wavePickups(wave).filter((entry) => pickupById(entry.item) !== undefined && entry.count > 0)
   )
   if (carried.every((entries) => entries.length === 0)) return
 
+  const pad = pickupPad(arena.entranceCx, arena.entranceTop, arena.width, arena.height)
+  const cursors: Record<PickupLane, number> = { health: 0, mana: 0, potion: 0, upgrade: 0 }
+
+  /**
+   * The next free slot in a lane. Advances past slots a cover pillar sits on,
+   * and gives up after one full pass around the lane — a lane buried end to
+   * end falls back to stacking on its first slot rather than dropping the item
+   * on the floor of a pillar the party cannot reach.
+   */
+  const nextSlot = (lane: PickupLane): PadSlot => {
+    const slots = pad[lane]
+    for (let tried = 0; tried < slots.length; tried++) {
+      const slot = slots[cursors[lane] % slots.length]
+      cursors[lane] += 1
+      if (isFreeFloor(arena, slot)) return slot
+    }
+    return slots[0]
+  }
+
   for (let tier = 0; tier < carried.length; tier++) {
     const entries = carried[tier]
     if (entries.length === 0) continue
 
-    // Nodes are placed off the arena, one column per tier — cosmetic editor
-    // markers only. The SpawnObjects themselves DO care about position: that is
+    // Trigger nodes are parked off the arena, one column per tier — cosmetic
+    // editor markers only. The SpawnObjects DO care about position: that is
     // where the item lands.
     const col = entranceShape.x + tier
     const row = entranceShape.y
@@ -93,18 +137,22 @@ export function buildWavePickupRig(
       triggerNode = new NodeGlobalEventTrigger(ctx, col, row, TIER_EVENT_NAMES[tier - 1])
     }
 
-    // Continues across this tier's rows, so consecutive drops spread over
-    // distinct anchors instead of stacking on the first one.
-    let cursor = 0
     for (const entry of entries) {
-      const path = pickupById(entry.item)!.path
+      const def = pickupById(entry.item)!
       for (let copy = 0; copy < entry.count; copy++) {
-        const anchor = anchorList[cursor % anchorList.length]
-        cursor += 1
-        const spawn = new NodeSpawnObject(ctx, anchor.x, anchor.y, path)
+        const slot = nextSlot(def.lane)
+        const spawn = new NodeSpawnObject(ctx, slot.x, slot.y, def.path)
         spawn.triggerTimes = 1
         triggerNode.connectTo(spawn)
       }
     }
   }
+}
+
+/** Whether a pad slot is walkable floor rather than a cover pillar. */
+function isFreeFloor(arena: PickupArena, slot: PadSlot): boolean {
+  const { walkable, width, height } = arena
+  if (!walkable) return true
+  if (slot.x < 0 || slot.y < 0 || slot.x >= width || slot.y >= height) return false
+  return walkable[slot.x + slot.y * width] !== 0
 }

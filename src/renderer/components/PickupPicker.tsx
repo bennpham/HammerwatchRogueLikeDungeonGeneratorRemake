@@ -55,7 +55,7 @@ export function PickupPicker({ item, count, onChange, children }: PickupPickerPr
         // Empty while the field is being retyped would store NaN, so a blank
         // reads as 1 — the same value "Add pickup" starts a row on.
         onChange={(e) => onChange({ count: e.target.value === '' ? 1 : parseInt(e.target.value, 10) })}
-        title={`How many copies drop, 1..${MAX_PICKUP_COUNT}. Each copy lands on its own spawn anchor.`}
+        title={`How many copies drop, 1..${MAX_PICKUP_COUNT}. Each copy takes its own tile in this item's lane of the drop pad.`}
       />
       {children}
     </div>

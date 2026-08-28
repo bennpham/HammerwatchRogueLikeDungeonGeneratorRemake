@@ -12,7 +12,7 @@ in the same change.
 **Tag:** **[VERIFIED]** for the emission shape and the item paths listed under
 (1); **[UNVERIFIED]** for `items/health_2.xml` and `items/health_3.xml`.
 **Context:** Building Wave pickups (`src/generator/boss/wavePickups.ts`), which
-drops items on the arena's spawn anchors at each boss health threshold. The
+drops items at each boss health threshold. The
 project owner supplied a boss level resaved by the game's own editor
 (`boss_test_perks.xml`) with a spread of item spawns hand-placed in it.
 
@@ -43,6 +43,41 @@ project owner supplied a boss level resaved by the game's own editor
    the pickup dropdown and emitted on request; do NOT promote them into
    `ASSET-REGISTRY.md` until a packed campaign loads a floor carrying one. There
    is no `mana_3` — the owner checked the extract; mana has two sizes only.
+
+### 2026-08-28 — `powerup_health` is a 250 HP heal, and drops belong by the door
+**Tag:** **[VERIFIED]** in game — the owner ran a generated arena and read both
+findings off the floor.
+**Context:** First playtest of Wave pickups. Two things came back wrong.
+
+1. **`items/powerup_health.xml` is a flat 250 HP heal, not a potion.** It sits
+   in `objects/item.ts`'s `POWERUPS` pool next to the three timed potions and
+   the chests, which is the only reason it was ever grouped with them — nothing
+   had named it deliberately, so nobody had watched one get picked up. It is the
+   single biggest heal the game ships, bigger than `items/health_4.xml`.
+
+   The roster's health labels now run **Small → Medium → Large → XLarge → Huge**
+   over `health_1, health_2, health_3, health_4, powerup_health`, and
+   `powerup_health` is what the stock 50% and boss-death tiers resupply with.
+   The previous label — "Full heal", in the Potions group — was invented from
+   the filename and asserted an effect nobody had checked. Don't do that again:
+   an unconfirmed item goes in `[UNVERIFIED]` with a label that says so.
+
+2. **Dealing drops onto the 9 spawn anchors was the wrong placement.** The
+   anchors exist to make a horde *surround* the party: deliberately far apart,
+   hugging the walls. Used for loot on a 58x54 arena that put the 50% heal and
+   the 25% rejuvenation potion on the north wall midpoint, ~47 tiles from the
+   door and behind the wave that had just spawned on the same tile. Neither was
+   ever found; of the six mana copies only the two nearest the entrance and the
+   exit were collected.
+
+   Drops now go to a fixed pad just inside the entrance
+   (`src/generator/boss/pickupPad.ts`), sorted into lanes by item kind — the
+   arrangement the owner laid out by hand in the game's editor. **Cover pillars
+   do land on that pad**: seed 777 puts a `g_special_pillar` squarely in the
+   mana lane. `cover.ts`'s `ANCHOR_PILLAR_CLEARANCE` only protects the anchors,
+   and adding a pad exclusion would shift `ctx.bossRand` and move every existing
+   arena's pillars, so the pad routes around pillars instead — each lane is two
+   columns wide and reads the reachability mask to skip a buried slot.
 
 ### 2026-08-28 — an arena can be too big: a scattered wave that never re-forms
 **Tag:** **[VERIFIED]** in game (same 4-player group, on the 2026-08-27 build)

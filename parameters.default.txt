@@ -127,16 +127,19 @@ bossWave5=lich#2,lich,lich#0,mb_lich,mb_doomspawn,tower_static_frost|1000|lich#2
 # spawns after the kill fights bloodlusted on the walk to the orb.
 bossWaveBuff5=bloodlust:monsters
 # bossWavePickup1..5 drops items on that tier: <item>:<count> entries separated
-# by |, e.g. bossWavePickup3=health_4:1|mana_2:2. An omitted count means one.
-# The copies land on the arena's nine spawn anchors the moment the threshold
-# fires and stay on the floor until somebody walks over them, so unlike the
-# buffs above the tiers do NOT replace one another. Its own key, and written
-# only for tiers that drop something, for the same round-trip reason as
-# bossWaveBuff. The stock table resupplies at 50%, hands out one rejuvenation
-# potion at 25%, and doubles the resupply once the boss is down.
-bossWavePickup3=health_4:1|mana_2:2
+# by |, e.g. bossWavePickup3=powerup_health:1|mana_2:2. An omitted count means
+# one. The copies land on the drop pad just inside the arena entrance the moment
+# the threshold fires and stay on the floor until somebody walks over them, so
+# unlike the buffs above the tiers do NOT replace one another. The pad is the
+# same layout on every seed — health up the left, mana up the right, upgrades in
+# the middle, potions in the bottom row by the door — so it can be learnt once
+# and run back to. Its own key, and written only for tiers that drop something,
+# for the same round-trip reason as bossWaveBuff. The stock table resupplies at
+# 50%, hands out one rejuvenation potion at 25%, and doubles the resupply once
+# the boss is down. powerup_health is a flat 250 HP heal, the biggest in game.
+bossWavePickup3=powerup_health:1|mana_2:2
 bossWavePickup4=potion_2:1
-bossWavePickup5=health_4:2|mana_2:4
+bossWavePickup5=powerup_health:2|mana_2:4
 #
 # buff0..N hangs buff auras on a dungeon floor, same <id>:<target>|<id>:<target>
 # form, e.g. buff2=frost:players|bloodlust:monsters. A floor's aura covers the

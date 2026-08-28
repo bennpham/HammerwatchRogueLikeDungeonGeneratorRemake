@@ -44,7 +44,7 @@ export {
 export { BUFF_DEFS, BUFF_GROUPS, BUFF_HELPFUL_IDS, buffById } from './objects/buffTypes'
 export type { BuffDef } from './objects/buffTypes'
 export { PICKUP_DEFS, PICKUP_GROUPS, MAX_PICKUP_COUNT, pickupById } from './objects/pickupTypes'
-export type { PickupDef } from './objects/pickupTypes'
+export type { PickupDef, PickupLane } from './objects/pickupTypes'
 export { THEME_DEFS, getTheme } from './config/themes'
 export type { ThemeDef } from './config/themes'
 export { ARENA_PATTERN_LABELS, isShapePattern } from './boss/arenaPattern'

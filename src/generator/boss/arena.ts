@@ -414,8 +414,20 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   buildWaveBuffRig(ctx, arena.waves, width, height, entranceShape.x, entranceShape.y)
 
   // --- per-tier item drops: last of the three optional rigs, for the same
-  // append-only reason. Draws no random values. ---
-  buildWavePickupRig(ctx, arena.waves, anchorList, entranceShape)
+  // append-only reason. Draws no random values — it only READS `walkable`, so
+  // cover placement and every ctx.bossRand draw stay exactly where they were. ---
+  buildWavePickupRig(
+    ctx,
+    arena.waves,
+    {
+      width,
+      height,
+      entranceCx: entranceRect.x + Math.trunc(entranceRect.width / 2),
+      entranceTop: entranceRect.y,
+      walkable
+    },
+    entranceShape
+  )
 
   // --- win chain: Boss Died -> DestroyObject(seals) -> the wall opens ->
   // the existing Orb prefab's own ObjectEventTrigger -> GameEnd fires when the
