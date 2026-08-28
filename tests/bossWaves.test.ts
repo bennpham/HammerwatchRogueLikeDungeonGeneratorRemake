@@ -301,7 +301,7 @@ describe('boss wave rig — id integrity', () => {
 describe('boss wave rig — uses the default boss options end to end', () => {
   it('builds a full rig for defaultBossOptions().arena.waves without throwing', () => {
     const ctx = freshCtx()
-    const waves = defaultParameters().boss.arena.waves
+    const waves = defaultParameters().boss.fights[0].arena.waves
     expect(() => buildRig(ctx, waves)).not.toThrow()
     expect(nodesOfType(ctx, 'TimerTrigger').length).toBeGreaterThan(0)
     expect(nodesOfType(ctx, 'SpawnObject').length).toBeGreaterThan(0)
@@ -541,7 +541,7 @@ describe('scatterRequests', () => {
   })
 
   it('covers the stock waves except their anchored tail', () => {
-    const waves = defaultParameters().boss.arena.waves
+    const waves = defaultParameters().boss.fights[0].arena.waves
     const requests = scatterRequests(waves, 1.0, NO_BATCHING)
 
     // every stock entry is scattered except the blocking-wreck towers, which
@@ -557,7 +557,7 @@ describe('scatterRequests', () => {
   })
 
   it('is empty once every monster is back on the anchors mode', () => {
-    const waves = defaultParameters().boss.arena.waves.map((w) => ({ ...w, spawnMode: undefined }))
+    const waves = defaultParameters().boss.fights[0].arena.waves.map((w) => ({ ...w, spawnMode: undefined }))
     expect(scatterRequests(waves, 1.0, NO_BATCHING)).toEqual([])
   })
 })
@@ -665,7 +665,7 @@ describe('boss wave rig — the boss-death tier', () => {
   })
 
   it('the stock death tier is populated, and its scatters come after every other tier', () => {
-    const waves = defaultParameters().boss.arena.waves
+    const waves = defaultParameters().boss.fights[0].arena.waves
     const last = waves.length - 1
     expect(waves[last].monsters.length).toBeGreaterThan(0)
 

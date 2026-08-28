@@ -347,15 +347,25 @@ describe('lobby validation', () => {
 })
 
 describe('boss validation', () => {
-  const withBoss = (patch: Partial<ReturnType<typeof defaultParameters>['boss']>) => {
+  // Patches the FIRST fight, which is the only one the stock parameters have —
+  // every rule here is per-fight, so one fight exercises all of them. `enabled`
+  // is campaign-wide and is passed through separately.
+  const withBoss = (
+    patch: Partial<ReturnType<typeof defaultParameters>['boss']['fights'][number]> & { enabled?: boolean }
+  ) => {
     const p = defaultParameters()
-    p.boss = { ...p.boss, ...patch }
+    const { enabled, ...fightPatch } = patch
+    p.boss = {
+      ...p.boss,
+      ...(enabled === undefined ? {} : { enabled }),
+      fights: p.boss.fights.map((f, i) => (i === 0 ? { ...f, ...fightPatch } : f))
+    }
     return validateParameters(p)
   }
 
   /** The stock parameters with tier 0's wave patched — the spawn-mode rules are all per-wave. */
-  const withWave0 = (patch: Partial<ReturnType<typeof defaultParameters>['boss']['arena']['waves'][number]>) => {
-    const arena = defaultParameters().boss.arena
+  const withWave0 = (patch: Partial<ReturnType<typeof defaultParameters>['boss']['fights'][number]['arena']['waves'][number]>) => {
+    const arena = defaultParameters().boss.fights[0].arena
     return withBoss({ arena: { ...arena, waves: arena.waves.map((w, i) => (i === 0 ? { ...w, ...patch } : w)) } })
   }
 
@@ -367,32 +377,32 @@ describe('boss validation', () => {
   })
 
   it('requires exactly BOSS_WAVE_COUNT waves — the four health tiers plus boss death', () => {
-    const arena = defaultParameters().boss.arena
+    const arena = defaultParameters().boss.fights[0].arena
     expect(arena.waves).toHaveLength(BOSS_WAVE_COUNT)
 
     const short = withBoss({ arena: { ...arena, waves: arena.waves.slice(0, 4) } })
-    expect(fieldsOf(short.errors)).toContain('boss.arena.waves')
+    expect(fieldsOf(short.errors)).toContain('boss.fights.0.arena.waves')
     expect(short.valid).toBe(false)
 
     const long = withBoss({ arena: { ...arena, waves: [...arena.waves, arena.waves[0]] } })
-    expect(fieldsOf(long.errors)).toContain('boss.arena.waves')
+    expect(fieldsOf(long.errors)).toContain('boss.fights.0.arena.waves')
   })
 
   it('says nothing about an empty boss-death tier, but still flags an empty health tier', () => {
     // The death tier ships empty, so warning about it would put a message on
     // every stock run. An empty health tier is still a mistake worth naming.
-    const arena = defaultParameters().boss.arena
+    const arena = defaultParameters().boss.fights[0].arena
     const quiet = withBoss({ arena })
-    expect(fieldsOf(quiet.warnings)).not.toContain(`boss.arena.waves.${BOSS_DEATH_WAVE}.monsters`)
+    expect(fieldsOf(quiet.warnings)).not.toContain(`boss.fights.0.arena.waves.${BOSS_DEATH_WAVE}.monsters`)
 
     const emptied = withBoss({
       arena: { ...arena, waves: arena.waves.map((w, i) => (i === 1 ? { ...w, monsters: [], monsterMax: {}, spawnMode: undefined } : w)) }
     })
-    expect(fieldsOf(emptied.warnings)).toContain('boss.arena.waves.1.monsters')
+    expect(fieldsOf(emptied.warnings)).toContain('boss.fights.0.arena.waves.1.monsters')
   })
 
   it('accepts an endless count in the boss-death tier without comment', () => {
-    const arena = defaultParameters().boss.arena
+    const arena = defaultParameters().boss.fights[0].arena
     const result = withBoss({
       arena: {
         ...arena,
@@ -402,12 +412,12 @@ describe('boss validation', () => {
       }
     })
     expect(result.valid).toBe(true)
-    expect(fieldsOf(result.errors)).not.toContain(`boss.arena.waves.${BOSS_DEATH_WAVE}.monsterMax.eye`)
-    expect(fieldsOf(result.warnings)).not.toContain(`boss.arena.waves.${BOSS_DEATH_WAVE}.monsterMax.eye`)
+    expect(fieldsOf(result.errors)).not.toContain(`boss.fights.0.arena.waves.${BOSS_DEATH_WAVE}.monsterMax.eye`)
+    expect(fieldsOf(result.warnings)).not.toContain(`boss.fights.0.arena.waves.${BOSS_DEATH_WAVE}.monsterMax.eye`)
   })
 
   it('applies the ordinary per-wave rules to the boss-death tier too', () => {
-    const arena = defaultParameters().boss.arena
+    const arena = defaultParameters().boss.fights[0].arena
     const result = withBoss({
       arena: {
         ...arena,
@@ -418,8 +428,8 @@ describe('boss validation', () => {
         )
       }
     })
-    expect(fieldsOf(result.errors)).toContain(`boss.arena.waves.${BOSS_DEATH_WAVE}.monsters`)
-    expect(fieldsOf(result.errors)).toContain(`boss.arena.waves.${BOSS_DEATH_WAVE}.defaultIntervalMs`)
+    expect(fieldsOf(result.errors)).toContain(`boss.fights.0.arena.waves.${BOSS_DEATH_WAVE}.monsters`)
+    expect(fieldsOf(result.errors)).toContain(`boss.fights.0.arena.waves.${BOSS_DEATH_WAVE}.defaultIntervalMs`)
   })
 
   it('treats an absent boss object as off, not invalid', () => {
@@ -433,212 +443,212 @@ describe('boss validation', () => {
 
   it('rejects min > max on either axis', () => {
     const wide = withBoss({
-      arena: { ...defaultParameters().boss.arena, minWidth: 40, maxWidth: 20 }
+      arena: { ...defaultParameters().boss.fights[0].arena, minWidth: 40, maxWidth: 20 }
     })
-    expect(fieldsOf(wide.errors)).toContain('boss.arena.minWidth')
+    expect(fieldsOf(wide.errors)).toContain('boss.fights.0.arena.minWidth')
 
     const tall = withBoss({
-      arena: { ...defaultParameters().boss.arena, minHeight: 50, maxHeight: 30 }
+      arena: { ...defaultParameters().boss.fights[0].arena, minHeight: 50, maxHeight: 30 }
     })
-    expect(fieldsOf(tall.errors)).toContain('boss.arena.minHeight')
+    expect(fieldsOf(tall.errors)).toContain('boss.fights.0.arena.minHeight')
   })
 
   it('rejects arenas too small for the biggest boss + alcove + anchors', () => {
     const tooNarrow = withBoss({
-      arena: { ...defaultParameters().boss.arena, minWidth: 10, maxWidth: 12 }
+      arena: { ...defaultParameters().boss.fights[0].arena, minWidth: 10, maxWidth: 12 }
     })
-    expect(fieldsOf(tooNarrow.errors)).toContain('boss.arena.minWidth')
+    expect(fieldsOf(tooNarrow.errors)).toContain('boss.fights.0.arena.minWidth')
 
     const tooShort = withBoss({
-      arena: { ...defaultParameters().boss.arena, minHeight: 10, maxHeight: 12 }
+      arena: { ...defaultParameters().boss.fights[0].arena, minHeight: 10, maxHeight: 12 }
     })
-    expect(fieldsOf(tooShort.errors)).toContain('boss.arena.minHeight')
+    expect(fieldsOf(tooShort.errors)).toContain('boss.fights.0.arena.minHeight')
   })
 
   it('rejects an empty boss pool', () => {
     const result = withBoss({
-      arena: { ...defaultParameters().boss.arena, bossPool: [] }
+      arena: { ...defaultParameters().boss.fights[0].arena, bossPool: [] }
     })
-    expect(fieldsOf(result.errors)).toContain('boss.arena.bossPool')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.bossPool')
   })
 
   it('rejects an unknown boss id in the pool', () => {
     const result = withBoss({
-      arena: { ...defaultParameters().boss.arena, bossPool: ['boss_dragon', 'boss_bogus'] }
+      arena: { ...defaultParameters().boss.fights[0].arena, bossPool: ['boss_dragon', 'boss_bogus'] }
     })
-    expect(fieldsOf(result.errors)).toContain('boss.arena.bossPool')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.bossPool')
   })
 
   it('rejects a wave count other than 4', () => {
     const result = withBoss({
-      arena: { ...defaultParameters().boss.arena, waves: defaultParameters().boss.arena.waves.slice(0, 3) }
+      arena: { ...defaultParameters().boss.fights[0].arena, waves: defaultParameters().boss.fights[0].arena.waves.slice(0, 3) }
     })
-    expect(fieldsOf(result.errors)).toContain('boss.arena.waves')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.waves')
   })
 
   it('rejects spawn intervals outside 100..60000, reporting every bad wave', () => {
-    const waves = defaultParameters().boss.arena.waves
+    const waves = defaultParameters().boss.fights[0].arena.waves
     waves[0].defaultIntervalMs = 50
     waves[1].defaultIntervalMs = 70000
     waves[2].defaultIntervalMs = 0
     waves[3].defaultIntervalMs = -1
-    const result = withBoss({ arena: { ...defaultParameters().boss.arena, waves } })
-    expect(fieldsOf(result.errors)).toContain('boss.arena.waves.0.defaultIntervalMs')
-    expect(fieldsOf(result.errors)).toContain('boss.arena.waves.1.defaultIntervalMs')
-    expect(fieldsOf(result.errors)).toContain('boss.arena.waves.2.defaultIntervalMs')
-    expect(fieldsOf(result.errors)).toContain('boss.arena.waves.3.defaultIntervalMs')
+    const result = withBoss({ arena: { ...defaultParameters().boss.fights[0].arena, waves } })
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.waves.0.defaultIntervalMs')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.waves.1.defaultIntervalMs')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.waves.2.defaultIntervalMs')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.waves.3.defaultIntervalMs')
   })
 
   it('rejects an unknown monster in a wave pool', () => {
-    const waves = defaultParameters().boss.arena.waves
+    const waves = defaultParameters().boss.fights[0].arena.waves
     waves[1].monsters = ['skeleton1', 'dragon']
-    const result = withBoss({ arena: { ...defaultParameters().boss.arena, waves } })
-    expect(fieldsOf(result.errors)).toContain('boss.arena.waves.1.monsters')
+    const result = withBoss({ arena: { ...defaultParameters().boss.fights[0].arena, waves } })
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.waves.1.monsters')
   })
 
   it('accepts a spawner or elite variant key in a wave pool', () => {
-    const waves = defaultParameters().boss.arena.waves
+    const waves = defaultParameters().boss.fights[0].arena.waves
     waves[1].monsters = ['skeleton1#0', 'archer1#2']
-    const result = withBoss({ arena: { ...defaultParameters().boss.arena, waves } })
-    expect(fieldsOf(result.errors)).not.toContain('boss.arena.waves.1.monsters')
+    const result = withBoss({ arena: { ...defaultParameters().boss.fights[0].arena, waves } })
+    expect(fieldsOf(result.errors)).not.toContain('boss.fights.0.arena.waves.1.monsters')
   })
 
   it('rejects a variant index the monster does not have', () => {
-    const waves = defaultParameters().boss.arena.waves
+    const waves = defaultParameters().boss.fights[0].arena.waves
     waves[1].monsters = ['bat1#99']
-    const result = withBoss({ arena: { ...defaultParameters().boss.arena, waves } })
-    const issue = result.errors.find((e) => e.field === 'boss.arena.waves.1.monsters')
+    const result = withBoss({ arena: { ...defaultParameters().boss.fights[0].arena, waves } })
+    const issue = result.errors.find((e) => e.field === 'boss.fights.0.arena.waves.1.monsters')
     expect(issue?.message).toContain('has no variant 99')
   })
 
   it('rejects a non-canonical spelling of the default variant', () => {
     // bat1#1 and bat1 are the same actor — allowing both would let one actor
     // hold two pool slots with two different max counts.
-    const waves = defaultParameters().boss.arena.waves
+    const waves = defaultParameters().boss.fights[0].arena.waves
     waves[1].monsters = ['bat1#1']
-    const result = withBoss({ arena: { ...defaultParameters().boss.arena, waves } })
-    const issue = result.errors.find((e) => e.field === 'boss.arena.waves.1.monsters')
+    const result = withBoss({ arena: { ...defaultParameters().boss.fights[0].arena, waves } })
+    const issue = result.errors.find((e) => e.field === 'boss.fights.0.arena.waves.1.monsters')
     expect(issue?.message).toContain('is not canonical')
   })
 
   it.each(['bat1#', 'bat1#x', 'bat1#1.5'])('rejects the malformed variant key %s', (key) => {
-    const waves = defaultParameters().boss.arena.waves
+    const waves = defaultParameters().boss.fights[0].arena.waves
     waves[1].monsters = [key]
-    const result = withBoss({ arena: { ...defaultParameters().boss.arena, waves } })
-    const issue = result.errors.find((e) => e.field === 'boss.arena.waves.1.monsters')
+    const result = withBoss({ arena: { ...defaultParameters().boss.fights[0].arena, waves } })
+    const issue = result.errors.find((e) => e.field === 'boss.fights.0.arena.waves.1.monsters')
     expect(issue?.message).toContain('malformed variant')
   })
 
   it('still names an unknown base id rather than blaming the variant', () => {
-    const waves = defaultParameters().boss.arena.waves
+    const waves = defaultParameters().boss.fights[0].arena.waves
     waves[1].monsters = ['dragon#0']
-    const result = withBoss({ arena: { ...defaultParameters().boss.arena, waves } })
-    const issue = result.errors.find((e) => e.field === 'boss.arena.waves.1.monsters')
+    const result = withBoss({ arena: { ...defaultParameters().boss.fights[0].arena, waves } })
+    const issue = result.errors.find((e) => e.field === 'boss.fights.0.arena.waves.1.monsters')
     expect(issue?.message).toContain('unknown monster')
   })
 
   it('rejects a monsterMax below -1', () => {
-    const waves = defaultParameters().boss.arena.waves
+    const waves = defaultParameters().boss.fights[0].arena.waves
     waves[0].monsterMax = { ...waves[0].monsterMax, bat1: -2 }
-    const result = withBoss({ arena: { ...defaultParameters().boss.arena, waves } })
-    expect(fieldsOf(result.errors)).toContain('boss.arena.waves.0.monsterMax.bat1')
+    const result = withBoss({ arena: { ...defaultParameters().boss.fights[0].arena, waves } })
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.waves.0.monsterMax.bat1')
   })
 
   it('accepts -1 (endless) in monsterMax', () => {
-    const waves = defaultParameters().boss.arena.waves
+    const waves = defaultParameters().boss.fights[0].arena.waves
     waves[0].monsterMax = { ...waves[0].monsterMax, bat1: -1 }
-    const result = withBoss({ arena: { ...defaultParameters().boss.arena, waves } })
-    expect(fieldsOf(result.errors)).not.toContain('boss.arena.waves.0.monsterMax.bat1')
+    const result = withBoss({ arena: { ...defaultParameters().boss.fights[0].arena, waves } })
+    expect(fieldsOf(result.errors)).not.toContain('boss.fights.0.arena.waves.0.monsterMax.bat1')
   })
 
   it('warns (without blocking) on an empty wave monster pool', () => {
-    const waves = defaultParameters().boss.arena.waves
+    const waves = defaultParameters().boss.fights[0].arena.waves
     waves[2].monsters = []
-    const result = withBoss({ arena: { ...defaultParameters().boss.arena, waves } })
+    const result = withBoss({ arena: { ...defaultParameters().boss.fights[0].arena, waves } })
     expect(result.valid).toBe(true)
-    expect(fieldsOf(result.warnings)).toContain('boss.arena.waves.2.monsters')
+    expect(fieldsOf(result.warnings)).toContain('boss.fights.0.arena.waves.2.monsters')
   })
 
   it('rejects an unknown arena theme', () => {
     const result = withBoss({
-      arena: { ...defaultParameters().boss.arena, theme: 'z' }
+      arena: { ...defaultParameters().boss.fights[0].arena, theme: 'z' }
     })
-    expect(fieldsOf(result.errors)).toContain('boss.arena.theme')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.theme')
   })
 
   it('rejects an unknown arena floor pattern', () => {
     const result = withBoss({
       arena: {
-        ...defaultParameters().boss.arena,
+        ...defaultParameters().boss.fights[0].arena,
         floorPattern: 'spiral' as 'random'
       }
     })
-    expect(fieldsOf(result.errors)).toContain('boss.arena.floorPattern')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.floorPattern')
   })
 
   // Setting a pattern on a theme with no palette is simply unused, not an
   // error: clearing it when the user switches theme would lose their choice.
   it('accepts a floor pattern on a theme that ignores it', () => {
     const result = withBoss({
-      arena: { ...defaultParameters().boss.arena, theme: 'g', floorPattern: 'rings' }
+      arena: { ...defaultParameters().boss.fights[0].arena, theme: 'g', floorPattern: 'rings' }
     })
-    expect(fieldsOf(result.errors)).not.toContain('boss.arena.floorPattern')
+    expect(fieldsOf(result.errors)).not.toContain('boss.fights.0.arena.floorPattern')
   })
 
   it('applies the same free upgrade rules to the prep room', () => {
     const ok = withBoss({
-      prep: { ...defaultParameters().boss.prep, upgrades: { ...noUpgrades(), health: 900 } }
+      prep: { ...defaultParameters().boss.fights[0].prep, upgrades: { ...noUpgrades(), health: 900 } }
     })
     expect(ok.valid).toBe(true)
 
     const bad = withBoss({
-      prep: { ...defaultParameters().boss.prep, upgrades: { ...oneOfEachUpgrade(), mana: -3 } }
+      prep: { ...defaultParameters().boss.fights[0].prep, upgrades: { ...oneOfEachUpgrade(), mana: -3 } }
     })
     expect(bad.valid).toBe(false)
-    expect(fieldsOf(bad.errors)).toContain('boss.prep.upgrades')
+    expect(fieldsOf(bad.errors)).toContain('boss.fights.0.prep.upgrades')
   })
 
   it('rejects starting gold that is not a multiple of 500', () => {
-    const result = withBoss({ prep: { ...defaultParameters().boss.prep, startingGold: 750 } })
+    const result = withBoss({ prep: { ...defaultParameters().boss.fights[0].prep, startingGold: 750 } })
     expect(result.valid).toBe(false)
-    expect(fieldsOf(result.errors)).toContain('boss.prep.startingGold')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.prep.startingGold')
   })
 
   it('accepts starting gold far past the authored prep slots — it stacks', () => {
-    const result = withBoss({ prep: { ...defaultParameters().boss.prep, startingGold: 100_000 } })
+    const result = withBoss({ prep: { ...defaultParameters().boss.fights[0].prep, startingGold: 100_000 } })
     expect(result.valid).toBe(true)
-    expect(fieldsOf(result.warnings)).not.toContain('boss.prep.startingGold')
+    expect(fieldsOf(result.warnings)).not.toContain('boss.fights.0.prep.startingGold')
   })
 
   it('rejects starting gold past the safety ceiling', () => {
     const result = withBoss({
-      prep: { ...defaultParameters().boss.prep, startingGold: GOLD_SAFETY_MAX + 500 }
+      prep: { ...defaultParameters().boss.fights[0].prep, startingGold: GOLD_SAFETY_MAX + 500 }
     })
     expect(result.valid).toBe(false)
-    expect(fieldsOf(result.errors)).toContain('boss.prep.startingGold')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.prep.startingGold')
   })
 
   it('rejects an unknown prep shop category', () => {
-    const result = withBoss({ prep: { ...defaultParameters().boss.prep, shopCategories: ['misc1', 'bogus'] } })
-    expect(fieldsOf(result.errors)).toContain('boss.prep.shopCategories')
+    const result = withBoss({ prep: { ...defaultParameters().boss.fights[0].prep, shopCategories: ['misc1', 'bogus'] } })
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.prep.shopCategories')
   })
 
   it('rejects an unknown cover pattern', () => {
     const result = withBoss({
-      arena: { ...defaultParameters().boss.arena, cover: { ...defaultParameters().boss.arena.cover, pattern: 'spiral' as never } }
+      arena: { ...defaultParameters().boss.fights[0].arena, cover: { ...defaultParameters().boss.fights[0].arena.cover, pattern: 'spiral' as never } }
     })
-    expect(fieldsOf(result.errors)).toContain('boss.arena.cover.pattern')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.cover.pattern')
   })
 
   it('rejects ringSpacing and clusters below 1', () => {
     const result = withBoss({
       arena: {
-        ...defaultParameters().boss.arena,
-        cover: { ...defaultParameters().boss.arena.cover, ringSpacing: 0, clusters: 0 }
+        ...defaultParameters().boss.fights[0].arena,
+        cover: { ...defaultParameters().boss.fights[0].arena.cover, ringSpacing: 0, clusters: 0 }
       }
     })
-    expect(fieldsOf(result.errors)).toContain('boss.arena.cover.ringSpacing')
-    expect(fieldsOf(result.errors)).toContain('boss.arena.cover.clusters')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.cover.ringSpacing')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.cover.clusters')
   })
 
   it('rejects a cover density past the hard cap, as an error not a warning', () => {
@@ -646,54 +656,54 @@ describe('boss validation', () => {
     // ~200 pillars over half the floor. This is a broken campaign, so it
     // blocks generation rather than merely warning.
     const result = withBoss({
-      arena: { ...defaultParameters().boss.arena, cover: { ...defaultParameters().boss.arena.cover, density: 0.5 } }
+      arena: { ...defaultParameters().boss.fights[0].arena, cover: { ...defaultParameters().boss.fights[0].arena.cover, density: 0.5 } }
     })
     expect(result.valid).toBe(false)
-    expect(fieldsOf(result.errors)).toContain('boss.arena.cover.density')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.cover.density')
   })
 
   it('accepts a density at the cap exactly', () => {
     const result = withBoss({
       arena: {
-        ...defaultParameters().boss.arena,
-        cover: { ...defaultParameters().boss.arena.cover, density: BOSS_COVER_DENSITY_MAX }
+        ...defaultParameters().boss.fights[0].arena,
+        cover: { ...defaultParameters().boss.fights[0].arena.cover, density: BOSS_COVER_DENSITY_MAX }
       }
     })
-    expect(fieldsOf(result.errors)).not.toContain('boss.arena.cover.density')
+    expect(fieldsOf(result.errors)).not.toContain('boss.fights.0.arena.cover.density')
   })
 
   it('rejects the scatter spawn knobs below 1', () => {
     const result = withBoss({
       arena: {
-        ...defaultParameters().boss.arena,
+        ...defaultParameters().boss.fights[0].arena,
         spawn: { spacing: 0, ringSpacing: 0, clusters: 0, batchSize: 0, batchIntervalMs: 1500 }
       }
     })
-    expect(fieldsOf(result.errors)).toContain('boss.arena.spawn.spacing')
-    expect(fieldsOf(result.errors)).toContain('boss.arena.spawn.ringSpacing')
-    expect(fieldsOf(result.errors)).toContain('boss.arena.spawn.clusters')
-    expect(fieldsOf(result.errors)).toContain('boss.arena.spawn.batchSize')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.spawn.spacing')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.spawn.ringSpacing')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.spawn.clusters')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.spawn.batchSize')
   })
 
   it('rejects a batch interval outside the wave interval bounds', () => {
-    const spawn = defaultParameters().boss.arena.spawn
+    const spawn = defaultParameters().boss.fights[0].arena.spawn
     for (const batchIntervalMs of [99, 60001, 1500.5]) {
       const result = withBoss({
-        arena: { ...defaultParameters().boss.arena, spawn: { ...spawn, batchIntervalMs } }
+        arena: { ...defaultParameters().boss.fights[0].arena, spawn: { ...spawn, batchIntervalMs } }
       })
       expect(fieldsOf(result.errors), `${batchIntervalMs} should be rejected`).toContain(
-        'boss.arena.spawn.batchIntervalMs'
+        'boss.fights.0.arena.spawn.batchIntervalMs'
       )
     }
   })
 
   it('accepts the batch interval at both ends of its range', () => {
-    const spawn = defaultParameters().boss.arena.spawn
+    const spawn = defaultParameters().boss.fights[0].arena.spawn
     for (const batchIntervalMs of [100, 60000]) {
       const result = withBoss({
-        arena: { ...defaultParameters().boss.arena, spawn: { ...spawn, batchIntervalMs } }
+        arena: { ...defaultParameters().boss.fights[0].arena, spawn: { ...spawn, batchIntervalMs } }
       })
-      expect(fieldsOf(result.errors)).not.toContain('boss.arena.spawn.batchIntervalMs')
+      expect(fieldsOf(result.errors)).not.toContain('boss.fights.0.arena.spawn.batchIntervalMs')
     }
   })
 
@@ -701,33 +711,38 @@ describe('boss validation', () => {
   // arena had floor to put the scatter points on, so a tier that wanted more
   // than it could fit silently stacked monsters instead of saying so.
   it('warns when a tier wants more scatter points than the smallest arena fits', () => {
-    const arena = defaultParameters().boss.arena
+    const arena = defaultParameters().boss.fights[0].arena
     const p = defaultParameters()
     p.boss = {
       ...p.boss,
-      arena: {
-        ...arena,
-        minWidth: 16,
-        maxWidth: 20,
-        minHeight: 20,
-        maxHeight: 24,
-        spawn: { ...arena.spawn, spacing: 4, batchSize: 500 },
-        waves: arena.waves.map((w, i) =>
-          i === 0 ? { ...w, monsterMax: { ...w.monsterMax, bat1: 400 }, spawnMode: { bat1: 'random' as const } } : w
-        )
-      }
+      fights: [
+        {
+          ...p.boss.fights[0],
+          arena: {
+            ...arena,
+            minWidth: 16,
+            maxWidth: 20,
+            minHeight: 20,
+            maxHeight: 24,
+            spawn: { ...arena.spawn, spacing: 4, batchSize: 500 },
+            waves: arena.waves.map((w, i) =>
+              i === 0 ? { ...w, monsterMax: { ...w.monsterMax, bat1: 400 }, spawnMode: { bat1: 'random' as const } } : w
+            )
+          }
+        }
+      ]
     }
     const result = validateParameters(p)
     // a warning, not an error — every monster still spawns, just stacked
     expect(result.valid).toBe(true)
-    expect(fieldsOf(result.warnings)).toContain('boss.arena.waves.0')
+    expect(fieldsOf(result.warnings)).toContain('boss.fights.0.arena.waves.0')
   })
 
   it('does not warn about capacity on the stock defaults', () => {
     // The whole point of the batch budget: even the smallest arena the stock
     // 42-64 range can roll fits every tier's points with room to spare.
     const result = validateParameters(defaultParameters())
-    expect(fieldsOf(result.warnings).filter((f) => /^boss\.arena\.waves\.\d+$/.test(f))).toEqual([])
+    expect(fieldsOf(result.warnings).filter((f) => /^boss\.fights\.\d+\.arena\.waves\.\d+$/.test(f))).toEqual([])
   })
 
   it('does not warn about capacity on any preset at its smallest arena', () => {
@@ -737,7 +752,7 @@ describe('boss validation', () => {
     for (const preset of CAMPAIGN_PRESETS) {
       const result = validateParameters(preset.build())
       expect(
-        fieldsOf(result.warnings).filter((f) => /^boss\.arena\.waves\.\d+$/.test(f)),
+        fieldsOf(result.warnings).filter((f) => /^boss\.fights\.\d+\.arena\.waves\.\d+$/.test(f)),
         preset.id
       ).toEqual([])
     }
@@ -745,24 +760,24 @@ describe('boss validation', () => {
 
   it('rejects a negative arena multiplier', () => {
     const result = withBoss({
-      arena: { ...defaultParameters().boss.arena, monsterMultiplier: -1, foodMultiplier: -0.5 }
+      arena: { ...defaultParameters().boss.fights[0].arena, monsterMultiplier: -1, foodMultiplier: -0.5 }
     })
-    expect(fieldsOf(result.errors)).toContain('boss.arena.monsterMultiplier')
-    expect(fieldsOf(result.errors)).toContain('boss.arena.foodMultiplier')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.monsterMultiplier')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.foodMultiplier')
   })
 
   it('accepts 0 for both arena multipliers', () => {
     // 0 is a real setting: no waves, no food. Only negatives are nonsense.
     const result = withBoss({
-      arena: { ...defaultParameters().boss.arena, monsterMultiplier: 0, foodMultiplier: 0 }
+      arena: { ...defaultParameters().boss.fights[0].arena, monsterMultiplier: 0, foodMultiplier: 0 }
     })
-    expect(fieldsOf(result.errors)).not.toContain('boss.arena.monsterMultiplier')
-    expect(fieldsOf(result.errors)).not.toContain('boss.arena.foodMultiplier')
+    expect(fieldsOf(result.errors)).not.toContain('boss.fights.0.arena.monsterMultiplier')
+    expect(fieldsOf(result.errors)).not.toContain('boss.fights.0.arena.foodMultiplier')
   })
 
   it('rejects an unknown spawn mode', () => {
     const result = withWave0({ spawnMode: { bat1: 'spiral' as never } })
-    expect(fieldsOf(result.errors)).toContain('boss.arena.waves.0.spawnMode.bat1')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.waves.0.spawnMode.bat1')
   })
 
   it('rejects scattering a monster whose wreck still blocks movement', () => {
@@ -774,7 +789,7 @@ describe('boss validation', () => {
       spawnMode: { tower_nova1: 'random' }
     })
     expect(result.valid).toBe(false)
-    expect(fieldsOf(result.errors)).toContain('boss.arena.waves.0.spawnMode.tower_nova1')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.waves.0.spawnMode.tower_nova1')
   })
 
   it('accepts the same monster on the anchors mode', () => {
@@ -783,7 +798,7 @@ describe('boss validation', () => {
       monsterMax: { tower_nova1: 6 },
       spawnMode: { tower_nova1: 'anchors' }
     })
-    expect(fieldsOf(result.errors)).not.toContain('boss.arena.waves.0.spawnMode.tower_nova1')
+    expect(fieldsOf(result.errors)).not.toContain('boss.fights.0.arena.waves.0.spawnMode.tower_nova1')
   })
 
   it('accepts scattering a monster whose wreck is passable', () => {
@@ -798,32 +813,37 @@ describe('boss validation', () => {
   it('rejects an endless count on a scattered monster', () => {
     const result = withWave0({ monsterMax: { bat1: -1, tick1: 10, maggot: 10 }, spawnMode: { bat1: 'ring' } })
     expect(result.valid).toBe(false)
-    expect(fieldsOf(result.errors)).toContain('boss.arena.waves.0.spawnMode.bat1')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.waves.0.spawnMode.bat1')
   })
 
   it('accepts a huge scattered count — there is no upper limit', () => {
-    const arena = defaultParameters().boss.arena
+    const arena = defaultParameters().boss.fights[0].arena
     const p = defaultParameters()
     p.boss = {
       ...p.boss,
-      arena: {
-        ...arena,
-        monsterMultiplier: 4.0,
-        waves: arena.waves.map((w, i) =>
-          i === 0 ? { ...w, monsterMax: { ...w.monsterMax, bat1: 400 }, spawnMode: { bat1: 'random' as const } } : w
-        )
-      }
+      fights: [
+        {
+          ...p.boss.fights[0],
+          arena: {
+            ...arena,
+            monsterMultiplier: 4.0,
+            waves: arena.waves.map((w, i) =>
+              i === 0 ? { ...w, monsterMax: { ...w.monsterMax, bat1: 400 }, spawnMode: { bat1: 'random' as const } } : w
+            )
+          }
+        }
+      ]
     }
     const result = validateParameters(p)
     expect(result.valid).toBe(true)
-    expect(fieldsOf(result.warnings)).toContain('boss.arena.waves')
+    expect(fieldsOf(result.warnings)).toContain('boss.fights.0.arena.waves')
   })
 
   it('counts the scatter budget across every tier, not per monster', () => {
     // 40 modest scatters cost the floor exactly what one enormous one does, so
     // the rule is a per-arena total: neither wave alone would trip a 2000-node
     // threshold, together they do.
-    const arena = defaultParameters().boss.arena
+    const arena = defaultParameters().boss.fights[0].arena
     const half = (max: number) => ({
       monsters: ['bat1'],
       monsterMax: { bat1: max },
@@ -833,14 +853,14 @@ describe('boss validation', () => {
     const quiet = withBoss({
       arena: { ...arena, waves: [half(900), half(900), half(0), half(0), half(0)] }
     })
-    expect(fieldsOf(quiet.warnings)).not.toContain('boss.arena.waves')
+    expect(fieldsOf(quiet.warnings)).not.toContain('boss.fights.0.arena.waves')
 
     const loud = withBoss({
       arena: { ...arena, waves: [half(900), half(900), half(900), half(0), half(0)] }
     })
     expect(loud.valid).toBe(true)
-    expect(fieldsOf(loud.warnings)).toContain('boss.arena.waves')
-    expect(loud.warnings.find((w) => w.field === 'boss.arena.waves')?.message).toContain('2700')
+    expect(fieldsOf(loud.warnings)).toContain('boss.fights.0.arena.waves')
+    expect(loud.warnings.find((w) => w.field === 'boss.fights.0.arena.waves')?.message).toContain('2700')
   })
 
   it('warns, without blocking, about an interval a scattered monster will ignore', () => {
@@ -851,7 +871,7 @@ describe('boss validation', () => {
       spawnMode: { bat1: 'random' }
     })
     expect(result.valid).toBe(true)
-    expect(fieldsOf(result.warnings).filter((f) => f === 'boss.arena.waves.0.spawnMode.bat1')).toHaveLength(1)
+    expect(fieldsOf(result.warnings).filter((f) => f === 'boss.fights.0.arena.waves.0.spawnMode.bat1')).toHaveLength(1)
   })
 
   it('ignores a spawn mode left behind for a monster no longer in the pool', () => {
@@ -862,7 +882,7 @@ describe('boss validation', () => {
   it('never warns while the boss is disabled (no dead-statement regression)', () => {
     // an empty wave pool is a warning when the boss is on; with it off the
     // guard must return before any warning is collected
-    const arena = defaultParameters().boss.arena
+    const arena = defaultParameters().boss.fights[0].arena
     const result = withBoss({
       enabled: false,
       arena: { ...arena, waves: arena.waves.map((w, i) => (i === 0 ? { ...w, monsters: [] } : w)) }
@@ -872,9 +892,16 @@ describe('boss validation', () => {
 })
 
 describe('boss arena theme warning', () => {
-  const withBoss = (patch: Partial<ReturnType<typeof defaultParameters>['boss']>) => {
+  const withBoss = (
+    patch: Partial<ReturnType<typeof defaultParameters>['boss']['fights'][number]> & { enabled?: boolean }
+  ) => {
     const p = defaultParameters()
-    p.boss = { ...p.boss, ...patch }
+    const { enabled, ...fightPatch } = patch
+    p.boss = {
+      ...p.boss,
+      ...(enabled === undefined ? {} : { enabled }),
+      fights: p.boss.fights.map((f, i) => (i === 0 ? { ...f, ...fightPatch } : f))
+    }
     return validateParameters(p)
   }
 
@@ -882,47 +909,53 @@ describe('boss arena theme warning', () => {
   // theme, but only walks p.themes — so picking theme h for the ARENA used to
   // say nothing at all, despite its cliff art needing deliberately overlapping
   // joints to stay sealed.
-  it('warns on boss.arena.theme when the arena uses theme h', () => {
-    const result = withBoss({ arena: { ...defaultParameters().boss.arena, theme: 'h' } })
+  it('warns on the arena theme field of the fight that uses theme h', () => {
+    const result = withBoss({ arena: { ...defaultParameters().boss.fights[0].arena, theme: 'h' } })
     expect(result.valid).toBe(true) // cosmetic, never blocking
-    expect(fieldsOf(result.warnings)).toContain('boss.arena.theme')
+    expect(fieldsOf(result.warnings)).toContain('boss.fights.0.arena.theme')
   })
 
   it('says nothing for a theme with no caveat', () => {
-    const result = withBoss({ arena: { ...defaultParameters().boss.arena, theme: 'g' } })
-    expect(fieldsOf(result.warnings)).not.toContain('boss.arena.theme')
+    const result = withBoss({ arena: { ...defaultParameters().boss.fights[0].arena, theme: 'g' } })
+    expect(fieldsOf(result.warnings)).not.toContain('boss.fights.0.arena.theme')
   })
 
   it('stays quiet while the boss is disabled', () => {
-    const result = withBoss({ enabled: false, arena: { ...defaultParameters().boss.arena, theme: 'h' } })
-    expect(fieldsOf(result.warnings)).not.toContain('boss.arena.theme')
+    const result = withBoss({ enabled: false, arena: { ...defaultParameters().boss.fights[0].arena, theme: 'h' } })
+    expect(fieldsOf(result.warnings)).not.toContain('boss.fights.0.arena.theme')
   })
 })
 
 describe('boss invulnerability validation', () => {
-  const withInvuln = (patch: Partial<ReturnType<typeof defaultParameters>['boss']['arena']['invulnerability']>) => {
+  const withInvuln = (
+    patch: Partial<ReturnType<typeof defaultParameters>['boss']['fights'][number]['arena']['invulnerability']>
+  ) => {
     const p = defaultParameters()
-    const arena = p.boss.arena
-    p.boss = { ...p.boss, arena: { ...arena, invulnerability: { ...arena.invulnerability, ...patch } } }
+    const fight = p.boss.fights[0]
+    const arena = fight.arena
+    p.boss = {
+      ...p.boss,
+      fights: [{ ...fight, arena: { ...arena, invulnerability: { ...arena.invulnerability, ...patch } } }]
+    }
     return validateParameters(p)
   }
 
   it('accepts the stock 30-second windows without comment', () => {
     const result = withInvuln({})
     expect(result.errors).toEqual([])
-    expect(fieldsOf(result.warnings).filter((f) => f.startsWith('boss.arena.invulnerability'))).toEqual([])
+    expect(fieldsOf(result.warnings).filter((f) => f.startsWith('boss.fights.0.arena.invulnerability'))).toEqual([])
   })
 
   it('requires one window per health threshold', () => {
     const result = withInvuln({ seconds: [30, 30] })
-    expect(fieldsOf(result.errors)).toContain('boss.arena.invulnerability.seconds')
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.invulnerability.seconds')
     expect(result.valid).toBe(false)
   })
 
   it('rejects a negative, fractional or over-long window, naming the threshold', () => {
-    expect(fieldsOf(withInvuln({ seconds: [-1, 30, 30] }).errors)).toContain('boss.arena.invulnerability.seconds.0')
-    expect(fieldsOf(withInvuln({ seconds: [30, 1.5, 30] }).errors)).toContain('boss.arena.invulnerability.seconds.1')
-    expect(fieldsOf(withInvuln({ seconds: [30, 30, 301] }).errors)).toContain('boss.arena.invulnerability.seconds.2')
+    expect(fieldsOf(withInvuln({ seconds: [-1, 30, 30] }).errors)).toContain('boss.fights.0.arena.invulnerability.seconds.0')
+    expect(fieldsOf(withInvuln({ seconds: [30, 1.5, 30] }).errors)).toContain('boss.fights.0.arena.invulnerability.seconds.1')
+    expect(fieldsOf(withInvuln({ seconds: [30, 30, 301] }).errors)).toContain('boss.fights.0.arena.invulnerability.seconds.2')
   })
 
   it('accepts 0 as "no window at this threshold"', () => {
@@ -934,21 +967,180 @@ describe('boss invulnerability validation', () => {
   it('warns when the feature is on but every window is 0', () => {
     const result = withInvuln({ seconds: [0, 0, 0] })
     expect(result.valid).toBe(true) // still a legal campaign, just a pointless switch
-    expect(fieldsOf(result.warnings)).toContain('boss.arena.invulnerability.seconds')
+    expect(fieldsOf(result.warnings)).toContain('boss.fights.0.arena.invulnerability.seconds')
   })
 
   it('warns about the node cost of a very long countdown', () => {
     const result = withInvuln({ seconds: [120, 120, 120] })
     expect(result.valid).toBe(true)
-    expect(fieldsOf(result.warnings)).toContain('boss.arena.invulnerability.countdown')
+    expect(fieldsOf(result.warnings)).toContain('boss.fights.0.arena.invulnerability.countdown')
     // the toggles alone are cheap — the warning is about the per-second ticks
     expect(fieldsOf(withInvuln({ seconds: [120, 120, 120], countdown: false }).warnings)).not.toContain(
-      'boss.arena.invulnerability.countdown'
+      'boss.fights.0.arena.invulnerability.countdown'
     )
   })
 
   it('stays quiet while the feature is off', () => {
     const result = withInvuln({ enabled: false, seconds: [0, 0, 0] })
-    expect(fieldsOf(result.warnings)).not.toContain('boss.arena.invulnerability.seconds')
+    expect(fieldsOf(result.warnings)).not.toContain('boss.fights.0.arena.invulnerability.seconds')
+  })
+})
+
+describe('multiple boss fights (issue #43)', () => {
+  const withFights = (count: number) => {
+    const p = defaultParameters()
+    const stock = p.boss.fights[0]
+    p.boss = {
+      ...p.boss,
+      fights: Array.from({ length: count }, () => JSON.parse(JSON.stringify(stock)))
+    }
+    return p
+  }
+
+  it('accepts several stock fights with no errors or warnings', () => {
+    const result = validateParameters(withFights(3))
+    expect(result.errors).toEqual([])
+    expect(result.warnings).toEqual([])
+  })
+
+  // The fight count follows `levels`: a lower bound only. A dungeon master who
+  // wants a twenty-arena gauntlet is not making a mistake.
+  it('puts no upper bound on the fight count', () => {
+    const result = validateParameters(withFights(25))
+    expect(result.errors).toEqual([])
+  })
+
+  it('rejects an enabled boss with no fights at all', () => {
+    const p = withFights(0)
+    const result = validateParameters(p)
+    expect(fieldsOf(result.errors)).toContain('boss.fights')
+  })
+
+  it('says nothing about an empty fight list while the boss is off', () => {
+    const p = withFights(0)
+    p.boss = { ...p.boss, enabled: false }
+    expect(validateParameters(p).errors).toEqual([])
+  })
+
+  it('scopes every rule to the fight that broke it', () => {
+    const p = withFights(3)
+    p.boss.fights[2].arena.minWidth = 40
+    p.boss.fights[2].arena.maxWidth = 20
+
+    const result = validateParameters(p)
+    expect(fieldsOf(result.errors)).toContain('boss.fights.2.arena.minWidth')
+    expect(fieldsOf(result.errors)).not.toContain('boss.fights.0.arena.minWidth')
+    expect(fieldsOf(result.errors)).not.toContain('boss.fights.1.arena.minWidth')
+  })
+
+  it('warns, without blocking, when two fights pin the same boss', () => {
+    const p = withFights(2)
+    p.boss.fights[0].arena.bossPool = ['boss_lich']
+    p.boss.fights[1].arena.bossPool = ['boss_lich']
+
+    const result = validateParameters(p)
+    expect(result.valid).toBe(true)
+    expect(fieldsOf(result.warnings)).toContain('boss.fights.1.arena.bossPool')
+  })
+
+  it('stays quiet when the pinned bosses differ, or when the pools are open', () => {
+    const pinned = withFights(2)
+    pinned.boss.fights[0].arena.bossPool = ['boss_lich']
+    pinned.boss.fights[1].arena.bossPool = ['boss_dragon']
+    expect(
+      fieldsOf(validateParameters(pinned).warnings).filter((f) => f.endsWith('.bossPool'))
+    ).toEqual([])
+
+    // the stock pool has four bosses, so the seed still gets a say
+    expect(
+      fieldsOf(validateParameters(withFights(2)).warnings).filter((f) => f.endsWith('.bossPool'))
+    ).toEqual([])
+  })
+})
+
+describe('levelOrder (issue #43)', () => {
+  const withOrder = (order: unknown) => {
+    const p = defaultParameters()
+    p.levels = 3
+    p.themes = p.themes.slice(0, 3)
+    p.levelMonsters = p.levelMonsters.slice(0, 3)
+    p.levelBuffs = p.levelBuffs?.slice(0, 3)
+    p.levelTimers = p.levelTimers?.slice(0, 3)
+    p.levelOrder = order as typeof p.levelOrder
+    return validateParameters(p)
+  }
+
+  const floor = (index: number) => ({ kind: 'floor' as const, index })
+  const boss = (index: number) => ({ kind: 'boss' as const, index })
+
+  it('accepts an absent order — that is the default campaign', () => {
+    const p = defaultParameters()
+    expect(p.levelOrder).toBeUndefined()
+    expect(validateParameters(p).errors).toEqual([])
+  })
+
+  it('accepts a legal interleaving, including one that opens on a boss', () => {
+    expect(withOrder([floor(0), floor(1), boss(0), floor(2)]).errors).toEqual([])
+    expect(withOrder([boss(0), floor(0), floor(1), floor(2)]).errors).toEqual([])
+  })
+
+  it('rejects floors out of order', () => {
+    const result = withOrder([floor(1), floor(0), boss(0), floor(2)])
+    expect(fieldsOf(result.errors)).toContain('levelOrder')
+    expect(result.errors.some((e) => e.message.includes('after a later one'))).toBe(true)
+  })
+
+  it('rejects boss fights out of order', () => {
+    const p = defaultParameters()
+    p.levels = 2
+    p.themes = p.themes.slice(0, 2)
+    p.levelMonsters = p.levelMonsters.slice(0, 2)
+    p.levelBuffs = p.levelBuffs?.slice(0, 2)
+    p.levelTimers = p.levelTimers?.slice(0, 2)
+    p.boss = { ...p.boss, fights: [p.boss.fights[0], JSON.parse(JSON.stringify(p.boss.fights[0]))] }
+    p.levelOrder = [boss(1), floor(0), boss(0), floor(1)]
+
+    const result = validateParameters(p)
+    expect(result.errors.some((e) => e.message.includes('after a later one'))).toBe(true)
+  })
+
+  it('rejects a duplicated slot', () => {
+    const result = withOrder([floor(0), floor(0), floor(1), floor(2), boss(0)])
+    expect(result.errors.some((e) => e.message.includes('more than once'))).toBe(true)
+  })
+
+  it('rejects a slot the campaign does not have', () => {
+    const result = withOrder([floor(0), floor(1), floor(2), floor(7), boss(0)])
+    expect(result.errors.some((e) => e.message.includes('does not have'))).toBe(true)
+  })
+
+  it('rejects an order that leaves a floor unplaced', () => {
+    const result = withOrder([floor(0), floor(1), boss(0)])
+    expect(result.errors.some((e) => e.message.includes('never places floor 3'))).toBe(true)
+  })
+
+  it('rejects an entry that is not a slot at all', () => {
+    const result = withOrder([floor(0), 'lobby', floor(1), floor(2), boss(0)])
+    expect(result.errors.some((e) => e.message.includes('neither a floor nor a boss fight'))).toBe(
+      true
+    )
+  })
+
+  // With the boss off there are no fights to place, so an order naming one is
+  // wrong — the same way naming a floor past `levels` is.
+  it('counts no boss slots while the boss is disabled', () => {
+    const p = defaultParameters()
+    p.levels = 2
+    p.themes = p.themes.slice(0, 2)
+    p.levelMonsters = p.levelMonsters.slice(0, 2)
+    p.levelBuffs = p.levelBuffs?.slice(0, 2)
+    p.levelTimers = p.levelTimers?.slice(0, 2)
+    p.boss = { ...p.boss, enabled: false }
+
+    p.levelOrder = [floor(0), floor(1)]
+    expect(validateParameters(p).errors).toEqual([])
+
+    p.levelOrder = [floor(0), boss(0), floor(1)]
+    expect(validateParameters(p).errors.some((e) => e.message.includes('does not have'))).toBe(true)
   })
 })

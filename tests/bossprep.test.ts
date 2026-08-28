@@ -3,7 +3,6 @@ import {
   BOSSPREP_DIAMOND_SLOTS,
   BOSSPREP_DIAMOND_VALUE,
   BOSSPREP_EXIT_NODE_ID,
-  BOSSPREP_EXIT_TARGET,
   BOSSPREP_RESPAWN_ID_BASE,
   buildBossPrep,
   diamondCount
@@ -23,18 +22,26 @@ import {
   oneOfEachUpgrade,
   upgradeItemPath
 } from '../src/generator/levelTemplate/surgery'
-import type { BossOptions } from '../src/generator/config/parameters'
+import type { BossPrepOptions } from '../src/generator/config/parameters'
+import { bossArenaId } from '../src/generator/campaign'
 import { allIds, badIntArray, nodesOfType, oneShotRespawn } from './xmlHelpers'
 
 /** Five diamonds deep on every authored slot — well past what the old cap allowed. */
 const DEEP_GOLD = BOSSPREP_DIAMOND_VALUE * BOSSPREP_DIAMOND_SLOTS.length * 5
 
-function prepOptions(patch: Partial<BossOptions['prep']> = {}): BossOptions['prep'] {
-  return { ...defaultParameters().boss.prep, ...patch }
+function prepOptions(patch: Partial<BossPrepOptions> = {}): BossPrepOptions {
+  return { ...defaultParameters().boss.fights[0].prep, ...patch }
 }
 
-function prepXML(patch: Partial<BossOptions['prep']> = {}): string {
-  return buildBossPrep(prepOptions(patch))
+/**
+ * The arena id the prep room feeds. `bossArenaId(0)` rather than a literal, so
+ * a rename of the campaign's level ids cannot leave these tests asserting a
+ * target the generator no longer writes.
+ */
+const EXIT_TARGET = bossArenaId(0)
+
+function prepXML(patch: Partial<BossPrepOptions> = {}): string {
+  return buildBossPrep(prepOptions(patch), EXIT_TARGET)
 }
 
 describe('boss prep — importer derivation', () => {
@@ -66,8 +73,8 @@ describe('boss prep — exit', () => {
   it("points the prep room's exit at the boss arena", () => {
     const xml = prepXML()
     expect(xml).toContain('<string name="type">LevelExitArea</string>')
-    expect(xml).toContain(`<string name="level">${BOSSPREP_EXIT_TARGET}</string>`)
-    expect(BOSSPREP_EXIT_TARGET).toBe('boss')
+    expect(xml).toContain(`<string name="level">${EXIT_TARGET}</string>`)
+    expect(EXIT_TARGET).toBe('boss0')
     // the authored template's original target must not survive
     expect(xml).not.toContain('<string name="level">1</string>')
   })

@@ -32,11 +32,13 @@ export { diamondCount }
 export const LOBBY_DIAMOND_VALUE = DIAMOND_VALUE
 
 /**
- * The dungeon floor the lobby's teleport lands on.
+ * The level the lobby's teleport lands on by default: floor 0, the first slot
+ * of an unrearranged campaign.
  *
  * The lobby ships as level id `"lobby"` precisely so this is the only id that
  * moves: dungeon level files, their ids and every existing seed's output stay
- * byte-identical whether the lobby is on or off.
+ * byte-identical whether the lobby is on or off. A rearranged campaign passes
+ * its own first slot instead — see `buildLobby`.
  */
 export const LOBBY_EXIT_TARGET = '0'
 
@@ -58,7 +60,7 @@ export const LOBBY_RESPAWN_ID_BASE = 9000
  * text located by the element ids it was generated with, so replacing it with a
  * purpose-built lobby only means regenerating `template.ts`.
  */
-export function buildLobby(options: LobbyOptions): string {
+export function buildLobby(options: LobbyOptions, exitTarget: string = LOBBY_EXIT_TARGET): string {
   let xml = LOBBY_TEMPLATE
 
   for (const vendor of LOBBY_VENDORS) {
@@ -93,7 +95,7 @@ export function buildLobby(options: LobbyOptions): string {
     xml,
     LOBBY_EXIT_NODE_ID,
     /<string name="level">[^<]*<\/string>/,
-    `<string name="level">${LOBBY_EXIT_TARGET}</string>`,
+    `<string name="level">${exitTarget}</string>`,
     'lobby'
   )
 

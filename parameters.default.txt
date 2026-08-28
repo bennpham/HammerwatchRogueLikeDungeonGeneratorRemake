@@ -54,33 +54,55 @@ lobbyShops=combo1 combo2 combo3 combo4 combo5 def1 def2 def3 def4 def5 misc1 mis
 # the game's own second-tier items). Each kind has one spot on the floor, so a
 # count above one stacks there; 0 lays none of that kind out at all.
 lobbyUpgrades=0 0 0 0 0 0 0 0
+# levelOrder is the order the campaign is PLAYED in: dungeon floors by their
+# 1-based number, boss fights as B1, B2, ... e.g. levelOrder=1,2,B1,3,4,B2, or
+# levelOrder=B1,1,2,3 to open on a boss fight. A boss fight is one entry even
+# though it is two levels — its prep room comes with it.
+#
+# Floors keep their own order and so do fights (2 can never come before 1);
+# only how the two interleave is free. Whichever entry is LAST holds the
+# victory orb, so a campaign can equally well end on a dungeon floor.
+#
+# Omit the key for the default order — every floor, then every boss fight —
+# which is what the stock campaign uses and why no line is written here.
+#
 # Boss fight after the last dungeon floor: 1 = a shop room (prep) then a
 # generated arena with a boss, 0 = campaign ends on the final floor.
-# bossGold is a multiple of 500, same rule as lobbyGold. bossShops is the
-# space-separated shop columns the prep stalls sell. bossWidth/bossHeight are
-# the arena's min,max in tiles. bossPool is the comma-separated boss ids from
+#
+# bossFights is how many of them the campaign chains. Each fight has its own
+# prep room and its own arena, and beating one teleports the party into the NEXT
+# fight's prep room, so the run reads fight, shop, fight; only the last arena
+# holds the orb that ends the campaign. Every per-fight key therefore carries
+# its fight index directly after `boss` — boss0Theme is the first fight's, and a
+# second fight adds a full boss1* block below. (The unprefixed spelling files
+# written before multiple fights used still imports, read as fight 0.)
+#
+# boss0Gold is a multiple of 500, same rule as lobbyGold. boss0Shops is the
+# space-separated shop columns the prep stalls sell. boss0Width/boss0Height are
+# the arena's min,max in tiles. boss0Pool is the comma-separated boss ids from
 # the seven (boss_anubis boss_dragon boss_knight boss_krilith boss_lich
-# boss_queen boss_worm); the seed picks one per campaign.
+# boss_queen boss_worm); the seed picks one per fight.
 boss=1
-bossGold=20000
-bossShops=combo1 combo2 combo3 combo4 combo5 def1 def2 def3 def4 def5 misc1 misc2 misc3 misc4 misc5 off1 off2 off3 off4 off5 power
+bossFights=1
+boss0Gold=20000
+boss0Shops=combo1 combo2 combo3 combo4 combo5 def1 def2 def3 def4 def5 misc1 misc2 misc3 misc4 misc5 off1 off2 off3 off4 off5 power
 # The same eight free upgrade counts as lobbyUpgrades, for the prep-room floor.
-bossUpgrades=0 0 0 0 0 0 0 0
-bossTheme=g_mixed
-# How a "- mixed" bossTheme arranges its floor palette; ignored by every other
+boss0Upgrades=0 0 0 0 0 0 0 0
+boss0Theme=g_mixed
+# How a "- mixed" boss0Theme arranges its floor palette; ignored by every other
 # theme. random | checker | bandsH | bandsV | bandsDiag | rings | diamond | cross | triangle
-bossFloorPattern=random
-bossWidth=42,64
-bossHeight=42,64
-bossPool=boss_knight,boss_lich,boss_dragon,boss_queen
-# bossCover is pattern,density,ringSpacing,clusters. Pattern is
+boss0FloorPattern=random
+boss0Width=42,64
+boss0Height=42,64
+boss0Pool=boss_knight,boss_lich,boss_dragon,boss_queen
+# boss0Cover is pattern,density,ringSpacing,clusters. Pattern is
 # random | ring | gaussian | symmetric; density is the fraction of free floor
 # filled with pillars and is capped at 0.25.
-bossCover=symmetric,0.08,4,3
-# bossSpawn is spacing,ringSpacing,clusters for the scatter spawn modes below —
-# deliberately separate from bossCover so pillars and monsters can be spaced
+boss0Cover=symmetric,0.08,4,3
+# boss0Spawn is spacing,ringSpacing,clusters for the scatter spawn modes below —
+# deliberately separate from boss0Cover so pillars and monsters can be spaced
 # differently. Ignored while every monster is on the default anchors mode.
-bossSpawn=2,4,3,8,1500
+boss0Spawn=2,4,3,8,1500
 # Boss invulnerability: at 75%, 50% and 25% health the boss goes immortal for
 # this many seconds, with a ticking countdown announced to the party. It stops a
 # fully upgraded party bursting the boss down before the fight happens, and it
@@ -88,16 +110,16 @@ bossSpawn=2,4,3,8,1500
 # every wave tier on at once and flood the arena. One value sets all three
 # thresholds; three set them separately; 0 disables that one threshold; `off`
 # disables the feature entirely.
-bossInvuln=30,30,30
+boss0Invuln=30,30,30
 # 0 keeps the immortality windows but drops the countdown announcements (one
 # script node per second, per window).
-bossInvulnCountdown=1
+boss0InvulnCountdown=1
 # The arena's own multipliers, separate from the dungeon's monsterMultiplier /
-# foodMultiplier: bossMonsterMultiplier scales every wave's max counts (an
-# endless -1 stays endless), bossFoodMultiplier the arena's health/mana pickups.
-bossMonsterMultiplier=1.000000
-bossFoodMultiplier=1.200000
-# bossWave1..5 is monsters|defaultIntervalMs|monsterMax|intervalMs|spawnMode.
+# foodMultiplier: boss0MonsterMultiplier scales every wave's max counts (an
+# endless -1 stays endless), boss0FoodMultiplier the arena's health/mana pickups.
+boss0MonsterMultiplier=1.000000
+boss0FoodMultiplier=1.200000
+# boss0Wave1..5 is monsters|defaultIntervalMs|monsterMax|intervalMs|spawnMode.
 # Waves 1-4 are the boss's health tiers (100/75/50/25%); wave 5 fires when the
 # boss DIES, spawning a last stand into the walk to the orb. Tiers switch on and
 # never off, so at 25% health all four health tiers are spawning at once.
@@ -111,35 +133,35 @@ bossFoodMultiplier=1.200000
 # wreck still blocks movement (the nova/frost/tracking towers) may not be
 # scattered. A max of -1 means endless, and cannot be combined with a scatter
 # mode. An empty wave is legal and emits nothing.
-bossWave1=bat1,bat2,maggot,maggot#2,maggot#3,tick1,tick1#2,tick1#0,tower_flower1_small|4000|bat1:42,bat2:24,maggot:20,maggot#2:12,maggot#3:6,tick1:24,tick1#2:16,tick1#0:2,tower_flower1_small:6||bat1:random,bat2:random,maggot:random,maggot#2:random,maggot#3:random,tick1:random,tick1#0:random,tick1#2:random,tower_flower1_small:random
-bossWave2=archer1,archer2,skeleton1,skeleton1#2,slime,tower_archer1,mb_tick,mb_maggot,skeleton1#0,archer1#0,slime#0|3000|archer1:14,archer2:7,skeleton1:24,skeleton1#2:28,slime:44,tower_archer1:6,mb_tick:3,mb_maggot:1,skeleton1#0:2,archer1#0:2,slime#0:6||archer1:random,archer1#0:random,archer2:random,mb_maggot:random,mb_tick:random,skeleton1:random,skeleton1#0:random,skeleton1#2:random,slime:random,slime#0:random,tower_archer1:random
-bossWave3=eye,eye#2,wisp1,wisp1#2,wisp2,lich#3,tower_flower1,tower_flower2,tower_flower3,mb_skeleton,mb_eye|2000|eye:44,eye#2:30,wisp1:12,wisp1#2:4,wisp2:8,lich#3:8,tower_flower1:3,tower_flower2:2,tower_flower3:1,mb_skeleton:4,mb_eye:1||eye:random,eye#2:random,lich#3:random,mb_eye:random,mb_skeleton:random,tower_flower1:random,tower_flower2:random,tower_flower3:random,wisp1:random,wisp1#2:random,wisp2:random
-bossWave4=lich,lich#0,lich#2,mb_eye,mb_lich,tower_archer3,eye#0,archer2#0,skeleton2#0,tower_nova1|1000|lich:4,lich#0:4,lich#2:6,mb_eye:2,mb_lich:1,tower_archer3:5,eye#0:5,archer2#0:4,skeleton2#0:4,tower_nova1:3||archer2#0:random,eye#0:random,lich:random,lich#0:random,lich#2:random,mb_eye:random,mb_lich:random,skeleton2#0:random,tower_archer3:random
-bossWave5=lich#2,lich,lich#0,mb_lich,mb_doomspawn,tower_static_frost|1000|lich#2:8,lich:3,lich#0:4,mb_lich:1,mb_doomspawn:2,tower_static_frost:3||lich:random,lich#0:random,lich#2:random,mb_doomspawn:random,mb_lich:random
-# bossWaveBuff1..5 hangs an arena-wide buff on that tier: <id>:<target> entries
-# separated by |, e.g. bossWaveBuff3=frost:players|bloodlust:monsters. Targets
+boss0Wave1=bat1,bat2,maggot,maggot#2,maggot#3,tick1,tick1#2,tick1#0,tower_flower1_small|4000|bat1:42,bat2:24,maggot:20,maggot#2:12,maggot#3:6,tick1:24,tick1#2:16,tick1#0:2,tower_flower1_small:6||bat1:random,bat2:random,maggot:random,maggot#2:random,maggot#3:random,tick1:random,tick1#0:random,tick1#2:random,tower_flower1_small:random
+boss0Wave2=archer1,archer2,skeleton1,skeleton1#2,slime,tower_archer1,mb_tick,mb_maggot,skeleton1#0,archer1#0,slime#0|3000|archer1:14,archer2:7,skeleton1:24,skeleton1#2:28,slime:44,tower_archer1:6,mb_tick:3,mb_maggot:1,skeleton1#0:2,archer1#0:2,slime#0:6||archer1:random,archer1#0:random,archer2:random,mb_maggot:random,mb_tick:random,skeleton1:random,skeleton1#0:random,skeleton1#2:random,slime:random,slime#0:random,tower_archer1:random
+boss0Wave3=eye,eye#2,wisp1,wisp1#2,wisp2,lich#3,tower_flower1,tower_flower2,tower_flower3,mb_skeleton,mb_eye|2000|eye:44,eye#2:30,wisp1:12,wisp1#2:4,wisp2:8,lich#3:8,tower_flower1:3,tower_flower2:2,tower_flower3:1,mb_skeleton:4,mb_eye:1||eye:random,eye#2:random,lich#3:random,mb_eye:random,mb_skeleton:random,tower_flower1:random,tower_flower2:random,tower_flower3:random,wisp1:random,wisp1#2:random,wisp2:random
+boss0Wave4=lich,lich#0,lich#2,mb_eye,mb_lich,tower_archer3,eye#0,archer2#0,skeleton2#0,tower_nova1|1000|lich:4,lich#0:4,lich#2:6,mb_eye:2,mb_lich:1,tower_archer3:5,eye#0:5,archer2#0:4,skeleton2#0:4,tower_nova1:3||archer2#0:random,eye#0:random,lich:random,lich#0:random,lich#2:random,mb_eye:random,mb_lich:random,skeleton2#0:random,tower_archer3:random
+boss0Wave5=lich#2,lich,lich#0,mb_lich,mb_doomspawn,tower_static_frost|1000|lich#2:8,lich:3,lich#0:4,mb_lich:1,mb_doomspawn:2,tower_static_frost:3||lich:random,lich#0:random,lich#2:random,mb_doomspawn:random,mb_lich:random
+# boss0WaveBuff1..5 hangs an arena-wide buff on that tier: <id>:<target> entries
+# separated by |, e.g. boss0WaveBuff3=frost:players|bloodlust:monsters. Targets
 # are players, monsters or both; an omitted target means players. Unlike the
 # wave spawns, the tiers REPLACE one another — each threshold switches the
 # previous tier's buffs off as it switches its own on, so exactly one tier's
-# aura is ever live. Its own key rather than a sixth bossWaveN field, so files
+# aura is ever live. Its own key rather than a sixth boss0WaveN field, so files
 # exported before the feature still round-trip. Written only for tiers that
 # carry one: the stock defaults buff only the boss-death tier, so the horde that
 # spawns after the kill fights bloodlusted on the walk to the orb.
-bossWaveBuff5=bloodlust:monsters
-# bossWavePickup1..5 drops items on that tier: <item>:<count> entries separated
-# by |, e.g. bossWavePickup3=powerup_health:1|mana_2:2. An omitted count means
+boss0WaveBuff5=bloodlust:monsters
+# boss0WavePickup1..5 drops items on that tier: <item>:<count> entries separated
+# by |, e.g. boss0WavePickup3=powerup_health:1|mana_2:2. An omitted count means
 # one. The copies land on the drop pad just inside the arena entrance the moment
 # the threshold fires and stay on the floor until somebody walks over them, so
 # unlike the buffs above the tiers do NOT replace one another. The pad is the
 # same layout on every seed — health up the left, mana up the right, upgrades in
 # the middle, potions in the bottom row by the door — so it can be learnt once
 # and run back to. Its own key, and written only for tiers that drop something,
-# for the same round-trip reason as bossWaveBuff. The stock table resupplies at
+# for the same round-trip reason as boss0WaveBuff. The stock table resupplies at
 # 50%, hands out one rejuvenation potion at 25%, and doubles the resupply once
 # the boss is down. powerup_health is a flat 250 HP heal, the biggest in game.
-bossWavePickup3=powerup_health:1|mana_2:2
-bossWavePickup4=potion_2:1
-bossWavePickup5=powerup_health:2|mana_2:4
+boss0WavePickup3=powerup_health:1|mana_2:2
+boss0WavePickup4=potion_2:1
+boss0WavePickup5=powerup_health:2|mana_2:4
 #
 # buff0..N hangs buff auras on a dungeon floor, same <id>:<target>|<id>:<target>
 # form, e.g. buff2=frost:players|bloodlust:monsters. A floor's aura covers the

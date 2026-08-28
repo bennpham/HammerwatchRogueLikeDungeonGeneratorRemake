@@ -17,7 +17,8 @@ objects — each of which places rooms, connects them with passages, assigns
 special rooms, rasterizes a wall grid, pattern-matches wall doodads, and
 serializes itself into Hammerwatch's XML dialect — and returns an array of
 `{path, content}` files (`info.xml`, `levels.xml`, `levels/levelN.xml`, plus
-`levels/lobby.xml`, `levels/bossprep.xml` + `levels/boss.xml` and `tweak/*.xml`
+`levels/lobby.xml`, `levels/bossprep<i>.xml` + `levels/boss<i>.xml` (one pair
+per boss fight) and `tweak/*.xml`
 for whichever optional layers are on) plus per-floor preview geometry. Electron's main process does everything else:
 writes those files into `<Hammerwatch>/editor/<name>/`, runs
 `LevelPacker.exe`, moves the resulting `.hwm` into `<Hammerwatch>/levels/`.
@@ -39,6 +40,13 @@ src/
 │   │   ├── themes.ts     THEME_DEFS — tileset path, tile count, doodad token
 │   │   ├── configFile.ts parameters.txt parse/serialize (original format)
 │   │   └── validation.ts every crash path of the original, as a rule
+│   ├── campaign.ts       the campaign's PLAY ORDER and level ids —
+│   │                     CampaignSlot, campaignOrder/normalizeOrder,
+│   │                     gatewayAfter, slotEntryId/slotLabel, and
+│   │                     bossPrepId/bossArenaId with their paths. Shared,
+│   │                     because both ends of every link need them (index.ts
+│   │                     names the files, level.ts/room.ts/objectSet.ts read
+│   │                     the gateway, bossprep/build.ts points at an arena)
 │   ├── xml/              XMLDictionary/Array/Int/Float/Bool/String/IntArray
 │   ├── map/              level.ts, room.ts, passage.ts, tile.ts,
 │   │                     wallPattern.ts, posDir.ts, reachability.ts,
@@ -97,9 +105,10 @@ src/
 ├── main/                 index.ts (window), ipc.ts (handlers + last-result
 │                         cache), packer.ts (write/pack/install), settings.ts
 ├── preload/              contextBridge → window.api
-├── renderer/             App.tsx (Dungeon|Player|Lobby|Boss and
+├── renderer/             App.tsx (Lobby|Dungeon|Boss|Floor order|Player and
 │                         Preview|Loadout tabs), components/{ParameterForm,
 │                         PlayerForm, QuickSetup, LobbyForm, BossForm,
+│                         FloorOrderEditor,
 │                         LevelPreview, LoadoutSheet, MonsterPoolsEditor,
 │                         PoolGroup, PoolTextField, MonsterFilterBar,
 │                         MonsterMaxTable, FloorTimerEditor, FloorBuffEditor,
@@ -178,7 +187,13 @@ reference/hammerwatch-tweak-stats.md
    lights are on the RNG-free side of this line too: however many upgrades a
    room hands out, every `levels/level*.xml` stays byte-identical, and a kind
    left at 0 emits no item array at all.
-9. **A floor the player cannot finish is invalid.** `map/reachability.ts`
+9. **The campaign order changes links, never generation.** `levelOrder`
+   (`campaign.ts`) decides where each level leads, what `levels.xml` lists and
+   in what order, and which slot ends the campaign — through `ctx.gateway`.
+   Floors are still built in numeric order off `ctx.rand` and arenas in list
+   order off `ctx.bossRand`. An absent `levelOrder` is byte-identical to the
+   pre-feature generator, so the default order is stored as **absent**.
+10. **A floor the player cannot finish is invalid.** `map/reachability.ts`
    flood-fills the finished grid and rejects a floor unless the entrance
    reaches the exit (or orb/portal) and every key. Tile connectivity is not
    enough: lettered wall pieces are three tiles tall, so the two rows under any
@@ -212,28 +227,34 @@ reference/hammerwatch-tweak-stats.md
 | `playerTweaks` | `{ 'player.shared.remove.life': 1 }` | sparse `Record<lowercase key, number>` of player-balance overrides; empty = no `tweak/` folder. See below |
 | `lobby` | on, 10000 gold, all 21 columns, no free upgrades | prebuilt starting level: `enabled`, `startingGold` (whole multiple of 500, no upper cap beyond `GOLD_SAFETY_MAX`), `shopCategories`, `upgrades`. `enabled: false` reproduces the pre-lobby campaign exactly |
 | `lobby.upgrades` | every kind 0 | free upgrade pickups on the lobby floor, one count per `UPGRADE_KINDS` entry (`damage`, `defense`, `health`, `mana`, then the four `*2` tiers). Whole number 0…`UPGRADE_COUNT_MAX` (10000) each; **0 emits no item array**. One authored slot per kind, so a count above one *stacks* on that slot rather than needing the room's layout to grow. `lobbyUpgrades` in `parameters.txt`. See *Free upgrades* below |
-| `boss` | **on** | the finale, two appended levels. See the sub-table below and *Boss finale* |
+| `boss` | **on** | the finale: `{enabled, fights}`, two appended levels **per fight**. See the sub-table below and *Boss finale* |
+| `levelOrder` | absent | the campaign's play order, one `CampaignSlot` per floor and per boss **fight**. Absent = every floor then every fight, the pre-feature shape, and the only value that is guaranteed byte-identical. Both sequences stay ascending; only the interleaving is free. `levelOrder=1,2,B1,3` in `parameters.txt`, written only when it differs from the default. See *Campaign order* |
 
-`BossOptions` (`config/parameters.ts`), defaults from `defaultBossOptions()`:
+`BossOptions` (`config/parameters.ts`) is `{enabled, fights: BossFight[]}`, and a
+`BossFight` is `{prep: BossPrepOptions, arena: BossArenaOptions}`. Defaults from
+`defaultBossOptions()`, one fight from `defaultBossFight()`; read the list
+through `bossFights(boss)`, which returns `[]` for a disabled or absent boss.
+The table below describes one fight — `fights[i].prep`, `fights[i].arena`:
 
 | Field | Default | Notes |
 | --- | --- | --- |
 | `enabled` | `true` | off reproduces the pre-boss campaign; the final floor keeps its own orb room |
+| `fights` | one stock fight | ordered, at least one when enabled, **no upper bound** (mirrors `levels`). `bossFights` in `parameters.txt` |
 | `prep.shopCategories` | all 21, `power` included | same full set as the lobby; buyable lives are safe because the stock `player.shared.remove.life` tweak deletes that upgrade |
 | `prep.startingGold` | 20000 | whole multiple of 500, one red diamond each |
-| `prep.upgrades` | every kind 0 | the same free upgrade pickups as the lobby, on the prep floor. `bossUpgrades` in `parameters.txt` |
+| `prep.upgrades` | every kind 0 | the same free upgrade pickups as the lobby, on the prep floor. `boss<i>Upgrades` in `parameters.txt` |
 | `arena.theme` | `g_mixed` | any `THEME_DEFS` id, independent of the floors' themes |
 | `arena.floorPattern` | `random` | one of `BOSS_FLOOR_PATTERNS`; only meaningful for a `- mixed` theme |
 | `arena.minWidth`–`maxWidth` | 42–64 | ≥ `ARENA_MIN_WIDTH` (14). Found from both ends: 24–32 was too small to hold the horde, the 2026-08-27 interim 66–88 was so open a scattered wave never re-formed and got picked off piecemeal |
 | `arena.minHeight`–`maxHeight` | 42–64 | ≥ `ARENA_MIN_HEIGHT` (18); same story as the width |
 | `arena.bossPool` | the 4 castle bosses | non-empty subset of `BOSS_IDS` (7); the seed picks one per campaign |
 | `arena.waves` | 5 populated tiers | exactly `BOSS_WAVE_COUNT`; see *Boss finale* |
-| `arena.waves[i].buffs` | tier 5 only: `bloodlust` on `monsters` | any number of arena-wide buffs per tier, each `{buff, target}` aimed at `players`/`monsters`/`both`. Tiers **replace** one another rather than stacking. The pre-list fields `buff`/`buffTarget` still parse — read a tier through `waveBuffs(wave)`, never off the raw field. `bossWaveBuffN` in `parameters.txt`. Every preset ships `bossDeathBuffs()` on the boss-death tier and nothing on the other four, so the walk to the orb is fought against a strengthened horde. See *Buffs per boss wave tier* |
+| `arena.waves[i].buffs` | tier 5 only: `bloodlust` on `monsters` | any number of arena-wide buffs per tier, each `{buff, target}` aimed at `players`/`monsters`/`both`. Tiers **replace** one another rather than stacking. The pre-list fields `buff`/`buffTarget` still parse — read a tier through `waveBuffs(wave)`, never off the raw field. `boss<i>WaveBuffN` in `parameters.txt`. Every preset ships `bossDeathBuffs()` on the boss-death tier and nothing on the other four, so the walk to the orb is fought against a strengthened horde. See *Buffs per boss wave tier* |
 | `arena.cover` | `symmetric`, 0.08, 4, 3 | `density` is the fraction of free floor filled and is capped at `BOSS_COVER_DENSITY_MAX` (0.25). Playtest preference, 2026-08-28; every preset inherits it |
 | `arena.spawn` | spacing 2, ring 4, clusters 3, batchSize 8, batchIntervalMs 1500 | tuning for the scatter modes only; deliberately separate from `cover`. `batchSize` caps how many of one monster may appear at once — see *Boss finale* |
-| `arena.invulnerability` | on, `[30, 30, 30]`, countdown on | seconds of boss immortality per health threshold (`BOSS_INVULN_THRESHOLDS`: 75/50/25%); 0 disables one threshold, `bossInvuln` / `bossInvulnCountdown` in `parameters.txt`. Independent of `waves` — see *Boss finale* |
-| `arena.monsterMultiplier` | 1.0 | scales each tier's `monsterMax`; `-1`/endless stays endless. `bossMonsterMultiplier` in `parameters.txt`, separate from the dungeon's |
-| `arena.foodMultiplier` | 1.2 | scales the arena's health/mana pickup clusters; `bossFoodMultiplier` in `parameters.txt` |
+| `arena.invulnerability` | on, `[30, 30, 30]`, countdown on | seconds of boss immortality per health threshold (`BOSS_INVULN_THRESHOLDS`: 75/50/25%); 0 disables one threshold, `boss<i>Invuln` / `boss<i>InvulnCountdown` in `parameters.txt`. Independent of `waves` — see *Boss finale* |
+| `arena.monsterMultiplier` | 1.0 | scales each tier's `monsterMax`; `-1`/endless stays endless. `boss<i>MonsterMultiplier` in `parameters.txt`, separate from the dungeon's |
+| `arena.foodMultiplier` | 1.2 | scales the arena's health/mana pickup clusters; `boss<i>FoodMultiplier` in `parameters.txt` |
 
 ### Campaign presets
 
@@ -241,10 +262,13 @@ reference/hammerwatch-tweak-stats.md
 `a_mixed`–`g_mixed`; identical to `defaultParameters()`), `desert` (5 floors,
 `h,h,i,i_symbols,i_mixed`) and `bonus` (5 floors, `bonus1`–`bonus5`). A preset
 overrides `levels`, `themes`, `levelMonsters` and — via the `withBoss` helper —
-the arena's `theme`, `bossPool` and `waves`; `monsterMax` and everything else
-stay at the global defaults, so the caps keep bounding horde sizes. `withBoss`
-spreads two levels deep on purpose: a shallow `{...base, boss}` would share one
-`arena` object between callers. All three presets ship the boss-death tier
+the **first fight's** arena `theme`, `bossPool` and `waves`; `monsterMax` and
+everything else stay at the global defaults, so the caps keep bounding horde
+sizes. Every preset ships a single fight: the count shapes the campaign rather
+than flavouring it, so it is left to the dungeon master. `withBoss` spreads
+three levels deep on purpose (`boss` -> the `fights` array -> `fights[0]` ->
+`arena`): a shallow `{...base, boss}` would share one `arena` object between
+callers. All three presets ship the boss-death tier
 **populated**. `build()` must return a
 fresh object every call and draw no random values — the header dropdown in
 `App.tsx` calls it to replace the whole parameter set. Changing a preset's pools
@@ -398,11 +422,11 @@ cannot drift on the event strings. Built in `arena.ts` after `buildWaveRig` and
 `buildInvulnerabilityRig`, draws from **no** stream — `ctx.bossRand` included —
 so the arena's fixed draw order is untouched and no arena seed moves.
 
-`parameters.txt` carries `bossWaveBuffN=<id>:<target>|<id>:<target>` on its **own key**, not
-as a sixth `bossWaveN` field: appending one would put a trailing `|` on every
+`parameters.txt` carries `boss<i>WaveBuffN=<id>:<target>|<id>:<target>` on its **own key**, not
+as a sixth `boss<i>WaveN` field: appending one would put a trailing `|` on every
 stock export and break byte-compatibility with files written before the
-feature. Its parse branch must be tested **before** `bossWaveN`'s, or
-`bosswavebuff1` falls through to `unknownKeys`.
+feature. Its parse branch must be tested **before** `boss<i>WaveN`'s, or
+`boss0wavebuff1` falls through to `unknownKeys`.
 
 ### Item drops per boss wave tier (`boss/wavePickups.ts`)
 
@@ -442,10 +466,10 @@ columns wide and a buried slot is skipped for the lane's next one; the
 reachability mask is **read**, never written, so no pillar moves and no
 `ctx.bossRand` draw shifts. Built last in `arena.ts`, draws from **no** stream.
 
-`parameters.txt` carries `bossWavePickupN=<item>:<count>|…` on its own key, for
-the same byte-compatibility reason as `bossWaveBuffN`, and its parse branch must
-likewise be tested **before** `bossWaveN`'s. One difference worth knowing: a
-tier the file describes with a `bossWaveN` line but **no** `bossWavePickupN`
+`parameters.txt` carries `boss<i>WavePickupN=<item>:<count>|…` on its own key, for
+the same byte-compatibility reason as `boss<i>WaveBuffN`, and its parse branch must
+likewise be tested **before** `boss<i>WaveN`'s. One difference worth knowing: a
+tier the file describes with a `boss<i>WaveN` line but **no** `boss<i>WavePickupN`
 line ends up with no drops — a post-pass clears the stock table, so importing a
 file written before the feature does not silently hand it three tiers of loot.
 (Order-independent by design: the two keys may appear either way round.)
@@ -481,10 +505,65 @@ warning at `TIMER_COUNTDOWN_NODE_WARN` is about.
 **only for floors whose timer is on** — a stock export has no `timer` line at
 all.
 
+## Campaign order (`campaign.ts`)
+
+The campaign is an ordered list of **slots**: a dungeon floor, or a boss fight
+(one slot, two levels — the prep room comes with the fight). `levelOrder` stores
+it; absent means the historical order and is what the byte-identity contract is
+written against, so the form and the importer both store the default as
+**absent** rather than as an explicit list.
+
+Two things follow from position in that list, and nothing else does:
+
+- **Where each level leads.** `gatewayAfter(order, position)` returns the one
+  `Gateway` a slot gets — `exit` (stairs to the next floor), `portal` (into a
+  fight's prep room) or `orb` (the campaign ends here). The generator writes it
+  to `ctx.gateway` before each `new Level()`, and `map/level.ts`,
+  `map/room.ts` and `objects/objectSet.ts` read it there. That is why the
+  finality tests `level < params.levels - 1` and `level === params.levels - 1`
+  are gone: a rearranged campaign can end on a dungeon floor, and several floors
+  can lead into fights. `lockFinalRoom` likewise gates whichever room carries a
+  gateway prefab (`gateway.kind !== 'exit'`), not floor `levels - 1`.
+- **What `levels.xml` lists, and in what order** — plus the `lvl.floor?floor=`
+  label, which counts positions rather than floor indices, and the preview
+  array, whose entries carry a `label` (`3`, `B2`) from `slotLabel`.
+
+What does **not** follow from it: how anything is generated. Floors are still
+built in numeric order off `ctx.rand` and arenas in list order off
+`ctx.bossRand`, and each is stashed and emitted afterwards in campaign order.
+Rearranging is a linking change; generating in a different sequence would move
+every seed.
+
+The editor is its own left-panel tab (`FloorOrderEditor`), sitting between Boss
+and Player rather than inside the Dungeon form: half the chips on it are boss
+fights, so it belongs to neither tab it used to live under.
+
+`normalizeOrder` repairs a stale order — drops slots that no longer exist,
+appends missing ones, drops duplicates, and deals each kind's indices back into
+the positions that kind already occupies so the interleaving survives while the
+numbering is made ascending. The importer and `ParameterForm.setLevels` both use
+it, so a stale file or a changed floor count is never fatal. `validation.ts`
+still reports a broken stored order, because the form edits the value directly
+and must not have it silently rewritten underneath.
+
 ## Boss finale (`bossprep/` + `boss/`)
 
-Two levels appended after the last floor when `boss.enabled`. The final floor's
-orb room becomes a portal, so there is exactly one way to win.
+Two levels appended after the last floor **per fight** when `boss.enabled`. The
+final floor's orb room becomes a portal into fight 0's prep room, so there is
+exactly one way to win.
+
+**The chain.** Fight `i`'s prep room leads into fight `i`'s arena; that arena
+leads into fight `i+1`'s **prep** room — the party shops between bosses. Only
+the last arena keeps the victory `Orb` and the campaign's single `GameEnd`; an
+earlier arena's alcove holds a `BossPortal` instead, which is deliberately the
+same three-id shape as `Orb` (`objectSet.ts`) so swapping it in shifts nothing
+allocated after it and makes no `ctx.bossRand` draw. Level ids and paths come
+from `src/generator/campaign.ts` (`bossPrepId`/`bossArenaId`, `bossprep<i>` and
+`boss<i>`) — a single source, because both ends of every link need them.
+
+**One `ctx.bossRand`, shared in list order.** Fight 0 draws exactly what a
+single-fight campaign always drew, and each later fight continues the stream
+after it, so adding a fight can never move an earlier one or any dungeon floor.
 
 - **Prep room** (`bossprep/`) — the lobby's shop rig again, via
   `levelTemplate/surgery.ts`: hand-authored XML edited by id, no RNG.
@@ -755,8 +834,10 @@ unseeded randomness; changes RNG draw order without flagging it; draws arena
 randomness from `ctx.rand`/`ctx.cosmeticRand` instead of `ctx.bossRand`; draws
 before the early return in a no-op theme path; adds a parameter without a
 validation rule; adds an unbounded loop; sends file contents through IPC;
-weakens `reachability.ts` instead of letting a bad floor re-roll; or lands
-generator behaviour without a test.
+weakens `reachability.ts` instead of letting a bad floor re-roll; generates
+floors or arenas in campaign order instead of their own fixed sequences, or
+stores the default `levelOrder` as an explicit list rather than as absent; or
+lands generator behaviour without a test.
 
 Tweak-specific: reject a diff that hand-writes a `TweakFieldDef` instead of
 deriving it from `baseline.ts`; mutates `TWEAK_BASELINE` in place (`applyTweaks`

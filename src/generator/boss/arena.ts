@@ -64,7 +64,7 @@ import { dataAFromDataT, mixedDatasets, overlayDataset } from '../map/tilemapOve
 import { patternVariant, pickArenaPattern } from './arenaPattern'
 import type { ArenaPattern } from './arenaPattern'
 import type { GenerationContext } from '../core/context'
-import type { BossOptions } from '../config/parameters'
+import type { BossArenaOptions } from '../config/parameters'
 import type { LevelPreview, PreviewRoom } from '../index'
 import { ENTRANCE_DEPTH, ENTRANCE_WIDTH, anchors } from './anchors'
 import { BOSS_DEFS, topWallBossClearance, topWallBossY } from './bosses'
@@ -109,8 +109,19 @@ export interface BossArenaResult {
  * Build one full boss arena level. Resets `ctx`'s per-level registries and id
  * counter itself (like a dungeon `Level`'s constructor does), so it does not
  * depend on the caller having done so.
+ *
+ * `exitTarget` is the level id the alcove leads to once the boss dies, or
+ * `null` when this is the campaign's last fight and the alcove holds the
+ * victory orb instead. It changes nothing else — in particular it makes no
+ * `ctx.bossRand` draw, so an arena's geometry, cover, food and spawn points are
+ * the same whether or not another fight follows it.
  */
-export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena'], levelNumber: number): BossArenaResult {
+export function buildBossArena(
+  ctx: GenerationContext,
+  arena: BossArenaOptions,
+  levelNumber: number,
+  exitTarget: string | null = null
+): BossArenaResult {
   ctx.clearLevel()
   ctx.idCounter = 0
 
@@ -432,7 +443,21 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   // --- win chain: Boss Died -> DestroyObject(seals) -> the wall opens ->
   // the existing Orb prefab's own ObjectEventTrigger -> GameEnd fires when the
   // player picks it up. No lock, no key, no door. ---
-  ObjectSet.create(ctx, orbLocal.x, orbLocal.y, 'Orb', arena.theme)
+  //
+  // Unless another fight follows, in which case the alcove holds a portal to
+  // that fight's prep room instead of the orb: a campaign must have exactly one
+  // GameEnd, and it belongs to the last arena. `BossPortal` is deliberately the
+  // same three-id shape as `Orb` (see objectSet.ts), so which one lands here
+  // cannot shift any id allocated after it and the seal chain below is
+  // identical either way.
+  ObjectSet.create(
+    ctx,
+    orbLocal.x,
+    orbLocal.y,
+    exitTarget === null ? 'Orb' : 'BossPortal',
+    arena.theme,
+    exitTarget ?? undefined
+  )
 
   const bossDied = new NodeGlobalEventTrigger(ctx, midX, midY, 'Boss Died')
   const destroyWalls = new NodeDestroyObject(ctx, midX, midY)
@@ -780,6 +805,9 @@ function buildArenaPreview(
 
   return {
     level: levelNumber,
+    // a placeholder: generateDungeon overwrites it with the slot's own label
+    // once it knows where in the campaign order this fight sits
+    label: String(levelNumber + 1),
     theme,
     mapWidth: gridWidth,
     mapHeight: gridHeight,

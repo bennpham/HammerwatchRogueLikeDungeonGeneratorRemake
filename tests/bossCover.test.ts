@@ -27,7 +27,7 @@ function buildArena(width: number, height: number, theme = 'g'): CoverArena {
 }
 
 function coverOptions(overrides: Partial<CoverOptions> = {}): CoverOptions {
-  return { ...defaultParameters().boss.arena.cover, ...overrides }
+  return { ...defaultParameters().boss.fights[0].arena.cover, ...overrides }
 }
 
 function overlaps(a: Rect, b: Rect): boolean {

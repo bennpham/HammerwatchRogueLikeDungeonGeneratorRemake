@@ -6,6 +6,7 @@ import { ParameterForm } from './components/ParameterForm'
 import { PlayerForm } from './components/PlayerForm'
 import { LobbyForm } from './components/LobbyForm'
 import { BossForm } from './components/BossForm'
+import { FloorOrderEditor } from './components/FloorOrderEditor'
 import { LevelPreview } from './components/LevelPreview'
 import { LoadoutSheet } from './components/LoadoutSheet'
 import { OutputPanel } from './components/OutputPanel'
@@ -24,7 +25,7 @@ export function App() {
   const [toast, setToast] = useState<Toast | null>(null)
   // the lobby is where a run starts, so it is where the app opens; the dungeon
   // and player passes are the optional ones
-  const [leftTab, setLeftTab] = useState<'lobby' | 'dungeon' | 'player' | 'boss'>('lobby')
+  const [leftTab, setLeftTab] = useState<'lobby' | 'dungeon' | 'boss' | 'order' | 'player'>('lobby')
   const [rightTab, setRightTab] = useState<'preview' | 'loadout'>('preview')
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
@@ -107,6 +108,14 @@ export function App() {
     if (leftTab === 'boss') {
       setParams({ ...params, boss: defaultParameters().boss })
       showToast('info', 'Boss tab reset to defaults.')
+      return
+    }
+    if (leftTab === 'order') {
+      // Absent IS the default order, so resetting means dropping the key.
+      const next = { ...params }
+      delete next.levelOrder
+      setParams(next)
+      showToast('info', 'Floor order reset — every floor, then every boss fight.')
       return
     }
     setParams({ ...defaultParameters(), playerTweaks: params.playerTweaks, lobby: params.lobby, boss: params.boss })
@@ -199,7 +208,9 @@ export function App() {
                 ? 'Reset lobby'
                 : leftTab === 'boss'
                   ? 'Reset boss tab'
-                  : 'Reset defaults'}
+                  : leftTab === 'order'
+                    ? 'Reset floor order'
+                    : 'Reset defaults'}
           </button>
         </div>
       </header>
@@ -221,18 +232,31 @@ export function App() {
               Dungeon
             </button>
             <button
+              className={leftTab === 'boss' ? 'tab active' : 'tab'}
+              onClick={() => setLeftTab('boss')}
+            >
+              Boss
+              <span className="tab-count">
+                {!params.boss.enabled
+                  ? 'off'
+                  : (params.boss.fights?.length ?? 0) > 1
+                    ? `${params.boss.fights.length} fights`
+                    : 'on'}
+              </span>
+            </button>
+            <button
+              className={leftTab === 'order' ? 'tab active' : 'tab'}
+              onClick={() => setLeftTab('order')}
+            >
+              Floor order
+              {params.levelOrder !== undefined && <span className="tab-count">custom</span>}
+            </button>
+            <button
               className={leftTab === 'player' ? 'tab active' : 'tab'}
               onClick={() => setLeftTab('player')}
             >
               Player
               {tweakCount > 0 && <span className="tab-count">{tweakCount}</span>}
-            </button>
-            <button
-              className={leftTab === 'boss' ? 'tab active' : 'tab'}
-              onClick={() => setLeftTab('boss')}
-            >
-              Boss
-              <span className="tab-count">{params.boss.enabled ? 'on' : 'off'}</span>
             </button>
           </div>
 
@@ -251,6 +275,9 @@ export function App() {
           )}
           {leftTab === 'boss' && (
             <BossForm params={params} issues={validation.errors} onChange={setParams} />
+          )}
+          {leftTab === 'order' && (
+            <FloorOrderEditor params={params} issues={validation.errors} onChange={setParams} />
           )}
         </aside>
 

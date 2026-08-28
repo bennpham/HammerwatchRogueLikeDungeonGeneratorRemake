@@ -213,20 +213,23 @@ export class Room {
         // the orb can only be locked behind a single door if exactly one
         // corridor reaches it — same condition lockRoom() enforces
         if (params.lockFinalRoom && this.passages.length !== 1) return false
-        // Boss on: the final floor's orb prefab swaps for the portal to the
-        // boss prep room, at the same coordinates. Neither prefab draws from
-        // either RNG stream and both register exactly 3 ctx ids (see the
-        // BossPortal case in objectSet.ts), so this swap changes nothing
-        // about layout, the wall bitmap, or any downstream id.
+        // A boss fight comes next: the orb prefab swaps for the portal into
+        // that fight's prep room, at the same coordinates. Neither prefab draws
+        // from either RNG stream and both register exactly 3 ctx ids (see the
+        // BossPortal case in objectSet.ts), so this swap changes nothing about
+        // layout, the wall bitmap, or any downstream id.
+        //
+        // `ctx.gateway` is what decides, not `params.boss.enabled`: with the
+        // campaign order rearranged, a floor's prefab depends on what actually
+        // follows *it*, and several floors can lead into a fight.
+        const gateway = ctx.gateway
         ObjectSet.create(
           ctx,
           this.x + Math.trunc(this.width / 2),
           this.y + Math.trunc(this.height / 2) + 1,
-          // params.boss can be legitimately absent (an old parameters.txt-era
-          // object, or a hand-built test params) — validation treats that as
-          // "off" (see validateBoss), so this must match, not throw
-          params.boss?.enabled === true ? 'BossPortal' : 'Orb',
-          this.theme
+          gateway?.kind === 'portal' ? 'BossPortal' : 'Orb',
+          this.theme,
+          gateway?.kind === 'portal' ? gateway.target : undefined
         )
         this.type = type
         return true

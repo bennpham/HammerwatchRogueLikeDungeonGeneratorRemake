@@ -22,6 +22,8 @@ import {
   waveBuffs,
   wavePickups
 } from './parameters'
+import type { BossFight, BossOptions } from './parameters'
+import type { CampaignSlot } from '../campaign'
 import { getTheme } from './themes'
 import {
   defaultTier,
@@ -265,6 +267,7 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
   validateLevelTimers(p, errors, warnings)
   validateLobby(p, errors, warnings)
   validateBoss(p, errors, warnings)
+  validateLevelOrder(p, errors)
 
   return { errors, warnings, valid: errors.length === 0 }
 }
@@ -318,6 +321,71 @@ function validateUpgrades(
         field,
         message: `The ${kind} upgrade count cannot exceed ${UPGRADE_COUNT_MAX} — not a game limit, just the point past which the stack is too large to emit.`
       })
+    }
+  }
+}
+
+/**
+ * The campaign's play order, when one is stored.
+ *
+ * Absent is always valid — it means the default order, which is what every
+ * campaign had before this was configurable. A stored order has to describe
+ * exactly this campaign: one entry per floor and per boss fight, no duplicates,
+ * nothing that does not exist, and each of the two sequences ascending. Only
+ * the interleaving is free.
+ *
+ * `campaign.normalizeOrder` can repair every one of these, and the importer
+ * uses it so a stale file is never fatal — but the form edits the stored value
+ * directly, so a broken order still has to be reportable rather than silently
+ * rewritten under the dungeon master.
+ */
+function validateLevelOrder(p: DungeonParameters, errors: ValidationIssue[]): void {
+  const order = p.levelOrder
+  if (order === undefined) return
+
+  const fightCount = p.boss?.enabled === true ? (p.boss.fights?.length ?? 0) : 0
+  const limit = (kind: string): number => (kind === 'floor' ? p.levels : fightCount)
+  const name = (slot: CampaignSlot): string => (slot.kind === 'floor' ? `floor ${slot.index + 1}` : `boss fight ${slot.index + 1}`)
+
+  const seen = new Set<string>()
+  const last = new Map<string, number>()
+  for (const slot of order) {
+    if (slot === null || typeof slot !== 'object' || (slot.kind !== 'floor' && slot.kind !== 'boss')) {
+      errors.push({ field: 'levelOrder', message: 'The floor order contains an entry that is neither a floor nor a boss fight.' })
+      continue
+    }
+    if (!Number.isInteger(slot.index) || slot.index < 0 || slot.index >= limit(slot.kind)) {
+      errors.push({
+        field: 'levelOrder',
+        message: `The floor order names ${name(slot)}, which this campaign does not have.`
+      })
+      continue
+    }
+
+    const key = `${slot.kind}:${slot.index}`
+    if (seen.has(key)) {
+      errors.push({ field: 'levelOrder', message: `The floor order lists ${name(slot)} more than once.` })
+      continue
+    }
+    seen.add(key)
+
+    // ascending within each kind — the interleaving is free, the numbering is not
+    const previous = last.get(slot.kind)
+    if (previous !== undefined && slot.index < previous) {
+      errors.push({
+        field: 'levelOrder',
+        message: `The floor order puts ${name(slot)} after a later one. Floors and boss fights each stay in order; only how they interleave is up to you.`
+      })
+    }
+    last.set(slot.kind, slot.index)
+  }
+
+  for (const slot of [
+    ...Array.from({ length: Math.max(0, p.levels) }, (_, index) => ({ kind: 'floor' as const, index })),
+    ...Array.from({ length: Math.max(0, fightCount) }, (_, index) => ({ kind: 'boss' as const, index }))
+  ]) {
+    if (!seen.has(`${slot.kind}:${slot.index}`)) {
+      errors.push({ field: 'levelOrder', message: `The floor order never places ${name(slot)}.` })
     }
   }
 }
@@ -438,46 +506,93 @@ function validateBoss(
 ): void {
   const boss = p.boss
   if (boss === undefined) return
+
+  // A campaign with the boss on must have something to fight. No upper bound —
+  // `levels` has none either (see requirePositiveInt above), and a dungeon
+  // master who wants a ten-arena gauntlet is not making a mistake.
+  const fights = boss.fights ?? []
+  if (boss.enabled && fights.length === 0) {
+    errors.push({
+      field: 'boss.fights',
+      message: 'The boss fight is on but no fights are configured — set at least one.'
+    })
+  }
+
+  fights.forEach((fight, index) => validateBossFight(boss, fight, index, errors, warnings))
+
+  // Two fights that can only ever roll the same boss are legal but almost
+  // certainly not what was meant, so this warns rather than blocks: a pool of
+  // one is the only case where the seed has no say.
+  const pinned = new Map<string, number>()
+  fights.forEach((fight, index) => {
+    const pool = fight.arena.bossPool
+    if (pool.length !== 1) return
+    const first = pinned.get(pool[0])
+    if (first === undefined) pinned.set(pool[0], index)
+    else {
+      warnings.push({
+        field: `boss.fights.${index}.arena.bossPool`,
+        message: `Fight ${index + 1} always fights the same boss as fight ${first + 1} ("${pool[0]}").`
+      })
+    }
+  })
+}
+
+/**
+ * Every rule for one boss fight. Field keys are scoped by fight index so the
+ * form can anchor an inline message to the tab that is actually wrong.
+ */
+function validateBossFight(
+  boss: BossOptions,
+  fight: BossFight,
+  index: number,
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[]
+): void {
   const before = errors.length
 
-  const arena = boss.arena
+  const arena = fight.arena
+  /** field key for an arena setting of this fight */
+  const af = (suffix: string): string => `boss.fights.${index}.arena.${suffix}`
+  /** field key for a prep-room setting of this fight */
+  const pf = (suffix: string): string => `boss.fights.${index}.prep.${suffix}`
 
   // min ≤ max on both axes
   if (arena.minWidth > arena.maxWidth) {
-    errors.push({ field: 'boss.arena.minWidth', message: 'Min width must be ≤ max width.' })
+    errors.push({ field: af('minWidth'), message: 'Min width must be ≤ max width.' })
   }
   if (arena.minHeight > arena.maxHeight) {
-    errors.push({ field: 'boss.arena.minHeight', message: 'Min height must be ≤ max height.' })
+    errors.push({ field: af('minHeight'), message: 'Min height must be ≤ max height.' })
   }
 
   // arena large enough for the biggest boss + 3×3 alcove + anchor insets
   if (arena.minWidth < ARENA_MIN_WIDTH) {
     errors.push({
-      field: 'boss.arena.minWidth',
+      field: af('minWidth'),
       message: `Arena width needs room for the boss, the alcove and the spawn anchors — minimum ${ARENA_MIN_WIDTH} tiles.`
     })
   }
   if (arena.minHeight < ARENA_MIN_HEIGHT) {
     errors.push({
-      field: 'boss.arena.minHeight',
+      field: af('minHeight'),
       message: `Arena height needs room for the boss, the alcove and the spawn anchors — minimum ${ARENA_MIN_HEIGHT} tiles.`
     })
   }
 
   // bossPool must not be empty
   if (arena.bossPool.length === 0) {
-    errors.push({ field: 'boss.arena.bossPool', message: 'At least one boss must be in the pool.' })
+    errors.push({ field: af('bossPool'), message: 'At least one boss must be in the pool.' })
   }
   for (const id of arena.bossPool) {
     if (!BOSS_IDS.includes(id as typeof BOSS_IDS[number])) {
-      errors.push({ field: 'boss.arena.bossPool', message: `Unknown boss "${id}".` })
+      errors.push({ field: af('bossPool'), message: `Unknown boss "${id}".` })
     }
   }
 
   // exactly BOSS_WAVE_COUNT waves
   if (arena.waves.length !== BOSS_WAVE_COUNT) {
     errors.push({
-      field: 'boss.arena.waves',
+      field: af('waves'),
       message: `Exactly ${BOSS_WAVE_COUNT} waves are required (100/75/50/25 and boss death).`
     })
   }
@@ -489,7 +604,7 @@ function validateBoss(
     const ms = wave.defaultIntervalMs
     if (!Number.isInteger(ms) || ms < MIN_WAVE_INTERVAL_MS || ms > MAX_WAVE_INTERVAL_MS) {
       errors.push({
-        field: `boss.arena.waves.${i}.defaultIntervalMs`,
+        field: af(`waves.${i}.defaultIntervalMs`),
         message: `Spawn interval must be between ${MIN_WAVE_INTERVAL_MS} and ${MAX_WAVE_INTERVAL_MS} ms.`
       })
     }
@@ -501,7 +616,7 @@ function validateBoss(
     for (const key of wave.monsters) {
       if (isKnownMonsterKey(key)) continue
       const { id, tier } = parseMonsterKey(key)
-      const field = `boss.arena.waves.${i}.monsters`
+      const field = af(`waves.${i}.monsters`)
       if (!isKnownMonsterId(id)) {
         errors.push({ field, message: `Wave ${i + 1} pool contains unknown monster "${key}".` })
       } else if (tier === undefined || !Number.isInteger(tier)) {
@@ -528,7 +643,7 @@ function validateBoss(
     for (const [id, max] of Object.entries(wave.monsterMax ?? {})) {
       if (!Number.isInteger(max) || max < -1) {
         errors.push({
-          field: `boss.arena.waves.${i}.monsterMax.${id}`,
+          field: af(`waves.${i}.monsterMax.${id}`),
           message: `Max count for "${id}" in wave ${i + 1} must be a whole number ≥ -1 (-1 = endless).`
         })
       }
@@ -538,7 +653,7 @@ function validateBoss(
       for (const [id, overrideMs] of Object.entries(wave.intervalMs)) {
         if (!Number.isInteger(overrideMs) || overrideMs < MIN_WAVE_INTERVAL_MS || overrideMs > MAX_WAVE_INTERVAL_MS) {
           errors.push({
-            field: `boss.arena.waves.${i}.intervalMs.${id}`,
+            field: af(`waves.${i}.intervalMs.${id}`),
             message: `Monster "${id}" in wave ${i + 1} has interval ${overrideMs} — must be ${MIN_WAVE_INTERVAL_MS}..${MAX_WAVE_INTERVAL_MS}.`
           })
         }
@@ -550,13 +665,13 @@ function validateBoss(
     waveBuffs(wave).forEach((entry, j) => {
       if (buffById(entry.buff) === undefined) {
         errors.push({
-          field: `boss.arena.waves.${i}.buffs.${j}.buff`,
+          field: af(`waves.${i}.buffs.${j}.buff`),
           message: `"${entry.buff}" is not a buff the game ships.`
         })
       }
       if (!BUFF_TARGETS.includes(entry.target)) {
         errors.push({
-          field: `boss.arena.waves.${i}.buffs.${j}.target`,
+          field: af(`waves.${i}.buffs.${j}.target`),
           message: `"${entry.target}" is not a buff target — use ${BUFF_TARGETS.join(', ')}.`
         })
       }
@@ -567,7 +682,7 @@ function validateBoss(
     wavePickups(wave).forEach((entry, j) => {
       if (pickupById(entry.item) === undefined) {
         errors.push({
-          field: `boss.arena.waves.${i}.pickups.${j}.item`,
+          field: af(`waves.${i}.pickups.${j}.item`),
           message: `"${entry.item}" is not an item the game ships.`
         })
       }
@@ -576,7 +691,7 @@ function validateBoss(
       // in the port is.
       if (!Number.isInteger(entry.count) || entry.count < 1 || entry.count > MAX_PICKUP_COUNT) {
         errors.push({
-          field: `boss.arena.waves.${i}.pickups.${j}.count`,
+          field: af(`waves.${i}.pickups.${j}.count`),
           message: `Wave ${i + 1} drops ${entry.count} × "${entry.item}" — the count must be a whole number 1..${MAX_PICKUP_COUNT}.`
         })
       }
@@ -587,7 +702,7 @@ function validateBoss(
     // record from the pool, so a stale key is housekeeping, not user error.
     for (const [id, mode] of Object.entries(wave.spawnMode ?? {})) {
       if (!wave.monsters.includes(id)) continue
-      const field = `boss.arena.waves.${i}.spawnMode.${id}`
+      const field = af(`waves.${i}.spawnMode.${id}`)
 
       if (!(BOSS_SPAWN_MODES as readonly string[]).includes(mode)) {
         errors.push({ field, message: `"${mode}" is not one of: ${BOSS_SPAWN_MODES.join(', ')}.` })
@@ -616,7 +731,7 @@ function validateBoss(
 
   // theme valid
   if (!THEMES.includes(arena.theme)) {
-    errors.push({ field: 'boss.arena.theme', message: `"${arena.theme}" is not one of: ${THEMES.join(', ')}.` })
+    errors.push({ field: af('theme'), message: `"${arena.theme}" is not one of: ${THEMES.join(', ')}.` })
   }
 
   // floor pattern valid. Not an error to set one on a theme that ignores it —
@@ -624,34 +739,34 @@ function validateBoss(
   // away and back would lose their choice.
   if (!BOSS_FLOOR_PATTERNS.includes(arena.floorPattern)) {
     errors.push({
-      field: 'boss.arena.floorPattern',
+      field: af('floorPattern'),
       message: `"${arena.floorPattern}" is not one of: ${BOSS_FLOOR_PATTERNS.join(', ')}.`
     })
   }
 
   // starting gold
-  const gold = boss.prep.startingGold
+  const gold = fight.prep.startingGold
   if (!Number.isInteger(gold) || gold < 0) {
-    errors.push({ field: 'boss.prep.startingGold', message: 'Starting gold must be a whole number ≥ 0.' })
+    errors.push({ field: pf('startingGold'), message: 'Starting gold must be a whole number ≥ 0.' })
   } else if (gold % DIAMOND_VALUE !== 0) {
     errors.push({
-      field: 'boss.prep.startingGold',
+      field: pf('startingGold'),
       message: `Starting gold must be a multiple of ${DIAMOND_VALUE} — each ${DIAMOND_VALUE} is one red diamond.`
     })
   } else if (gold > GOLD_SAFETY_MAX) {
     errors.push({
-      field: 'boss.prep.startingGold',
+      field: pf('startingGold'),
       message: `Starting gold cannot exceed ${GOLD_SAFETY_MAX} — not a game limit, just the point past which the diamond pile is too large to emit.`
     })
   }
 
-  validateUpgrades(boss.prep.upgrades, 'boss.prep.upgrades', errors)
+  validateUpgrades(fight.prep.upgrades, pf('upgrades'), errors)
 
   // every prep shop column must be a real one
-  const unknownShop = boss.prep.shopCategories.filter((c) => !isLobbyCategory(c))
+  const unknownShop = fight.prep.shopCategories.filter((c: string) => !isLobbyCategory(c))
   for (const id of [...new Set(unknownShop)].sort()) {
     errors.push({
-      field: 'boss.prep.shopCategories',
+      field: pf('shopCategories'),
       message: `"${id}" is not a shop column. Valid columns: ${ALL_LOBBY_CATEGORIES.join(', ')}.`
     })
   }
@@ -659,7 +774,7 @@ function validateBoss(
   // cover pattern and its numeric knobs
   if (!(BOSS_COVER_PATTERNS as readonly string[]).includes(arena.cover.pattern)) {
     errors.push({
-      field: 'boss.arena.cover.pattern',
+      field: af('cover.pattern'),
       message: `"${arena.cover.pattern}" is not one of: ${BOSS_COVER_PATTERNS.join(', ')}.`
     })
   }
@@ -669,22 +784,22 @@ function validateBoss(
   // campaign rather than an aggressive one.
   if (!Number.isFinite(arena.cover.density) || arena.cover.density < 0 || arena.cover.density > BOSS_COVER_DENSITY_MAX) {
     errors.push({
-      field: 'boss.arena.cover.density',
+      field: af('cover.density'),
       message: `Cover density must be between 0 and ${BOSS_COVER_DENSITY_MAX} — it is the fraction of the arena floor filled with pillars, and denser than that leaves nowhere to fight.`
     })
   }
   if (!Number.isInteger(arena.cover.ringSpacing) || arena.cover.ringSpacing < 1) {
-    errors.push({ field: 'boss.arena.cover.ringSpacing', message: 'Ring spacing must be a whole number ≥ 1.' })
+    errors.push({ field: af('cover.ringSpacing'), message: 'Ring spacing must be a whole number ≥ 1.' })
   }
   if (!Number.isInteger(arena.cover.clusters) || arena.cover.clusters < 1) {
-    errors.push({ field: 'boss.arena.cover.clusters', message: 'Cluster count must be a whole number ≥ 1.' })
+    errors.push({ field: af('cover.clusters'), message: 'Cluster count must be a whole number ≥ 1.' })
   }
 
   // the arena's own multipliers, same rule as the dungeon's — a negative one
   // would drive scaledMax below the -1 endless sentinel and every horde to 0
   for (const [field, value] of [
-    ['boss.arena.monsterMultiplier', arena.monsterMultiplier],
-    ['boss.arena.foodMultiplier', arena.foodMultiplier]
+    [af('monsterMultiplier'), arena.monsterMultiplier],
+    [af('foodMultiplier'), arena.foodMultiplier]
   ] as Array<[string, number]>) {
     if (!(Number.isFinite(value) && value >= 0)) {
       errors.push({ field, message: 'Multiplier must be ≥ 0.' })
@@ -694,16 +809,16 @@ function validateBoss(
   // the scatter modes' own knobs — same shape as cover's, deliberately separate
   // so pillars and monsters can be spaced differently
   if (!Number.isInteger(arena.spawn.spacing) || arena.spawn.spacing < 1) {
-    errors.push({ field: 'boss.arena.spawn.spacing', message: 'Spawn spacing must be a whole number ≥ 1.' })
+    errors.push({ field: af('spawn.spacing'), message: 'Spawn spacing must be a whole number ≥ 1.' })
   }
   if (!Number.isInteger(arena.spawn.ringSpacing) || arena.spawn.ringSpacing < 1) {
-    errors.push({ field: 'boss.arena.spawn.ringSpacing', message: 'Spawn ring spacing must be a whole number ≥ 1.' })
+    errors.push({ field: af('spawn.ringSpacing'), message: 'Spawn ring spacing must be a whole number ≥ 1.' })
   }
   if (!Number.isInteger(arena.spawn.clusters) || arena.spawn.clusters < 1) {
-    errors.push({ field: 'boss.arena.spawn.clusters', message: 'Spawn cluster count must be a whole number ≥ 1.' })
+    errors.push({ field: af('spawn.clusters'), message: 'Spawn cluster count must be a whole number ≥ 1.' })
   }
   if (!Number.isInteger(arena.spawn.batchSize) || arena.spawn.batchSize < 1) {
-    errors.push({ field: 'boss.arena.spawn.batchSize', message: 'Spawn batch size must be a whole number ≥ 1.' })
+    errors.push({ field: af('spawn.batchSize'), message: 'Spawn batch size must be a whole number ≥ 1.' })
   }
   if (
     !Number.isInteger(arena.spawn.batchIntervalMs) ||
@@ -711,7 +826,7 @@ function validateBoss(
     arena.spawn.batchIntervalMs > MAX_WAVE_INTERVAL_MS
   ) {
     errors.push({
-      field: 'boss.arena.spawn.batchIntervalMs',
+      field: af('spawn.batchIntervalMs'),
       message: `Spawn batch interval must be a whole number of milliseconds between ${MIN_WAVE_INTERVAL_MS} and ${MAX_WAVE_INTERVAL_MS}.`
     })
   }
@@ -720,7 +835,7 @@ function validateBoss(
   const invuln = arena.invulnerability
   if (!Array.isArray(invuln.seconds) || invuln.seconds.length !== BOSS_INVULN_COUNT) {
     errors.push({
-      field: 'boss.arena.invulnerability.seconds',
+      field: af('invulnerability.seconds'),
       message: `Boss invulnerability needs exactly ${BOSS_INVULN_COUNT} window lengths, one per health threshold (${BOSS_INVULN_THRESHOLDS.join(', ')}).`
     })
   } else {
@@ -728,7 +843,7 @@ function validateBoss(
       const s = invuln.seconds[i]
       if (!Number.isInteger(s) || s < 0 || s > MAX_BOSS_INVULN_SECONDS) {
         errors.push({
-          field: `boss.arena.invulnerability.seconds.${i}`,
+          field: af(`invulnerability.seconds.${i}`),
           message: `The ${BOSS_INVULN_THRESHOLDS[i]} window must be a whole number of seconds between 0 (off) and ${MAX_BOSS_INVULN_SECONDS}.`
         })
       }
@@ -741,7 +856,7 @@ function validateBoss(
   // have confirmed the array is the right length and every entry is sane.
   if (invuln.enabled && invuln.seconds.every((s) => s === 0)) {
     warnings.push({
-      field: 'boss.arena.invulnerability.seconds',
+      field: af('invulnerability.seconds'),
       message: 'Boss invulnerability is on but every window is 0 seconds — no threshold will pause the fight.'
     })
   }
@@ -752,7 +867,7 @@ function validateBoss(
     const tickNodes = invuln.seconds.reduce((sum, s) => sum + (s > 0 ? s + 1 : 0), 0)
     if (tickNodes > BOSS_COUNTDOWN_NODE_WARN) {
       warnings.push({
-        field: 'boss.arena.invulnerability.countdown',
+        field: af('invulnerability.countdown'),
         message: `The countdown adds ${tickNodes} script nodes (one per second, per window). Consider shorter windows, or turning the countdown off.`
       })
     }
@@ -766,7 +881,7 @@ function validateBoss(
     // stock run.
     if (wave.monsters.length === 0 && i !== BOSS_DEATH_WAVE) {
       warnings.push({
-        field: `boss.arena.waves.${i}.monsters`,
+        field: af(`waves.${i}.monsters`),
         message: `Wave ${i + 1} has an empty monster pool — nothing will spawn at this tier.`
       })
     }
@@ -778,7 +893,7 @@ function validateBoss(
       const pair = `${entry.buff}|${entry.target}`
       if (seenTierBuffs.has(pair)) {
         warnings.push({
-          field: `boss.arena.waves.${i}.buffs.${j}.buff`,
+          field: af(`waves.${i}.buffs.${j}.buff`),
           message: `Wave ${i + 1}: "${entry.buff}" is already applied to ${entry.target} on this tier — the second copy does nothing.`
         })
       }
@@ -788,7 +903,7 @@ function validateBoss(
       // only whatever that tier itself spawns to land on.
       if (i === BOSS_DEATH_WAVE && entry.target === 'monsters' && wave.monsters.length === 0) {
         warnings.push({
-          field: `boss.arena.waves.${i}.buffs.${j}.target`,
+          field: af(`waves.${i}.buffs.${j}.target`),
           message:
             'The after-the-boss-dies buff catches monsters, but that tier spawns none — nothing will be buffed on the walk to the orb.'
         })
@@ -811,7 +926,7 @@ function validateBoss(
       // one row is what the form can then edit in one place.
       if (seenTierPickups.has(entry.item)) {
         warnings.push({
-          field: `boss.arena.waves.${i}.pickups.${j}.item`,
+          field: af(`waves.${i}.pickups.${j}.item`),
           message: `Wave ${i + 1} already drops "${entry.item}" — fold the two rows into one count.`
         })
       }
@@ -821,7 +936,7 @@ function validateBoss(
     for (const id of wave.monsters) {
       const mode = waveSpawnMode(wave, id)
       if (!isScatterMode(mode)) continue
-      const field = `boss.arena.waves.${i}.spawnMode.${id}`
+      const field = af(`waves.${i}.spawnMode.${id}`)
 
       // The interval belongs to the timer rig, and a scattered monster has no
       // timer. Worth saying out loud: the number stays visible in
@@ -848,7 +963,7 @@ function validateBoss(
   )
   if (scattered >= BOSS_SCATTER_WARN) {
     warnings.push({
-      field: 'boss.arena.waves',
+      field: af('waves'),
       message: `The waves scatter ${scattered} spawns in total, one script node each — that is a lot of nodes on one floor.`
     })
   }
@@ -873,7 +988,7 @@ function validateBoss(
       .reduce((n, id) => n + Math.min(scatterCount(wave.monsterMax[id], arena.monsterMultiplier), budget), 0)
     if (points > capacity) {
       warnings.push({
-        field: `boss.arena.waves.${i}`,
+        field: af(`waves.${i}`),
         message: `Wave ${i + 1} wants ${points} scatter points but the smallest arena it can roll (${arena.minWidth}x${arena.minHeight}) fits about ${capacity} — some monsters will share tiles. Raise the arena size, or lower the spawn spacing or batch size.`
       })
     }
@@ -885,7 +1000,7 @@ function validateBoss(
   // theme select shows it inline.
   const arenaNote = getTheme(arena.theme)?.cosmeticWarning
   if (arenaNote !== undefined) {
-    warnings.push({ field: 'boss.arena.theme', message: arenaNote })
+    warnings.push({ field: af('theme'), message: arenaNote })
   }
 
   // No area-aware density warning lives here any more. It fired only when

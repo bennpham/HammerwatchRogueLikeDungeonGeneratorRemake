@@ -5,6 +5,7 @@ import type { Item } from '../objects/item'
 import type { Doodad } from '../objects/doodad'
 import type { ScriptNode } from '../objects/scriptNode'
 import type { ObjectSet } from '../objects/objectSet'
+import type { Gateway } from '../campaign'
 
 /**
  * Per-generation state. The original Java kept all of this in static fields
@@ -36,6 +37,22 @@ export class GenerationContext {
   currentLevel = 0
   idCounter = 0
   lastLockType = 0
+
+  /**
+   * How the floor currently being built leaves the campaign — set by the
+   * generator before each `new Level()`.
+   *
+   * Which prefab a floor's way out gets, and where it points, is a property of
+   * the campaign ORDER rather than of the floor's own index: with the order
+   * rearranged, a mid-campaign floor can lead into a boss fight and the last
+   * dungeon floor need not be the campaign's last level at all. So the decision
+   * is made once, by the caller that knows the order, and read here by
+   * `map/level.ts` and `map/room.ts`.
+   *
+   * Null while nothing is being built, and for the boss arena, which is not a
+   * `Level` and carries its own exit target.
+   */
+  gateway: Gateway | null = null
 
   monsters: Monster[] = []
   items: Item[] = []

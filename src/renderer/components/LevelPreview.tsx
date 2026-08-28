@@ -5,6 +5,9 @@ const ROOM_COLORS: Record<string, string> = {
   Entrance: '#3fae6a',
   Exit: '#3f7fae',
   Orb: '#9b59d0',
+  // the arena's single synthetic room — without an entry it fell through to the
+  // grey `None` and got no label at all
+  Boss: '#c0455f',
   Shop: '#d0a53f',
   Vault: '#d0703f',
   Lair: '#b04a4a',
@@ -16,6 +19,7 @@ const ROOM_LABELS: Record<string, string> = {
   Entrance: 'IN',
   Exit: 'OUT',
   Orb: 'ORB',
+  Boss: 'BOSS',
   Shop: '$',
   Vault: 'V',
   Storage: 'S'
@@ -103,7 +107,7 @@ export function LevelPreview({ levels, seed }: LevelPreviewProps) {
             className={i === activeLevel ? 'tab active' : 'tab'}
             onClick={() => setActiveLevel(i)}
           >
-            {i + 1}
+            {l.label ?? i + 1}
           </button>
         ))}
         <span className="preview-meta">
