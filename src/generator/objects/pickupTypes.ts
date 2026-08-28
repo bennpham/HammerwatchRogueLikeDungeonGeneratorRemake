@@ -27,8 +27,12 @@
  *                present in a boss level resaved by the game's own editor
  *   [VERIFIED]   powerup_health — a flat 250 HP heal, not a potion. Owner's
  *                playtest, 2026-08-28. See DISCOVERY-LOG.md.
- *   [UNVERIFIED] health_2, health_3 — seen in an asset extract, never yet
- *                loaded in game. See DISCOVERY-LOG.md, 2026-08-28.
+ *   [VERIFIED]   powerup_1up — hand-placed by the owner in a level the game's
+ *                own editor then resaved.
+ *   [VERIFIED]   health_2, health_3 — confirmed in game by the owner,
+ *                2026-08-28. See DISCOVERY-LOG.md.
+ *   [UNVERIFIED] powerup_7up — named from an asset extract, never yet loaded in
+ *                game. See DISCOVERY-LOG.md, 2026-08-28.
  */
 
 /**
@@ -72,7 +76,7 @@ export const PICKUP_DEFS: readonly PickupDef[] = [
     label: 'Health (Medium)',
     group: 'Health',
     lane: 'health',
-    description: 'A mid-sized health pickup. Never yet confirmed in game — see the discovery log.'
+    description: 'A mid-sized health pickup.'
   },
   {
     id: 'health_3',
@@ -80,7 +84,7 @@ export const PICKUP_DEFS: readonly PickupDef[] = [
     label: 'Health (Large)',
     group: 'Health',
     lane: 'health',
-    description: 'A large health pickup. Never yet confirmed in game — see the discovery log.'
+    description: 'A large health pickup.'
   },
   {
     id: 'health_4',
@@ -139,6 +143,27 @@ export const PICKUP_DEFS: readonly PickupDef[] = [
     group: 'Potions',
     lane: 'potion',
     description: 'Damage potion. Shortens the rest of the fight rather than surviving it.'
+  },
+  // --- Lives ---------------------------------------------------------------
+  // Never in the stock table: an extra life is a real swing in a fight the
+  // campaign means to be final, so it is opt-in and drops nothing by default.
+  // These share the potion lane rather than getting one of their own — the
+  // bottom row by the door is the consumables row, and lives belong in it.
+  {
+    id: 'powerup_1up',
+    path: 'items/powerup_1up.xml',
+    label: 'Extra life (1up)',
+    group: 'Lives',
+    lane: 'potion',
+    description: 'One extra life. Off by default — add a row to hand the party one.'
+  },
+  {
+    id: 'powerup_7up',
+    path: 'items/powerup_7up.xml',
+    label: 'Extra lives (7up)',
+    group: 'Lives',
+    lane: 'potion',
+    description: 'The seven-life pickup. Never yet confirmed in game — see the discovery log.'
   },
   // --- Upgrades I ----------------------------------------------------------
   {

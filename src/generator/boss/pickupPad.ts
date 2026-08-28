@@ -26,8 +26,9 @@
  *                          [ the entrance mouth ]        padY + 2
  *
  * Health runs up the left, mana up the right, the eight upgrades fill the
- * two-wide block in the middle, and the potions sit in the bottom row, nearest
- * the door, where they are the first thing seen on walking in. That is the
+ * two-wide block in the middle, and the consumables — the three potions and the
+ * two extra-life pickups — sit in the bottom row, nearest the door, where they
+ * are the first thing seen on walking in. That is the
  * arrangement the owner laid out by hand in the game's own editor and asked
  * for; `PickupLane` in objects/pickupTypes.ts is what routes each item to its
  * column.

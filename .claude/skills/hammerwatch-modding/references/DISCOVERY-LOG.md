@@ -9,8 +9,9 @@ that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
 ### 2026-08-28 — items as boss-tier drops, and two health sizes we have not seen load
-**Tag:** **[VERIFIED]** for the emission shape and the item paths listed under
-(1); **[UNVERIFIED]** for `items/health_2.xml` and `items/health_3.xml`.
+**Tag:** **[VERIFIED]** throughout. The emission shape and the paths under (1)
+came from the editor-resaved file; `items/health_2.xml` and `items/health_3.xml`
+were confirmed in game by the owner later the same day (see item 3).
 **Context:** Building Wave pickups (`src/generator/boss/wavePickups.ts`), which
 drops items at each boss health threshold. The
 project owner supplied a boss level resaved by the game's own editor
@@ -37,12 +38,37 @@ project owner supplied a boss level resaved by the game's own editor
    each other"). `trigger-times: 1` still matters on the 100% tier, whose
    AreaTrigger re-fires every time a player walks back over the entrance.
 
-3. **`items/health_2.xml` and `items/health_3.xml` are [UNVERIFIED].** They are
-   in the owner's asset extract but appear in no file we have seen the editor or
-   the game write, and neither has been walked over in game. They are offered in
-   the pickup dropdown and emitted on request; do NOT promote them into
-   `ASSET-REGISTRY.md` until a packed campaign loads a floor carrying one. There
-   is no `mana_3` — the owner checked the extract; mana has two sizes only.
+3. **`items/health_2.xml` and `items/health_3.xml` load — [VERIFIED].** They
+   started as `[UNVERIFIED]` names from the owner's asset extract, appearing in
+   no file the editor or the game had been seen to write. The owner confirmed
+   both in game on 2026-08-28, so they are promoted here and into
+   `ASSET-REGISTRY.md`, and their dropdown tooltips no longer disclaim them.
+   There is still no `mana_3` — the owner checked the extract; mana has two
+   sizes only.
+
+### 2026-08-28 — the extra-life pickups
+**Tag:** **[VERIFIED]** for `items/powerup_1up.xml`; **[UNVERIFIED]** for
+`items/powerup_7up.xml`.
+**Context:** The owner added one more `SpawnObject` to `boss_test_perks.xml` and
+asked for both life pickups in the Wave pickups roster.
+
+1. **`items/powerup_1up.xml` grants an extra life** and is **[VERIFIED]**: it is
+   hand-placed in a level the game's own editor then resaved, so the path loads.
+
+2. **`items/powerup_7up.xml` is [UNVERIFIED].** The owner named it; it appears in
+   no file we have seen the editor write, and nobody has watched one get picked
+   up. Its label says so, the way `health_2` / `health_3` did before they were
+   confirmed. Promote it only after it is seen working in game.
+
+3. **Neither is in any stock drop table, deliberately.** An extra life is a large
+   swing in the campaign's final fight, so both are opt-in — present in the
+   dropdown, dropping nothing until somebody adds a row. `tests/
+   bossWavePickups.test.ts` pins that across all three presets.
+
+They share the drop pad's potion lane rather than getting a lane of their own:
+the bottom row by the door is the consumables row, and lives belong in it. Their
+dropdown group ("Lives") is separate, which is exactly the split `PickupDef`'s
+`group` vs `lane` fields exist for.
 
 ### 2026-08-28 — `powerup_health` is a 250 HP heal, and drops belong by the door
 **Tag:** **[VERIFIED]** in game — the owner ran a generated arena and read both

@@ -431,7 +431,8 @@ surrounds the party, which put the 50% heal on a wall midpoint ~25 tiles away
 behind the wave that had just spawned there (playtest 2026-08-28 — that heal and
 the 25% potion were never found). Drops now land on a fixed pad just inside the
 entrance: health up the left column, mana up the right, the eight upgrades in
-the 2-wide middle block, potions in the row nearest the door. Same layout every
+the 2-wide middle block, and the consumables — potions plus the two extra-life
+pickups — in the row nearest the door. Same layout every
 seed, so it can be learnt once.
 
 One cursor per lane, carried across **all** tiers rather than reset per tier, so

@@ -226,6 +226,18 @@ describe('boss wave pickups — a count is copies', () => {
     expect(new Set(spawns(ctx).map((s) => s.y)).size).toBe(4)
   })
 
+  it('drops an extra life in the consumables row alongside the potions', () => {
+    const ctx = freshCtx()
+    buildRig(ctx, [wave(['powerup_1up', 1], ['powerup_7up', 1])])
+
+    const all = spawns(ctx)
+    expect(all.map((s) => s.actorPath)).toEqual([
+      'items/powerup_1up.xml',
+      'items/powerup_7up.xml'
+    ])
+    expect(all.map(tileOf)).toEqual([tileOf(PAD.potion[0]), tileOf(PAD.potion[1])])
+  })
+
   it('puts the potions in the bottom row, nearest the door', () => {
     const ctx = freshCtx()
     buildRig(ctx, [wave(['potion_1', 1], ['potion_2', 1], ['potion_3', 1])])
@@ -450,6 +462,20 @@ describe('boss wave pickups — stock defaults', () => {
         { item: 'powerup_health', count: 2 },
         { item: 'mana_2', count: 4 }
       ])
+    }
+  })
+
+  it('never hands out an extra life by default', () => {
+    // An extra life is opt-in: it is in the roster so a campaign CAN grant one,
+    // but no preset's stock table drops one.
+    const lives = new Set(PICKUP_DEFS.filter((d) => d.group === 'Lives').map((d) => d.id))
+    expect(lives).toEqual(new Set(['powerup_1up', 'powerup_7up']))
+    for (const preset of CAMPAIGN_PRESETS) {
+      for (const w of preset.build().boss.arena.waves) {
+        for (const entry of wavePickups(w)) {
+          expect(lives.has(entry.item), `${preset.id} drops ${entry.item}`).toBe(false)
+        }
+      }
     }
   })
 

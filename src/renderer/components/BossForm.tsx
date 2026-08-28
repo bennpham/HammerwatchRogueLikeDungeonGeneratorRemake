@@ -512,8 +512,8 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
           moment its threshold fires, and stay on the floor until somebody walks over them — so
           unlike the buffs above, the tiers do <strong>not</strong> replace one another, and the
           health nobody collected at 50% is still there at 25%. The pad is laid out the same way on
-          every seed — health up the left, mana up the right, upgrades in the middle, potions in the
-          row by the door — so the party can learn it once and run back to it. By default the fight
+          every seed — health up the left, mana up the right, upgrades in the middle, potions and
+          extra lives in the row by the door — so the party can learn it once and run back to it. By default the fight
           resupplies at 50%, hands out one rejuvenation potion at 25%, and doubles the resupply for
           the walk to the orb.
         </p>

@@ -324,6 +324,23 @@ Keys and doors are index-matched: bronze/silver/gold at 0/1/2, and doors 0–2
 are horizontal while 3–5 are the vertical variants of the same three tiers.
 `ctx.lastLockType` carries the tier from the door to its key.
 
+### Health and life pickups beyond `Food` `[VERIFIED 2026-08-28]`
+
+Not in `item.ts`'s categories — individually addressable, used by the boss
+arena's Wave pickups (`src/generator/objects/pickupTypes.ts`):
+
+| Path | What it is |
+| --- | --- |
+| `items/health_2.xml` | mid-sized heal |
+| `items/health_3.xml` | large heal |
+| `items/health_4.xml` | the largest of the four numbered sizes |
+| `items/powerup_health.xml` | a flat **250 HP** heal — the biggest in the game, and listed under `Powerup` above only because that is the pool `item.ts` happens to keep it in. It is not a timed potion. |
+| `items/powerup_1up.xml` | one extra life |
+
+`items/mana_2.xml` is the larger of the two mana pickups; there is no `mana_3`.
+`items/powerup_7up.xml` is offered by the roster but stays **[UNVERIFIED]** —
+see the discovery log.
+
 ### Free upgrade pickups `[VERIFIED 2026-08-25]`
 
 Not in `item.ts` — used by the lobby and the boss prep room templates only.
