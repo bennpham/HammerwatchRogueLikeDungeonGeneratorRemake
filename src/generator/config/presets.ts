@@ -1,4 +1,10 @@
-import { defaultFloorBuffs, defaultFloorTimer, defaultParameters, scatterWave } from './parameters'
+import {
+  bossDeathBuffs,
+  defaultFloorBuffs,
+  defaultFloorTimer,
+  defaultParameters,
+  scatterWave
+} from './parameters'
 import type { BossWave, DungeonParameters } from './parameters'
 
 /**
@@ -91,7 +97,8 @@ function desertWaves(): BossWave[] {
       [],
       1000
     ),
-    // boss death — the fire pillars and floaters wait for the kill, see BOSS_DEATH_WAVE
+    // boss death — the fire pillars and floaters wait for the kill, see
+    // BOSS_DEATH_WAVE, and the whole send-off is bloodlusted, see bossDeathBuffs()
     scatterWave(
       [
         ['special_beheaded_kamikaze', 40],
@@ -103,7 +110,8 @@ function desertWaves(): BossWave[] {
         ['lich_desert#2', 6]
       ],
       [],
-      1000
+      1000,
+      bossDeathBuffs()
     )
   ]
 }
@@ -173,7 +181,8 @@ function bonusWaves(): BossWave[] {
       ],
       1000
     ),
-    // boss death — the same line-up plus wisps, see BOSS_DEATH_WAVE
+    // boss death — the same line-up plus wisps, see BOSS_DEATH_WAVE, and
+    // bloodlusted like every preset's send-off, see bossDeathBuffs()
     scatterWave(
       [
         ['lich', 4],
@@ -190,7 +199,8 @@ function bonusWaves(): BossWave[] {
         ['tower_static_frost', 1],
         ['tower_tracking1', 4]
       ],
-      1000
+      1000,
+      bossDeathBuffs()
     )
   ]
 }

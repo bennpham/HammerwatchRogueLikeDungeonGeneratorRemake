@@ -69,7 +69,7 @@ import type { LevelPreview, PreviewRoom } from '../index'
 import { ENTRANCE_DEPTH, ENTRANCE_WIDTH, anchors } from './anchors'
 import { BOSS_DEFS, topWallBossClearance, topWallBossY } from './bosses'
 import type { AlcoveWall, BossId } from './bosses'
-import { isFree, placeCoverPillars } from './cover'
+import { isFree, placeCoverPillars, reachableMask } from './cover'
 import type { CoverArena, Rect } from './cover'
 import { buildWaveRig, scatterRequests } from './waves'
 import { buildInvulnerabilityRig } from './invulnerability'
@@ -312,13 +312,16 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   )
 
   // --- spawn anchors + entrance + cover pillars ---
-  // The N anchor shares the boss's midX, so a wall-mounted boss can swallow it
-  // whole; push it clear rather than spawning wave monsters inside the boss.
-  // Centre-placed bosses pass nothing and keep the historical anchor layout.
+  // Two anchors can end up inside the boss, one per placement. A wall-mounted
+  // boss shares the N anchor's midX and can swallow it whole; a centre-placed
+  // boss sits on exactly the C anchor's tile. Push whichever applies clear
+  // rather than spawning wave monsters inside the boss (playtest 2026-08-27).
   const anchorList = anchors(
     width,
     height,
-    bossDef.placement === 'topWall' ? topWallBossClearance(bossDef, bossLocal.y) : undefined
+    bossDef.placement === 'topWall'
+      ? { northClearance: topWallBossClearance(bossDef, bossLocal.y) }
+      : { centreBoss: { width: bossDef.footprintWidth, height: bossDef.footprintHeight } }
   )
 
   const entranceRect: Rect = {
@@ -376,16 +379,28 @@ export function buildBossArena(ctx: GenerationContext, arena: BossOptions['arena
   // --- scattered spawn points: the last ctx.bossRand draws of the arena, and
   // none at all while every monster is on the default `anchors` mode. The rig
   // itself stays RNG-free — it only consumes the finished map. ---
+  // The mask is the post-prune walkable floor, so a scattered monster can only
+  // land where a player could reach it. Pure — building it draws nothing.
+  const walkable = reachableMask(coverArena, pillarRects)
   const spawnPoints = placeSpawnPoints(
     ctx,
     coverArena,
     pillarRects,
-    scatterRequests(arena.waves, arena.monsterMultiplier),
+    scatterRequests(arena.waves, arena.monsterMultiplier, arena.spawn.batchSize),
     arena.spawn,
-    anchorList
+    anchorList,
+    walkable
   )
 
-  buildWaveRig(ctx, arena.waves, arena.monsterMultiplier, anchorList, entranceShape, spawnPoints)
+  buildWaveRig(
+    ctx,
+    arena.waves,
+    arena.monsterMultiplier,
+    anchorList,
+    entranceShape,
+    spawnPoints,
+    arena.spawn.batchIntervalMs
+  )
 
   // --- invulnerability windows: independent of the wave tiers, but built after
   // them so turning the feature on only ever APPENDS nodes — every wave-rig id

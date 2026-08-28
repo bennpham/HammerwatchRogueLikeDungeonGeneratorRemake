@@ -8,6 +8,109 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-08-28 — an arena can be too big: a scattered wave that never re-forms
+**Tag:** **[VERIFIED]** in game (same 4-player group, on the 2026-08-27 build)
+for the arena-size and cover findings; **[EMITTED]** for the boss-death
+bloodlust field, which is emitted and round-trips but has not been watched land
+on the post-kill horde in game yet.
+**Context:** Second playtest, checking the 2026-08-27 rebalance. The lag was
+gone; two of the three figures it shipped were wrong in the other direction.
+
+1. **66-88 overshot, and not because of the walking.** On a floor that size a
+   `random`-scattered wave arrives already dispersed and never converges: the
+   monsters spend the fight pathfinding across open ground and reach the party
+   in ones and twos, where they are picked off. The tuned counts stop applying
+   any pressure at all — the same tables that were unplayable on 24-32 x 32-44
+   were trivial on 66-88. This is the general finding, and it is about spawn
+   dispersion rather than tile count: arena size is the lever that sets how far
+   a scattered horde has to travel before it is a horde again. Settled range is
+   **42-64 on both axes** (the group's stated preference was "around 44x44").
+2. **0.12 cover was tuned for the bigger floor.** At 42-64 it reads as clutter;
+   0.08 — the pre-2026-08-27 density — is right at this size. The `symmetric`
+   pattern from that playtest was kept: it reads as deliberate architecture, and
+   the legibility is what lets a party call out positions.
+3. **The walk to the orb wanted teeth.** The boss-death tier already spawns a
+   send-off, but a party that has just won walks through it. Requested fix: the
+   post-kill horde fights buffed.
+
+**Impact:**
+
+- Arena default is 42-64 x 42-64; cover is `symmetric` at 0.08. Every preset
+  inherits both — `withBoss()` re-points only theme, pool and waves.
+- Wave counts are unchanged. The 2026-08-27 cut (152/137/117/38/21 for Castle)
+  plus the batch budget were confirmed balanced by this session.
+- Every preset's boss-death tier now carries `bloodlust` aimed at `monsters`
+  (`bossDeathBuffs()` in `config/parameters.ts`), so the horde that spawns on
+  the kill fights at +50% damage and +50% move speed. It is the only tier any
+  stock preset buffs, and tiers replace one another, so the field is dark for
+  the whole health fight and switches on at `Boss Died`. A stock arena therefore
+  carries three `Boss Died` triggers: the win chain, the death tier's spawns and
+  the death tier's buff field.
+- The boss-tier copy of validation's "a strengthener aimed at anything but
+  players" warning is gone. The arena's five tiers are an explicit difficulty
+  ladder, so buffing the horde there is the feature; the per-floor copy of the
+  rule stays, where a strengthener on monsters usually is a mis-aimed target.
+
+**Still open:** the 2026-08-27 entry's open question shrinks but does not close
+— the largest arena that can now roll is 64x64, still well above the 32x44 that
+was the previous maximum, and no arena above 32x44 has been packed by
+`LevelPacker.exe` or loaded in game. Stays `[EMITTED]`.
+
+### 2026-08-27 — a centre boss swallows the C spawn anchor, and one frame cannot absorb 480 actors
+**Tag:** **[VERIFIED]** in game (4-player playtest, no warlock, stock Castle
+preset). Both findings were observed directly, not inferred.
+**Context:** First multiplayer playtest of the generated boss arena at the
+stock defaults.
+**Evidence:**
+
+1. **Monsters spawned inside the queen.** `arena.ts` placed a `centre` boss at
+   `(midX, midY)`; `anchors()` placed the `C` spawn anchor at `(midX, midY)`.
+   The queen's collider is the largest of the seven — 81x83 px, i.e.
+   5.06 x 5.19 tiles — so every monster the anchor rig round-robined onto `C`
+   materialised inside her body, where the party could not reach it. The code
+   knew: `cover.ts` dropped `C` from its reachability targets for centre
+   bosses, and `boss.test.ts` skipped `C` in its "no anchor inside the boss"
+   assertion. Both were working around the bug rather than fixing it.
+2. **The frame budget is far below the wave tables.** Every scattered monster
+   emitted one `SpawnObject` with `trigger-times: 1` hung directly off its tier
+   trigger, so the whole tier arrived on a single frame: 480 actors at 100%,
+   and — because nothing ever disables a lower tier's rig — roughly 1140 alive
+   by the 50% threshold. The fight was pathfinding-bound well before that.
+   Four players with no warlock (no mass clear) is the honest test case; a
+   party that can vaporise a horde masks it.
+3. **The floor ran out before the count did.** `placeSpawnPoints` accumulated
+   one `placed` rect list across all five tiers, and `spacing: 2` reserves a
+   2x2 box per point, so a 28x38 interior held ~250 disjoint points against the
+   ~1200 the tables asked for. Once saturated, every pattern placed nothing and
+   the pad fell back to the 9 anchors — which is exactly what the playtest saw
+   and reported as "random only places things on the corners and NWES".
+
+**Impact:**
+
+- `anchors()` takes an `AnchorClearance` object: `northClearance` for a
+  `topWall` boss (unchanged behaviour) and `centreBoss` for a centre one, which
+  pushes `C` south by half the collider plus a tile, clamped clear of `S`. The
+  workaround in `cover.ts` and the test exception are both gone.
+- Scatter spawning gained a batch budget: `boss.arena.spawn.batchSize` (8) and
+  `batchIntervalMs` (1500). Past the budget a monster gets `batchSize` points
+  and its count split round-robin over them on a shared per-tier timer, the same
+  way the anchor rig splits a horde over its 9 anchors. Inside the budget the
+  old one-shot shape is emitted unchanged.
+- `placeSpawnPoints` resets its `placed` list per tier, filters candidates
+  against `cover.ts`'s new `reachableMask` (so no monster lands in a pocket the
+  pillars sealed off), retries a short request at `spacing: 1`, and pads onto
+  real spare floor before ever considering the anchors.
+- Stock Castle counts cut ~60% (152/137/117/38/21 per tier), arena grown to
+  66-88 on both axes, cover moved to `symmetric` at density 0.12.
+- New validation warning when a tier wants more scatter points than the
+  smallest arena it can roll has floor for — the check whose absence let this
+  ship.
+
+**Still open:** the arena is now up to 88x88 where the largest previously
+emitted was 32x44. Nothing is known to clamp it (`arena.ts` rasterizes its own
+grid, independent of `mapWidth`/`mapHeight`) but no 88x88 arena has been packed
+by `LevelPacker.exe` or loaded in game yet. Tagged `[EMITTED]` until it is.
+
 ### 2026-08-25 — the eight free upgrade item paths, and light ids are not renumbered
 **Tag:** **[VERIFIED]** for the item paths and the two lighting entries (read
 from levels saved by the game's own editor); **[EMITTED]** for stacking more

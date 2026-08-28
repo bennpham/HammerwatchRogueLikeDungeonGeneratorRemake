@@ -350,6 +350,62 @@ function buildBlockedMask(arena: CoverArena, rects: readonly Rect[]): Uint8Array
 }
 
 /**
+ * The interior tiles a player can actually stand on, as a `1 = reachable` mask
+ * indexed `x + y * width` — the boss footprint, the pillars and anything else
+ * in `rects` are blocked, and the flood starts from the entrance.
+ *
+ * `spawnPoints.ts` uses this so a scattered monster can never be dropped into a
+ * pocket the pillars sealed off. `pruneForConnectivity` guarantees the boss, the
+ * 9 anchors and the alcove mouth stay connected, but it says nothing about the
+ * rest of the floor: a ring of pillars around an empty corner is a legal
+ * pillar layout and an illegal place to put a monster.
+ *
+ * Pure and deterministic — no RNG, so callers may run it wherever they like in
+ * the `ctx.bossRand` order without moving it.
+ */
+export function reachableMask(arena: CoverArena, rects: readonly Rect[]): Uint8Array {
+  const blocked = buildBlockedMask(arena, rects)
+  const start = findEntranceStart(arena, blocked)
+  return floodFill(blocked, arena.width, arena.height, start)
+}
+
+/**
+ * Whether every tile `rect` covers is set in a `reachableMask`. The companion to
+ * `isFree`: that one asks "does this overlap something", this one asks "can a
+ * player get here", and a spawn point needs both.
+ *
+ * A rect poking outside the interior is not reachable, by definition — callers
+ * still run `isFree` first, which rejects that case with a clearer reason.
+ */
+export function rectReachable(rect: Rect, arena: CoverArena, reachable: Uint8Array): boolean {
+  const { width, height } = arena
+  const { x0, x1, y0, y1 } = rectTileBounds(rect, width, height)
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      if (!reachable[x + y * width]) return false
+    }
+  }
+  return true
+}
+
+/**
+ * Every reachable interior tile, row-major. `spawnPoints.ts` strides through
+ * this when a pattern could not place all the points it was asked for, so the
+ * shortfall lands on real floor spread across the arena instead of stacking on
+ * the 9 anchors (playtest 2026-08-27, #43).
+ */
+export function reachableTiles(arena: CoverArena, reachable: Uint8Array): Array<{ x: number; y: number }> {
+  const { width, height } = arena
+  const tiles: Array<{ x: number; y: number }> = []
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (reachable[x + y * width]) tiles.push({ x, y })
+    }
+  }
+  return tiles
+}
+
+/**
  * Nearest point *inside* `rect` to the arena's own centre, clamped to a valid
  * interior tile. Used for the alcove mouth: `arena.alcove` is the bounding
  * box of the sealed pocket, which for the real arena (arena.ts) sits almost
@@ -375,16 +431,14 @@ function nearestInteriorTile(rect: Rect, arena: CoverArena): { x: number; y: num
  * The reachability targets the connectivity pass must satisfy: the boss's
  * own neighbours, all 9 anchors, and the alcove mouth.
  *
- * `arena.ts` centres non-topWall bosses on exactly the `C` anchor's point
- * (`bossLocal = { x: midX, y: midY }`, same as `anchors()`'s centre entry),
- * and a topWall boss's footprint can reach the `N` anchor for the tallest
- * boss defs — so a target can legitimately sit *inside* the boss's own
- * footprint, permanently blocked regardless of pillars. That is a fixed fact
- * about boss/anchor geometry this pass is not responsible for (and no pillar
- * removal could fix), so such a target is dropped rather than left in the
- * list — leaving it in would make `findVictim` return -1 on the very first
- * unreachable target and abort the whole prune before it ever looks at a
- * pillar-caused blockage elsewhere.
+ * `anchors()` now pushes both anchors a boss can swallow clear of it — `N` for
+ * a topWall boss, `C` for a centre one — so in a well-formed arena no target
+ * sits inside the boss footprint any more. The filter below stays anyway: it is
+ * cheap, it costs nothing when it matches nothing, and a target permanently
+ * blocked by the boss (a hand-built `CoverArena` in a test, or a footprint that
+ * grows past what `anchors()` clears) would otherwise make `findVictim` return
+ * -1 on the very first unreachable target and abort the whole prune before it
+ * ever looked at a pillar-caused blockage elsewhere.
  */
 function reachabilityTargets(arena: CoverArena): Array<{ x: number; y: number }> {
   const { width, height, boss } = arena

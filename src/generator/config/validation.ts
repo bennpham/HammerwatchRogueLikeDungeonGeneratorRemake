@@ -413,6 +413,14 @@ function scatterCount(max: number, monsterMultiplier: number): number {
 }
 
 /**
+ * Bounds on any wave-side interval in milliseconds: a tier's shared interval, a
+ * per-monster override, and the scatter batch timer. Below 100 ms the timer is
+ * effectively per-frame; above a minute it is indistinguishable from off.
+ */
+const MIN_WAVE_INTERVAL_MS = 100
+const MAX_WAVE_INTERVAL_MS = 60000
+
+/**
  * The boss arena is generated geometry with its own validation rules — sizes,
  * pool completeness and interval bounds. Absent boss object means "off", not
  * "invalid", mirroring how validateLobby handles the lobby.
@@ -477,10 +485,10 @@ function validateBoss(
   for (let i = 0; i < arena.waves.length; i++) {
     const wave = arena.waves[i]
     const ms = wave.defaultIntervalMs
-    if (!Number.isInteger(ms) || ms < 100 || ms > 60000) {
+    if (!Number.isInteger(ms) || ms < MIN_WAVE_INTERVAL_MS || ms > MAX_WAVE_INTERVAL_MS) {
       errors.push({
         field: `boss.arena.waves.${i}.defaultIntervalMs`,
-        message: 'Spawn interval must be between 100 and 60000 ms.'
+        message: `Spawn interval must be between ${MIN_WAVE_INTERVAL_MS} and ${MAX_WAVE_INTERVAL_MS} ms.`
       })
     }
 
@@ -526,10 +534,10 @@ function validateBoss(
 
     if (wave.intervalMs) {
       for (const [id, overrideMs] of Object.entries(wave.intervalMs)) {
-        if (!Number.isInteger(overrideMs) || overrideMs < 100 || overrideMs > 60000) {
+        if (!Number.isInteger(overrideMs) || overrideMs < MIN_WAVE_INTERVAL_MS || overrideMs > MAX_WAVE_INTERVAL_MS) {
           errors.push({
             field: `boss.arena.waves.${i}.intervalMs.${id}`,
-            message: `Monster "${id}" in wave ${i + 1} has interval ${overrideMs} — must be 100..60000.`
+            message: `Monster "${id}" in wave ${i + 1} has interval ${overrideMs} — must be ${MIN_WAVE_INTERVAL_MS}..${MAX_WAVE_INTERVAL_MS}.`
           })
         }
       }
@@ -672,6 +680,19 @@ function validateBoss(
   if (!Number.isInteger(arena.spawn.clusters) || arena.spawn.clusters < 1) {
     errors.push({ field: 'boss.arena.spawn.clusters', message: 'Spawn cluster count must be a whole number ≥ 1.' })
   }
+  if (!Number.isInteger(arena.spawn.batchSize) || arena.spawn.batchSize < 1) {
+    errors.push({ field: 'boss.arena.spawn.batchSize', message: 'Spawn batch size must be a whole number ≥ 1.' })
+  }
+  if (
+    !Number.isInteger(arena.spawn.batchIntervalMs) ||
+    arena.spawn.batchIntervalMs < MIN_WAVE_INTERVAL_MS ||
+    arena.spawn.batchIntervalMs > MAX_WAVE_INTERVAL_MS
+  ) {
+    errors.push({
+      field: 'boss.arena.spawn.batchIntervalMs',
+      message: `Spawn batch interval must be a whole number of milliseconds between ${MIN_WAVE_INTERVAL_MS} and ${MAX_WAVE_INTERVAL_MS}.`
+    })
+  }
 
   // the invulnerability windows — one per health threshold, 0 disabling that one
   const invuln = arena.invulnerability
@@ -750,14 +771,13 @@ function validateBoss(
             'The after-the-boss-dies buff catches monsters, but that tier spawns none — nothing will be buffed on the walk to the orb.'
         })
       }
-      // Same reasoning as the per-floor warning: aiming a strengthener at the
-      // party is legitimate, so this only fires the other way round.
-      if (BUFF_HELPFUL_IDS.includes(entry.buff) && entry.target !== 'players') {
-        warnings.push({
-          field: `boss.arena.waves.${i}.buffs.${j}.target`,
-          message: `Wave ${i + 1}: "${entry.buff}" strengthens whatever it catches, and this one catches ${entry.target}.`
-        })
-      }
+      // No BUFF_HELPFUL_IDS check here, deliberately, and unlike the per-floor
+      // rule further down. On an ordinary floor a strengthener aimed at monsters
+      // is usually a mis-aimed target and worth naming. The arena's five tiers
+      // are an explicit difficulty ladder, so strengthening the horde there is
+      // the feature — the stock boss-death tier does exactly that (see
+      // bossDeathBuffs()), and warning about it would put a message on every
+      // stock run, which is the same trap the empty-tier rule above avoids.
     })
 
     for (const id of wave.monsters) {
@@ -793,6 +813,32 @@ function validateBoss(
       field: 'boss.arena.waves',
       message: `The waves scatter ${scattered} spawns in total, one script node each — that is a lot of nodes on one floor.`
     })
+  }
+
+  // Whether the arena has floor to *put* them on, which is a different question
+  // from the node budget above and the one the 2026-08-27 playtest ran into: a
+  // tier that wants more distinct spawn points than the smallest arena it can
+  // roll has free tiles cannot place them all, and the shortfall is padded onto
+  // tiles other monsters already claimed. Counted per tier, because
+  // spawnPoints.ts now clears its placed list between tiers.
+  //
+  // A warning, not an error: padding is a real, handled outcome (every monster
+  // still spawns), and the free-floor figure is an estimate — the pillars are
+  // not placed yet. `spacing` reserves a square per point, hence the squaring.
+  const perPoint = Math.max(1, Math.trunc(arena.spawn.spacing)) ** 2
+  const capacity = Math.floor(freeFloorArea(arena.minWidth, arena.minHeight) / perPoint)
+  const budget = Math.max(1, Math.trunc(arena.spawn.batchSize))
+  for (let i = 0; i < arena.waves.length; i++) {
+    const wave = arena.waves[i]
+    const points = wave.monsters
+      .filter((id) => isScatterMode(waveSpawnMode(wave, id)))
+      .reduce((n, id) => n + Math.min(scatterCount(wave.monsterMax[id], arena.monsterMultiplier), budget), 0)
+    if (points > capacity) {
+      warnings.push({
+        field: `boss.arena.waves.${i}`,
+        message: `Wave ${i + 1} wants ${points} scatter points but the smallest arena it can roll (${arena.minWidth}x${arena.minHeight}) fits about ${capacity} — some monsters will share tiles. Raise the arena size, or lower the spawn spacing or batch size.`
+      })
+    }
   }
 
   // The arena's theme carries the same cosmetic caveat the dungeon's themes do

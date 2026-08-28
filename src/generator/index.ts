@@ -13,6 +13,7 @@ export type { DungeonParameters, LobbyOptions, BossOptions, BossWave, BossSpawnM
 export {
   THEMES,
   BOSS_IDS,
+  BOSS_COVER_DENSITY_MAX,
   BOSS_COVER_PATTERNS,
   BOSS_FLOOR_PATTERNS,
   BOSS_SPAWN_MODES,

@@ -70,17 +70,17 @@ bossTheme=g_mixed
 # How a "- mixed" bossTheme arranges its floor palette; ignored by every other
 # theme. random | checker | bandsH | bandsV | bandsDiag | rings | diamond | cross | triangle
 bossFloorPattern=random
-bossWidth=24,32
-bossHeight=32,44
+bossWidth=42,64
+bossHeight=42,64
 bossPool=boss_knight,boss_lich,boss_dragon,boss_queen
 # bossCover is pattern,density,ringSpacing,clusters. Pattern is
 # random | ring | gaussian | symmetric; density is the fraction of free floor
 # filled with pillars and is capped at 0.25.
-bossCover=random,0.08,4,3
+bossCover=symmetric,0.08,4,3
 # bossSpawn is spacing,ringSpacing,clusters for the scatter spawn modes below —
 # deliberately separate from bossCover so pillars and monsters can be spaced
 # differently. Ignored while every monster is on the default anchors mode.
-bossSpawn=2,4,3
+bossSpawn=2,4,3,8,1500
 # Boss invulnerability: at 75%, 50% and 25% health the boss goes immortal for
 # this many seconds, with a ticking countdown announced to the party. It stops a
 # fully upgraded party bursting the boss down before the fight happens, and it
@@ -111,11 +111,11 @@ bossFoodMultiplier=1.200000
 # wreck still blocks movement (the nova/frost/tracking towers) may not be
 # scattered. A max of -1 means endless, and cannot be combined with a scatter
 # mode. An empty wave is legal and emits nothing.
-bossWave1=bat1,bat2,maggot,maggot#2,maggot#3,tick1,tick1#2,tick1#0,tower_flower1_small|4000|bat1:120,bat2:80,maggot:60,maggot#2:40,maggot#3:20,tick1:80,tick1#2:60,tick1#0:8,tower_flower1_small:12||bat1:random,bat2:random,maggot:random,maggot#2:random,maggot#3:random,tick1:random,tick1#0:random,tick1#2:random,tower_flower1_small:random
-bossWave2=archer1,archer2,skeleton1,skeleton1#2,slime,tower_archer1,mb_tick,mb_maggot,skeleton1#0,archer1#0,slime#0|3000|archer1:30,archer2:15,skeleton1:60,skeleton1#2:80,slime:120,tower_archer1:12,mb_tick:6,mb_maggot:2,skeleton1#0:6,archer1#0:6,slime#0:20||archer1:random,archer1#0:random,archer2:random,mb_maggot:random,mb_tick:random,skeleton1:random,skeleton1#0:random,skeleton1#2:random,slime:random,slime#0:random,tower_archer1:random
-bossWave3=eye,eye#2,wisp1,wisp1#2,wisp2,lich#3,tower_flower1,tower_flower2,tower_flower3,mb_skeleton,mb_eye|2000|eye:120,eye#2:80,wisp1:30,wisp1#2:10,wisp2:20,lich#3:20,tower_flower1:6,tower_flower2:3,tower_flower3:1,mb_skeleton:8,mb_eye:2||eye:random,eye#2:random,lich#3:random,mb_eye:random,mb_skeleton:random,tower_flower1:random,tower_flower2:random,tower_flower3:random,wisp1:random,wisp1#2:random,wisp2:random
-bossWave4=lich,lich#0,lich#2,mb_eye,mb_lich,tower_archer3,eye#0,archer2#0,skeleton2#0,tower_nova1|1000|lich:4,lich#0:8,lich#2:8,mb_eye:4,mb_lich:1,tower_archer3:8,eye#0:12,archer2#0:8,skeleton2#0:8,tower_nova1:4||archer2#0:random,eye#0:random,lich:random,lich#0:random,lich#2:random,mb_eye:random,mb_lich:random,skeleton2#0:random,tower_archer3:random
-bossWave5=lich#2,lich,lich#0,mb_lich,mb_doomspawn,tower_static_frost|1000|lich#2:16,lich:6,lich#0:10,mb_lich:2,mb_doomspawn:4,tower_static_frost:4||lich:random,lich#0:random,lich#2:random,mb_doomspawn:random,mb_lich:random
+bossWave1=bat1,bat2,maggot,maggot#2,maggot#3,tick1,tick1#2,tick1#0,tower_flower1_small|4000|bat1:42,bat2:24,maggot:20,maggot#2:12,maggot#3:6,tick1:24,tick1#2:16,tick1#0:2,tower_flower1_small:6||bat1:random,bat2:random,maggot:random,maggot#2:random,maggot#3:random,tick1:random,tick1#0:random,tick1#2:random,tower_flower1_small:random
+bossWave2=archer1,archer2,skeleton1,skeleton1#2,slime,tower_archer1,mb_tick,mb_maggot,skeleton1#0,archer1#0,slime#0|3000|archer1:14,archer2:7,skeleton1:24,skeleton1#2:28,slime:44,tower_archer1:6,mb_tick:3,mb_maggot:1,skeleton1#0:2,archer1#0:2,slime#0:6||archer1:random,archer1#0:random,archer2:random,mb_maggot:random,mb_tick:random,skeleton1:random,skeleton1#0:random,skeleton1#2:random,slime:random,slime#0:random,tower_archer1:random
+bossWave3=eye,eye#2,wisp1,wisp1#2,wisp2,lich#3,tower_flower1,tower_flower2,tower_flower3,mb_skeleton,mb_eye|2000|eye:44,eye#2:30,wisp1:12,wisp1#2:4,wisp2:8,lich#3:8,tower_flower1:3,tower_flower2:2,tower_flower3:1,mb_skeleton:4,mb_eye:1||eye:random,eye#2:random,lich#3:random,mb_eye:random,mb_skeleton:random,tower_flower1:random,tower_flower2:random,tower_flower3:random,wisp1:random,wisp1#2:random,wisp2:random
+bossWave4=lich,lich#0,lich#2,mb_eye,mb_lich,tower_archer3,eye#0,archer2#0,skeleton2#0,tower_nova1|1000|lich:4,lich#0:4,lich#2:6,mb_eye:2,mb_lich:1,tower_archer3:5,eye#0:5,archer2#0:4,skeleton2#0:4,tower_nova1:3||archer2#0:random,eye#0:random,lich:random,lich#0:random,lich#2:random,mb_eye:random,mb_lich:random,skeleton2#0:random,tower_archer3:random
+bossWave5=lich#2,lich,lich#0,mb_lich,mb_doomspawn,tower_static_frost|1000|lich#2:8,lich:3,lich#0:4,mb_lich:1,mb_doomspawn:2,tower_static_frost:3||lich:random,lich#0:random,lich#2:random,mb_doomspawn:random,mb_lich:random
 # bossWaveBuff1..5 hangs an arena-wide buff on that tier: <id>:<target> entries
 # separated by |, e.g. bossWaveBuff3=frost:players|bloodlust:monsters. Targets
 # are players, monsters or both; an omitted target means players. Unlike the
@@ -123,7 +123,9 @@ bossWave5=lich#2,lich,lich#0,mb_lich,mb_doomspawn,tower_static_frost|1000|lich#2
 # previous tier's buffs off as it switches its own on, so exactly one tier's
 # aura is ever live. Its own key rather than a sixth bossWaveN field, so files
 # exported before the feature still round-trip. Written only for tiers that
-# carry one, so this file has none.
+# carry one: the stock defaults buff only the boss-death tier, so the horde that
+# spawns after the kill fights bloodlusted on the walk to the orb.
+bossWaveBuff5=bloodlust:monsters
 #
 # buff0..N hangs buff auras on a dungeon floor, same <id>:<target>|<id>:<target>
 # form, e.g. buff2=frost:players|bloodlust:monsters. A floor's aura covers the

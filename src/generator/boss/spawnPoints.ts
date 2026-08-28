@@ -1,9 +1,15 @@
 /**
  * Scatter placement for boss-wave monsters on a non-anchor spawn mode
  * (issue #21). Where `anchors` trickles a monster's budget out of the 9 fixed
- * points on a timer, a scatter mode places **one point per monster** across
- * the arena and fires all of them once — so this module's job is to turn
- * "40 bats, gaussian" into 40 concrete interior tiles.
+ * points on a timer, a scatter mode spreads its own points across the arena —
+ * so this module's job is to turn "40 bats, gaussian" into concrete interior
+ * tiles.
+ *
+ * How many tiles is `request.points`, not `request.count`: up to the arena's
+ * `spawn.batchSize` a monster still gets a point each and the whole group fires
+ * at once, but a bigger count is spread over `batchSize` points and trickled in
+ * by waves.ts on a timer. 480 actors materialising on one frame is what made the
+ * stock Castle arena unplayable (playtest 2026-08-27).
  *
  * It is the sibling of cover.ts and deliberately mirrors it: the same four
  * pattern names, the same `ctx.bossRand`-only rule, the same bounded attempt
@@ -11,6 +17,11 @@
  * `isFree`), so a spawn point can never land on the boss, the entrance, the
  * alcove, one of the 9 anchors, a cover pillar, or another spawn point. The
  * shared geometry helpers live in placement.ts.
+ *
+ * On top of that filter a spawn point must sit on floor the player can actually
+ * reach (`cover.ts`'s `reachableMask`). The connectivity prune only guarantees
+ * the boss, the anchors and the alcove stay connected — a pocket sealed off
+ * behind pillars is a legal pillar layout and an illegal place for a monster.
  *
  * The one deliberate difference from cover.ts: a spawn point also has to clear
  * the north wall band (`isFreeSpawn` below). A pillar in the top rows is
@@ -21,10 +32,9 @@
  *
  *   1. **The count is a promise, not a budget.** Cover skips a pillar it
  *      cannot fit; a wave's monster count is something the user typed, so when
- *      the floor runs out the leftovers are round-robined onto the points that
- *      *were* placed (and, if the pattern placed nothing at all, onto the 9
- *      anchors, which are walkable floor by construction). The requested count
- *      is always the count that spawns.
+ *      the floor runs out the leftovers land on other reachable floor, then on
+ *      the points that *were* placed, and only then on the 9 anchors. See
+ *      `padToCount`. The requested count is always the count that spawns.
  *   2. **It runs last.** `arena.ts` calls it after `placeCoverPillars` and
  *      `placeFood`, so every draw it makes is appended to the end of the
  *      `ctx.bossRand` stream. With no scatter monster in any wave there are no
@@ -37,7 +47,7 @@ import type { BossSpawnMode } from '../config/parameters'
 import type { Anchor } from './anchors'
 import { NORTH_ANCHOR_INSET } from './anchors'
 import type { CoverArena } from './cover'
-import { ANCHOR_PILLAR_CLEARANCE, isFree } from './cover'
+import { ANCHOR_PILLAR_CLEARANCE, isFree, rectReachable, reachableTiles } from './cover'
 import type { Rect } from './placement'
 import { PLACEMENT_ATTEMPTS, footprintRect, nextGaussian, pointOnPerimeter } from './placement'
 
@@ -50,6 +60,14 @@ export interface SpawnRequest {
   mode: BossSpawnMode
   /** how many monsters to spawn, already scaled by monsterMultiplier */
   count: number
+  /**
+   * How many spawn *points* to place for those monsters — `min(count,
+   * batchSize)`. Above the batch budget a monster no longer gets a point each:
+   * it gets `points` of them, and `waves.ts` splits `count` over them on a timer
+   * so the group trickles in instead of landing on one frame. See
+   * `BossOptions['arena']['spawn']['batchSize']`.
+   */
+  points: number
 }
 
 export interface SpawnPointOptions {
@@ -91,8 +109,13 @@ function spawnFootprint(options: SpawnPointOptions): { width: number; height: nu
  * The patterns also *draw* from the legal range where they can, so the band
  * costs no placement attempts; this is the guarantee, that is the optimisation.
  */
-function isFreeSpawn(rect: Rect, arena: CoverArena, placed: readonly Rect[]): boolean {
-  return rect.y >= NORTH_ANCHOR_INSET && isFree(rect, arena, placed)
+function isFreeSpawn(
+  rect: Rect,
+  arena: CoverArena,
+  placed: readonly Rect[],
+  reachable: Uint8Array
+): boolean {
+  return rect.y >= NORTH_ANCHOR_INSET && isFree(rect, arena, placed) && rectReachable(rect, arena, reachable)
 }
 
 function placeRandom(
@@ -100,7 +123,8 @@ function placeRandom(
   arena: CoverArena,
   placed: Rect[],
   target: number,
-  options: SpawnPointOptions
+  options: SpawnPointOptions,
+  reachable: Uint8Array
 ): SpawnPoint[] {
   const footprint = spawnFootprint(options)
   const points: SpawnPoint[] = []
@@ -110,7 +134,7 @@ function placeRandom(
       const x = ctx.bossRand.iRand(0, arena.width)
       const y = ctx.bossRand.iRand(NORTH_ANCHOR_INSET, Math.max(NORTH_ANCHOR_INSET + 1, arena.height))
       const rect = footprintRect(x, y, footprint)
-      if (isFreeSpawn(rect, arena, placed)) {
+      if (isFreeSpawn(rect, arena, placed, reachable)) {
         placed.push(rect)
         points.push({ x, y })
         break
@@ -126,7 +150,8 @@ function placeRing(
   arena: CoverArena,
   placed: Rect[],
   target: number,
-  options: SpawnPointOptions
+  options: SpawnPointOptions,
+  reachable: Uint8Array
 ): SpawnPoint[] {
   const points: SpawnPoint[] = []
 
@@ -166,7 +191,7 @@ function placeRing(
       const x = Math.round(point.x)
       const y = Math.round(point.y)
       const rect = footprintRect(x, y, footprint)
-      if (isFreeSpawn(rect, arena, placed)) {
+      if (isFreeSpawn(rect, arena, placed, reachable)) {
         placed.push(rect)
         points.push({ x, y })
         break
@@ -182,7 +207,8 @@ function placeGaussian(
   arena: CoverArena,
   placed: Rect[],
   target: number,
-  options: SpawnPointOptions
+  options: SpawnPointOptions,
+  reachable: Uint8Array
 ): SpawnPoint[] {
   const points: SpawnPoint[] = []
   if (target <= 0) return points
@@ -212,7 +238,7 @@ function placeGaussian(
         const x = Math.round(centreX + nextGaussian(ctx) * sigma)
         const y = Math.round(centreY + nextGaussian(ctx) * sigma)
         const rect = footprintRect(x, y, footprint)
-        if (isFreeSpawn(rect, arena, placed)) {
+        if (isFreeSpawn(rect, arena, placed, reachable)) {
           placed.push(rect)
           points.push({ x, y })
           break
@@ -229,7 +255,8 @@ function placeSymmetric(
   arena: CoverArena,
   placed: Rect[],
   target: number,
-  options: SpawnPointOptions
+  options: SpawnPointOptions,
+  reachable: Uint8Array
 ): SpawnPoint[] {
   const points: SpawnPoint[] = []
   if (target <= 0) return points
@@ -269,7 +296,7 @@ function placeSymmetric(
       let anyPlaced = false
       for (const candidate of candidates) {
         const rect = footprintRect(candidate.x, candidate.y, footprint)
-        if (!isFreeSpawn(rect, arena, placed)) continue
+        if (!isFreeSpawn(rect, arena, placed, reachable)) continue
         placed.push(rect)
         points.push(candidate)
         anyPlaced = true
@@ -282,36 +309,85 @@ function placeSymmetric(
 }
 
 /**
- * Pads `points` up to `count` by repeating the points already placed, in
- * round-robin order — two monsters on one tile is a far smaller problem than
- * a horde the user configured silently shrinking. Falls back to the spawn
- * anchors when the pattern placed nothing at all (a pathological arena, or a
- * `count` the ring's spacing reduced to zero); anchors are guaranteed walkable
- * floor, so this can only fail if there are no anchors, which cannot happen.
+ * Pads `points` up to `count` when a pattern could not place them all.
  *
- * The fallback needs no north-band check of its own: `anchors()` already puts
- * the N/NE/NW anchors at `NORTH_ANCHOR_INSET` or deeper, so every source point
- * here — placed or anchor — is already clear of the band.
+ * The count is a promise, not a budget — cover skips a pillar it cannot fit, but
+ * a wave's monster count is something the user typed, so the shortfall has to go
+ * somewhere. In preference order:
+ *
+ *   1. **Real, reachable floor** the pattern did not use, strided so the pad
+ *    points spread across the arena instead of bunching into one corner.
+ *    Deterministic (row-major order, fixed stride) — no `ctx.bossRand` draw, so
+ *    padding never moves the stream.
+ *   2. **The points already placed**, round-robin — two monsters on one tile is
+ *    a far smaller problem than a horde silently shrinking.
+ *   3. **The 9 spawn anchors**, the historical fallback, for a pathological
+ *    arena with no reachable floor left at all.
+ *
+ * Order 1 before 2 is the fix for the 2026-08-27 playtest report that `random`
+ * "only places things on the corners and NWES": the old version went straight to
+ * the anchors whenever a pattern placed *nothing*, and a saturated arena made
+ * that the common case rather than the pathological one. The anchors are still
+ * the last resort, so the guarantee that a count always spawns is unchanged.
+ *
+ * No north-band check is needed on any source: `anchors()` puts N/NE/NW at
+ * `NORTH_ANCHOR_INSET` or deeper, the placed points cleared the band already,
+ * and the reachable-tile source is filtered for it below.
  */
-function padToCount(points: SpawnPoint[], count: number, anchorList: readonly Anchor[]): SpawnPoint[] {
+function padToCount(
+  points: SpawnPoint[],
+  count: number,
+  spare: readonly SpawnPoint[],
+  anchorList: readonly Anchor[]
+): SpawnPoint[] {
   if (points.length >= count) return points.slice(0, count)
+
+  const padded = [...points]
+  const shortfall = count - padded.length
+
+  if (spare.length > 0) {
+    // Stride so `shortfall` picks span the whole list rather than its first
+    // `shortfall` entries, which row-major order would put in one band.
+    const stride = Math.max(1, Math.floor(spare.length / shortfall))
+    for (let i = 0; i < shortfall; i++) padded.push({ ...spare[(i * stride) % spare.length] })
+    return padded
+  }
 
   const source = points.length > 0 ? points : anchorList.map((a) => ({ x: a.x, y: a.y }))
   if (source.length === 0) return points
 
-  const padded = [...points]
-  for (let i = padded.length; i < count; i++) {
-    padded.push({ ...source[i % source.length] })
-  }
+  for (let i = padded.length; i < count; i++) padded.push({ ...source[i % source.length] })
   return padded
 }
 
 /**
- * Place every request's spawn points, in the order given. Requests share one
- * `placed` list — seeded with the cover pillars — so two monsters of the same
- * (or a different) tier never share a tile, and the draw order is exactly the
- * request order, which `scatterRequests` fixes as tier order then
+ * The reachable tiles no placed rect covers, clear of the north band — the pad
+ * source above. Pure and deterministic; built once per tier, from that tier's
+ * own `placed` list.
+ */
+function spareTiles(arena: CoverArena, reachable: Uint8Array, placed: readonly Rect[]): SpawnPoint[] {
+  return reachableTiles(arena, reachable).filter(
+    (t) => t.y >= NORTH_ANCHOR_INSET && isFree({ x: t.x, y: t.y, width: 1, height: 1 }, arena, placed)
+  )
+}
+
+/**
+ * Place every request's spawn points, in the order given. The draw order is
+ * exactly the request order, which `scatterRequests` fixes as tier order then
  * `wave.monsters` order.
+ *
+ * `placed` starts from the cover pillars and accumulates **within a tier**, so
+ * two monsters of the same tier never share a tile, and is reset back to the
+ * pillars when the tier changes. It used to accumulate across all five tiers,
+ * which was wrong on its own terms — the tiers fire at different points in the
+ * fight, so tier 0's points have no claim on tier 2's floor — and in practice
+ * saturated the arena by the third tier, at which point every pattern placed
+ * nothing and the whole horde fell back onto the 9 anchors (playtest
+ * 2026-08-27). Requests are grouped by tier by construction, so the reset is a
+ * simple compare against the previous request's tier.
+ *
+ * `reachable` is `cover.ts`'s post-prune reachability mask: a point must sit on
+ * floor a player can actually walk to, not merely on floor nothing else claimed.
  *
  * Returns an empty map, having drawn nothing, when no request is scattered.
  */
@@ -321,37 +397,70 @@ export function placeSpawnPoints(
   pillarRects: readonly Rect[],
   requests: readonly SpawnRequest[],
   options: SpawnPointOptions,
-  anchorList: readonly Anchor[]
+  anchorList: readonly Anchor[],
+  reachable: Uint8Array
 ): SpawnPointMap {
   const result: SpawnPointMap = new Map()
   if (requests.length === 0) return result
 
-  const placed: Rect[] = [...pillarRects]
+  let placed: Rect[] = [...pillarRects]
+  let currentTier = requests[0].tier
 
   for (const request of requests) {
-    if (request.count <= 0) continue
-    const total = request.count
+    if (request.tier !== currentTier) {
+      currentTier = request.tier
+      placed = [...pillarRects]
+    }
+    if (request.points <= 0) continue
+    const total = request.points
 
-    let points: SpawnPoint[]
-    switch (request.mode) {
-      case 'random':
-        points = placeRandom(ctx, arena, placed, total, options)
-        break
-      case 'ring':
-        points = placeRing(ctx, arena, placed, total, options)
-        break
-      case 'gaussian':
-        points = placeGaussian(ctx, arena, placed, total, options)
-        break
-      case 'symmetric':
-        points = placeSymmetric(ctx, arena, placed, total, options)
-        break
-      case 'anchors':
-        continue // not a scatter mode — waves.ts wires these to the anchor rig
+    let points = runPattern(ctx, arena, placed, total, options, reachable, request.mode)
+    if (points === null) continue // 'anchors' — waves.ts wires these to the anchor rig
+
+    // A crowded tier can leave a request short of its points even though there
+    // is floor left: `spacing` reserves a square per point, and 40 draws is not
+    // many once most squares are taken. Retry the shortfall at spacing 1 before
+    // giving up on placement and handing the rest to padToCount — a point one
+    // tile from its neighbour is still a real, reachable, distinct tile.
+    if (points.length < total && Math.trunc(options.spacing) > 1) {
+      const tight = { ...options, spacing: 1 }
+      const more = runPattern(ctx, arena, placed, total - points.length, tight, reachable, request.mode)
+      if (more) points = [...points, ...more]
     }
 
-    result.set(spawnPointKey(request.tier, request.key), padToCount(points, total, anchorList))
+    result.set(
+      spawnPointKey(request.tier, request.key),
+      padToCount(points, total, points.length < total ? spareTiles(arena, reachable, placed) : [], anchorList)
+    )
   }
 
   return result
+}
+
+/**
+ * Dispatch to the pattern named by `mode`, or `null` for `anchors` — which is
+ * not a scatter mode at all. Split out so `placeSpawnPoints` can run a pattern
+ * twice (the spacing retry above) without duplicating the switch.
+ */
+function runPattern(
+  ctx: GenerationContext,
+  arena: CoverArena,
+  placed: Rect[],
+  target: number,
+  options: SpawnPointOptions,
+  reachable: Uint8Array,
+  mode: BossSpawnMode
+): SpawnPoint[] | null {
+  switch (mode) {
+    case 'random':
+      return placeRandom(ctx, arena, placed, target, options, reachable)
+    case 'ring':
+      return placeRing(ctx, arena, placed, target, options, reachable)
+    case 'gaussian':
+      return placeGaussian(ctx, arena, placed, target, options, reachable)
+    case 'symmetric':
+      return placeSymmetric(ctx, arena, placed, target, options, reachable)
+    case 'anchors':
+      return null
+  }
 }

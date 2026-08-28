@@ -32,16 +32,27 @@
  * as health drops further, so at 25% health all four health tiers are spawning
  * at once (boss-tab.md, boss-tab-handoff.md item 6).
  *
- * A monster on a *scatter* spawn mode (issue #21) skips that whole rig: it
- * gets no toggle and no timer, and its SpawnObjects — one per monster, at
- * points spawnPoints.ts placed across the arena, each with `trigger-times: 1`
- * — hang directly off the tier trigger, so the entire group appears the moment
- * the tier fires:
+ * A monster on a *scatter* spawn mode (issue #21) skips that whole rig while it
+ * fits in the arena's `spawn.batchSize`: it gets no toggle and no timer, and its
+ * SpawnObjects — one per monster, at points spawnPoints.ts placed across the
+ * arena, each with `trigger-times: 1` — hang directly off the tier trigger, so
+ * the entire group appears the moment the tier fires:
  *
  *   trigger ─> SpawnObject{trigger-times: 1} × count
  *
- * A tier whose monsters are all on scatter modes therefore emits no
- * ToggleElement or TimerTrigger at all.
+ * Past that budget it goes back on a timer, because "the entire group appears
+ * the moment the tier fires" is a frame spike once the group is big: the stock
+ * Castle 100% tier used to put 480 actors on the floor in one instant and the
+ * arena never recovered (playtest 2026-08-27). Such a monster gets `batchSize`
+ * points, its count split round-robin over them, and one shared timer per tier:
+ *
+ *   trigger ─> ToggleElement{state: 0} ─> TimerTrigger(batchIntervalMs)
+ *                                              │
+ *                                              v
+ *                                   SpawnObject{trigger-times: share} × points
+ *
+ * A tier whose monsters are all on scatter modes and all inside the budget
+ * therefore still emits no ToggleElement or TimerTrigger at all.
  *
  * A pool entry is a monster VARIANT key, not a bare monster id — `bat1` is the
  * ordinary bat, `bat1#0` the bats spawner, `archer1#2` the elite archer (see
@@ -82,6 +93,13 @@ import { spawnPointKey } from './spawnPoints'
 export const TIER_EVENT_NAMES = ['Boss 75%', 'Boss 50%', 'Boss 25%', 'Boss Died'] as const
 
 /**
+ * The batch timer `buildWaveRig` falls back to when no caller supplies one.
+ * The real value is `arena.spawn.batchIntervalMs`; this only exists so the
+ * tests written before batching can still call the rig with six arguments.
+ */
+export const DEFAULT_BATCH_INTERVAL_MS = 1500
+
+/**
  * Splits `total` round-robin across `anchorCount` slots: the first
  * `total % anchorCount` slots get one extra. Deterministic and stable for any
  * `total`, including 0 (every slot gets 0) and totals smaller than
@@ -114,12 +132,21 @@ export function scaledMax(rawMax: number, monsterMultiplier: number): number {
  * out so the placement pass and the rig can never disagree about how many
  * spawns a monster gets.
  *
+ * `batchSize` caps the *points* a monster gets — see `SpawnRequest.points`. The
+ * count is unchanged; what changes is whether it arrives on one frame or over a
+ * few seconds.
+ *
  * An endless (`-1`) count has no meaning for a one-shot scattered spawn —
  * validation rejects that combination, and it is skipped here so a params
  * object built in code emits nothing for it rather than something arbitrary.
  */
-export function scatterRequests(waves: readonly BossWave[], monsterMultiplier: number): SpawnRequest[] {
+export function scatterRequests(
+  waves: readonly BossWave[],
+  monsterMultiplier: number,
+  batchSize: number
+): SpawnRequest[] {
   const requests: SpawnRequest[] = []
+  const budget = Math.max(1, Math.trunc(batchSize))
 
   for (let tier = 0; tier < waves.length; tier++) {
     const wave = waves[tier]
@@ -128,7 +155,7 @@ export function scatterRequests(waves: readonly BossWave[], monsterMultiplier: n
       if (!isScatterMode(mode)) continue
       const count = scaledMax(wave.monsterMax[key], monsterMultiplier)
       if (count <= 0) continue
-      requests.push({ tier, key, mode, count })
+      requests.push({ tier, key, mode, count, points: Math.min(count, budget) })
     }
   }
 
@@ -165,7 +192,8 @@ export function buildWaveRig(
   monsterMultiplier: number,
   anchorList: readonly Anchor[],
   entranceShape: NodeRectangleShape,
-  spawnPoints: SpawnPointMap = new Map()
+  spawnPoints: SpawnPointMap = new Map(),
+  batchIntervalMs: number = DEFAULT_BATCH_INTERVAL_MS
 ): void {
   let y = entranceShape.y
 
@@ -185,8 +213,12 @@ export function buildWaveRig(
     }
 
     const scattered = scatterIds
-      .map((id) => ({ id, points: spawnPoints.get(spawnPointKey(tier, id)) ?? [] }))
-      .filter((entry) => entry.points.length > 0)
+      .map((id) => ({
+        id,
+        points: spawnPoints.get(spawnPointKey(tier, id)) ?? [],
+        total: scaledMax(wave.monsterMax[id], monsterMultiplier)
+      }))
+      .filter((entry) => entry.points.length > 0 && entry.total > 0)
 
     // Every monster is scattered and none of them got a point (a zero count, or
     // a params object that never passed validation): there is nothing for the
@@ -249,17 +281,52 @@ export function buildWaveRig(
       }
     }
 
-    // Scattered monsters: one SpawnObject per monster, on the point placed for
-    // it, hanging straight off the tier trigger. `trigger-times: 1` is what
-    // makes it a one-shot — tier 0's AreaTrigger fires again every time a
-    // player walks back over the entrance, and without the budget that would
-    // re-summon the whole group each time.
-    for (const { id, points } of scattered) {
+    // Scattered monsters, in two shapes.
+    //
+    // Within the batch budget there is one point per monster and each
+    // SpawnObject hangs straight off the tier trigger: the whole group appears
+    // the moment the tier fires. `trigger-times: 1` is what makes it a one-shot
+    // — tier 0's AreaTrigger fires again every time a player walks back over the
+    // entrance, and without the budget that would re-summon the group each time.
+    //
+    // Past the budget the count is split round-robin over the points it *did*
+    // get and hung off a timer instead, exactly the way the anchor rig above
+    // splits a horde over its 9 anchors. So a 42-bat entry on a budget of 8
+    // becomes 8 points spawning 6 bats each, one per point per tick, rather than
+    // 42 actors on a single frame. All batched monsters of a tier share one
+    // toggle/timer chain — NodeToggleElement.element is a single id, so it is
+    // one toggle per timer, not per monster.
+    const batched = scattered.filter((entry) => entry.points.length < entry.total)
+    const oneShot = scattered.filter((entry) => entry.points.length >= entry.total)
+
+    for (const { id, points } of oneShot) {
       const actorPath = resolveActorPath(id)
       for (const point of points) {
         const spawn = new NodeSpawnObject(ctx, point.x, point.y, actorPath)
         spawn.triggerTimes = 1
         triggerNode.connectTo(spawn)
+      }
+    }
+
+    if (batched.length > 0) {
+      y += 1
+      const batchTimer = new NodeTimerTrigger(ctx, entranceShape.x, y, batchIntervalMs)
+
+      y += 1
+      const batchToggle = new NodeToggleElement(ctx, entranceShape.x, y)
+      batchToggle.state = 0 // 0 enables the target element — see nodes.ts
+      batchToggle.connectToElement(batchTimer)
+      triggerNode.connectTo(batchToggle)
+
+      for (const { id, points, total } of batched) {
+        const actorPath = resolveActorPath(id)
+        const shares = splitRoundRobin(total, points.length)
+        for (let i = 0; i < points.length; i++) {
+          if (shares[i] === 0) continue
+          const spawn = new NodeSpawnObject(ctx, points[i].x, points[i].y, actorPath)
+          spawn.triggerTimes = shares[i]
+          batchTimer.connectTo(spawn)
+        }
       }
     }
   }

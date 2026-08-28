@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import {
   ARENA_PATTERN_LABELS,
+  BOSS_COVER_DENSITY_MAX,
   BOSS_COVER_PATTERNS,
   BOSS_DEF_LIST,
   BOSS_FLOOR_PATTERNS,
@@ -511,8 +512,8 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
             onChange={(density) => setArena({ cover: { ...arena.cover, density } })}
             issues={issues}
             min={0}
-            max={1}
-            step={0.05}
+            max={BOSS_COVER_DENSITY_MAX}
+            step={0.01}
             title="Fraction of the free arena floor cover pillars try to fill"
           />
           {arena.cover.pattern === 'ring' && (
@@ -542,9 +543,9 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
 
       <Section title="Scattered spawns">
         <p className="hint">
-          Tuning for monsters set to a scatter mode in the waves above — those spawn once, spread across
-          the arena, instead of trickling out of the nine anchors on the tier's timer. Nothing here
-          matters while every monster is on <code>anchors</code>.
+          Tuning for monsters set to a scatter mode in the waves above — those spread across the arena
+          instead of trickling out of the nine anchors on the tier's timer. Nothing here matters while
+          every monster is on <code>anchors</code>.
         </p>
         <div className="field-grid">
           <NumberField
@@ -578,6 +579,26 @@ function ArenaTab({ arena, issues, setArena, setWave }: ArenaTabProps) {
               title="Number of seeded cluster centres scattered monsters gather around"
             />
           )}
+          <NumberField
+            label="Batch size"
+            field="boss.arena.spawn.batchSize"
+            value={arena.spawn.batchSize}
+            onChange={(batchSize) => setArena({ spawn: { ...arena.spawn, batchSize } })}
+            issues={issues}
+            min={1}
+            title="Most of one monster that may appear at once. A bigger count is spread over this many points and trickles in on the batch interval instead of landing on a single frame"
+          />
+          <NumberField
+            label="Batch interval (ms)"
+            field="boss.arena.spawn.batchIntervalMs"
+            value={arena.spawn.batchIntervalMs}
+            onChange={(batchIntervalMs) => setArena({ spawn: { ...arena.spawn, batchIntervalMs } })}
+            issues={issues}
+            min={100}
+            max={60000}
+            step={100}
+            title="How often a batched scatter spawn releases its next monster per point"
+          />
         </div>
       </Section>
     </>

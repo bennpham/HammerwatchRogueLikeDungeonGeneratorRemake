@@ -107,13 +107,20 @@ function bossDefFor(actorPath: string): BossDef {
 }
 
 /**
- * The 9 anchors arena.ts built for this arena, recomputed from the emitted
- * boss rather than assumed: a topWall boss shifts the N anchor south past its
- * own collider (anchors.ts's `bossClearance`), a centre boss does not.
+ * The 9 anchors arena.ts built for this arena, recomputed from the emitted boss
+ * rather than assumed: a topWall boss shifts the N anchor south past its own
+ * collider, a centre boss pushes C clear of its own. See anchors.ts's
+ * `AnchorClearance`.
  */
 function arenaAnchors(xml: string, width: number, height: number) {
   const def = bossDefFor(bossActor(xml).type)
-  return anchors(width, height, def.placement === 'topWall' ? topWallBossClearance(def, topWallBossY(def)) : undefined)
+  return anchors(
+    width,
+    height,
+    def.placement === 'topWall'
+      ? { northClearance: topWallBossClearance(def, topWallBossY(def)) }
+      : { centreBoss: { width: def.footprintWidth, height: def.footprintHeight } }
+  )
 }
 
 function doodadEntries(xml: string): { id: number; type: string; x: number; y: number; needSync: boolean }[] {
@@ -217,10 +224,12 @@ describe('boss arena — geometry', () => {
       }
     })
 
-    // The N anchor shares the boss's midX, so a wall-mounted (topWall) boss is
-    // the only one whose collider can reach it. A monster spawned inside a
-    // static boss is stuck there, so arena.ts pushes N south by exactly that
-    // clearance — see anchors.ts's bossClearance parameter.
+    // Two anchors can be reached by a boss collider, one per placement: N by a
+    // wall-mounted (topWall) boss, which shares its midX, and C by a centre one,
+    // which sits on exactly that tile. A monster spawned inside a static boss is
+    // stuck there and unhittable, so arena.ts pushes whichever applies clear —
+    // see anchors.ts's AnchorClearance. There is no exception any more: this
+    // holds for all seven bosses and every anchor.
     it(`seed ${seed}: no anchor sits inside the boss's own collider`, () => {
       const { xml, preview } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
       const room = preview.rooms[0]
@@ -229,30 +238,32 @@ describe('boss arena — geometry', () => {
       const offset = def.collisionOffsetY ?? 0
 
       for (const a of arenaAnchors(xml, room.width, room.height)) {
-        // C is the documented exception: arena.ts puts a centre boss on exactly
-        // the C anchor point, and cover.ts drops that target rather than trying
-        // to unblock it. That is long-standing geometry, not what this checks.
-        if (a.id === 'C' && def.placement === 'centre') continue
         const insideX = Math.abs(a.x - boss.x) < def.footprintWidth / 2
         const insideY = Math.abs(a.y - (boss.y + offset)) < def.footprintHeight / 2
         expect(insideX && insideY, `anchor ${a.id} is inside ${def.id}`).toBe(false)
       }
     })
 
-    // Centre-placed bosses must keep the historical anchor layout exactly —
-    // the dragon fix has to be inert for the other six. Only the dragon's
-    // arenas may differ, and only in N.
-    it(`seed ${seed}: a centre-placed boss keeps the plain NORTH_ANCHOR_INSET layout`, () => {
+    // Each boss placement displaces exactly one anchor and leaves the other
+    // eight on the plain inset layout: topWall moves N, centre moves C. Neither
+    // fix may leak into the rest of the ring.
+    it(`seed ${seed}: only the anchor its own boss can reach is displaced`, () => {
       const { xml, preview } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
       const room = preview.rooms[0]
       const def = bossDefFor(bossActor(xml).type)
       const at = (id: string) => arenaAnchors(xml, room.width, room.height).find((a) => a.id === id)!
+      const midY = Math.trunc(room.height / 2)
 
       if (def.placement === 'centre') {
         expect(at('N').y).toBe(NORTH_ANCHOR_INSET)
+        // C is pushed off the boss's tile — south on any arena this size
+        expect(at('C').y).toBeGreaterThan(midY)
+        expect(at('C').x).toBe(Math.trunc(room.width / 2))
       } else {
-        // topWall: N is pushed clear, the other two northern anchors are not
+        // topWall: N is pushed clear, the other two northern anchors are not,
+        // and C stays exactly where it has always been
         expect(at('N').y).toBeGreaterThan(NORTH_ANCHOR_INSET)
+        expect(at('C')).toEqual({ id: 'C', x: Math.trunc(room.width / 2), y: midY })
       }
       expect(at('NE').y).toBe(NORTH_ANCHOR_INSET)
       expect(at('NW').y).toBe(NORTH_ANCHOR_INSET)
@@ -435,14 +446,24 @@ describe('boss arena — scattered spawn modes (issue #21)', () => {
     ].map((m) => ({ id: Number(m[1]), triggerTimes: Number(m[2]), x: Number(m[3]), y: Number(m[4]), actorPath: m[5] }))
   }
 
+  /** How many monsters every SpawnObject for `actorPath` will produce between them. */
+  function spawnTotal(xml: string, actorPath: string): number {
+    return spawnNodes(xml)
+      .filter((s) => s.actorPath === actorPath)
+      .reduce((n, s) => n + s.triggerTimes, 0)
+  }
+
   /** Tier 0's wave, with `key` scattered by `mode` at `count`, everything else stock. */
   function scattered(mode: 'random' | 'ring' | 'gaussian' | 'symmetric', key = 'bat1', count = 12) {
     const arena = arenaOptions()
+    // Buffs are dropped along with the other tiers' monsters: these tests count
+    // the timer rig's own nodes, and the stock death tier's bloodlust field
+    // would otherwise add a trigger and a toggle of its own to every assertion.
     return arenaOptions({
       waves: arena.waves.map((w, i) =>
         i === 0
-          ? { ...w, monsters: [key], monsterMax: { [key]: count }, spawnMode: { [key]: mode } }
-          : { ...w, monsters: [], monsterMax: {} }
+          ? { ...w, monsters: [key], monsterMax: { [key]: count }, spawnMode: { [key]: mode }, buffs: [] }
+          : { ...w, monsters: [], monsterMax: {}, buffs: [] }
       )
     })
   }
@@ -453,25 +474,46 @@ describe('boss arena — scattered spawn modes (issue #21)', () => {
     const stock = buildBossArena(freshCtx(4242), anchoredOptions(), 0)
     const retuned = buildBossArena(
       freshCtx(4242),
-      anchoredOptions({ spawn: { spacing: 5, ringSpacing: 9, clusters: 7 } }),
+      anchoredOptions({ spawn: { spacing: 5, ringSpacing: 9, clusters: 7, batchSize: 3, batchIntervalMs: 900 } }),
       0
     )
     expect(retuned.xml).toBe(stock.xml)
   })
 
   for (const mode of ['random', 'ring', 'gaussian', 'symmetric'] as const) {
-    it(`${mode}: emits one one-shot SpawnObject per monster, on walkable floor`, () => {
-      const { xml, preview } = buildBossArena(freshCtx(4242), scattered(mode), 0)
+    it(`${mode}: emits one one-shot SpawnObject per monster inside the batch budget`, () => {
+      // A count at or below spawn.batchSize keeps the original shape: a point
+      // each, trigger-times 1, the whole group on the tier trigger.
+      const budget = arenaOptions().spawn.batchSize
+      const { xml, preview } = buildBossArena(freshCtx(4242), scattered(mode, 'bat1', budget), 0)
       const room = preview.rooms[0]
       const bats = spawnNodes(xml).filter((s) => s.actorPath === 'actors/bat_1.xml')
 
-      expect(bats).toHaveLength(12)
+      expect(bats).toHaveLength(budget)
       for (const bat of bats) {
         expect(bat.triggerTimes).toBe(1)
         expect(bat.x).toBeGreaterThanOrEqual(0)
         expect(bat.y).toBeGreaterThanOrEqual(0)
         expect(bat.x).toBeLessThan(room.width)
         expect(bat.y).toBeLessThan(room.height)
+        expect(preview.walls[(room.y + bat.y) * preview.mapWidth + (room.x + bat.x)]).not.toBe('1')
+      }
+    })
+
+    it(`${mode}: batches a count past the budget onto walkable floor, spawning all of it`, () => {
+      // Past spawn.batchSize the horde is spread over batchSize points and
+      // trickled in — fewer nodes, same number of monsters, and every point
+      // still on floor a player can stand on. 480 actors on one frame is what
+      // made the stock arena unplayable (playtest 2026-08-27).
+      const budget = arenaOptions().spawn.batchSize
+      const { xml, preview } = buildBossArena(freshCtx(4242), scattered(mode, 'bat1', 120), 0)
+      const room = preview.rooms[0]
+      const bats = spawnNodes(xml).filter((s) => s.actorPath === 'actors/bat_1.xml')
+
+      expect(bats).toHaveLength(budget)
+      expect(spawnTotal(xml, 'actors/bat_1.xml')).toBe(120)
+      for (const bat of bats) {
+        expect(bat.triggerTimes).toBeGreaterThan(1)
         expect(preview.walls[(room.y + bat.y) * preview.mapWidth + (room.x + bat.x)]).not.toBe('1')
       }
     })
@@ -483,7 +525,8 @@ describe('boss arena — scattered spawn modes (issue #21)', () => {
       for (const seed of [1, 4242, 987654, 20260817]) {
         const { xml } = buildBossArena(freshCtx(seed), scattered(mode, 'bat1', 40), 0)
         const bats = spawnNodes(xml).filter((s) => s.actorPath === 'actors/bat_1.xml')
-        expect(bats).toHaveLength(40)
+        expect(bats.length).toBeGreaterThan(0)
+        expect(spawnTotal(xml, 'actors/bat_1.xml')).toBe(40)
         for (const bat of bats) {
           expect(bat.y).toBeGreaterThanOrEqual(NORTH_ANCHOR_INSET)
         }
@@ -492,7 +535,9 @@ describe('boss arena — scattered spawn modes (issue #21)', () => {
   }
 
   it('drops the timer rig entirely for a tier of nothing but scattered monsters', () => {
-    const { xml } = buildBossArena(freshCtx(4242), scattered('gaussian'), 0)
+    // Inside the batch budget, so nothing needs a timer — past it the batch
+    // rig deliberately brings one back, which the case below pins.
+    const { xml } = buildBossArena(freshCtx(4242), scattered('gaussian', 'bat1', 6), 0)
     expect(xml).not.toContain('<string name="type">TimerTrigger</string>')
     // the only ToggleElement left is the arrival-respawn rig's own self-disable
     // (state 1); the wave rig's enable-the-timer toggle (state 0) is gone.
@@ -504,10 +549,18 @@ describe('boss arena — scattered spawn modes (issue #21)', () => {
     expect(xml).toContain('<string name="type">AreaTrigger</string>')
   })
 
+  it('brings one shared timer back for a tier past the batch budget', () => {
+    const { xml } = buildBossArena(freshCtx(4242), scattered('gaussian', 'bat1', 120), 0)
+    expect(xml).toContain('<string name="type">TimerTrigger</string>')
+    // the batch toggle (state 0) alongside the respawn rig's self-disable (1)
+    expect(toggleStates(xml, 'ToggleElement').sort()).toEqual([0, 1])
+  })
+
   it('scales a scattered count by the arena monster multiplier', () => {
     const options = { ...scattered('random'), monsterMultiplier: 2.0 }
     const { xml } = buildBossArena(freshCtx(4242), options, 0)
-    expect(spawnNodes(xml).filter((s) => s.actorPath === 'actors/bat_1.xml')).toHaveLength(24)
+    // 12 x 2 monsters, however many points the budget spreads them over
+    expect(spawnTotal(xml, 'actors/bat_1.xml')).toBe(24)
   })
 
   it('stays deterministic and keeps every node id resolvable', () => {
@@ -1324,12 +1377,14 @@ describe('boss arena — the boss-death wave tier', () => {
     return xml.split('<string name="parameters">Boss Died</string>').length - 1
   }
 
-  it('a stock arena carries two Boss Died triggers — the win chain and the death tier', () => {
-    // The death tier ships populated, so it has a trigger of its own alongside
-    // the win chain's.
+  it('a stock arena carries three Boss Died triggers — the win chain, the death tier and its buff', () => {
+    // The death tier ships populated AND bloodlusted, so it has two triggers of
+    // its own alongside the win chain's: one switching its spawns on, one
+    // switching its buff field on. The two rigs are built independently
+    // (waves.ts and waveBuffs.ts) and neither shares the other's nodes.
     for (const seed of [1, 4242, 999999]) {
       const { xml } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
-      expect(bossDiedTriggers(xml)).toBe(2)
+      expect(bossDiedTriggers(xml)).toBe(3)
     }
   })
 

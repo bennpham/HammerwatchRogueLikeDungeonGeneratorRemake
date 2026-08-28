@@ -221,13 +221,13 @@ reference/hammerwatch-tweak-stats.md
 | `prep.upgrades` | every kind 0 | the same free upgrade pickups as the lobby, on the prep floor. `bossUpgrades` in `parameters.txt` |
 | `arena.theme` | `g_mixed` | any `THEME_DEFS` id, independent of the floors' themes |
 | `arena.floorPattern` | `random` | one of `BOSS_FLOOR_PATTERNS`; only meaningful for a `- mixed` theme |
-| `arena.minWidth`–`maxWidth` | 24–32 | ≥ `ARENA_MIN_WIDTH` (14) |
-| `arena.minHeight`–`maxHeight` | 32–44 | ≥ `ARENA_MIN_HEIGHT` (18) |
+| `arena.minWidth`–`maxWidth` | 42–64 | ≥ `ARENA_MIN_WIDTH` (14). Found from both ends: 24–32 was too small to hold the horde, the 2026-08-27 interim 66–88 was so open a scattered wave never re-formed and got picked off piecemeal |
+| `arena.minHeight`–`maxHeight` | 42–64 | ≥ `ARENA_MIN_HEIGHT` (18); same story as the width |
 | `arena.bossPool` | the 4 castle bosses | non-empty subset of `BOSS_IDS` (7); the seed picks one per campaign |
 | `arena.waves` | 5 populated tiers | exactly `BOSS_WAVE_COUNT`; see *Boss finale* |
-| `arena.waves[i].buffs` | absent / none | any number of arena-wide buffs per tier, each `{buff, target}` aimed at `players`/`monsters`/`both`. Tiers **replace** one another rather than stacking. The pre-list fields `buff`/`buffTarget` still parse — read a tier through `waveBuffs(wave)`, never off the raw field. `bossWaveBuffN` in `parameters.txt`. See *Buffs per boss wave tier* |
-| `arena.cover` | `random`, 0.08, 4, 3 | `density` is the fraction of free floor filled and is capped at `BOSS_COVER_DENSITY_MAX` (0.25) |
-| `arena.spawn` | spacing 2, ring 4, clusters 3 | tuning for the scatter modes only; deliberately separate from `cover` |
+| `arena.waves[i].buffs` | tier 5 only: `bloodlust` on `monsters` | any number of arena-wide buffs per tier, each `{buff, target}` aimed at `players`/`monsters`/`both`. Tiers **replace** one another rather than stacking. The pre-list fields `buff`/`buffTarget` still parse — read a tier through `waveBuffs(wave)`, never off the raw field. `bossWaveBuffN` in `parameters.txt`. Every preset ships `bossDeathBuffs()` on the boss-death tier and nothing on the other four, so the walk to the orb is fought against a strengthened horde. See *Buffs per boss wave tier* |
+| `arena.cover` | `symmetric`, 0.08, 4, 3 | `density` is the fraction of free floor filled and is capped at `BOSS_COVER_DENSITY_MAX` (0.25). Playtest preference, 2026-08-28; every preset inherits it |
+| `arena.spawn` | spacing 2, ring 4, clusters 3, batchSize 8, batchIntervalMs 1500 | tuning for the scatter modes only; deliberately separate from `cover`. `batchSize` caps how many of one monster may appear at once — see *Boss finale* |
 | `arena.invulnerability` | on, `[30, 30, 30]`, countdown on | seconds of boss immortality per health threshold (`BOSS_INVULN_THRESHOLDS`: 75/50/25%); 0 disables one threshold, `bossInvuln` / `bossInvulnCountdown` in `parameters.txt`. Independent of `waves` — see *Boss finale* |
 | `arena.monsterMultiplier` | 1.0 | scales each tier's `monsterMax`; `-1`/endless stays endless. `bossMonsterMultiplier` in `parameters.txt`, separate from the dungeon's |
 | `arena.foodMultiplier` | 1.2 | scales the arena's health/mana pickup clusters; `bossFoodMultiplier` in `parameters.txt` |
@@ -497,7 +497,30 @@ interval fields are ignored. Two constraints that must not be relaxed:
 capped at `BOSS_COVER_DENSITY_MAX` (0.25) — the original 0.5 playtested as
 physically impassable. Whatever the pattern, `pruneForConnectivity` guarantees
 the boss, all nine anchors and the alcove stay reachable from the entrance;
-pillars that would wall something off are removed.
+pillars that would wall something off are removed. It also exports
+`reachableMask` / `reachableTiles` / `rectReachable`, the post-prune walkable
+floor, which is what keeps a scattered monster out of a pocket the pillars
+sealed off — that guarantee covers the boss, the anchors and the alcove, not
+every tile.
+
+**The batch budget** (`arena.spawn.batchSize`, `batchIntervalMs`). A scattered
+monster used to get one `SpawnObject` per monster, all fired off the tier
+trigger at once. The 2026-08-27 playtest put ~480 actors on the floor in one
+frame at the 100% tier and the arena never recovered, so a count past
+`batchSize` now gets `batchSize` points with the count split round-robin over
+them on a shared per-tier timer — the same mechanism the anchor rig uses for its
+9 anchors. A count at or below the budget keeps the old one-shot shape and emits
+byte-identical XML. Placement follows: `placeSpawnPoints` resets its `placed`
+list per tier (tiers fire at different times and have no claim on each other's
+floor), retries a short request at `spacing: 1`, and pads a shortfall onto real
+spare floor — the 9 anchors are the last resort now, not the first.
+
+**Anchors and the boss** (`boss/anchors.ts`). `anchors()` takes an
+`AnchorClearance`: a `topWall` boss passes `northClearance` (N is pushed south
+past its collider), a `centre` boss passes `centreBoss` (C is pushed south past
+its collider, clamped clear of S). Each placement displaces exactly one anchor;
+the other eight always sit at their plain insets. Before 2026-08-27 the centre
+case did not exist and every monster sent to C spawned inside the boss.
 
 ## Free upgrades and the arrival revive (`levelTemplate/surgery.ts`)
 
