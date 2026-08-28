@@ -105,9 +105,10 @@ src/
 ├── main/                 index.ts (window), ipc.ts (handlers + last-result
 │                         cache), packer.ts (write/pack/install), settings.ts
 ├── preload/              contextBridge → window.api
-├── renderer/             App.tsx (Dungeon|Player|Lobby|Boss and
+├── renderer/             App.tsx (Lobby|Dungeon|Boss|Floor order|Player and
 │                         Preview|Loadout tabs), components/{ParameterForm,
 │                         PlayerForm, QuickSetup, LobbyForm, BossForm,
+│                         FloorOrderEditor,
 │                         LevelPreview, LoadoutSheet, MonsterPoolsEditor,
 │                         PoolGroup, PoolTextField, MonsterFilterBar,
 │                         MonsterMaxTable, FloorTimerEditor, FloorBuffEditor,
@@ -532,6 +533,10 @@ built in numeric order off `ctx.rand` and arenas in list order off
 `ctx.bossRand`, and each is stashed and emitted afterwards in campaign order.
 Rearranging is a linking change; generating in a different sequence would move
 every seed.
+
+The editor is its own left-panel tab (`FloorOrderEditor`), sitting between Boss
+and Player rather than inside the Dungeon form: half the chips on it are boss
+fights, so it belongs to neither tab it used to live under.
 
 `normalizeOrder` repairs a stale order — drops slots that no longer exist,
 appends missing ones, drops duplicates, and deals each kind's indices back into

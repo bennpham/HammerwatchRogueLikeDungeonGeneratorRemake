@@ -11,6 +11,9 @@ interface FloorOrderEditorProps {
 
 /**
  * The campaign's play order, as a row of draggable-by-button chips: `1 2 B1 3`.
+ * Its own left-panel tab, between Boss and Player, because the order is a
+ * property of the whole campaign rather than of the dungeon floors — half the
+ * chips on it are boss fights.
  *
  * The constraint the issue asks for — floors stay 1,2,3 and boss fights stay
  * B1,B2,B3, only the interleaving is free — is enforced by *disabling* the
@@ -25,10 +28,10 @@ export function FloorOrderEditor({ params, issues, onChange }: FloorOrderEditorP
   const fightCount = params.boss?.enabled === true ? (params.boss.fights?.length ?? 0) : 0
   const order = campaignOrder(params.levels, fightCount, params.levelOrder)
 
-  // Nothing to arrange with a single slot, and nothing to interleave when the
-  // campaign is all floors or all fights.
+  // Nothing to interleave when the campaign is all floors or all fights. As a
+  // tab it still has to render something — a blank panel reads as a bug, so it
+  // says which of the two halves is missing.
   const hasBoth = order.some((s) => s.kind === 'floor') && order.some((s) => s.kind === 'boss')
-  if (!hasBoth) return null
 
   const store = (next: CampaignSlot[]) => {
     // The default order is stored as *absent*, not as an explicit list — that
@@ -56,58 +59,87 @@ export function FloorOrderEditor({ params, issues, onChange }: FloorOrderEditorP
   const orderIssues = issues.filter((i) => i.field === 'levelOrder')
 
   return (
-    <Section title="Floor order" badge={params.levelOrder === undefined ? 'default' : 'custom'}>
-      <p className="hint">
-        The order the campaign is played in. Boss fights are <strong>B1</strong>,{' '}
-        <strong>B2</strong>… and can go anywhere — before the first floor, between two floors, or at
-        the end. Floors keep their own order and so do fights; only how they interleave is up to
-        you, so the ◀ ▶ buttons will not move a chip past another of the same kind.
-      </p>
-
-      <div className="floor-order">
-        {order.map((slot, i) => (
-          <span key={`${slot.kind}-${slot.index}`} className={`floor-chip floor-chip-${slot.kind}`}>
-            <button
-              type="button"
-              className="chip-move"
-              onClick={() => swap(i, i - 1)}
-              disabled={!canSwap(i, i - 1)}
-              title="Move earlier"
-              aria-label={`Move ${slotLabel(slot)} earlier`}
-            >
-              ◀
-            </button>
-            <span className="chip-label">{slotLabel(slot)}</span>
-            <button
-              type="button"
-              className="chip-move"
-              onClick={() => swap(i, i + 1)}
-              disabled={!canSwap(i, i + 1)}
-              title="Move later"
-              aria-label={`Move ${slotLabel(slot)} later`}
-            >
-              ▶
-            </button>
-          </span>
-        ))}
-      </div>
-
-      <div className="boss-prep-actions">
-        <button
-          type="button"
-          className="copy-down"
-          onClick={() => store(campaignOrder(params.levels, fightCount, undefined))}
-          disabled={params.levelOrder === undefined}
-        >
-          Reset to default order
-        </button>
-      </div>
-
-      {orderIssues.map((issue, i) => (
-        <p key={i} className="field-message">
-          {issue.message}
+    <div className="parameter-form floor-order-form">
+      <Section
+        title="Floor order"
+        defaultOpen
+        badge={params.levelOrder === undefined ? 'default' : 'custom'}
+      >
+        <p className="hint">
+          The order the campaign is played in. Boss fights are <strong>B1</strong>,{' '}
+          <strong>B2</strong>… and can go anywhere — before the first floor, between two floors, or
+          at the end. Whichever slot ends up <strong>last</strong> carries the victory orb, so a run
+          can finish on a dungeon floor just as well as in an arena. Floors keep their own order and
+          so do fights; only how they interleave is up to you, so the ◀ ▶ buttons will not move a
+          chip past another of the same kind.
         </p>
+
+        {!hasBoth ? (
+          <p className="hint">
+            There is nothing to arrange yet:{' '}
+            {fightCount === 0
+              ? 'the campaign has no boss fights. Turn the boss on from the Boss tab.'
+              : 'the campaign has no dungeon floors. Raise the level count on the Dungeon tab.'}
+          </p>
+        ) : (
+          <FloorOrderChips order={order} onSwap={swap} canSwap={canSwap} />
+        )}
+
+        <div className="boss-prep-actions">
+          <button
+            type="button"
+            className="copy-down"
+            onClick={() => store(campaignOrder(params.levels, fightCount, undefined))}
+            disabled={params.levelOrder === undefined}
+          >
+            Reset to default order
+          </button>
+        </div>
+
+        {orderIssues.map((issue, i) => (
+          <p key={i} className="field-message">
+            {issue.message}
+          </p>
+        ))}
+      </Section>
+    </div>
+  )
+}
+
+interface FloorOrderChipsProps {
+  order: CampaignSlot[]
+  onSwap: (index: number, other: number) => void
+  canSwap: (index: number, other: number) => boolean
+}
+
+function FloorOrderChips({ order, onSwap, canSwap }: FloorOrderChipsProps) {
+  return (
+    <div className="floor-order">
+      {order.map((slot, i) => (
+        <span key={`${slot.kind}-${slot.index}`} className={`floor-chip floor-chip-${slot.kind}`}>
+          <button
+            type="button"
+            className="chip-move"
+            onClick={() => onSwap(i, i - 1)}
+            disabled={!canSwap(i, i - 1)}
+            title="Move earlier"
+            aria-label={`Move ${slotLabel(slot)} earlier`}
+          >
+            ◀
+          </button>
+          <span className="chip-label">{slotLabel(slot)}</span>
+          <button
+            type="button"
+            className="chip-move"
+            onClick={() => onSwap(i, i + 1)}
+            disabled={!canSwap(i, i + 1)}
+            title="Move later"
+            aria-label={`Move ${slotLabel(slot)} later`}
+          >
+            ▶
+          </button>
+        </span>
       ))}
-    </Section>
+    </div>
   )
 }

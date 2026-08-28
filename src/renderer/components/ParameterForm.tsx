@@ -6,7 +6,6 @@ import { MonsterPoolsEditor } from './MonsterPoolsEditor'
 import { MonsterMaxTable } from './MonsterMaxTable'
 import { FloorTimerEditor } from './FloorTimerEditor'
 import { FloorBuffEditor } from './FloorBuffEditor'
-import { FloorOrderEditor } from './FloorOrderEditor'
 
 /** Themes bucketed by their registry group, in registry order. */
 const THEME_GROUPS = THEME_DEFS.reduce<[string, (typeof THEME_DEFS)[number][]][]>((groups, def) => {
@@ -177,8 +176,6 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
             </p>
           ))}
       </Section>
-
-      <FloorOrderEditor params={params} issues={issues} onChange={onChange} />
 
       <Section title="Monster pools per level">
         <MonsterPoolsEditor params={params} issues={issues} onChange={onChange} />

@@ -115,8 +115,8 @@ The lobby and the boss finale are **on by default**; timer mode is **off**.
   spawns, each tier's buffs replace the previous tier's, so only one tier's
   aura is ever live and the fight reads as phases.
 - **Floor order** — the campaign's floors and boss fights can be **rearranged**
-  from the Dungeon tab: a row of chips reading `1 2 B1 3 4 B2` that the ◀ ▶
-  buttons shuffle. A fight can go anywhere — before the first floor, between two
+  from its own tab, between Boss and Player: a row of chips reading
+  `1 2 B1 3 4 B2` that the ◀ ▶ buttons shuffle. A fight can go anywhere — before the first floor, between two
   floors, or at the end. Floors keep their own order and so do fights, so only
   the interleaving is up to you and the arrows refuse a move that would break
   it. Whichever slot ends up **last** carries the victory orb, so a run can
@@ -158,10 +158,11 @@ not create ground beneath it.
 
 1. **Set your Hammerwatch folder** (bottom panel) — the folder containing
    `editor/` and `levels/`. It's saved for next time.
-2. **Tweak parameters** in the left panel, across four tabs — **Dungeon**
-   (floors, rooms, monsters), **Player** (class stats, upgrade costs, shop
-   contents), **Lobby** (the starting hub) and **Boss** (the arena, its waves
-   and its spawn modes). Invalid
+2. **Tweak parameters** in the left panel, across five tabs — **Lobby** (the
+   starting hub), **Dungeon** (floors, rooms, monsters), **Boss** (the arena,
+   its waves and its spawn modes), **Floor order** (how the floors and the boss
+   fights interleave) and **Player** (class stats, upgrade costs, shop
+   contents). Invalid
    combinations show inline errors and disable the Generate button, with an
    explanation of what to fix; purely cosmetic caveats show as warnings and
    still generate.
@@ -307,7 +308,7 @@ list with actor files is in `src/generator/objects/monsterTypes.ts`.
 │   │   │                   settings persistence, LevelPacker invocation,
 │   │   │                   folder/zip export
 │   ├── preload/            contextBridge exposing the typed window.api
-│   ├── renderer/           React GUI: the four parameter tabs, validation UX,
+│   ├── renderer/           React GUI: the five parameter tabs, validation UX,
 │   │                       canvas map preview, output panel
 │   └── shared/             IPC types shared between main and renderer
 ├── tests/                  Vitest suite for the generator
