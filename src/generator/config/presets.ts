@@ -302,8 +302,17 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
           'lich_desert'
         ],
         // the escape floor — battlements to wall the route off, and the
-        // quickest things in the desert roster to chase the party out
+        // quickest things in the desert roster to chase the party out. The
+        // battlement count holds them at ~4 lairs in 9 against a roster this
+        // long; see the castle escape pool in parameters.ts for why.
         [
+          'tower_empty',
+          'tower_empty',
+          'tower_empty',
+          'tower_empty',
+          'tower_empty',
+          'tower_empty',
+          'tower_empty',
           'tower_empty',
           'tower_empty',
           'tower_empty',
@@ -312,7 +321,20 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
           'lich_desert',
           'spider',
           'floater_fire',
-          'mb_mummy'
+          'mb_mummy',
+          // the swarm tiers and the flower turrets on top of them
+          'tick1',
+          'maggot',
+          'mummy_ranged',
+          // TODO: 'tower_flower1' belongs here too, but its roster defaultMax is
+          // 0 — a horde is trunc(fRand(cap/5, cap)), so at 0 it can never spawn
+          // and the "every pooled monster has a non-zero cap" test rejects it.
+          // Add it back together with the cap that makes it real.
+          'tower_flower2',
+          'tower_flower3',
+          'tower_flower1_small',
+          'mb_tick',
+          'mb_maggot'
         ]
       ]
     })
@@ -369,8 +391,18 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
           'special_beheaded_kamikaze',
           'wisp2'
         ],
-        // the escape floor — battlements plus the bonus roster's chasers
+        // the escape floor — battlements plus the bonus roster's chasers. The
+        // battlement count holds them at ~4 lairs in 9 against a roster this
+        // long; see the castle escape pool in parameters.ts for why.
         [
+          'tower_empty',
+          'tower_empty',
+          'tower_empty',
+          'tower_empty',
+          'tower_empty',
+          'tower_empty',
+          'tower_empty',
+          'tower_empty',
           'tower_empty',
           'tower_empty',
           'tower_empty',
@@ -379,7 +411,18 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
           'eye',
           'wisp2',
           'pillar_fire',
-          'mb_doomspawn'
+          'mb_doomspawn',
+          // the tracking turrets, the kamikazes and the skeleton line on top
+          'wisp1',
+          'tower_tracking1',
+          'tower_tracking2',
+          'tower_tracking3',
+          'special_beheaded_kamikaze',
+          'mb_skeleton',
+          'skeleton2',
+          'skeleton3',
+          'tower_archer1',
+          'tower_archer3'
         ]
       ]
     })

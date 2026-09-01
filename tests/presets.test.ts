@@ -109,10 +109,16 @@ describe('campaign presets', () => {
       })
 
       it(`${preset.id}: fills it with breakable battlements, pooled nowhere else`, () => {
-        // Four in nine, so most lairs on that floor wall a route off. The cap
-        // is what sets the horde size — see room.ts's trunc(fRand(cap/5, cap)).
+        // Roughly four lairs in nine wall a route off. Asserted as a SHARE, not
+        // a count: repetition is the pool's only weighting, so the battlements
+        // have to be repeated more as the roster beside them grows, and a fixed
+        // count would silently thin the maze the next time one is added. The
+        // cap is what sets each horde's size — see room.ts's
+        // trunc(fRand(cap/5, cap)).
         const pool = params.levelMonsters[last]
-        expect(pool.filter((id) => id === 'tower_empty')).toHaveLength(4)
+        const share = pool.filter((id) => id === 'tower_empty').length / pool.length
+        expect(share).toBeGreaterThan(0.4)
+        expect(share).toBeLessThan(0.5)
         expect(params.monsterMax.tower_empty).toBe(150)
         for (const earlier of params.levelMonsters.slice(0, last)) {
           expect(earlier).not.toContain('tower_empty')

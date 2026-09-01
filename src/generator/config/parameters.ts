@@ -970,21 +970,33 @@ export function defaultParameters(): DungeonParameters {
       ['mb_tick', 'mb_maggot', 'bat2', 'tick2', 'maggot'],
       ['mb_skeleton', 'mb_eye', 'archer2', 'skeleton2', 'tower_nova1'],
       ['mb_lich', 'mb_doomspawn', 'lich', 'wisp2', 'tower_nova2'],
-      // The escape floor: empty battlements four times over so roughly four
-      // lairs in nine roll a wall of them (measured over 36 campaigns: median
-      // 213 towers, never fewer than 84 — at 3-in-8 some floors drew none at
-      // all), plus the fast harassers and ranged pressure that punish standing
-      // still while the clock runs.
+      // The escape floor. Repetition is the only weighting the pool has
+      // (chooseMonsterForLevel picks uniformly), so the battlements are
+      // repeated until they hold ~4 lairs in 9 — the share measured at 36
+      // campaigns to give a median of 213 towers and never fewer than 84. The
+      // count tracks the pool's length: lengthen the roster below and the
+      // battlements have to grow with it or the maze thins out.
       [
         'tower_empty',
         'tower_empty',
         'tower_empty',
         'tower_empty',
+        'tower_empty',
+        'tower_empty',
+        'tower_empty',
+        'tower_empty',
+        // the fast harassers and ranged pressure that punish standing still
         'skeleton3',
         'bat2',
         'wisp2',
         'lich',
-        'mb_eye'
+        'mb_eye',
+        // the castle's turret line and a mini-boss lich on top of them
+        'wisp1',
+        'tower_nova1',
+        'tower_nova2',
+        'tower_static_frost',
+        'mb_lich'
       ]
     ],
     // Floors 1-7 in order, the boss fight, then the escape floor. The arena's

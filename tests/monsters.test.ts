@@ -202,14 +202,18 @@ describe('skeleton3 and tower_empty', () => {
     // Neither reaches the campaign proper. They arrived as opt-in ceilings and
     // stayed that way until the escape floor — the extra dungeon floor played
     // after the boss — put both in its pool: skeleton3 to chase, tower_empty
-    // four times over to wall the route off.
+    // repeated often enough to wall the route off.
     for (const pool of params.levelMonsters.slice(0, -1)) {
       expect(pool).not.toContain('skeleton3')
       expect(pool).not.toContain('tower_empty')
     }
     const escape = params.levelMonsters[params.levelMonsters.length - 1]
     expect(escape).toContain('skeleton3')
-    expect(escape.filter((id) => id === 'tower_empty')).toHaveLength(4)
+    // a share rather than a count, so lengthening the roster beside them can't
+    // silently thin the maze — see the same assertion in presets.test.ts
+    const share = escape.filter((id) => id === 'tower_empty').length / escape.length
+    expect(share).toBeGreaterThan(0.4)
+    expect(share).toBeLessThan(0.5)
 
     expect(params.monsterMax.skeleton3).toBe(100)
     // A horde is trunc(fRand(cap/5, cap)) per lair, so the cap is what makes
