@@ -4,9 +4,10 @@ import { DoodadType, doodadPath, doodadOffset } from '../src/generator/objects/d
 import { THEMED_WALL_PIECES } from '../src/generator/config/themes'
 import type { DoodadTypeName } from '../src/generator/objects/doodad'
 import type { BossFloorPattern } from '../src/generator'
+import { plainParameters } from './params'
 
 function generateWithTheme(theme: string, seed: number, levels?: number): DungeonResult {
-  const params = defaultParameters()
+  const params = plainParameters()
   params.themes = params.themes.map(() => theme)
   if (levels !== undefined) {
     params.levels = levels
@@ -372,7 +373,7 @@ describe('mixed themes — the plain floor and its overlays varied per region', 
   // The point of mixing per region rather than per tile: a room is one surface,
   // so a level reads as several deliberate floors instead of speckle.
   it('gives a whole room a single floor surface', () => {
-    const params = defaultParameters()
+    const params = plainParameters()
     params.levels = 1
     params.themes = ['c_mixed']
     params.levelMonsters = params.levelMonsters.slice(0, 1)

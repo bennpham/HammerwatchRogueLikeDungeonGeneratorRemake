@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { generateDungeon, defaultParameters, DungeonResult } from '../src/generator'
+import { plainParameters } from './params'
 import { orbReachableWithoutButton } from './sealProbe'
 
 /**
@@ -34,7 +35,7 @@ describe('the final room cannot be entered without opening its gate', () => {
       let checked = 0
 
       for (const seed of seeds) {
-        const params = defaultParameters()
+        const params = plainParameters()
         params.themes = params.themes.map(() => theme)
         params.finalLockMode = mode
         // The boss and the lobby cost most of a campaign's generation time and

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { plainParameters } from './params'
 import { parseParametersTxt, serializeParametersTxt } from '../src/generator/config/configFile'
 import { noUpgrades, oneOfEachUpgrade } from '../src/generator/levelTemplate/surgery'
 import {
@@ -844,8 +845,16 @@ describe('buffN — per-floor buff auras', () => {
 
 describe('timerN — per-floor timer mode', () => {
   it('writes no timer line at all while every floor is off', () => {
-    const text = serializeParametersTxt(defaultParameters())
+    const text = serializeParametersTxt(plainParameters())
     expect(text).not.toMatch(/^timer\d+=/m)
+  })
+
+  // The shipped campaign arms exactly one floor — the escape floor after the
+  // boss — so its export carries that one line and no other.
+  it('writes the shipped escape floor\'s timer, and only that one', () => {
+    const params = defaultParameters()
+    const text = serializeParametersTxt(params)
+    expect(text.match(/^timer\d+=.*$/gm)).toEqual([`timer${params.levels - 1}=1|90|1|100|1`])
   })
 
   it('writes one line per armed floor and round-trips it', () => {
@@ -1050,7 +1059,13 @@ describe('parameters.txt — levelOrder (issue #43)', () => {
   // in the default order must not gain a key — an export from before the
   // feature has to keep round-tripping to the same bytes.
   it('writes no key for the default order', () => {
-    expect(serializeParametersTxt(defaultParameters())).not.toMatch(/^levelOrder=/m)
+    expect(serializeParametersTxt(plainParameters())).not.toMatch(/^levelOrder=/m)
+  })
+
+  // The shipped campaign is not in the default order: its last floor is played
+  // after the boss fight, so an export of it does carry the key.
+  it('writes the shipped order, escape floor last', () => {
+    expect(serializeParametersTxt(defaultParameters())).toMatch(/^levelOrder=1,2,3,4,5,6,7,B1,8$/m)
   })
 
   it('stores an explicitly-default order as absent, not as a list', () => {

@@ -7,6 +7,7 @@ import {
   campaignPresetById,
   defaultParameters,
   generateDungeon,
+  isDefaultOrder,
   parseParametersTxt,
   serializeParametersTxt,
   validateParameters,
@@ -72,6 +73,77 @@ describe('campaign presets', () => {
           }
         }
       }
+    }
+  })
+
+  // The escape floor: one extra dungeon floor played AFTER the boss arena, on a
+  // 90-second hazard timer, stuffed with breakable battlements. All three
+  // presets ship it, and it is what makes the last slot a run for the exit
+  // rather than another floor to clear.
+  describe('the escape floor', () => {
+    for (const preset of CAMPAIGN_PRESETS) {
+      const params = preset.build()
+      const last = params.levels - 1
+
+      it(`${preset.id}: plays it last, after the boss fight`, () => {
+        // stored explicitly, because this is NOT the default order
+        expect(params.levelOrder).toBeDefined()
+        expect(isDefaultOrder(params.levelOrder!, params.levels, params.boss.fights.length)).toBe(
+          false
+        )
+        expect(params.levelOrder!.at(-1)).toEqual({ kind: 'floor', index: last })
+        expect(params.levelOrder!.at(-2)).toEqual({ kind: 'boss', index: 0 })
+      })
+
+      it(`${preset.id}: arms 90 seconds at 1 damage per 100ms, and only there`, () => {
+        const timers = params.levelTimers!
+        expect(timers).toHaveLength(params.levels)
+        expect(timers[last]).toEqual({
+          enabled: true,
+          seconds: 90,
+          damage: 1,
+          freqMs: 100,
+          countdown: true
+        })
+        for (const timer of timers.slice(0, last)) expect(timer.enabled).toBe(false)
+      })
+
+      it(`${preset.id}: fills it with breakable battlements, pooled nowhere else`, () => {
+        // Four in nine, so most lairs on that floor wall a route off. The cap
+        // is what sets the horde size — see room.ts's trunc(fRand(cap/5, cap)).
+        const pool = params.levelMonsters[last]
+        expect(pool.filter((id) => id === 'tower_empty')).toHaveLength(4)
+        expect(params.monsterMax.tower_empty).toBe(150)
+        for (const earlier of params.levelMonsters.slice(0, last)) {
+          expect(earlier).not.toContain('tower_empty')
+        }
+      })
+
+      it(`${preset.id}: ends the campaign on it — the arena leads there instead`, () => {
+        const result = generateDungeon(preset.build(), 4242)
+        expect(result.ok, result.ok ? '' : result.errors.join(' ')).toBe(true)
+        if (!result.ok) return
+
+        const escape = result.files.find((f) => f.path === `levels/level${last}.xml`)!.content
+        const arena = result.files.find((f) => f.path === 'levels/boss0.xml')!.content
+        // the victory orb and the campaign's single GameEnd moved onto it...
+        expect(escape).toContain('>GameEnd<')
+        expect(arena).not.toContain('>GameEnd<')
+        // ...and the arena's alcove now holds a portal pointing at it, which is
+        // verified in game (see the modding skill's DISCOVERY-LOG)
+        expect(arena).toContain(`<string name="level">${last}</string>`)
+        // the hazard rig landed on the escape floor and nowhere else
+        expect(escape).toContain('>DangerArea<')
+        for (let i = 0; i < last; i++) {
+          expect(result.files.find((f) => f.path === `levels/level${i}.xml`)!.content).not.toContain(
+            '>DangerArea<'
+          )
+        }
+        // and it is the last level the campaign lists
+        const levelsXml = result.files.find((f) => f.path === 'levels.xml')!.content
+        const ids = [...levelsXml.matchAll(/<level id="([^"]+)"/g)].map((m) => m[1])
+        expect(ids.slice(-3)).toEqual(['bossprep0', 'boss0', String(last)])
+      })
     }
   })
 

@@ -6,6 +6,7 @@ import {
   validateParameters
 } from '../src/generator/config/validation'
 import { CAMPAIGN_PRESETS } from '../src/generator/config/presets'
+import { plainParameters } from './params'
 import { noUpgrades, oneOfEachUpgrade } from '../src/generator/levelTemplate/surgery'
 
 const fieldsOf = (issues: Array<{ field: string }>) => issues.map((i) => i.field)
@@ -129,7 +130,7 @@ describe('parameter validation', () => {
   })
 
   it('accepts 0 floors when the boss fight is on (a boss-only campaign)', () => {
-    const p = defaultParameters()
+    const p = plainParameters()
     p.levels = 0
     const result = validateParameters(p)
     expect(result.errors).toEqual([])
@@ -137,7 +138,7 @@ describe('parameter validation', () => {
   })
 
   it('rejects 0 floors with the boss fight off — nothing left to play', () => {
-    const p = defaultParameters()
+    const p = plainParameters()
     p.levels = 0
     p.boss.enabled = false
     const result = validateParameters(p)
@@ -146,7 +147,7 @@ describe('parameter validation', () => {
   })
 
   it('warns that the lobby is skipped with 0 floors, without blocking', () => {
-    const p = defaultParameters()
+    const p = plainParameters()
     p.levels = 0
     p.lobby.enabled = true
     const result = validateParameters(p)
@@ -433,7 +434,9 @@ describe('boss validation', () => {
   })
 
   it('treats an absent boss object as off, not invalid', () => {
-    const p = defaultParameters()
+    // plain, not the shipped default: that one stores a campaign order naming
+    // the boss fight, which really is invalid once the boss is gone
+    const p = plainParameters()
     delete (p as Partial<typeof p>).boss
     const result = validateParameters(p)
     expect(result.errors).toEqual([])
@@ -988,7 +991,7 @@ describe('boss invulnerability validation', () => {
 
 describe('multiple boss fights (issue #43)', () => {
   const withFights = (count: number) => {
-    const p = defaultParameters()
+    const p = plainParameters()
     const stock = p.boss.fights[0]
     p.boss = {
       ...p.boss,
@@ -1060,7 +1063,7 @@ describe('multiple boss fights (issue #43)', () => {
 
 describe('levelOrder (issue #43)', () => {
   const withOrder = (order: unknown) => {
-    const p = defaultParameters()
+    const p = plainParameters()
     p.levels = 3
     p.themes = p.themes.slice(0, 3)
     p.levelMonsters = p.levelMonsters.slice(0, 3)
@@ -1073,9 +1076,19 @@ describe('levelOrder (issue #43)', () => {
   const floor = (index: number) => ({ kind: 'floor' as const, index })
   const boss = (index: number) => ({ kind: 'boss' as const, index })
 
-  it('accepts an absent order — that is the default campaign', () => {
-    const p = defaultParameters()
+  it('accepts an absent order — that is the historical campaign', () => {
+    const p = plainParameters()
     expect(p.levelOrder).toBeUndefined()
+    expect(validateParameters(p).errors).toEqual([])
+  })
+
+  // ...and the order the presets actually ship, which is not the default one:
+  // every floor but the last, the boss fight, then the escape floor.
+  it('accepts the shipped order — floors, the fight, then the escape floor', () => {
+    const p = defaultParameters()
+    expect(p.levelOrder).toBeDefined()
+    expect(p.levelOrder!.at(-1)).toEqual({ kind: 'floor', index: p.levels - 1 })
+    expect(p.levelOrder!.at(-2)).toEqual({ kind: 'boss', index: 0 })
     expect(validateParameters(p).errors).toEqual([])
   })
 

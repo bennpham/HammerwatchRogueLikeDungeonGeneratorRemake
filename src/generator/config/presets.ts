@@ -3,6 +3,8 @@ import {
   defaultFloorBuffs,
   defaultFloorTimer,
   defaultParameters,
+  escapeFloorOrder,
+  escapeFloorTimer,
   scatterWave,
   stockWavePickups
 } from './parameters'
@@ -43,6 +45,18 @@ function withBoss(theme: string, bossPool: string[], waves: BossWave[]): Dungeon
   const boss = defaultParameters().boss
   const fight = boss.fights[0]
   return { ...boss, fights: [{ ...fight, arena: { ...fight.arena, theme, bossPool, waves } }] }
+}
+
+/**
+ * A preset's per-floor timers: every floor untimed except the last, which is
+ * the escape floor played after the boss and carries the 90-second clock. Same
+ * shape in all three presets, so it lives here rather than three times over.
+ */
+function escapeTimers(levels: number): ReturnType<typeof defaultFloorTimer>[] {
+  return [
+    ...Array.from({ length: Math.max(0, levels - 1) }, () => defaultFloorTimer()),
+    escapeFloorTimer()
+  ]
 }
 
 /**
@@ -246,10 +260,12 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
     // preset starts actually hurting.
     build: () => ({
       ...defaultParameters(),
-      levels: 5,
-      levelBuffs: Array.from({ length: 5 }, () => defaultFloorBuffs()),
-      levelTimers: Array.from({ length: 5 }, () => defaultFloorTimer()),
-      themes: ['h', 'h', 'i', 'i_symbols', 'i_mixed'],
+      levels: 6,
+      levelBuffs: Array.from({ length: 6 }, () => defaultFloorBuffs()),
+      levelTimers: escapeTimers(6),
+      // the sixth is the escape floor, played after the boss — see levelOrder
+      themes: ['h', 'h', 'i', 'i_symbols', 'i_mixed', 'i_mixed'],
+      levelOrder: escapeFloorOrder(6),
       boss: withBoss('i_mixed', ['boss_anubis', 'boss_worm'], desertWaves()),
       levelMonsters: [
         ['guard_desert', 'guard_desert_range'],
@@ -284,6 +300,19 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
           'mummy_desert',
           'mummy_ranged',
           'lich_desert'
+        ],
+        // the escape floor — battlements to wall the route off, and the
+        // quickest things in the desert roster to chase the party out
+        [
+          'tower_empty',
+          'tower_empty',
+          'tower_empty',
+          'tower_empty',
+          'mummy_desert',
+          'lich_desert',
+          'spider',
+          'floater_fire',
+          'mb_mummy'
         ]
       ]
     })
@@ -295,10 +324,12 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
       '5 floors of the bonus tilesets, escalating from bonus mobs to a mixed boss floor.',
     build: () => ({
       ...defaultParameters(),
-      levels: 5,
-      levelBuffs: Array.from({ length: 5 }, () => defaultFloorBuffs()),
-      levelTimers: Array.from({ length: 5 }, () => defaultFloorTimer()),
-      themes: ['bonus1', 'bonus2', 'bonus3', 'bonus4', 'bonus5'],
+      levels: 6,
+      levelBuffs: Array.from({ length: 6 }, () => defaultFloorBuffs()),
+      levelTimers: escapeTimers(6),
+      // bonus5 twice: the escape floor after the boss stays on the last tileset
+      themes: ['bonus1', 'bonus2', 'bonus3', 'bonus4', 'bonus5', 'bonus5'],
+      levelOrder: escapeFloorOrder(6),
       boss: withBoss(
         'g_mixed',
         ['boss_knight', 'boss_lich', 'boss_krilith', 'boss_dragon'],
@@ -337,6 +368,18 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
           'pillar_fire',
           'special_beheaded_kamikaze',
           'wisp2'
+        ],
+        // the escape floor — battlements plus the bonus roster's chasers
+        [
+          'tower_empty',
+          'tower_empty',
+          'tower_empty',
+          'tower_empty',
+          'bonus_skeleton1',
+          'eye',
+          'wisp2',
+          'pillar_fire',
+          'mb_doomspawn'
         ]
       ]
     })

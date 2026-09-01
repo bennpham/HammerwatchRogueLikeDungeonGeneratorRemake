@@ -183,6 +183,35 @@ export function defaultFloorTimer(): FloorTimer {
 }
 
 /**
+ * The escape floor's timer — 90 seconds, then 1 damage every 100ms.
+ *
+ * Preset data, not a feature: every shipped campaign ends on one extra dungeon
+ * floor played after the boss arena, and this is the clock that makes it a run
+ * for the exit rather than another floor to clear. 91 AnnounceText nodes, well
+ * under TIMER_COUNTDOWN_NODE_WARN.
+ */
+export function escapeFloorTimer(): FloorTimer {
+  return { enabled: true, seconds: 90, damage: 1, freqMs: 100, countdown: true }
+}
+
+/**
+ * The shipped campaign order: every floor but the last, then the boss fight,
+ * then that last floor — the escape floor.
+ *
+ * Stored explicitly because it is genuinely NOT the default order (which is
+ * every floor then every fight), so `isDefaultOrder` is false for it and a
+ * stock export writes a `levelOrder=` line. All three presets use it, and each
+ * ships exactly one fight.
+ */
+export function escapeFloorOrder(levels: number): CampaignSlot[] {
+  return [
+    ...Array.from({ length: Math.max(0, levels - 1) }, (_, index) => ({ kind: 'floor' as const, index })),
+    { kind: 'boss' as const, index: 0 },
+    { kind: 'floor' as const, index: Math.max(0, levels - 1) }
+  ]
+}
+
+/**
  * All knobs of the generator, ported from the modified Parameters.java.
  * Sizes are in tiles. `monsterMax` is keyed by monster id (see monsterTypes.ts).
  */
@@ -901,7 +930,7 @@ function castleWaves(): BossWave[] {
  */
 export function defaultParameters(): DungeonParameters {
   return {
-    levels: 7,
+    levels: 8,
     minRoomSize: 6,
     maxRoomSize: 20,
     minPassageWidth: 3,
@@ -912,9 +941,14 @@ export function defaultParameters(): DungeonParameters {
     mapHeight: 60,
     edgePadding: 2,
     roomPadding: 2,
-    themes: ['a_mixed', 'b_mixed', 'c_mixed', 'd_mixed', 'e_mixed', 'f_mixed', 'g_mixed'],
-    levelBuffs: Array.from({ length: 7 }, () => defaultFloorBuffs()),
-    levelTimers: Array.from({ length: 7 }, () => defaultFloorTimer()),
+    // ..._mixed a-g are the campaign proper; the eighth is the escape floor
+    // played AFTER the boss (see levelOrder below), back on f - mixed
+    themes: ['a_mixed', 'b_mixed', 'c_mixed', 'd_mixed', 'e_mixed', 'f_mixed', 'g_mixed', 'f_mixed'],
+    levelBuffs: Array.from({ length: 8 }, () => defaultFloorBuffs()),
+    // every floor but the escape floor is untimed; that one is the whole point
+    // of the timer feature — 90 seconds to find the way out, then 1 damage
+    // every 100ms until the party leaves
+    levelTimers: [...Array.from({ length: 7 }, () => defaultFloorTimer()), escapeFloorTimer()],
     monsterMultiplier: 1.0,
     goldMultiplier: 1.1,
     foodMultiplier: 1.2,
@@ -935,9 +969,36 @@ export function defaultParameters(): DungeonParameters {
       ['skeleton2', 'archer2', 'archer3', 'lich', 'wisp2'],
       ['mb_tick', 'mb_maggot', 'bat2', 'tick2', 'maggot'],
       ['mb_skeleton', 'mb_eye', 'archer2', 'skeleton2', 'tower_nova1'],
-      ['mb_lich', 'mb_doomspawn', 'lich', 'wisp2', 'tower_nova2']
+      ['mb_lich', 'mb_doomspawn', 'lich', 'wisp2', 'tower_nova2'],
+      // The escape floor: empty battlements four times over so roughly four
+      // lairs in nine roll a wall of them (measured over 36 campaigns: median
+      // 213 towers, never fewer than 84 — at 3-in-8 some floors drew none at
+      // all), plus the fast harassers and ranged pressure that punish standing
+      // still while the clock runs.
+      [
+        'tower_empty',
+        'tower_empty',
+        'tower_empty',
+        'tower_empty',
+        'skeleton3',
+        'bat2',
+        'wisp2',
+        'lich',
+        'mb_eye'
+      ]
     ],
-    monsterMax: Object.fromEntries(MONSTER_TYPES.map((t) => [t.id, t.defaultMax])),
+    // Floors 1-7 in order, the boss fight, then the escape floor. The arena's
+    // alcove holds a portal to that floor instead of the victory orb, which the
+    // orb follows onto the last slot — verified in game.
+    levelOrder: escapeFloorOrder(8),
+    monsterMax: {
+      ...Object.fromEntries(MONSTER_TYPES.map((t) => [t.id, t.defaultMax])),
+      // A horde is trunc(fRand(cap/5, cap)) per lair, so this is what makes the
+      // escape floor a maze of 450-HP battlements rather than a handful of
+      // them. Campaign-wide, but tower_empty is pooled on no other floor of any
+      // preset, so nothing else sees it. The roster's own defaultMax stays 24.
+      tower_empty: 150
+    },
     // Extra lives are repeatable, so a party can farm them by leaving a level
     // and coming back — off by default since that trivialises the campaign.
     // Rejuvenation stays: it is a one-off full heal, not another life. This is

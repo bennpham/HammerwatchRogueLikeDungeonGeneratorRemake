@@ -8,7 +8,7 @@
 # drift out of date. Change a default in src/generator/config/parameters.ts and
 # this file must change with it.
 path=C:/Program Files (x86)/Steam/steamapps/common/Hammerwatch
-levels=7
+levels=8
 minRoomSize=6
 maxRoomSize=20
 minPassageWidth=3
@@ -24,7 +24,7 @@ cleanupFiles=1
 # overlay variants that layer a second tileset over the floor (c_tiles,
 # d_carpet, f_frozen, ...) and an "_mixed" variant that varies the surface from
 # room to room. The stock campaign is the castle themes, all mixed.
-themes=a_mixed,b_mixed,c_mixed,d_mixed,e_mixed,f_mixed,g_mixed
+themes=a_mixed,b_mixed,c_mixed,d_mixed,e_mixed,f_mixed,g_mixed,f_mixed
 monsterMultiplier=1.000000
 goldMultiplier=1.100000
 foodMultiplier=1.200000
@@ -63,8 +63,10 @@ lobbyUpgrades=0 0 0 0 0 0 0 0
 # only how the two interleave is free. Whichever entry is LAST holds the
 # victory orb, so a campaign can equally well end on a dungeon floor.
 #
-# Omit the key for the default order — every floor, then every boss fight —
-# which is what the stock campaign uses and why no line is written here.
+# Omit the key for the default order — every floor, then every boss fight.
+# The stock campaign is NOT that order: floor 8 is the escape floor, played
+# after the boss arena, so it is written out below.
+levelOrder=1,2,3,4,5,6,7,B1,8
 #
 # Boss fight after the last dungeon floor: 1 = a shop room (prep) then a
 # generated arena with a boss, 0 = campaign ends on the final floor.
@@ -172,7 +174,9 @@ boss0WavePickup5=powerup_health:2|mana_2:4
 # e.g. timer2=1|180|1|1000|1. When it runs out the whole floor damages the party
 # every freqMs until they take the stairs; a NEGATIVE damage heals instead.
 # Monsters are never affected, and countdown=0 keeps the deadline a surprise.
-# Written only for floors whose timer is on, so this file has none.
+# Written only for floors whose timer is on — here that is floor 8, the escape
+# floor, where 90 seconds after the boss arena spits the party out the whole
+# level starts taking 1 health every 100ms until they find the orb.
 
 monsters0=bat1,tick1,maggot,tower_flower1_small
 monsters1=maggot,slime,skeleton1,archer1
@@ -181,6 +185,8 @@ monsters3=skeleton2,archer2,archer3,lich,wisp2
 monsters4=mb_tick,mb_maggot,bat2,tick2,maggot
 monsters5=mb_skeleton,mb_eye,archer2,skeleton2,tower_nova1
 monsters6=mb_lich,mb_doomspawn,lich,wisp2,tower_nova2
+monsters7=tower_empty,tower_empty,tower_empty,tower_empty,skeleton3,bat2,wisp2,lich,mb_eye
+timer7=1|90|1|100|1
 maxArchers1=40
 maxArchers2=30
 maxArchers3=20
@@ -210,7 +216,7 @@ maxTowers_Banner3=4
 maxTowers_Archer1=6
 maxTowers_Archer2=0
 maxTowers_Archer3=6
-maxTowers_Empty=24
+maxTowers_Empty=150
 maxTowers_Flower1=0
 maxTowers_Flower1_Small=12
 maxTowers_Flower2=6

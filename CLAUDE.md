@@ -52,8 +52,9 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    `levels/level*.xml` byte-identical — only which extra files exist may
    change, and clearing every tweak emits no `tweak/` folder at all. The stock
    defaults are not empty any more: `defaultParameters()` ships the lobby on,
-   the boss on, and `player.shared.remove.life`, so a stock run emits a lobby,
-   a prep room, an arena and exactly one tweak file.
+   the boss on, `player.shared.remove.life`, and the escape floor's timer, so a
+   stock run emits a lobby, a prep room, an arena, exactly one tweak file, and
+   one floor carrying a hazard rig.
 7. **The campaign order changes links, never generation.** `levelOrder`
    (`campaign.ts`) decides where each level leads, what `levels.xml` lists and
    in what order, and which slot carries the victory orb — via `ctx.gateway`,
@@ -61,7 +62,9 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    are still built in numeric order off `ctx.rand` and arenas in list order off
    `ctx.bossRand`; generating them in a rearranged sequence would move every
    seed. An absent `levelOrder` must stay byte-identical to the pre-feature
-   generator, so the default order is stored as absent, never as a list.
+   generator, so the *default* order is stored as absent, never as a list —
+   but the presets' order is not the default one (their last floor is played
+   after the boss fight), so they store it explicitly and must.
 8. **A floor the player cannot finish is invalid.** `map/reachability.ts`
    flood-fills with the wall art's two-row overhang modelled (`OVERHANG_ROWS`)
    and rejects a floor unless the entrance reaches the exit/orb/portal and

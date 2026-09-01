@@ -8,6 +8,24 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-01 — an arena's alcove portal into a DUNGEON FLOOR works in game
+**Tag:** **[VERIFIED]** — played by the repo owner.
+**Context:** All three presets now end on an "escape floor": one extra dungeon
+floor played *after* the boss arena, reached from the arena's alcove. The
+campaign-order feature already allowed it (`gatewayAfter` hands the orb to
+whichever slot is last and gives every earlier slot a portal or stairs), but
+until now every arena portal we had shipped pointed at another *prep room*, so
+an arena leading into generated floor geometry was `[EMITTED]` only.
+**Evidence:** The owner played a campaign arranged that way: beating the boss
+turns the alcove into a working teleport onto the following dungeon floor,
+which loads with its own entrance spawn, and the victory orb sits on that floor
+instead of in the arena.
+**Impact:** `BossPortal` (`doodads/generic/exit_teleport_boss.xml` plus its
+`LevelExitArea` naming a level id) is confirmed to accept a numeric dungeon
+floor id, not just a `bossprep<i>` one. The escape floor in `config/presets.ts`
+depends on this. Nothing in the emitters changed — the portal is the same
+three-id `ObjectSet` shape either way.
+
 ### 2026-08-27 — exact heal/mana/upgrade amounts, and health_4 heals less than health_3
 **Tag:** **[VERIFIED]** — read directly from the owner's local
 `editor/assetsExtract/items/*.xml`, the game's own shipped asset files.

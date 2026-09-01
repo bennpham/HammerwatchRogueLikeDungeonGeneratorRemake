@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { GenerationContext } from '../src/generator/core/context'
-import { THEMES, defaultParameters } from '../src/generator/config/parameters'
+import { THEMES } from '../src/generator/config/parameters'
+import { plainParameters } from './params'
 import { getTheme } from '../src/generator/config/themes'
 import type { BossArenaOptions, BossFight, BossOptions } from '../src/generator/config/parameters'
 import { buildBossArena } from '../src/generator/boss/arena'
@@ -15,11 +16,11 @@ import type { DungeonParameters, DungeonResult } from '../src/generator'
 import { allIds, badIntArray, nodesOfType, oneShotRespawn } from './xmlHelpers'
 
 function freshCtx(seed: number): GenerationContext {
-  return new GenerationContext(defaultParameters(), seed)
+  return new GenerationContext(plainParameters(), seed)
 }
 
 function arenaOptions(overrides: Partial<BossArenaOptions> = {}): BossArenaOptions {
-  return { ...defaultParameters().boss.fights[0].arena, ...overrides }
+  return { ...plainParameters().boss.fights[0].arena, ...overrides }
 }
 
 /**
@@ -29,7 +30,7 @@ function arenaOptions(overrides: Partial<BossArenaOptions> = {}): BossArenaOptio
  * statements about anchored waves.
  */
 function anchoredOptions(overrides: Partial<BossArenaOptions> = {}): BossArenaOptions {
-  const arena = defaultParameters().boss.fights[0].arena
+  const arena = plainParameters().boss.fights[0].arena
   return arenaOptions({ waves: arena.waves.map((w) => ({ ...w, spawnMode: undefined })), ...overrides })
 }
 
@@ -40,14 +41,14 @@ function generateOk(params: DungeonParameters, seed: number): DungeonResult {
 }
 
 function withBoss(patch: Partial<BossOptions>): DungeonParameters {
-  const params = defaultParameters()
+  const params = plainParameters()
   params.boss = { ...params.boss, ...patch }
   return params
 }
 
 /** The stock parameters with the FIRST fight patched — the campaign ships one. */
 function withFight(patch: Partial<BossFight>): DungeonParameters {
-  const params = defaultParameters()
+  const params = plainParameters()
   params.boss = {
     ...params.boss,
     fights: params.boss.fights.map((f, i) => (i === 0 ? { ...f, ...patch } : f))
@@ -63,7 +64,7 @@ function withFight(patch: Partial<BossFight>): DungeonParameters {
  * a crash — it is "off", the same as an explicit `enabled: false`.
  */
 function withoutBossField(): DungeonParameters {
-  const params = defaultParameters()
+  const params = plainParameters()
   const { boss: _boss, ...rest } = params
   return rest as DungeonParameters
 }
@@ -766,7 +767,7 @@ describe('boss campaign — on touches only the final floor’s orb room', () =>
     for (const seed of [1, 4242, 987654]) {
       const on = generateOk(withBoss({ enabled: true }), seed)
       const off = generateOk(withBoss({ enabled: false }), seed)
-      const floors = defaultParameters().levels
+      const floors = plainParameters().levels
 
       // wall bitmap and room geometry/lock state identical on every floor,
       // including the last — the swap changes which prefab occupies the orb
@@ -820,8 +821,8 @@ describe('boss campaign — determinism', () => {
 describe('boss campaign — wiring', () => {
   it('lists lobby, 0..N-1, bossprep, boss in order; wires the prep/portal targets; leaves start alone', () => {
     const seed = 4242
-    const floors = defaultParameters().levels
-    const on = generateOk(defaultParameters(), seed) // lobby and boss both default on
+    const floors = plainParameters().levels
+    const on = generateOk(plainParameters(), seed) // lobby and boss both default on
 
     const levelsXml = on.files.find((f) => f.path === 'levels.xml')!.content
     const order = ['lobby', ...Array.from({ length: floors }, (_, i) => String(i)), 'bossprep0', 'boss0']
@@ -851,7 +852,7 @@ describe('boss campaign — wiring', () => {
 describe('boss-only campaign — 0 dungeon floors', () => {
   /** Defaults with the dungeon removed: the prep room and the arena, nothing else. */
   const zeroFloors = (): DungeonParameters => {
-    const params = defaultParameters()
+    const params = plainParameters()
     params.levels = 0
     return params
   }
@@ -892,7 +893,7 @@ describe('boss-only campaign — 0 dungeon floors', () => {
 
   it('builds the same arena as a full campaign — the floor count never reaches the RNG', () => {
     const seed = 90210
-    const withFloors = generateOk(defaultParameters(), seed)
+    const withFloors = generateOk(plainParameters(), seed)
     const withoutFloors = generateOk(zeroFloors(), seed)
     const arena = (r: DungeonResult) => r.files.find((f) => f.path === 'levels/boss0.xml')!.content
     expect(arena(withoutFloors)).toBe(arena(withFloors))
@@ -908,8 +909,8 @@ describe('boss-only campaign — 0 dungeon floors', () => {
 
   it('leaves a normal campaign start untouched', () => {
     const seed = 4242
-    expect(startOf(generateOk(defaultParameters(), seed))).toBe('lobby')
-    const noLobby = defaultParameters()
+    expect(startOf(generateOk(plainParameters(), seed))).toBe('lobby')
+    const noLobby = plainParameters()
     noLobby.lobby.enabled = false
     expect(startOf(generateOk(noLobby, seed))).toBe('0')
   })
@@ -1148,7 +1149,7 @@ describe('boss arena — tilemap block origins sit on the 20-grid', () => {
   })
 
   it('so does a dungeon floor — proving the assertion is not vacuous', () => {
-    const result = generateOk(defaultParameters(), 4242)
+    const result = generateOk(plainParameters(), 4242)
     const floor = result.files.find((f) => f.path === 'levels/level0.xml')!.content
     const blocks = tileBlocks(floor)
     expect(blocks.length).toBeGreaterThan(0)
@@ -1562,8 +1563,8 @@ describe('boss arena — invulnerability windows', () => {
   it('moves no dungeon floor when it is switched on or off', () => {
     // Invariant 6: the optional layers never move a seed's dungeon. This one
     // draws no random values from any stream, so only boss.xml may differ.
-    const on = defaultParameters()
-    const off = defaultParameters()
+    const on = plainParameters()
+    const off = plainParameters()
     off.boss.fights[0].arena.invulnerability = { ...off.boss.fights[0].arena.invulnerability, enabled: false }
 
     for (const seed of [1, 4242]) {
@@ -1585,7 +1586,7 @@ describe('boss arena — invulnerability windows', () => {
 describe('multiple boss fights (issue #43)', () => {
   /** The stock campaign with `count` fights, each a copy of the stock one. */
   const withFights = (count: number): DungeonParameters => {
-    const params = defaultParameters()
+    const params = plainParameters()
     const stock = params.boss.fights[0]
     params.boss = {
       ...params.boss,
@@ -1615,7 +1616,7 @@ describe('multiple boss fights (issue #43)', () => {
     const result = generateOk(withFights(3), 4242)
 
     // the last dungeon floor still opens the first fight
-    const finalFloor = levelOf(result, `levels/level${defaultParameters().levels - 1}.xml`)
+    const finalFloor = levelOf(result, `levels/level${plainParameters().levels - 1}.xml`)
     expect(exitTargets(finalFloor)).toContain('bossprep0')
 
     for (let i = 0; i < 3; i++) {
@@ -1647,7 +1648,7 @@ describe('multiple boss fights (issue #43)', () => {
 
     const order = [
       'lobby',
-      ...Array.from({ length: defaultParameters().levels }, (_, i) => String(i)),
+      ...Array.from({ length: plainParameters().levels }, (_, i) => String(i)),
       'bossprep0',
       'boss0',
       'bossprep1',
@@ -1665,7 +1666,7 @@ describe('multiple boss fights (issue #43)', () => {
 
   it('previews every arena, one entry per fight after the floors', () => {
     const result = generateOk(withFights(3), 4242)
-    expect(result.levels).toHaveLength(defaultParameters().levels + 3)
+    expect(result.levels).toHaveLength(plainParameters().levels + 3)
   })
 
   /**
@@ -1692,7 +1693,7 @@ describe('multiple boss fights (issue #43)', () => {
       ).toBe(tilemap(levelOf(one, 'levels/boss0.xml')))
 
       // and the dungeon itself never notices either — a different stream
-      for (let i = 0; i < defaultParameters().levels; i++) {
+      for (let i = 0; i < plainParameters().levels; i++) {
         expect(levelOf(three, `levels/level${i}.xml`), `seed ${seed} floor ${i}`).toBe(
           levelOf(one, `levels/level${i}.xml`)
         )
@@ -1707,7 +1708,7 @@ describe('multiple boss fights (issue #43)', () => {
    * objectSet.test.ts's Orb-vs-BossPortal parity check.
    */
   it('an alcove portal costs the same RNG draws as the victory orb', () => {
-    const arena = defaultParameters().boss.fights[0].arena
+    const arena = plainParameters().boss.fights[0].arena
     const after = (exitTarget: string | null) => {
       const ctx = freshCtx(4242)
       buildBossArena(ctx, arena, 7, exitTarget)

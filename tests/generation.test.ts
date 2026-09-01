@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { generateDungeon, defaultParameters, DungeonResult } from '../src/generator'
+import { plainParameters } from './params'
 import { doodadOffset, doodadPath } from '../src/generator/objects/doodad'
 import { nodesOfType, oneShotRespawn } from './xmlHelpers'
 import type { DoodadTypeName } from '../src/generator/objects/doodad'
 
+// The shipped campaign ends on an extra dungeon floor played AFTER the boss
+// arena (see presets.ts), which reorders `result.levels` and moves the orb off
+// the last generated floor. That is preset content; everything below is about
+// the generator, so it builds on the neutral seven-floor campaign instead. The
+// shipped shape has its own suite in presets.test.ts.
 function generateOk(seed: number, mutate?: (p: ReturnType<typeof defaultParameters>) => void): DungeonResult {
-  const params = defaultParameters()
+  const params = plainParameters()
   mutate?.(params)
   const result = generateDungeon(params, seed)
   expect(result.ok).toBe(true)
@@ -18,7 +24,7 @@ describe('generateDungeon', () => {
     const paths = result.files.map((f) => f.path)
     // boss defaults on, so previews gain one extra entry (the arena) beyond
     // the dungeon's own numeric floors
-    const floors = defaultParameters().levels
+    const floors = plainParameters().levels
     expect(result.levels).toHaveLength(floors + 1)
     for (let i = 0; i < floors; i++) {
       expect(paths).toContain(`levels/level${i}.xml`)
@@ -59,7 +65,7 @@ describe('generateDungeon', () => {
     // the boss arena (appended last, boss defaults on) isn't a dungeon floor —
     // it has no Entrance/Exit/Orb room vocabulary of its own — so this check
     // is scoped to the numeric dungeon floors only
-    const floors = result.levels.slice(0, defaultParameters().levels)
+    const floors = result.levels.slice(0, plainParameters().levels)
     floors.forEach((level, i) => {
       const types = level.rooms.map((r) => r.type)
       expect(types).toContain('Entrance')
@@ -90,7 +96,7 @@ describe('generateDungeon', () => {
     // boss defaults on and appends its own arena preview after the dungeon's
     // own floors, so "the final floor" means the last numeric dungeon floor,
     // not the last entry of result.levels (which is now the arena)
-    const finalFloorIndex = defaultParameters().levels - 1
+    const finalFloorIndex = plainParameters().levels - 1
 
     const lastLevelXML = (result: DungeonResult) =>
       result.files.find((f) => f.path === `levels/level${finalFloorIndex}.xml`)!.content
@@ -440,7 +446,7 @@ describe('generateDungeon', () => {
           ['h', true]
         ] as const) {
           for (const seed of [3, 555, 90210]) {
-            const params = defaultParameters()
+            const params = plainParameters()
             params.themes = params.themes.map(() => theme)
             params.lockChance = 1 // every floor gets a chance-gated lock
             const result = generateDungeon(params, seed)
@@ -658,15 +664,15 @@ describe('generateDungeon', () => {
     const result = generateOk(9)
     const levelsXml = result.files.find((f) => f.path === 'levels.xml')!.content
     // boss defaults on, so result.levels also carries the arena's own preview
-    // (level number === defaultParameters().levels) — the numeric dungeon
+    // (level number === plainParameters().levels) — the numeric dungeon
     // floors are what this test is about, so it loops over those only
-    for (let i = 0; i < defaultParameters().levels; i++) {
+    for (let i = 0; i < plainParameters().levels; i++) {
       expect(levelsXml).toContain(`<level id="${i}" res="levels/level${i}.xml"`)
     }
     // and the boss's own two entries follow them, in order
     expect(levelsXml).toContain('<level id="bossprep0" res="levels/bossprep0.xml"')
     expect(levelsXml).toContain('<level id="boss0" res="levels/boss0.xml"')
-    const lastFloorPath = `levels/level${defaultParameters().levels - 1}.xml`
+    const lastFloorPath = `levels/level${plainParameters().levels - 1}.xml`
     expect(levelsXml.indexOf(lastFloorPath)).toBeLessThan(levelsXml.indexOf('levels/bossprep0.xml'))
     expect(levelsXml.indexOf('levels/bossprep0.xml')).toBeLessThan(levelsXml.indexOf('levels/boss0.xml'))
   })
