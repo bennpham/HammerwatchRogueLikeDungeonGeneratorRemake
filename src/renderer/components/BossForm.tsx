@@ -697,19 +697,21 @@ function ArenaTab({ arena, fieldPrefix, issues, setArena, setWave }: ArenaTabPro
         badge={arena.waves.some((w) => waveTraps(w).length > 0) ? 'on' : undefined}
       >
         <p className="hint">
-          A trap is a <strong>projectile spewer</strong> standing against a wall and firing straight
-          across the arena. Pick the direction and the wall follows: <code>up</code> stands on the{' '}
-          <strong>south</strong> wall and shoots north, <code>down</code> on the north wall,{' '}
-          <code>left</code> on the east wall, <code>right</code> on the west. Each spewer's position
-          along its wall is chosen by the seed, clear of the corners, the entrance and the alcove
-          mouth. Like the buffs above and unlike the drops, a tier's traps{' '}
-          <strong>replace</strong> the previous tier's, so the hazard changes as the fight moves
-          through its phases instead of piling up into a crossfire nobody can cross. Add several rows
-          with the same direction to mix ammunition on one wall. <strong>Spread</strong> is 0 to 2 —
-          0 is a single straight stream, 0.5 sprays an area. <strong>Rate</strong> is milliseconds
-          between shots and the engine sets no floor, so a very low number really will fill the room.
-          No tier carries a trap by default.
+          A trap is a <strong>projectile spewer</strong> against a wall, firing straight across the
+          arena. The direction picks the wall: <code>up</code> fires north from the south wall, and
+          so on. The seed places it, clear of the corners, the entrance and the alcove.
         </p>
+        <ul className="hint hint-list">
+          <li>
+            <strong>Spread</strong> 0–2. 0 is one straight stream, 0.5 sprays a cone.
+          </li>
+          <li>
+            <strong>Rate</strong> is milliseconds between shots — low numbers flood the room.
+          </li>
+          <li>Each tier <strong>replaces</strong> the last tier's traps, so the hazard changes.</li>
+          <li>Several rows, same direction = mixed ammunition on one wall.</li>
+        </ul>
+        <p className="hint">No tier carries a trap by default.</p>
         {arena.waves.map((wave, i) => {
           const traps = waveTraps(wave)
           return (

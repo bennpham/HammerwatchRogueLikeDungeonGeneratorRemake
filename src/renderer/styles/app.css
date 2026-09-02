@@ -168,6 +168,16 @@ select:focus {
   margin: 4px 0 10px;
 }
 
+/* Bulleted hint — a few one-line rules read faster than a paragraph of them. */
+.hint-list {
+  margin: -4px 0 10px;
+  padding-left: 18px;
+}
+
+.hint-list li {
+  margin: 2px 0;
+}
+
 /* themes */
 
 .theme-grid {
@@ -310,6 +320,52 @@ select:focus {
 .copy-down {
   align-self: flex-start;
   font-size: 11px;
+}
+
+/* A trap carries five controls where a buff carries two, and the boss panel is
+   narrow — on one flex line every field collapsed to a few unreadable
+   characters. So a trap is a card: projectile plus Remove on top, the four
+   settings under it in a labelled grid that wraps. */
+.trap-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-panel);
+}
+
+.trap-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Beats the global `select { width: 100% }` so the (i) and Remove keep their
+   place on the header line. */
+.trap-head .trap-projectile {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+}
+
+.trap-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+}
+
+.trap-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.trap-field select,
+.trap-field input {
+  width: 100%;
 }
 
 .pool-groups {
