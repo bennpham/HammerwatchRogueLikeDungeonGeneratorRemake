@@ -25,6 +25,7 @@ import { generateDungeon } from '../src/generator'
 import type { DungeonParameters, DungeonResult } from '../src/generator'
 import { BUFF_DEFS, BUFF_GROUPS, BUFF_HELPFUL_IDS, buffById } from '../src/generator/objects/buffTypes'
 import { allIds, badIntArray, nodesOfType } from './xmlHelpers'
+import { plainParameters } from './params'
 
 const SEED = 4242
 
@@ -44,7 +45,7 @@ function generateOk(params: DungeonParameters, seed: number): DungeonResult {
  * is dominated by map area, and this suite generates a lot of campaigns.
  */
 function bareParams(): DungeonParameters {
-  const params = defaultParameters()
+  const params = plainParameters()
   params.levels = 3
   params.mapWidth = 40
   params.mapHeight = 40

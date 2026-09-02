@@ -9,11 +9,13 @@ import {
   defaultParameters,
   generateDungeon,
   monsterCategories,
+  monsterTypeById,
   monsterTypesInGroup,
   parseParametersTxt,
   serializeParametersTxt
 } from '../src/generator'
 import type { DungeonResult } from '../src/generator'
+import { plainParameters } from './params'
 
 /** The hand-maintained snapshot of actor paths that exist in a stock install. */
 const KNOWN_ACTOR_PATHS = new Set(
@@ -25,7 +27,7 @@ const KNOWN_ACTOR_PATHS = new Set(
 
 /** Generate a single floor whose only monster type is `id`, with a usable max. */
 function generateWithOnly(id: string, seed: number, max = 60): DungeonResult {
-  const params = defaultParameters()
+  const params = plainParameters()
   params.levels = 1
   params.themes = ['a']
   params.levelMonsters = [[id]]
@@ -195,16 +197,31 @@ describe('bonus monsters', () => {
 })
 
 describe('skeleton3 and tower_empty', () => {
-  it('are opt-in — present as a cap, absent from every default pool', () => {
+  it('are both pooled only on the escape floor, the campaign\'s last', () => {
     const params = defaultParameters()
-    for (const pool of params.levelMonsters) {
+    // Neither reaches the campaign proper. They arrived as opt-in ceilings and
+    // stayed that way until the escape floor — the extra dungeon floor played
+    // after the boss — put both in its pool: skeleton3 to chase, tower_empty
+    // repeated often enough to wall the route off.
+    for (const pool of params.levelMonsters.slice(0, -1)) {
       expect(pool).not.toContain('skeleton3')
       expect(pool).not.toContain('tower_empty')
     }
+    const escape = params.levelMonsters[params.levelMonsters.length - 1]
+    expect(escape).toContain('skeleton3')
+    // a share rather than a count, so lengthening the roster beside them can't
+    // silently thin the maze — see the same assertion in presets.test.ts
+    const share = escape.filter((id) => id === 'tower_empty').length / escape.length
+    expect(share).toBeGreaterThan(0.4)
+    expect(share).toBeLessThan(0.5)
+
     expect(params.monsterMax.skeleton3).toBe(100)
-    // a ceiling, not a spawn: tower_empty is in no default pool, so its cap can
-    // be armed without any seed moving
-    expect(params.monsterMax.tower_empty).toBe(24)
+    // A horde is trunc(fRand(cap/5, cap)) per lair, so the cap is what makes
+    // the escape floor a maze of battlements. The roster's own defaultMax is
+    // untouched at 24 — this is the preset overriding it, and tower_empty is
+    // pooled nowhere else in any preset, so no other floor can see it.
+    expect(monsterTypeById('tower_empty').defaultMax).toBe(24)
+    expect(params.monsterMax.tower_empty).toBe(150)
   })
 
   it('leaves every existing seed byte-identical', () => {
@@ -238,6 +255,12 @@ describe('skeleton3 and tower_empty', () => {
       const params = defaultParameters()
       params.lockFinalRoom = false
       params.boss.enabled = false
+      // and the escape floor's 90-second hazard, which the shipped preset now
+      // arms on its last floor — it appends nodes to that floor's XML, which
+      // this digest covers. Same reasoning as the two resets above: the
+      // baseline predates it, so hash the campaign it was measured over.
+      params.levelTimers = undefined
+      delete params.levelOrder
       params.levels = 8
       params.themes = ['a', 'a', 'b', 'b', 'c', 'c', 'd', 'd']
       params.levelMonsters = [

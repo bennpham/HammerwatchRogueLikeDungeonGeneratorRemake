@@ -21,10 +21,12 @@ import {
   defaultTier,
   diamondCount,
   getTheme,
+  isDefaultOrder,
   isScatterMode,
   lobbyCategoryCounts,
   monsterNote,
   monsterVariantsInGroup,
+  normalizeOrder,
   resolveActorPath,
   waveBuffs,
   wavePickups,
@@ -83,7 +85,24 @@ export function BossForm({ params, issues, onChange }: BossFormProps) {
   const active = Math.min(fightIndex, Math.max(0, fights.length - 1))
   const fight = fights[active]
 
-  const set = (patch: Partial<BossOptions>) => onChange({ ...params, boss: { ...boss, ...patch } })
+  // Repairs the stored campaign order against the fight list the patch leaves
+  // behind, exactly as ParameterForm.setLevels does for the floor count. The
+  // shipped presets store an order that names the boss fight (the campaign ends
+  // on an escape floor played after it), so turning the boss off — or trimming
+  // the fight list — would otherwise leave the order naming a fight that no
+  // longer exists, which validation blocks on. A valid order normalizes to
+  // itself, so every other patch through here is unaffected.
+  const set = (patch: Partial<BossOptions>) => {
+    const nextBoss = { ...boss, ...patch }
+    const next: DungeonParameters = { ...params, boss: nextBoss }
+    if (params.levelOrder !== undefined) {
+      const fightCount = nextBoss.enabled ? (nextBoss.fights?.length ?? 0) : 0
+      const repaired = normalizeOrder(params.levelOrder, params.levels, fightCount)
+      if (isDefaultOrder(repaired, params.levels, fightCount)) delete next.levelOrder
+      else next.levelOrder = repaired
+    }
+    onChange(next)
+  }
   const setFight = (index: number, patch: Partial<BossFight>) =>
     set({ fights: fights.map((f, i) => (i === index ? { ...f, ...patch } : f)) })
   const setPrep = (patch: Partial<BossPrepOptions>) =>

@@ -16,6 +16,7 @@ import { validateParameters } from '../src/generator/config/validation'
 import { generateDungeon } from '../src/generator'
 import type { DungeonParameters, DungeonResult } from '../src/generator'
 import { allIds, badIntArray, nodesOfType } from './xmlHelpers'
+import { plainParameters } from './params'
 
 const SEED = 4242
 
@@ -31,7 +32,7 @@ function generateOk(params: DungeonParameters, seed: number): DungeonResult {
  * ship the lobby, the boss and one tweak on.
  */
 function bareParams(): DungeonParameters {
-  const params = defaultParameters()
+  const params = plainParameters()
   params.levels = 3
   params.themes = params.themes.slice(0, 3)
   params.levelMonsters = params.levelMonsters.slice(0, 3)

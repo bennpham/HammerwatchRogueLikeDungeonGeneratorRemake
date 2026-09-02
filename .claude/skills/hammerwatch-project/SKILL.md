@@ -209,7 +209,7 @@ reference/hammerwatch-tweak-stats.md
 
 | Field | Default | Notes / hard constraints |
 | --- | --- | --- |
-| `levels` | 7 | needs one theme AND one monster pool per level |
+| `levels` | 8 | needs one theme AND one monster pool per level. The stock eight is seven floors, the boss fight, then the **escape floor** — see *Campaign presets* |
 | `mapWidth` × `mapHeight` | 80 × 60 | ≥ 20; multiples of 20 align with tilemap blocks (warning otherwise) |
 | `minRoomSize`–`maxRoomSize` | 6–20 | ≥ 3; **`maxRoomSize` ≥ 7** (stair prefab is 6 wide); height rolls up to `maxRoomSize + 2` |
 | `minRoomCount`–`maxRoomCount` | 12–15 | ≥ 2 |
@@ -223,12 +223,12 @@ reference/hammerwatch-tweak-stats.md
 | `levelMonsters[i]` | see defaults | non-empty; ids must exist in `MONSTER_TYPES`; repeat an id to weight it |
 | `monsterMax[id]` | per-type | integer ≥ 0; **0 disables the type entirely** |
 | `levelBuffs[i]` | absent / all empty | buff auras, one `FloorBuff[]` per floor: each `{buff, target}` where `buff` is a `BUFF_DEFS` id and `target` is `players`/`monsters`/`both`. No cap on how many a floor carries. Empty on every floor reproduces the pre-feature campaign exactly. See *Buff auras* below |
-| `levelTimers[i]` | absent / all off | timer mode, one `FloorTimer` per floor: `enabled`, `seconds` (1–3600), `damage` (−10000–10000, **negative heals**), `freqMs` (50–600000), `countdown`. Off on every floor reproduces the pre-feature campaign exactly. See *Timer mode* below |
+| `levelTimers[i]` | all off but the escape floor (90s, 1 dmg / 100ms) | timer mode, one `FloorTimer` per floor: `enabled`, `seconds` (1–3600), `damage` (−10000–10000, **negative heals**), `freqMs` (50–600000), `countdown`. Off on every floor reproduces the pre-feature campaign exactly. See *Timer mode* below |
 | `playerTweaks` | `{ 'player.shared.remove.life': 1 }` | sparse `Record<lowercase key, number>` of player-balance overrides; empty = no `tweak/` folder. See below |
 | `lobby` | on, 10000 gold, all 21 columns, no free upgrades | prebuilt starting level: `enabled`, `startingGold` (whole multiple of 500, no upper cap beyond `GOLD_SAFETY_MAX`), `shopCategories`, `upgrades`. `enabled: false` reproduces the pre-lobby campaign exactly |
 | `lobby.upgrades` | every kind 0 | free upgrade pickups on the lobby floor, one count per `UPGRADE_KINDS` entry (`damage`, `defense`, `health`, `mana`, then the four `*2` tiers). Whole number 0…`UPGRADE_COUNT_MAX` (10000) each; **0 emits no item array**. One authored slot per kind, so a count above one *stacks* on that slot rather than needing the room's layout to grow. `lobbyUpgrades` in `parameters.txt`. See *Free upgrades* below |
 | `boss` | **on** | the finale: `{enabled, fights}`, two appended levels **per fight**. See the sub-table below and *Boss finale* |
-| `levelOrder` | absent | the campaign's play order, one `CampaignSlot` per floor and per boss **fight**. Absent = every floor then every fight, the pre-feature shape, and the only value that is guaranteed byte-identical. Both sequences stay ascending; only the interleaving is free. `levelOrder=1,2,B1,3` in `parameters.txt`, written only when it differs from the default. See *Campaign order* |
+| `levelOrder` | the escape-floor order (**not** absent) | the campaign's play order, one `CampaignSlot` per floor and per boss **fight**. Absent = every floor then every fight, the pre-feature shape, and the only value that is guaranteed byte-identical. Both sequences stay ascending; only the interleaving is free. `levelOrder=1,2,B1,3` in `parameters.txt`, written only when it differs from the default. See *Campaign order* |
 
 `BossOptions` (`config/parameters.ts`) is `{enabled, fights: BossFight[]}`, and a
 `BossFight` is `{prep: BossPrepOptions, arena: BossArenaOptions}`. Defaults from
@@ -258,13 +258,29 @@ The table below describes one fight — `fights[i].prep`, `fights[i].arena`:
 
 ### Campaign presets
 
-`config/presets.ts` holds `CAMPAIGN_PRESETS` — `castle` (7 floors,
-`a_mixed`–`g_mixed`; identical to `defaultParameters()`), `desert` (5 floors,
-`h,h,i,i_symbols,i_mixed`) and `bonus` (5 floors, `bonus1`–`bonus5`). A preset
-overrides `levels`, `themes`, `levelMonsters` and — via the `withBoss` helper —
-the **first fight's** arena `theme`, `bossPool` and `waves`; `monsterMax` and
-everything else stay at the global defaults, so the caps keep bounding horde
-sizes. Every preset ships a single fight: the count shapes the campaign rather
+`config/presets.ts` holds `CAMPAIGN_PRESETS` — `castle` (8 floors,
+`a_mixed`–`g_mixed` then `f_mixed`; identical to `defaultParameters()`),
+`desert` (6 floors, `h,h,i,i_symbols,i_mixed,i_mixed`) and `bonus` (6 floors,
+`bonus1`–`bonus5` then `bonus5`). A preset overrides `levels`, `themes`,
+`levelMonsters`, `levelTimers`, `levelOrder` and — via the `withBoss` helper —
+the **first fight's** arena `theme`, `bossPool` and `waves`. `monsterMax` is
+otherwise left at the global defaults so the caps keep bounding horde sizes; the
+one exception is `tower_empty`, raised to 150 in `defaultParameters()` for the
+escape floor and pooled on no other floor of any preset.
+
+**The escape floor** is that last floor, and all three presets ship it: one
+extra dungeon floor played **after** the boss arena (`escapeFloorOrder`), on a
+90-second hazard timer (`escapeFloorTimer` — 1 damage every 100ms, countdown
+on), with `tower_empty` four times over in a nine-entry pool so a couple of
+hundred breakable 450-HP battlements wall its routes off. It is built entirely
+from shipped features — the campaign order, timer mode and pool weighting — so
+nothing in the generator knows it exists. Two consequences worth remembering:
+the arena's alcove holds a portal to it instead of the victory orb (verified in
+game), and because the stored order is not the default one, mutating `levels` or
+the fight count on a preset's parameters **without repairing the order** now
+produces a validation error — which is why `ParameterForm.setLevels` and
+`BossForm.set` both run `normalizeOrder`, and why the test suites build on
+`tests/params.ts`'s `plainParameters()` rather than `defaultParameters()`. Every preset ships a single fight: the count shapes the campaign rather
 than flavouring it, so it is left to the dungeon master. `withBoss` spreads
 three levels deep on purpose (`boss` -> the `fights` array -> `fights[0]` ->
 `arena`): a shallow `{...base, boss}` would share one `arena` object between

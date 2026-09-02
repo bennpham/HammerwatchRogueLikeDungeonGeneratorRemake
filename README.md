@@ -203,7 +203,7 @@ User-data folder: `%APPDATA%/hammerwatch-roguelike-dungeon-generator` (Windows),
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
-| `levels` | 7 | Number of floors |
+| `levels` | 8 | Number of floors — the stock campaign is seven, then the boss fight, then an eighth "escape floor" played after it |
 | `mapWidth`, `mapHeight` | 80 × 60 | Map size in tiles (multiples of 20 recommended) |
 | `minRoomSize`, `maxRoomSize` | 6–20 | Room width range in tiles (heights roll size+2); max must be ≥ 7 so stairs fit |
 | `minRoomCount`, `maxRoomCount` | 12–15 | Rooms per floor |

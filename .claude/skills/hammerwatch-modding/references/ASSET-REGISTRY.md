@@ -98,8 +98,9 @@ half-of-`skeleton1` HP would suggest: at 200 it swarms and overruns a party
 (2026-07-31 log entry). Speed sets this one's ceiling, not HP or frame rate.
 
 `tower_empty` is `[VERIFIED]` — spawns in-game as a killable obstacle (450 HP,
-no damage output), blocks passage with full 32×32 polygon. Defaults to 0
-because it walls off rather than attacking.
+no damage output), blocks passage with full 32×32 polygon. Its roster
+`defaultMax` is 24, a ceiling rather than a spawn; the presets raise that cap to
+150 and pool it only on the escape floor, where walling routes off is the point.
 
 `tower_archer2` is a **phantom kept as an alias**. The game never shipped a
 battlement archer 2 — the roster pointed at
@@ -221,6 +222,12 @@ and renders as nothing, so a wrong path here is invisible until someone loads
 the level. Related `generic/` variants that do exist: `exit_teleport_boss.xml`,
 `exit_teleport_exit.xml`, and the `_boss_desert` / `_switch_desert` sets.
 See the 2026-07-31 packer entry in `DISCOVERY-LOG.md`.
+
+**`exit_teleport_boss.xml` can lead to a generated dungeon floor** `[VERIFIED]`
+in game 2026-09-01 — its `LevelExitArea` takes any level id, so an arena's
+alcove portal may point at a numeric floor and not only at a `bossprep<i>`
+room. That is what the presets' escape floor rides on. See the 2026-09-01
+entry in `DISCOVERY-LOG.md`.
 
 **`Cover` is a character-occlusion overlay, not a collider** `[VERIFIED]` — read
 from the asset: `special/color_theme_a_16.xml` declares **zero**

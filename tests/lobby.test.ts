@@ -8,7 +8,6 @@ import {
   LOBBY_RESPAWN_ID_BASE,
   LOBBY_VENDORS,
   buildLobby,
-  defaultParameters,
   diamondCount,
   generateDungeon,
   lobbyCategoryCounts,
@@ -31,6 +30,7 @@ import {
   upgradeItemPath
 } from '../src/generator/levelTemplate/surgery'
 import { allIds, badIntArray, nodesOfType, oneShotRespawn } from './xmlHelpers'
+import { plainParameters } from './params'
 
 /** Five diamonds deep on every authored slot — well past what the old cap allowed. */
 const DEEP_GOLD = LOBBY_DIAMOND_VALUE * LOBBY_DIAMOND_SLOTS.length * 5
@@ -42,13 +42,13 @@ function generateOk(params: DungeonParameters, seed: number): DungeonResult {
 }
 
 function withLobby(patch: Partial<LobbyOptions>): DungeonParameters {
-  const params = defaultParameters()
+  const params = plainParameters()
   params.lobby = { ...params.lobby, ...patch }
   return params
 }
 
 function lobbyXML(patch: Partial<LobbyOptions>): string {
-  return buildLobby({ ...defaultParameters().lobby, ...patch })
+  return buildLobby({ ...plainParameters().lobby, ...patch })
 }
 
 
@@ -112,7 +112,7 @@ describe('lobby — disabled', () => {
     const off = generateOk(params, 555)
 
     expect(off.files.map((f) => f.path)).toEqual([
-      ...Array.from({ length: defaultParameters().levels }, (_, i) => `levels/level${i}.xml`),
+      ...Array.from({ length: plainParameters().levels }, (_, i) => `levels/level${i}.xml`),
       'info.xml',
       'levels.xml'
     ])
@@ -149,7 +149,7 @@ describe('lobby — campaign wiring', () => {
     const params = withLobby({ enabled: true })
     params.boss = { ...params.boss, enabled: false }
     const on = generateOk(params, 555)
-    const levels = defaultParameters().levels
+    const levels = plainParameters().levels
     expect(on.levels).toHaveLength(levels)
     expect(on.levels.map((l) => l.level)).toEqual(Array.from({ length: levels }, (_, i) => i))
   })
@@ -503,12 +503,12 @@ describe('lobby — parameters.txt round trip', () => {
   it('reports malformed gold instead of throwing', () => {
     const parsed = parseParametersTxt('lobbyGold=abc\n')
     expect(parsed.unknownKeys).toEqual(['lobbyGold'])
-    expect(parsed.params.lobby.startingGold).toBe(defaultParameters().lobby.startingGold)
+    expect(parsed.params.lobby.startingGold).toBe(plainParameters().lobby.startingGold)
   })
 
   it('keeps a file written before the feature existed working', () => {
     const parsed = parseParametersTxt('levels=3\n')
-    expect(parsed.params.lobby).toEqual(defaultParameters().lobby)
+    expect(parsed.params.lobby).toEqual(plainParameters().lobby)
     expect(parsed.unknownKeys).toEqual([])
   })
 })

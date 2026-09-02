@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { generateDungeon } from '../src/generator'
 import type { DungeonParameters, DungeonResult } from '../src/generator'
+import { plainParameters } from './params'
 import { defaultParameters, type BossFight } from '../src/generator/config/parameters'
 import { parseSlotLabel } from '../src/generator/campaign'
 import type { CampaignSlot } from '../src/generator/campaign'
@@ -18,7 +19,7 @@ const slots = (spec: string): CampaignSlot[] =>
  * full generation.
  */
 function campaign(spec: string | undefined, fightCount = 2): DungeonParameters {
-  const params = defaultParameters()
+  const params = plainParameters()
   params.levels = 3
   params.themes = params.themes.slice(0, 3)
   params.levelMonsters = params.levelMonsters.slice(0, 3)
