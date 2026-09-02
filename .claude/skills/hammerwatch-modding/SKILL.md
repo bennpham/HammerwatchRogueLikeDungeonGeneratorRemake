@@ -28,6 +28,9 @@ not against the game. Upgrading tags is the whole point of the discovery log
 │   │   ├── info.xml
 │   │   ├── levels.xml
 │   │   ├── levels/level0.xml … levelN.xml
+│   │   ├── levels/lobby.xml     optional: the prebuilt starting level
+│   │   ├── levels/bossprep<i>.xml, levels/boss<i>.xml
+│   │   │                        one pair per boss fight, 0-indexed
 │   │   └── tweak/*.xml          optional: player balance overrides
 │   ├── assetsExtract/tweak/     the game's own stock tweak files (reference)
 │   └── dungeon<seed>.hwm        produced next to the folder by the packer
@@ -95,6 +98,17 @@ tabs and the port reproduces them byte for byte.
   `[EMITTED]`. A raw string here may render literally or not at all
   `[UNVERIFIED]`.
 - `res` is relative to the campaign root.
+- Ids are **not** all integers. A floor's id is its own index, but the lobby is
+  `"lobby"` and each fight emits **two** entries, `bossprep<i>` and `boss<i>`
+  (`campaign.ts`'s `bossPrepId` / `bossArenaId` and the matching `*Path`
+  helpers own that naming).
+- Entries are listed in **campaign play order**, not numeric order
+  (`src/generator/index.ts`, the `for (const slot of order)` loop). A boss fight
+  can therefore sit between two floors, and its two entries appear there.
+- `?floor=N` counts **positions in that order**, not floor indices — a fight
+  takes two labels because it is two levels. Under the default order this is
+  floors 0..N-1 then the fights, which is byte-for-byte what was emitted before
+  the order was configurable.
 
 ### levelN.xml
 
@@ -160,12 +174,17 @@ offset applied), `need-sync` (bool). Actors and items: `id`, `type`, `x`, `y`.
 `id` is level-local and restarts at 0 each floor; script nodes reference other
 nodes and items by that id, so ids must stay unique within one file.
 
-**Script nodes.** `src/generator/objects/nodes.ts` — `LevelStart`,
+**Script nodes.** `src/generator/objects/nodes.ts` exports 17 — `LevelStart`,
 `LevelExitArea`, `AreaTrigger`, `RectangleShape`, `ToggleElement`,
-`AnnounceText`, `ObjectEventTrigger`, `ShopArea`, `GameEnd`, `DangerArea`, plus
-the plain `RespawnPlayers`. Nodes wire to each other by id inside
-`<dictionary name="shape">` / `element` / … with an `<int-arr name="static">`
-holding the target id.
+`ToggleImmortality` (the boss's invulnerability windows), `ChangeDoodadState`,
+`AnnounceText`, `ObjectEventTrigger`, `GlobalEventTrigger`, `TimerTrigger`
+(timer mode and the scatter batch timers), `SpawnObject` (the whole wave and
+wave-pickup rig — one node per spawned copy), `DestroyObject`, `PlaySound`,
+`ShopArea`, `GameEnd`, `DangerArea`, plus the plain `RespawnPlayers`. Nodes
+wire to each other by id inside `<dictionary name="shape">` / `element` / … with
+an `<int-arr name="static">` holding the target id. A connection can carry its
+own delay, which is how the invulnerability rig sequences immortal-on, the
+countdown announces and immortal-off off one trigger.
 
 ### tweak/*.xml — player balance
 
@@ -325,6 +344,9 @@ The full inventory of paths this generator emits is in
   a letter for the classic themes and `bonus1`…`bonus5` for the bonus sets).
 - **Items** — `items/*.xml`: valuables 1–9, breakables, health/mana, powerup
   potions and chests, bronze/silver/gold keys and doors, three crystal orbs.
+  The subset a boss wave tier can drop is the registry in
+  `src/generator/objects/pickupTypes.ts` (`PICKUP_DEFS`); their verified in-game
+  restore values are in `references/ASSET-REGISTRY.md`.
 - **Tilemaps** — `tilemaps/{a,b,c,d,e,f,g,h,i}_default.xml` plus
   `tilemaps/bonus_{1..5}.xml`. Variant counts differ per theme (a: 2, b: 4,
   c: 4, d: 8, e–g: 2, h: 2, i: 8, bonus1: 2, bonus2–5: 1) and must match the
@@ -418,6 +440,22 @@ To have the wall matcher actually place a new piece you must also add a
 pattern to `src/generator/map/wallPattern.ts` — a 3×5 mask over the tile grid.
 That changes emitted geometry, so add a fixed-seed test.
 
+### A new pickup
+
+Add one entry to `PICKUP_DEFS` in `src/generator/objects/pickupTypes.ts`. The
+contract is the same as the monster and buff registries: a stable `id`, the
+`items/*.xml` path, a `group`, a `lane` (which column of the arena's drop pad it
+lands in — `boss/pickupPad.ts`), and a `description` the picker shows.
+Everything else derives — `PICKUP_GROUPS` is built from first-seen `group`
+order and is the `<optgroup>` render order in `PickupPicker.tsx`, `pickupById`
+is what validation gates unknown ids with, and `parameters.txt` round-trips the
+id as written.
+
+The id is the file format, so **never rename one** — a `boss<i>WavePickupN` line
+naming it stops loading. A count is bounded by `MAX_PICKUP_COUNT` (64) because
+every copy is its own `SpawnObject` node. Confirm the actor path exists in the
+install before adding it, the same way monster paths are checked.
+
 ### A new theme / tileset
 
 Add one `ThemeDef` to `BASE_THEME_DEFS` in `config/themes.ts`. Everything else
@@ -495,7 +533,13 @@ Work down this list before touching the generator:
    header button clears tweaks when that tab is active) — if it then loads,
    the fault is in the tweak XML, not the levels. `[UNVERIFIED]` whether a
    malformed tweak file fails the pack, fails the load, or is silently ignored.
-7. Export the folder and open it in the Hammerwatch editor — it reports
+7. With more than one boss fight, or a non-default `levelOrder`: does
+   `levels.xml` list a `bossprep<i>` **and** a `boss<i>` entry for every fight,
+   with `res` paths that resolve? And does only the **last** campaign slot carry
+   `GameEnd` + the orb? An earlier arena must emit `BossPortal` instead
+   (`objects/objectSet.ts`); if two slots carry `GameEnd` the campaign ends at
+   the first one.
+8. Export the folder and open it in the Hammerwatch editor — it reports
    malformed level XML far better than the game does.
 
 ## Keeping this skill current
