@@ -207,7 +207,7 @@ describe('boss traps — emission shape', () => {
     expect(placed.filter((s) => s.projectilePath.endsWith('enemy_axe.xml'))).toHaveLength(3)
     expect(placed.filter((s) => s.projectilePath.endsWith('enemy_boss_anubis_fireball.xml'))).toHaveLength(2)
     // all on the south wall, none stacked
-    expect(placed.every((s) => s.y === ARENA_H - 1)).toBe(true)
+    expect(placed.every((s) => s.y === ARENA_H - 1 + 0.5)).toBe(true)
     expect(new Set(placed.map((s) => s.x)).size).toBe(5)
   })
 
@@ -292,13 +292,53 @@ describe('boss traps — tiers replace one another', () => {
 })
 
 describe('boss traps — placement', () => {
+  /**
+   * The tile a spewer stands on. Emitted coordinates are tile CENTRES — an
+   * integer is a corner in this dialect, and on a minimum-edge wall that corner
+   * sits on the boundary with the band, which is what killed the projectiles in
+   * the 2026-09-02 playtest. Every assertion below is about tiles, so they go
+   * back through here rather than reading `s.x`/`s.y` raw.
+   */
+  const tileX = (s: SpewerView): number => s.x - 0.5
+  const tileY = (s: SpewerView): number => s.y - 0.5
+
+  /**
+   * The row a north-wall trap stands on for a themeless test arena: not 0, but
+   * clear of the two rows the lettered themes' wall art buries.
+   */
+  const NORTH_ROW = 2
+
   /** The wall a direction's spewers must stand on. */
   function onCorrectWall(s: SpewerView, direction: BossTrapDirection): boolean {
-    if (direction === 'up') return s.y === ARENA_H - 1
-    if (direction === 'down') return s.y === 0
-    if (direction === 'left') return s.x === ARENA_W - 1
-    return s.x === 0
+    if (direction === 'up') return tileY(s) === ARENA_H - 1
+    if (direction === 'down') return tileY(s) === NORTH_ROW
+    if (direction === 'left') return tileX(s) === ARENA_W - 1
+    return tileX(s) === 0
   }
+
+  it('emits every spewer on its tile centre, never on the integer corner', () => {
+    const ctx = freshCtx(99)
+    buildTrapRig(ctx, [wave(trap('up', 3), trap('down', 3), trap('left', 3), trap('right', 3))], arenaOf())
+    const placed = spewers(ctx)
+    expect(placed.length).toBeGreaterThan(0)
+    for (const s of placed) {
+      expect(s.x % 1).toBe(0.5)
+      expect(s.y % 1).toBe(0.5)
+    }
+  })
+
+  it('drops the north wall clear of its overhang, but only on a theme that has one', () => {
+    // A lettered theme buries the two floor rows under any wall mass.
+    const lettered = freshCtx(4)
+    buildTrapRig(lettered, [wave(trap('down', 3))], arenaOf({ theme: 'a' }))
+    for (const s of spewers(lettered)) expect(tileY(s)).toBe(2)
+
+    // Theme h anchors its art on its own tile and buries nothing, so row 0 is
+    // the innermost tile there in fact as well as in name.
+    const flat = freshCtx(4)
+    buildTrapRig(flat, [wave(trap('down', 3))], arenaOf({ theme: 'h' }))
+    for (const s of spewers(flat)) expect(tileY(s)).toBe(0)
+  })
 
   it('stands each spewer on the innermost floor tile of the wall it fires away from', () => {
     for (const direction of BOSS_TRAP_DIRECTIONS) {
@@ -324,8 +364,8 @@ describe('boss traps — placement', () => {
 
         const placed = spewers(ctx)
         for (const s of placed) {
-          const vertical = s.x === 0 || s.x === ARENA_W - 1
-          const along = vertical ? s.y : s.x
+          const vertical = tileX(s) === 0 || tileX(s) === ARENA_W - 1
+          const along = vertical ? tileY(s) : tileX(s)
           const span = vertical ? ARENA_H : ARENA_W
 
           // corners
@@ -333,7 +373,7 @@ describe('boss traps — placement', () => {
           expect(along).toBeLessThanOrEqual(span - 1 - TRAP_WALL_MARGIN)
 
           // the entrance strip, on the south wall only
-          if (s.y === ARENA_H - 1) {
+          if (tileY(s) === ARENA_H - 1) {
             const clearOfEntrance =
               along < ENTRANCE.x - TRAP_WALL_MARGIN || along > ENTRANCE.x + ENTRANCE.width - 1 + TRAP_WALL_MARGIN
             expect(clearOfEntrance).toBe(true)
@@ -342,9 +382,9 @@ describe('boss traps — placement', () => {
           // the alcove mouth, on whichever wall took it
           const mouthMid = alcoveWall === 'N' ? arena.midX : arena.midY
           const onAlcoveWall =
-            (alcoveWall === 'N' && s.y === 0) ||
-            (alcoveWall === 'E' && s.x === ARENA_W - 1) ||
-            (alcoveWall === 'W' && s.x === 0)
+            (alcoveWall === 'N' && tileY(s) === NORTH_ROW) ||
+            (alcoveWall === 'E' && tileX(s) === ARENA_W - 1) ||
+            (alcoveWall === 'W' && tileX(s) === 0)
           if (onAlcoveWall) {
             const clearOfMouth =
               along < mouthMid - 1 - TRAP_WALL_MARGIN || along > mouthMid + 1 + TRAP_WALL_MARGIN
@@ -387,7 +427,7 @@ describe('boss traps — placement', () => {
     const ctx = freshCtx()
     buildTrapRig(ctx, [wave(trap('up', 4))], arenaOf({ walkable }))
     for (const s of spewers(ctx)) {
-      expect([5, 6, 7]).toContain(s.x)
+      expect([5, 6, 7]).toContain(tileX(s))
     }
   })
 

@@ -8,6 +8,40 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-02 — A wall-hugging node must sit on the tile CENTRE, and off the north wall's overhang
+**Tag:** **[VERIFIED]** — playtested by the repo owner, first firing of a
+generated `ProjectileSpewer`.
+**Context:** The boss arena's new wall traps (`src/generator/boss/traps.ts`)
+fired, but the spewers on two of the four walls had their projectiles
+intercepted the instant they spawned — visibly stuck inside the wall — while the
+other two walls played correctly.
+**Evidence:**
+- The broken walls were the **minimum-edge** ones (interior row 0 and column 0);
+  the maximum-edge walls (`height - 1`, `width - 1`) were fine. An integer
+  coordinate in this dialect is a tile **corner**, not a centre, so a node
+  emitted at `(0, y)` sits exactly on the boundary with the band at column `-1`
+  and its projectiles are born in collision. On a maximum edge the same corner
+  falls between two interior tiles, which is why only two walls showed it.
+- The engine's own files agree: `campaign/levels/level_10.xml`'s spewer cluster
+  is placed on half coordinates (`-31.5 -6`, `-31.5 -5.375`, …), and this
+  repo's `objects/doodad.ts` already gives every floor-anchored piece — Cover,
+  TriggerButton, Torch — an `xOffset`/`yOffset` of `0.5` for the same reason.
+- Nodes in open floor never exposed it: the wave rig, the pickups and the spawn
+  points all emit raw integers and land visibly inside a tile. Traps are the
+  first thing this generator puts against a wall.
+- Separately, the **north wall buries the two floor rows in front of it** on the
+  lettered themes — the `OVERHANG_ROWS` fact `map/reachability.ts` already
+  models, and the same one that made a dragon at interior row 0 read as off the
+  map (2026-08-16 entry). A north-wall trap therefore belongs on
+  `overhangRows(theme)`, which is `0` on theme h and the bonus themes.
+**Consequence:** `boss/traps.ts` emits every spewer at `tile + 0.5` on both
+axes and starts its north wall at `northWallRow`. Generalises beyond traps:
+**anything placed against a wall band must be emitted on the tile centre**, and
+anything against the north wall must clear the overhang as well.
+**Still open:** whether the half-tile alone would have fixed the north wall.
+Both corrections shipped together, so the overhang half is reasoned from the
+verified dragon precedent rather than isolated in its own playtest.
+
 ### 2026-09-01 — `ProjectileSpewer`: the direction enum, the spread range, the rate
 **Tag:** **[VERIFIED]** — three independent sources agree, and two of the
 projectiles have been fired in game by the repo owner.

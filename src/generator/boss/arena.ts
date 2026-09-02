@@ -503,6 +503,7 @@ export function buildBossArena(
   buildTrapRig(ctx, arena.waves, {
     width,
     height,
+    theme: arena.theme,
     entrance: entranceRect,
     alcoveWall,
     midX,

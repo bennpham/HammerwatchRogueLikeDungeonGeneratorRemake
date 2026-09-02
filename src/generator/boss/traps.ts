@@ -32,6 +32,15 @@
  * tile of that wall, never on the wall band itself. A spewer buried in the band
  * would spawn its projectiles inside collision.
  *
+ * "Innermost" has two corrections on it, both learned from a playtest and both
+ * pointing at collision the tilemap does not record:
+ *
+ *   - the emitted position is the tile's CENTRE, not the integer corner
+ *     (`TILE_CENTRE`). On the two minimum-edge walls the corner lies exactly on
+ *     the boundary with the band, and the projectile is eaten as it spawns.
+ *   - the north wall's row is `northWallRow`, not 0: on the lettered themes the
+ *     wall art hangs two tiles down over the floor in front of it.
+ *
  * The position along the wall is seeded. Legal slots are enumerated first and
  * then drawn from, so nothing here loops unbounded:
  *
@@ -85,6 +94,7 @@ import { waveTraps } from '../config/parameters'
 import type { ProjectileDef } from '../objects/projectileTypes'
 import { projectileById } from '../objects/projectileTypes'
 import { NodeGlobalEventTrigger, NodeProjectileSpewer, NodeToggleElement } from '../objects/nodes'
+import { OVERHANG_ROWS, overhangRows } from '../map/reachability'
 import { TIER_EVENT_NAMES } from './waves'
 
 /**
@@ -111,6 +121,28 @@ export const TRAP_WALL_MARGIN = 2
 /** Minimum gap between two spewers on the same wall. */
 export const TRAP_MIN_SPACING = 2
 
+/**
+ * Half a tile, added to both axes of every spewer's emitted position.
+ *
+ * An integer coordinate in this dialect is a tile CORNER, not a tile centre —
+ * `objects/doodad.ts` says the same thing in the other direction, giving every
+ * floor-anchored piece (Cover, TriggerButton, Torch) an `xOffset`/`yOffset` of
+ * 0.5 to sit it in the middle of its tile, and the shipped campaign places its
+ * actors on half coordinates (`level_boss_4.xml`'s dragon at `-5 -26.5`).
+ *
+ * A node in the middle of the arena does not care: the wave rig, the pickups
+ * and the spawn points all emit raw integers and land visibly inside a tile.
+ * A spewer is the first thing this generator puts *against* a wall, and there
+ * the corner is the whole problem — at interior column 0 the point sits exactly
+ * on the boundary with the wall band at column -1, so the projectile is born
+ * inside collision and is eaten on the spot.
+ *
+ * [VERIFIED] 2026-09-02 in game: the traps on the two minimum-edge walls fired
+ * but their projectiles were intercepted immediately; the maximum-edge walls
+ * (whose corner point falls between two interior tiles) played correctly.
+ */
+const TILE_CENTRE = 0.5
+
 /** The four walls, named by the direction a trap on them fires. */
 const WALLS: readonly BossTrapDirection[] = ['up', 'down', 'left', 'right']
 
@@ -118,6 +150,12 @@ const WALLS: readonly BossTrapDirection[] = ['up', 'down', 'left', 'right']
 export interface TrapArena {
   width: number
   height: number
+  /**
+   * The arena's theme id, read only to ask how deep its wall art hangs — see
+   * `northWallRow`. Optional so a test can build the rig without one; absent
+   * is treated as the lettered themes' overhang, the conservative answer.
+   */
+  theme?: string
   /** The entrance strip on the south wall, in interior coordinates. */
   entrance: { x: number; y: number; width: number; height: number }
   /** Which wall the alcove took. The south wall is always the entrance. */
@@ -181,8 +219,8 @@ export function buildTrapRig(ctx: GenerationContext, waves: readonly BossWave[],
         const slot = takeSlot(ctx, pool)
         const spewer = new NodeProjectileSpewer(
           ctx,
-          slot.x,
-          slot.y,
+          slot.x + TILE_CENTRE,
+          slot.y + TILE_CENTRE,
           def.path,
           SPEWER_DIRECTION[row.direction],
           row.spread,
@@ -261,7 +299,18 @@ function wallSlots(arena: TrapArena, direction: BossTrapDirection): Slot[] {
   // run down a column; horizontal walls run along a row.
   const vertical = direction === 'left' || direction === 'right'
   const span = vertical ? height : width
-  const fixed = direction === 'up' ? height - 1 : direction === 'down' ? 0 : direction === 'left' ? width - 1 : 0
+  const fixed =
+    direction === 'up'
+      ? height - 1
+      : direction === 'down'
+        ? northWallRow(arena)
+        : direction === 'left'
+          ? width - 1
+          : 0
+
+  // A pathologically small arena can push the north row past the far wall.
+  // Placing nothing is correct there; validation already warns on a dry pool.
+  if (fixed < 0 || fixed >= (vertical ? width : height)) return slots
 
   for (let along = TRAP_WALL_MARGIN; along <= span - 1 - TRAP_WALL_MARGIN; along++) {
     const x = vertical ? fixed : along
@@ -282,6 +331,29 @@ function wallSlots(arena: TrapArena, direction: BossTrapDirection): Slot[] {
   }
 
   return slots
+}
+
+/**
+ * The row a north-wall trap (one firing `down`) sits on.
+ *
+ * Not row 0. The lettered themes' wall pieces are three tiles tall and anchored
+ * two tiles up, so a wall at row -1 physically fills rows 0 and 1 of the floor
+ * below it — `map/reachability.ts` models exactly this as `OVERHANG_ROWS`, and
+ * it is why `blockedGrid` rejects a floor whose only route runs under a wall.
+ * The arena has been bitten by it before: `boss/bosses.ts` records the dragon
+ * placed at interior row 0 reading as off the map to the north, unreachable and
+ * unable to fire, which is the same failure a spewer shows as its projectiles
+ * dying the instant they spawn.
+ *
+ * `overhangRows` is asked per theme rather than assumed: theme h and the bonus
+ * themes anchor their art on its own tile and bury nothing, so a trap there
+ * sits on row 0 as the other three walls do on theirs.
+ *
+ * The south wall needs no equivalent: art hangs DOWN, so the band at row
+ * `height` buries rows outside the arena, not the interior row in front of it.
+ */
+function northWallRow(arena: TrapArena): number {
+  return arena.theme === undefined ? OVERHANG_ROWS : overhangRows(arena.theme)
 }
 
 /** Whether `along` falls inside [lo, hi] once widened by the wall margin. */
