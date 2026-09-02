@@ -93,7 +93,10 @@ src/
 │   │   │                 another rather than stacking
 │   │   ├── wavePickups.ts item drops per tier, onto the entrance drop pad;
 │   │   │                 these do NOT replace one another
-│   │   └── pickupPad.ts  the pad's lane geometry (health/mana/potion/upgrade)
+│   │   ├── pickupPad.ts  the pad's lane geometry (health/mana/potion/upgrade)
+│   │   └── traps.ts      per-tier ProjectileSpewers along the walls; these DO
+│   │                     replace one another, and are the only optional boss
+│   │                     rig that draws from ctx.bossRand
 │   ├── tweak/            player balance (tweak/*.xml) — NOT level generation
 │   │   ├── types.ts      TweakFile/TweakParam/TweakUpgrade, PlayerTweaks
 │   │   ├── baseline.ts   full stock transcription of the 9 game tweak files
@@ -262,6 +265,7 @@ enabled, **no upper bound** (mirrors `levels`), written as `bossFights` in
 | `arena.cover` | `symmetric`, 0.08, 4, 3 | `boss<i>Cover=symmetric,0.08,4,3` in `parameters.txt`. `density` is the fraction of free floor filled and is capped at `BOSS_COVER_DENSITY_MAX` (0.25). Playtest preference, 2026-08-28; every preset inherits it |
 | `arena.spawn` | spacing 2, ring 4, clusters 3, batchSize 8, batchIntervalMs 1500 | `boss<i>Spawn=2,4,3,8,1500` — five comma fields, `spacing,ringSpacing,clusters,batchSize,batchIntervalMs`; the older three-field form still parses. Tuning for the scatter modes only; deliberately separate from `cover`. `batchSize` caps how many of one monster may appear at once, the rest trickling in every `batchIntervalMs` — see *Boss finale* |
 | `arena.waves[i].pickups` | 50%: 1× `powerup_health` + 2× `mana_2`; 25%: 1× `potion_2`; boss dead: double the 50% table | item drops per health tier, each `{item, count}` with `item` in `PICKUP_DEFS` and `count` 1..`MAX_PICKUP_COUNT` (64). Unlike the buffs the tiers do **not** replace one another — drops accumulate on the entrance drop pad (`boss/pickupPad.ts`). `boss<i>WavePickupN=<item>:<count>|…` in `parameters.txt`, on its own key so older files round-trip unchanged; a tier a file describes without a pickup line drops nothing. See *Item drops per boss wave tier* |
+| `arena.waves[i].traps` | absent everywhere | wall traps per health tier, each `{projectile, direction, spread, spawnRateMs, count}` with `projectile` in `PROJECTILE_DEFS` (68 assets), `direction` one of `up`/`down`/`left`/`right`, `spread` a decimal 0..2 and `count` 1..`MAX_TRAP_COUNT` (24). A trap stands on the wall it fires *away* from. Like the buffs and unlike the drops, tiers **replace** one another. `boss<i>WaveTrapN=<projectile>:<dir>:<spread>:<rate>:<count>|…` in `parameters.txt`, on its own key so older files round-trip unchanged. The only optional boss rig that draws from `ctx.bossRand`. See *Wall traps per boss wave tier* |
 | `arena.invulnerability` | on, `[30, 30, 30]`, countdown on | seconds of boss immortality per health threshold (`BOSS_INVULN_THRESHOLDS`: 75/50/25%); 0 disables one threshold, `boss<i>Invuln` / `boss<i>InvulnCountdown` in `parameters.txt`. Independent of `waves` — see *Boss finale* |
 | `arena.monsterMultiplier` | 1.0 | scales each tier's `monsterMax`; `-1`/endless stays endless. `boss<i>MonsterMultiplier` in `parameters.txt`, separate from the dungeon's |
 | `arena.foodMultiplier` | 1.2 | scales the arena's health/mana pickup clusters; `boss<i>FoodMultiplier` in `parameters.txt` |
@@ -499,6 +503,55 @@ tier the file describes with a `boss<i>WaveN` line but **no** `boss<i>WavePickup
 line ends up with no drops — a post-pass clears the stock table, so importing a
 file written before the feature does not silently hand it three tiers of loot.
 (Order-independent by design: the two keys may appear either way round.)
+
+### Wall traps per boss wave tier (`boss/traps.ts`)
+
+The hazard half of the same five tiers. Each `BossWave` may carry
+`traps: BossTrap[]`, rows of
+`{ projectile, direction, spread, spawnRateMs, count }` naming a projectile from
+`PROJECTILE_DEFS` (`objects/projectileTypes.ts`, all 68 the game ships). Read a
+tier through `waveTraps(wave)`. No preset ships any — a stock arena is trapless.
+
+Each row places `count` `ProjectileSpewer` nodes; several rows may share a
+direction, which is how one wall mixes ammunition ("3 axes and 2 fireballs
+firing north" is two `up` rows).
+
+- **Direction picks the wall.** A trap stands on the wall it fires *away* from:
+  `up` on the south wall shooting north, `down` on the north wall, `left` on the
+  east, `right` on the west. The engine integers are `0/1/2/3` in that order —
+  `[VERIFIED]`, see DISCOVERY-LOG 2026-09-01.
+- **Tiers replace one another**, like `waveBuffs.ts` and unlike
+  `wavePickups.ts`: a tier's trigger switches the previous *carrying* tier's
+  whole set off (`state: 1`) as it switches its own on (`state: 0`), so the
+  hazard changes with the phase instead of accumulating into an uncrossable
+  crossfire. Tier 0 arrives `enabled: true` with no trigger at all.
+- **Placement is seeded, on the innermost floor tile** of its wall — never on
+  the wall band, where projectiles would spawn inside collision. Legal slots are
+  enumerated first and then drawn from (no unbounded loop), keeping
+  `TRAP_WALL_MARGIN` from each corner, clear of the entrance strip and the
+  alcove mouth, off any tile a cover pillar stands on, and `TRAP_MIN_SPACING`
+  apart. The slot pool is per wall and carried across all five tiers. A wall
+  that runs out simply stops placing; validation warns first.
+- **It is the one optional boss rig that DRAWS.** `waves.ts`, `waveBuffs.ts`,
+  `wavePickups.ts` and `invulnerability.ts` take no random values; this one
+  takes one `ctx.bossRand.iRand` per placed spewer. Two consequences, both
+  load-bearing:
+  1. It **must** return before touching the stream when no tier carries a trap
+     (invariant 2). That is what keeps every existing seed byte-identical.
+  2. `arena.ts` calls it after every *layout* draw — size, boss, alcove wall,
+     cover, food, spawn points, floor pattern — so turning traps on cannot move
+     the arena's layout. It is **not** last overall: `getArenaXML` rolls floor
+     tile variants and the overlay/mixed palettes afterwards, so traps do shift
+     those cosmetics and (like any arena knob) a later fight's stream. Do not
+     move the call earlier to "fix" that — ahead of `placeCoverPillars` or
+     `placeSpawnPoints` it would move the layout, which is what actually
+     matters.
+
+`spread` is a float `0..TRAP_SPREAD_MAX` (2) — 0 is a single straight stream.
+`spawnRateMs` has no engine floor; validation warns below
+`TRAP_FAST_SPAWN_RATE_MS` (50) rather than rejecting, because a deliberate
+barrage is legitimate. `boss<i>WaveTrapN` in `parameters.txt`, one line per
+trapped tier, absent for the rest.
 
 ## Timer mode (`src/generator/timer/`)
 

@@ -508,6 +508,19 @@ export interface BossWave {
    * floor stay there. See boss/wavePickups.ts.
    */
   pickups?: WavePickup[]
+  /**
+   * The projectile spewers this tier runs along the arena walls. Optional for
+   * the same reason as `buffs` and `pickups`: every wave literal written before
+   * the feature keeps compiling, and an absent list everywhere leaves the arena
+   * byte-identical.
+   *
+   * Independent of the tier's monsters, buffs and drops. Like the buffs and
+   * unlike the pickups, tiers **replace** one another — a tier's whole set
+   * switches the previous tier's whole set off, so the hazard changes as the
+   * fight moves through its phases rather than accumulating into an unsurvivable
+   * crossfire. See boss/traps.ts.
+   */
+  traps?: BossTrap[]
 }
 
 /**
@@ -519,6 +532,53 @@ export interface WavePickup {
   /** a pickup id from PICKUP_DEFS (objects/pickupTypes.ts) */
   item: string
   /** how many copies drop; at least 1, at most MAX_PICKUP_COUNT */
+  count: number
+}
+
+/**
+ * Which way a trap's spewer fires, and therefore which wall it sits on: a trap
+ * is placed on the wall it fires *away* from, so `up` spawns along the south
+ * wall and shoots north across the arena.
+ *
+ * Stored as words rather than the engine's integers so a `parameters.txt` stays
+ * readable; boss/traps.ts maps them to the `direction` enum.
+ */
+export const BOSS_TRAP_DIRECTIONS = ['up', 'down', 'left', 'right'] as const
+export type BossTrapDirection = (typeof BOSS_TRAP_DIRECTIONS)[number]
+
+/** Widest fan the engine's `spread` parameter accepts. 0 is a single stream. */
+export const TRAP_SPREAD_MAX = 2
+
+/** Most spewers one trap row may place. */
+export const MAX_TRAP_COUNT = 24
+
+/**
+ * Below this spawn rate the arena fills with projectiles faster than the party
+ * can cross it. The engine imposes no bound at all and gives no warning, so
+ * validation raises one of its own — a warning, not an error: a 10 ms boulder
+ * lane is a legitimate thing to build on purpose.
+ */
+export const TRAP_FAST_SPAWN_RATE_MS = 50
+
+/**
+ * One row of a tier's trap list: a projectile, the wall it fires from, how wide
+ * it fans, how often it fires, and how many spewers of it to place.
+ *
+ * A row carries a `count` *and* a tier may hold several rows, which is what
+ * lets one wall mix ammunition — "three axes and two fireballs firing north"
+ * is two rows, both `direction: 'up'`. Each of a row's spewers gets its own
+ * seeded position along that wall.
+ */
+export interface BossTrap {
+  /** a projectile id from PROJECTILE_DEFS (objects/projectileTypes.ts) */
+  projectile: string
+  /** which way it fires; the wall it sits on is the opposite one */
+  direction: BossTrapDirection
+  /** fan width, 0..TRAP_SPREAD_MAX. Decimal — 0.5 is the reference axe rig. */
+  spread: number
+  /** milliseconds between shots */
+  spawnRateMs: number
+  /** how many spewers this row places; at least 1, at most MAX_TRAP_COUNT */
   count: number
 }
 
@@ -537,6 +597,11 @@ export function waveBuffs(wave: BossWave): FloorBuff[] {
 /** The items `wave` drops. An empty array means the tier drops none. */
 export function wavePickups(wave: BossWave): WavePickup[] {
   return wave.pickups ?? []
+}
+
+/** The traps `wave` runs. An empty array means the tier carries none. */
+export function waveTraps(wave: BossWave): BossTrap[] {
+  return wave.traps ?? []
 }
 
 /** The spawn mode `wave` uses for `id` — the stored one, or `anchors`. */

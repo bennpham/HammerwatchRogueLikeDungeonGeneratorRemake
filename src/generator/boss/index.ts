@@ -22,5 +22,8 @@ export { buildInvulnerabilityRig, formatCountdown } from './invulnerability'
 
 export { buildWaveBuffRig } from './waveBuffs'
 
+export type { TrapArena } from './traps'
+export { TRAP_MIN_SPACING, TRAP_WALL_MARGIN, buildTrapRig, wallCapacity } from './traps'
+
 export type { BossArenaResult } from './arena'
 export { buildBossArena } from './arena'

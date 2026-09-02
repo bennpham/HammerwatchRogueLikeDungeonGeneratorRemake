@@ -10,7 +10,7 @@ import { bossArenaId, bossArenaPath, bossPrepId, bossPrepPath, campaignOrder, ga
 import { buildFloorHazardRig } from './timer/hazard'
 import { buildFloorBuffRig } from './buffs/field'
 
-export type { DungeonParameters, LobbyOptions, BossOptions, BossFight, BossPrepOptions, BossArenaOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FinalLockMode, FloorBuff, BuffTarget, WavePickup } from './config/parameters'
+export type { DungeonParameters, LobbyOptions, BossOptions, BossFight, BossPrepOptions, BossArenaOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FinalLockMode, FloorBuff, BuffTarget, WavePickup, BossTrap, BossTrapDirection } from './config/parameters'
 export {
   THEMES,
   BOSS_IDS,
@@ -42,11 +42,17 @@ export {
   isScatterMode,
   waveBuffs,
   wavePickups,
+  waveTraps,
+  BOSS_TRAP_DIRECTIONS,
+  MAX_TRAP_COUNT,
+  TRAP_SPREAD_MAX,
   waveSpawnMode
 } from './config/parameters'
 export { BUFF_DEFS, BUFF_GROUPS, BUFF_HELPFUL_IDS, buffById } from './objects/buffTypes'
 export type { BuffDef } from './objects/buffTypes'
 export { PICKUP_DEFS, PICKUP_GROUPS, MAX_PICKUP_COUNT, pickupById } from './objects/pickupTypes'
+export type { ProjectileDef } from './objects/projectileTypes'
+export { PROJECTILE_DEFS, PROJECTILE_GROUPS, projectileById } from './objects/projectileTypes'
 export type { PickupDef, PickupLane } from './objects/pickupTypes'
 export { THEME_DEFS, getTheme } from './config/themes'
 export type { ThemeDef } from './config/themes'

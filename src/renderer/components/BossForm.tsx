@@ -30,6 +30,7 @@ import {
   resolveActorPath,
   waveBuffs,
   wavePickups,
+  waveTraps,
   waveSpawnMode
 } from '../../generator'
 import type {
@@ -40,6 +41,8 @@ import type {
   BossOptions,
   BossPrepOptions,
   BossSpawnMode,
+  BossTrap,
+  BossTrapDirection,
   BossWave,
   DungeonParameters,
   PlayerTweaks,
@@ -49,6 +52,7 @@ import { BoolField, NumberField, Section, Subsection, ToggleGroup } from './fiel
 import { UpgradeCountFields } from './UpgradeCountFields'
 import { BuffListEditor } from './BuffListEditor'
 import { PickupListEditor } from './PickupListEditor'
+import { TrapListEditor } from './TrapListEditor'
 import { InfoTip } from './InfoTip'
 import { MonsterFilterBar, useMonsterFilter } from './MonsterFilterBar'
 import { PoolGroup } from './PoolGroup'
@@ -399,6 +403,15 @@ function ArenaTab({ arena, fieldPrefix, issues, setArena, setWave }: ArenaTabPro
     })
   }
 
+  const copyWaveTrapDown = (index: number) => {
+    const source = waveTraps(arena.waves[index])
+    setArena({
+      waves: arena.waves.map((wave, i) =>
+        i > index ? { ...wave, traps: source.map((t) => ({ ...t })) } : wave
+      )
+    })
+  }
+
   const toggleBoss = (id: string, on: boolean) => {
     const next = new Set(arena.bossPool)
     if (on) next.add(id)
@@ -670,6 +683,54 @@ function ArenaTab({ arena, fieldPrefix, issues, setArena, setWave }: ArenaTabPro
                   className="copy-down"
                   onClick={() => copyWavePickupDown(i)}
                   title="Give every later tier these same drops and counts"
+                >
+                  Copy to tiers below
+                </button>
+              )}
+            </Subsection>
+          )
+        })}
+      </Section>
+
+      <Section
+        title="Traps"
+        badge={arena.waves.some((w) => waveTraps(w).length > 0) ? 'on' : undefined}
+      >
+        <p className="hint">
+          A trap is a <strong>projectile spewer</strong> standing against a wall and firing straight
+          across the arena. Pick the direction and the wall follows: <code>up</code> stands on the{' '}
+          <strong>south</strong> wall and shoots north, <code>down</code> on the north wall,{' '}
+          <code>left</code> on the east wall, <code>right</code> on the west. Each spewer's position
+          along its wall is chosen by the seed, clear of the corners, the entrance and the alcove
+          mouth. Like the buffs above and unlike the drops, a tier's traps{' '}
+          <strong>replace</strong> the previous tier's, so the hazard changes as the fight moves
+          through its phases instead of piling up into a crossfire nobody can cross. Add several rows
+          with the same direction to mix ammunition on one wall. <strong>Spread</strong> is 0 to 2 —
+          0 is a single straight stream, 0.5 sprays an area. <strong>Rate</strong> is milliseconds
+          between shots and the engine sets no floor, so a very low number really will fill the room.
+          No tier carries a trap by default.
+        </p>
+        {arena.waves.map((wave, i) => {
+          const traps = waveTraps(wave)
+          return (
+            <Subsection
+              key={i}
+              title={WAVE_LABELS[i] ?? `Tier ${i + 1}`}
+              badge={traps.length === 0 ? 'none' : trapBadge(traps)}
+            >
+              <TrapListEditor
+                value={traps}
+                onChange={(next) => setWave(i, { traps: next })}
+                noun="tier"
+                issuePrefix={`${fieldPrefix}.waves.${i}.traps`}
+                issues={issues}
+              />
+              {i < arena.waves.length - 1 && (
+                <button
+                  type="button"
+                  className="copy-down"
+                  onClick={() => copyWaveTrapDown(i)}
+                  title="Give every later tier these same spewers"
                 >
                   Copy to tiers below
                 </button>
@@ -1208,4 +1269,19 @@ function WaveEditor({ wave, index, fieldPrefix, issues, onWaveChange }: WaveEdit
       )}
     </div>
   )
+}
+
+/**
+ * A tier's trap list as one line: how many spewers on which wall, e.g.
+ * "3 south, 2 north". Counts rather than projectile names, because the wall is
+ * what a dungeon master is checking at a glance and the names are long.
+ */
+function trapBadge(traps: BossTrap[]): string {
+  const wall: Record<BossTrapDirection, string> = { up: 'south', down: 'north', left: 'east', right: 'west' }
+  const totals = new Map<string, number>()
+  for (const t of traps) {
+    const side = wall[t.direction] ?? t.direction
+    totals.set(side, (totals.get(side) ?? 0) + (Number.isFinite(t.count) ? t.count : 0))
+  }
+  return [...totals].map(([side, n]) => `${n} ${side}`).join(', ')
 }

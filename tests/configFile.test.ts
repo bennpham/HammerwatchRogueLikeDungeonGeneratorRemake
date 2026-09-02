@@ -1096,3 +1096,94 @@ describe('parameters.txt — levelOrder (issue #43)', () => {
     expect(parsed.params.levelOrder).toBeUndefined()
   })
 })
+
+describe('bossWaveTrapN — per-tier wall traps', () => {
+  it('writes no wave-trap line at all while no tier runs a trap', () => {
+    // The stock defaults carry no traps, so this needs no stripping — which is
+    // itself the point: adding the feature did not change what a stock export
+    // looks like.
+    const text = serializeParametersTxt(defaultParameters())
+    expect(text).not.toMatch(/^boss0WaveTrap\d=/m)
+  })
+
+  it('writes one line per trapped tier and round-trips it', () => {
+    const params = defaultParameters()
+    params.boss.fights[0].arena.waves = params.boss.fights[0].arena.waves.map((w, i) => {
+      if (i === 2) {
+        return {
+          ...w,
+          traps: [
+            { projectile: 'enemy_axe', direction: 'up' as const, spread: 0.5, spawnRateMs: 100, count: 3 },
+            {
+              projectile: 'enemy_boss_anubis_fireball',
+              direction: 'left' as const,
+              spread: 0,
+              spawnRateMs: 1500,
+              count: 2
+            }
+          ]
+        }
+      }
+      return w
+    })
+
+    const text = serializeParametersTxt(params)
+    expect(text).toContain(
+      'boss0WaveTrap3=enemy_axe:up:0.5:100:3|enemy_boss_anubis_fireball:left:0:1500:2'
+    )
+    expect(text).not.toMatch(/^boss0WaveTrap[1245]=/m)
+
+    const reparsed = parseParametersTxt(text)
+    expect(reparsed.unknownKeys).toEqual([])
+    expect(reparsed.params.boss.fights[0].arena.waves[2].traps).toEqual([
+      { projectile: 'enemy_axe', direction: 'up', spread: 0.5, spawnRateMs: 100, count: 3 },
+      { projectile: 'enemy_boss_anubis_fireball', direction: 'left', spread: 0, spawnRateMs: 1500, count: 2 }
+    ])
+  })
+
+  it('reads a bare projectile as one linear spewer firing north every second', () => {
+    const parsed = parseParametersTxt('boss0Wave3=eye|2000|eye:10\r\nboss0WaveTrap3=shooter_spike')
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.boss.fights[0].arena.waves[2].traps).toEqual([
+      { projectile: 'shooter_spike', direction: 'up', spread: 0, spawnRateMs: 1000, count: 1 }
+    ])
+  })
+
+  it('clears the tier for a file that describes it without a trap line', () => {
+    // Symmetrical with the pickup rule: a file written before traps existed
+    // describes a fight with none, and must not inherit any.
+    const parsed = parseParametersTxt('boss0Wave3=eye|2000|eye:10')
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.boss.fights[0].arena.waves[2].traps).toBeUndefined()
+  })
+
+  it('reports an unknown projectile or direction without failing the import', () => {
+    const parsed = parseParametersTxt(
+      'boss0WaveTrap1=not_a_projectile:up:0:100:1|enemy_axe:sideways:0:100:1|enemy_axe:down:0:100:2'
+    )
+    expect(parsed.unknownKeys).toHaveLength(2)
+    expect(parsed.params.boss.fights[0].arena.waves[0].traps).toEqual([
+      { projectile: 'enemy_axe', direction: 'down', spread: 0, spawnRateMs: 100, count: 2 }
+    ])
+  })
+
+  it('leaves the bossWavePickupN lines byte-identical', () => {
+    // Traps are their own key, so an export from before they existed must still
+    // round-trip to the same bytes.
+    const params = defaultParameters()
+    const before = serializeParametersTxt(params)
+      .split('\r\n')
+      .filter((l) => l.startsWith('boss0WavePickup'))
+    expect(before.length).toBeGreaterThan(0)
+
+    params.boss.fights[0].arena.waves = params.boss.fights[0].arena.waves.map((w, i) =>
+      i === 0
+        ? { ...w, traps: [{ projectile: 'enemy_axe', direction: 'up' as const, spread: 1, spawnRateMs: 250, count: 2 }] }
+        : w
+    )
+    const after = serializeParametersTxt(params)
+      .split('\r\n')
+      .filter((l) => l.startsWith('boss0WavePickup'))
+    expect(after).toEqual(before)
+  })
+})

@@ -1,0 +1,826 @@
+/**
+ * The projectile assets a boss-arena trap can spew — the roster behind Traps.
+ *
+ * A projectile is an ordinary asset the game already ships under
+ * `assets/projectiles/`. Nothing here emits a projectile file; boss/traps.ts
+ * only references one by path from a ProjectileSpewer node's `projectile`
+ * parameter (objects/nodes.ts), exactly the way the wave rig references a
+ * monster actor and wavePickups references an item.
+ *
+ * Modelled on objects/pickupTypes.ts: a flat, individually addressable list,
+ * because a dungeon master picking a trap's ammunition names the exact
+ * projectile. `description` is what the form's tooltips show.
+ *
+ * `damage`, `speed`, `directions` and `behavior` are read verbatim off each
+ * file's root `<projectile>` element. They are carried as data rather than
+ * folded into the description alone so the form can sort and warn on them.
+ *
+ * Two traps for the dungeon master, both visible in the tooltips:
+ *
+ * 1. **`damage: 0` means the projectile carries no damage of its own.** Every
+ *    `player_*` entry, both sorcerer shards and a few decorative ones are
+ *    normally fired by a weapon that supplies the damage from the character's
+ *    stats. A spewer has no stats, so firing one is a light show, not a hazard.
+ *    They are kept in the roster anyway — a harmless sweeping projectile is a
+ *    legitimate thing to want, and `shooter_valuables` (also 0) is how the
+ *    shipped campaign showers a room with coins.
+ * 2. **`directions: 1` means one sprite angle.** The tower beams and most magic
+ *    balls draw the same frame whichever way they travel; they still fly
+ *    correctly, they just do not rotate.
+ *
+ * Verification status (see hammerwatch-modding/references/):
+ *   [VERIFIED] Every id, path and stat below — read directly from the root
+ *              `<projectile>` element of each file in
+ *              `editor/assetsExtract/projectiles/` on a real Hammerwatch
+ *              install, 2026-09-01. The folder holds 68 `.xml` files and all
+ *              68 are listed here.
+ *   [VERIFIED] `projectiles/enemy_axe.xml` and
+ *              `projectiles/enemy_boss_anubis_fireball.xml` load in a
+ *              ProjectileSpewer — the owner's hand-built test level.
+ *   [EMITTED]  The other 66 are the same asset kind referenced the same way;
+ *              none has been fired from a generated spewer yet.
+ */
+
+export interface ProjectileDef {
+  /** Stable id, the asset's filename without its extension. */
+  id: string
+  /** What NodeProjectileSpewer.projectilePath carries, e.g. 'projectiles/enemy_axe.xml'. */
+  path: string
+  /** Human label for the dropdown. */
+  label: string
+  /** Dropdown <optgroup> this projectile sits in. */
+  group: string
+  /** Damage per hit, from the file's `damage=""`. 0 = the firer supplies it. */
+  damage: number
+  /** Travel speed, from `speed=""`. Compare these against each other, not to a unit. */
+  speed: number
+  /** Sprite angles, from `directions=""`. 1 = one frame whichever way it flies. */
+  directions: number
+  /** From `behavior=""` when present — 'seeker', 'penetrating', 'explode', … */
+  behavior?: string
+  /** Tooltip text. */
+  description: string
+}
+
+/** Every projectile a trap can spew, in dropdown order (grouped). */
+export const PROJECTILE_DEFS: readonly ProjectileDef[] = [
+  // --- Traps & shooters ------------------------------------------------------
+  // The game's own trap ammunition, and the group to reach for first: these are
+  // the only projectiles designed to come out of a wall rather than a monster,
+  // and every one of them carries real damage.
+  {
+    id: 'shooter_arrow',
+    path: 'projectiles/shooter_arrow.xml',
+    label: 'Trap arrow',
+    group: 'Traps & shooters',
+    damage: 13,
+    speed: 1.75,
+    directions: 4,
+    description: '13 damage, speed 1.75. The standard arrow-trap bolt — cheap, fast, easy to dodge one at a time.'
+  },
+  {
+    id: 'shooter_spike',
+    path: 'projectiles/shooter_spike.xml',
+    label: 'Trap spike',
+    group: 'Traps & shooters',
+    damage: 75,
+    speed: 4,
+    directions: 4,
+    description: '75 damage, speed 4 — the fastest thing in the roster and one of the hardest hitting. A spike lane is close to a one-shot for an unupgraded party.'
+  },
+  {
+    id: 'shooter_fireball',
+    path: 'projectiles/shooter_fireball.xml',
+    label: 'Trap fireball',
+    group: 'Traps & shooters',
+    damage: 25,
+    speed: 1.1,
+    directions: 4,
+    behavior: 'neutral',
+    description: '25 damage, speed 1.1. Slow and clearly telegraphed — the classic corridor fireball.'
+  },
+  {
+    id: 'shooter_fireball_2',
+    path: 'projectiles/shooter_fireball_2.xml',
+    label: 'Trap fireball (large)',
+    group: 'Traps & shooters',
+    damage: 50,
+    speed: 1.8,
+    directions: 8,
+    behavior: 'penetrating',
+    description: '50 damage, speed 1.8, penetrating — it does not stop on the first player it hits, so it sweeps a whole lane.'
+  },
+  {
+    id: 'shooter_stone_ball',
+    path: 'projectiles/shooter_stone_ball.xml',
+    label: 'Rolling boulder',
+    group: 'Traps & shooters',
+    damage: 1000,
+    speed: 1.5,
+    directions: 1,
+    behavior: 'penetrating',
+    description: '1000 damage, speed 1.5, penetrating, 13-wide collision. An instant kill that cannot be outlived — use it only if you mean the lane to be lethal.'
+  },
+  {
+    id: 'shooter_valuables',
+    path: 'projectiles/shooter_valuables.xml',
+    label: 'Coin spray',
+    group: 'Traps & shooters',
+    damage: 0,
+    speed: 0.75,
+    directions: 1,
+    behavior: 'neutral',
+    description: 'Harmless. Speed 0.75. What the shipped campaign uses to shower a room with coins — a reward spewer, not a hazard.'
+  },
+
+  // --- Enemy -----------------------------------------------------------------
+  {
+    id: 'enemy_axe',
+    path: 'projectiles/enemy_axe.xml',
+    label: 'Axe',
+    group: 'Enemy',
+    damage: 25,
+    speed: 1.75,
+    directions: 8,
+    description: '25 damage, speed 1.75. Spins as it flies and reads well at a distance, which makes it a good fit for a fast spewer with spread.'
+  },
+  {
+    id: 'enemy_arrow_1',
+    path: 'projectiles/enemy_arrow_1.xml',
+    label: 'Arrow (weak)',
+    group: 'Enemy',
+    damage: 5,
+    speed: 1.5,
+    directions: 8,
+    description: '5 damage, speed 1.5. The gentlest projectile that still hurts — good for a high-rate spewer meant to pressure rather than kill.'
+  },
+  {
+    id: 'enemy_arrow_2',
+    path: 'projectiles/enemy_arrow_2.xml',
+    label: 'Arrow (fast)',
+    group: 'Enemy',
+    damage: 10,
+    speed: 2.25,
+    directions: 8,
+    description: '10 damage, speed 2.25.'
+  },
+  {
+    id: 'enemy_arrow_3',
+    path: 'projectiles/enemy_arrow_3.xml',
+    label: 'Arrow (strong)',
+    group: 'Enemy',
+    damage: 12,
+    speed: 1.75,
+    directions: 8,
+    description: '12 damage, speed 1.75.'
+  },
+  {
+    id: 'enemy_magicball_purple',
+    path: 'projectiles/enemy_magicball_purple.xml',
+    label: 'Magic ball (purple)',
+    group: 'Enemy',
+    damage: 10,
+    speed: 0.5,
+    directions: 8,
+    description: '10 damage, speed 0.5 — very slow, so a stream of them becomes a drifting wall rather than a shot.'
+  },
+  {
+    id: 'enemy_magicball_death',
+    path: 'projectiles/enemy_magicball_death.xml',
+    label: 'Magic ball (death)',
+    group: 'Enemy',
+    damage: 50,
+    speed: 1.75,
+    directions: 1,
+    description: '50 damage, speed 1.75. One sprite angle.'
+  },
+  {
+    id: 'enemy_spider_1',
+    path: 'projectiles/enemy_spider_1.xml',
+    label: 'Spider web',
+    group: 'Enemy',
+    damage: 5,
+    speed: 0.85,
+    directions: 8,
+    behavior: 'seeker',
+    description: '5 damage, speed 0.85, seeker — it curves toward a player instead of flying straight, so spread matters less than usual.'
+  },
+  {
+    id: 'enemy_maggot_1',
+    path: 'projectiles/enemy_maggot_1.xml',
+    label: 'Maggot spit',
+    group: 'Enemy',
+    damage: 5,
+    speed: 0.75,
+    directions: 8,
+    behavior: 'neutral',
+    description: '5 damage, speed 0.75. Poison hit.'
+  },
+  {
+    id: 'enemy_maggot_1_small',
+    path: 'projectiles/enemy_maggot_1_small.xml',
+    label: 'Maggot spit (small)',
+    group: 'Enemy',
+    damage: 5,
+    speed: 0.65,
+    directions: 8,
+    description: '5 damage, speed 0.65. Poison hit.'
+  },
+  {
+    id: 'enemy_maggot_1_mb',
+    path: 'projectiles/enemy_maggot_1_mb.xml',
+    label: 'Maggot spit (miniboss)',
+    group: 'Enemy',
+    damage: 20,
+    speed: 1,
+    directions: 1,
+    behavior: 'neutral',
+    description: '20 damage, speed 1, 5-wide collision. Poison hit. One sprite angle.'
+  },
+  {
+    id: 'enemy_wisp_1',
+    path: 'projectiles/enemy_wisp_1.xml',
+    label: 'Wisp bolt',
+    group: 'Enemy',
+    damage: 30,
+    speed: 0.75,
+    directions: 1,
+    behavior: 'neutral',
+    description: '30 damage, speed 0.75. One sprite angle.'
+  },
+  {
+    id: 'enemy_wisp_1_small',
+    path: 'projectiles/enemy_wisp_1_small.xml',
+    label: 'Wisp bolt (small)',
+    group: 'Enemy',
+    damage: 25,
+    speed: 0.65,
+    directions: 1,
+    behavior: 'neutral',
+    description: '25 damage, speed 0.65. One sprite angle.'
+  },
+  {
+    id: 'enemy_wisp_2',
+    path: 'projectiles/enemy_wisp_2.xml',
+    label: 'Wisp bolt (greater)',
+    group: 'Enemy',
+    damage: 40,
+    speed: 0.85,
+    directions: 1,
+    behavior: 'neutral',
+    description: '40 damage, speed 0.85. One sprite angle.'
+  },
+  {
+    id: 'enemy_dragon_blood',
+    path: 'projectiles/enemy_dragon_blood.xml',
+    label: 'Dragon blood',
+    group: 'Enemy',
+    damage: 0,
+    speed: 0.25,
+    directions: 1,
+    behavior: 'neutral',
+    description: 'Harmless on impact, speed 0.25 — a crawling decorative splatter, not a hazard.'
+  },
+
+  // --- Enemy towers ----------------------------------------------------------
+  // Beams: low damage per hit but fast and penetrating, so they tick repeatedly
+  // through everything in the lane. Each `_overload` variant is the same beam
+  // with the penetration removed.
+  {
+    id: 'enemy_tower_firebeam',
+    path: 'projectiles/enemy_tower_firebeam.xml',
+    label: 'Tower firebeam',
+    group: 'Enemy towers',
+    damage: 4,
+    speed: 1.75,
+    directions: 1,
+    behavior: 'penetrating',
+    description: '4 damage, speed 1.75, penetrating. A beam segment — meant to be fired continuously at a low spawn rate so it reads as a solid line of fire.'
+  },
+  {
+    id: 'enemy_tower_firebeam_overload',
+    path: 'projectiles/enemy_tower_firebeam_overload.xml',
+    label: 'Tower firebeam (overload)',
+    group: 'Enemy towers',
+    damage: 4,
+    speed: 1.75,
+    directions: 1,
+    behavior: 'neutral',
+    description: '4 damage, speed 1.75. The firebeam without penetration — it stops on the first thing it hits.'
+  },
+  {
+    id: 'enemy_tower_icebeam',
+    path: 'projectiles/enemy_tower_icebeam.xml',
+    label: 'Tower icebeam',
+    group: 'Enemy towers',
+    damage: 2,
+    speed: 2,
+    directions: 1,
+    behavior: 'penetrating',
+    description: '2 damage, speed 2, penetrating. The lightest hit in the roster.'
+  },
+  {
+    id: 'enemy_tower_icebeam_overload',
+    path: 'projectiles/enemy_tower_icebeam_overload.xml',
+    label: 'Tower icebeam (overload)',
+    group: 'Enemy towers',
+    damage: 2,
+    speed: 2,
+    directions: 1,
+    behavior: 'neutral',
+    description: '2 damage, speed 2. The icebeam without penetration.'
+  },
+  {
+    id: 'enemy_tower_drainbeam',
+    path: 'projectiles/enemy_tower_drainbeam.xml',
+    label: 'Tower drainbeam',
+    group: 'Enemy towers',
+    damage: 3,
+    speed: 2.5,
+    directions: 1,
+    behavior: 'penetrating',
+    description: '3 damage, speed 2.5, penetrating.'
+  },
+  {
+    id: 'enemy_tower_drainbeam_overload',
+    path: 'projectiles/enemy_tower_drainbeam_overload.xml',
+    label: 'Tower drainbeam (overload)',
+    group: 'Enemy towers',
+    damage: 3,
+    speed: 2.5,
+    directions: 1,
+    behavior: 'neutral',
+    description: '3 damage, speed 2.5. The drainbeam without penetration.'
+  },
+  {
+    id: 'enemy_tower_iceball',
+    path: 'projectiles/enemy_tower_iceball.xml',
+    label: 'Tower iceball',
+    group: 'Enemy towers',
+    damage: 25,
+    speed: 1,
+    directions: 1,
+    behavior: 'neutral',
+    description: '25 damage, speed 1. One sprite angle.'
+  },
+  {
+    id: 'enemy_tower_iceball_large',
+    path: 'projectiles/enemy_tower_iceball_large.xml',
+    label: 'Tower iceball (large)',
+    group: 'Enemy towers',
+    damage: 35,
+    speed: 1,
+    directions: 1,
+    behavior: 'neutral',
+    description: '35 damage, speed 1, 5.5-wide collision — hard to sidestep in a narrow lane.'
+  },
+
+  // --- Lich & mummy ----------------------------------------------------------
+  {
+    id: 'enemy_lich_1',
+    path: 'projectiles/enemy_lich_1.xml',
+    label: 'Lich bolt',
+    group: 'Lich & mummy',
+    damage: 30,
+    speed: 0.75,
+    directions: 1,
+    description: '30 damage, speed 0.75. One sprite angle.'
+  },
+  {
+    id: 'enemy_lich_1_elite',
+    path: 'projectiles/enemy_lich_1_elite.xml',
+    label: 'Lich bolt (elite)',
+    group: 'Lich & mummy',
+    damage: 20,
+    speed: 0.8,
+    directions: 1,
+    behavior: 'penetrating',
+    description: '20 damage, speed 0.8, penetrating — passes through the whole party rather than stopping on the front one.'
+  },
+  {
+    id: 'enemy_lich_1_mb',
+    path: 'projectiles/enemy_lich_1_mb.xml',
+    label: 'Lich bolt (miniboss)',
+    group: 'Lich & mummy',
+    damage: 50,
+    speed: 2,
+    directions: 8,
+    behavior: 'penetrating',
+    description: '50 damage, speed 2, penetrating, 6.9-wide collision. One of the nastiest things you can put in a lane.'
+  },
+  {
+    id: 'enemy_lich_desert_1',
+    path: 'projectiles/enemy_lich_desert_1.xml',
+    label: 'Desert lich bolt',
+    group: 'Lich & mummy',
+    damage: 25,
+    speed: 1,
+    directions: 1,
+    behavior: 'neutral',
+    description: '25 damage, speed 1. One sprite angle.'
+  },
+  {
+    id: 'enemy_lich_desert_2',
+    path: 'projectiles/enemy_lich_desert_2.xml',
+    label: 'Desert lich bolt (greater)',
+    group: 'Lich & mummy',
+    damage: 20,
+    speed: 0.95,
+    directions: 1,
+    behavior: 'neutral',
+    description: '20 damage, speed 0.95. One sprite angle.'
+  },
+  {
+    id: 'enemy_lich_frostspray',
+    path: 'projectiles/enemy_lich_frostspray.xml',
+    label: 'Lich frostspray',
+    group: 'Lich & mummy',
+    damage: 12,
+    speed: 2,
+    directions: 1,
+    behavior: 'spray',
+    description: '12 damage, speed 2, spray behaviour — it fans out on its own, on top of whatever spread the spewer adds.'
+  },
+  {
+    id: 'enemy_mummy_ranged_1',
+    path: 'projectiles/enemy_mummy_ranged_1.xml',
+    label: 'Mummy spit',
+    group: 'Lich & mummy',
+    damage: 10,
+    speed: 1,
+    directions: 1,
+    behavior: 'neutral',
+    description: '10 damage, speed 1. Poison hit. One sprite angle.'
+  },
+  {
+    id: 'enemy_mummy_ranged_2',
+    path: 'projectiles/enemy_mummy_ranged_2.xml',
+    label: 'Mummy spit (greater)',
+    group: 'Lich & mummy',
+    damage: 15,
+    speed: 1.2,
+    directions: 1,
+    behavior: 'neutral',
+    description: '15 damage, speed 1.2. One sprite angle.'
+  },
+  {
+    id: 'enemy_mummy_1_mb',
+    path: 'projectiles/enemy_mummy_1_mb.xml',
+    label: 'Mummy bolt (miniboss)',
+    group: 'Lich & mummy',
+    damage: 5,
+    speed: 0.8,
+    directions: 1,
+    behavior: 'seeker',
+    description: '5 damage, speed 0.8, seeker — it curves toward a player rather than flying straight.'
+  },
+
+  // --- Boss ------------------------------------------------------------------
+  {
+    id: 'enemy_boss_anubis_fireball',
+    path: 'projectiles/enemy_boss_anubis_fireball.xml',
+    label: 'Anubis fireball',
+    group: 'Boss',
+    damage: 50,
+    speed: 2,
+    directions: 8,
+    behavior: 'seeker',
+    description: '50 damage, speed 2, seeker, 3.25-wide collision. It homes, so it stays dangerous at spread 0 as a slow single stream — which is how the reference rig uses it.'
+  },
+  {
+    id: 'enemy_boss_anubis_fireball_small',
+    path: 'projectiles/enemy_boss_anubis_fireball_small.xml',
+    label: 'Anubis fireball (small)',
+    group: 'Boss',
+    damage: 25,
+    speed: 2,
+    directions: 8,
+    behavior: 'neutral',
+    description: '25 damage, speed 2. The non-homing half of the Anubis pair.'
+  },
+  {
+    id: 'enemy_boss_dragon_fireball',
+    path: 'projectiles/enemy_boss_dragon_fireball.xml',
+    label: 'Dragon fireball',
+    group: 'Boss',
+    damage: 30,
+    speed: 1.45,
+    directions: 8,
+    behavior: 'explode',
+    description: '30 damage, speed 1.45, explodes on impact — the blast catches players standing near whoever it hits.'
+  },
+  {
+    id: 'enemy_boss_dragon_blood',
+    path: 'projectiles/enemy_boss_dragon_blood.xml',
+    label: 'Dragon blood (boss)',
+    group: 'Boss',
+    damage: 0,
+    speed: 0.25,
+    directions: 1,
+    behavior: 'neutral',
+    description: 'Harmless on impact, speed 0.25 — decorative splatter.'
+  },
+  {
+    id: 'enemy_boss_krilith_frostball',
+    path: 'projectiles/enemy_boss_krilith_frostball.xml',
+    label: 'Krilith frostball',
+    group: 'Boss',
+    damage: 30,
+    speed: 0.6,
+    directions: 1,
+    behavior: 'seeker',
+    description: '30 damage, speed 0.6, seeker — slow but it follows, so a lane of them becomes a chase.'
+  },
+  {
+    id: 'enemy_boss_krilith_wave',
+    path: 'projectiles/enemy_boss_krilith_wave.xml',
+    label: 'Krilith wave',
+    group: 'Boss',
+    damage: 10,
+    speed: 2.5,
+    directions: 8,
+    behavior: 'penetrating',
+    description: '10 damage, speed 2.5, penetrating, 7-wide collision — a wide fast sheet that is very hard to sidestep.'
+  },
+  {
+    id: 'enemy_boss_krilith_confusion',
+    path: 'projectiles/enemy_boss_krilith_confusion.xml',
+    label: 'Krilith confusion',
+    group: 'Boss',
+    damage: 20,
+    speed: 0.35,
+    directions: 1,
+    behavior: 'seeker',
+    description: '20 damage, speed 0.35, seeker. The slowest homing projectile in the roster.'
+  },
+  {
+    id: 'enemy_boss_lich',
+    path: 'projectiles/enemy_boss_lich.xml',
+    label: 'Lich boss bolt',
+    group: 'Boss',
+    damage: 75,
+    speed: 0.75,
+    directions: 1,
+    behavior: 'penetrating',
+    description: '75 damage, speed 0.75, penetrating, 4-wide collision. Slow enough to dodge, brutal if you do not.'
+  },
+  {
+    id: 'boss_enemy_arrow_3',
+    path: 'projectiles/boss_enemy_arrow_3.xml',
+    label: 'Boss arrow',
+    group: 'Boss',
+    damage: 10,
+    speed: 1.75,
+    directions: 8,
+    description: '10 damage, speed 1.75.'
+  },
+  {
+    id: 'boss_knight_shard',
+    path: 'projectiles/boss_knight_shard.xml',
+    label: 'Knight shard',
+    group: 'Boss',
+    damage: 12,
+    speed: 1.75,
+    directions: 8,
+    description: '12 damage, speed 1.75.'
+  },
+  {
+    id: 'boss_maggot_nova',
+    path: 'projectiles/boss_maggot_nova.xml',
+    label: 'Maggot nova',
+    group: 'Boss',
+    damage: 15,
+    speed: 1,
+    directions: 1,
+    behavior: 'neutral',
+    description: '15 damage, speed 1, 5-wide collision. Poison hit.'
+  },
+
+  // --- Player ----------------------------------------------------------------
+  // All zero damage: the weapon that fires them supplies it from the character's
+  // stats, and a spewer has no stats. Harmless light shows — kept because a
+  // harmless sweeping projectile is a legitimate thing to want.
+  {
+    id: 'player_arrow_1',
+    path: 'projectiles/player_arrow_1.xml',
+    label: 'Player arrow I',
+    group: 'Player (no damage)',
+    damage: 0,
+    speed: 2,
+    directions: 8,
+    description: 'Harmless from a spewer — a ranger bow supplies the damage. Speed 2.'
+  },
+  {
+    id: 'player_arrow_2',
+    path: 'projectiles/player_arrow_2.xml',
+    label: 'Player arrow II',
+    group: 'Player (no damage)',
+    damage: 0,
+    speed: 2.5,
+    directions: 8,
+    description: 'Harmless from a spewer. Speed 2.5.'
+  },
+  {
+    id: 'player_arrow_3',
+    path: 'projectiles/player_arrow_3.xml',
+    label: 'Player arrow III',
+    group: 'Player (no damage)',
+    damage: 0,
+    speed: 3,
+    directions: 8,
+    description: 'Harmless from a spewer. Speed 3 — the fastest sprite in the roster.'
+  },
+  {
+    id: 'player_knife',
+    path: 'projectiles/player_knife.xml',
+    label: 'Player knife',
+    group: 'Player (no damage)',
+    damage: 0,
+    speed: 2.25,
+    directions: 8,
+    behavior: 'penetrating',
+    description: 'Harmless from a spewer. Speed 2.25, penetrating.'
+  },
+  {
+    id: 'player_fireball_1',
+    path: 'projectiles/player_fireball_1.xml',
+    label: 'Player fireball I',
+    group: 'Player (no damage)',
+    damage: 0,
+    speed: 0.8,
+    directions: 8,
+    description: 'Harmless from a spewer — a wizard staff supplies the damage. Speed 0.8.'
+  },
+  {
+    id: 'player_fireball_2',
+    path: 'projectiles/player_fireball_2.xml',
+    label: 'Player fireball II',
+    group: 'Player (no damage)',
+    damage: 0,
+    speed: 1,
+    directions: 8,
+    description: 'Harmless from a spewer. Speed 1.'
+  },
+  {
+    id: 'player_fireball_3',
+    path: 'projectiles/player_fireball_3.xml',
+    label: 'Player fireball III',
+    group: 'Player (no damage)',
+    damage: 0,
+    speed: 1.25,
+    directions: 8,
+    description: 'Harmless from a spewer. Speed 1.25.'
+  },
+  {
+    id: 'player_fireball_4',
+    path: 'projectiles/player_fireball_4.xml',
+    label: 'Player fireball IV',
+    group: 'Player (no damage)',
+    damage: 0,
+    speed: 1.45,
+    directions: 8,
+    description: 'Harmless from a spewer. Speed 1.45.'
+  },
+  {
+    id: 'player_fireball_5',
+    path: 'projectiles/player_fireball_5.xml',
+    label: 'Player fireball V',
+    group: 'Player (no damage)',
+    damage: 0,
+    speed: 1.65,
+    directions: 8,
+    description: 'Harmless from a spewer. Speed 1.65.'
+  },
+  {
+    id: 'player_fireball_6',
+    path: 'projectiles/player_fireball_6.xml',
+    label: 'Player fireball VI',
+    group: 'Player (no damage)',
+    damage: 0,
+    speed: 1.8,
+    directions: 8,
+    description: 'Harmless from a spewer. Speed 1.8, 3.25-wide — the biggest of the six.'
+  },
+  {
+    id: 'player_gargoyle_fireball',
+    path: 'projectiles/player_gargoyle_fireball.xml',
+    label: 'Gargoyle fireball',
+    group: 'Player (no damage)',
+    damage: 0,
+    speed: 2.75,
+    directions: 8,
+    description: 'Harmless from a spewer. Speed 2.75.'
+  },
+  {
+    id: 'player_ice_shard',
+    path: 'projectiles/player_ice_shard.xml',
+    label: 'Player ice shard',
+    group: 'Player (no damage)',
+    damage: 0,
+    speed: 2.75,
+    directions: 8,
+    description: 'Harmless from a spewer. Speed 2.75.'
+  },
+  {
+    id: 'player_combo_nova_1',
+    path: 'projectiles/player_combo_nova_1.xml',
+    label: 'Combo nova I',
+    group: 'Player (no damage)',
+    damage: 0,
+    speed: 1.5,
+    directions: 8,
+    description: 'Harmless from a spewer. Speed 1.5, 5-wide — a big soft ring.'
+  },
+  {
+    id: 'player_combo_nova_2',
+    path: 'projectiles/player_combo_nova_2.xml',
+    label: 'Combo nova II',
+    group: 'Player (no damage)',
+    damage: 0,
+    speed: 1.75,
+    directions: 8,
+    description: 'Harmless from a spewer. Speed 1.75, 7-wide.'
+  },
+  {
+    id: 'player_combo_nova_3',
+    path: 'projectiles/player_combo_nova_3.xml',
+    label: 'Combo nova III',
+    group: 'Player (no damage)',
+    damage: 0,
+    speed: 2,
+    directions: 8,
+    description: 'Harmless from a spewer. Speed 2, 9-wide — the largest sprite in the roster.'
+  },
+
+  // --- Sorcerer --------------------------------------------------------------
+  {
+    id: 'sorcerer_ice_orb',
+    path: 'projectiles/sorcerer_ice_orb.xml',
+    label: 'Sorcerer ice orb',
+    group: 'Sorcerer',
+    damage: 40,
+    speed: 0.15,
+    directions: 1,
+    behavior: 'neutral',
+    description: '40 damage, speed 0.15 — by far the slowest thing here. A stream of them parks a wall of orbs across the arena.'
+  },
+  {
+    id: 'sorcerer_ice_shard',
+    path: 'projectiles/sorcerer_ice_shard.xml',
+    label: 'Sorcerer ice shard',
+    group: 'Sorcerer',
+    damage: 0,
+    speed: 2.25,
+    directions: 8,
+    description: 'Harmless from a spewer — the caster supplies the damage. Speed 2.25.'
+  },
+  {
+    id: 'sorcerer_orb_shard',
+    path: 'projectiles/sorcerer_orb_shard.xml',
+    label: 'Sorcerer orb shard',
+    group: 'Sorcerer',
+    damage: 0,
+    speed: 2.25,
+    directions: 8,
+    description: 'Harmless from a spewer. Speed 2.25.'
+  },
+
+  // --- Misc ------------------------------------------------------------------
+  {
+    id: 'lightningball',
+    path: 'projectiles/lightningball.xml',
+    label: 'Lightning ball',
+    group: 'Misc',
+    damage: 0,
+    speed: 1.75,
+    directions: 1,
+    description: 'Harmless on impact. Speed 1.75. One sprite angle.'
+  },
+  {
+    id: 'lifesteal_shard',
+    path: 'projectiles/lifesteal_shard.xml',
+    label: 'Lifesteal shard',
+    group: 'Misc',
+    damage: 0,
+    speed: 1.5,
+    directions: 16,
+    description: 'Harmless on impact. Speed 1.5, and the only 16-angle sprite in the roster.'
+  }
+]
+
+/**
+ * The <optgroup> order, derived from PROJECTILE_DEFS so a new projectile cannot
+ * land in a group the dropdown does not render. First-seen order, like
+ * PICKUP_GROUPS.
+ */
+export const PROJECTILE_GROUPS: readonly string[] = PROJECTILE_DEFS.reduce<string[]>((groups, def) => {
+  if (!groups.includes(def.group)) groups.push(def.group)
+  return groups
+}, [])
+
+const BY_ID = new Map(PROJECTILE_DEFS.map((d) => [d.id, d]))
+
+/** The projectile with this id, or undefined. */
+export function projectileById(id: string): ProjectileDef | undefined {
+  return BY_ID.get(id)
+}

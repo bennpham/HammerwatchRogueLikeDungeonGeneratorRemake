@@ -8,6 +8,66 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-01 — `ProjectileSpewer`: the direction enum, the spread range, the rate
+**Tag:** **[VERIFIED]** — three independent sources agree, and two of the
+projectiles have been fired in game by the repo owner.
+**Context:** Adding wall traps to the boss arena
+(`src/generator/boss/traps.ts`). The node type was known to exist but nothing
+recorded what its four parameters mean.
+**Evidence:**
+- **`direction` is `0` up, `1` down, `2` left, `3` right.** Read off
+  `editor/campaign/levels/level_10.xml`, ids 2579-2582: four spewers ringing
+  the single point `(-31.5, -6)`, each offset one step in the direction it
+  fires — the one at `(-31.5, -5.375)` (below centre, +y) is `1`, the one at
+  `(-30.875, -6)` (right, +x) is `3`, `(-32.125, -6)` (left, -x) is `2`, and
+  `(-31.5, -6.75)` (above, -y) is `0`. Confirmed against the same file's second
+  cluster (ids 3823/3824, a vertical pair reading 0 above 1) and against
+  `campaign2/levels/level_temple_3.xml`.
+- **`spread` is a float, 0..2 inclusive**, not an integer — the owner's own
+  measurement. `0` is a single linear stream; the shipped campaign uses `0.25`;
+  the owner's axe rig uses `0.5`. The engine gives no warning outside the range.
+- **`spawn-rate` is milliseconds**, with no engine-imposed floor and no
+  warning. A very low value fills the room with projectiles and costs framerate.
+- **A spewer may ship `enabled: False` and be switched on later by a
+  `ToggleElement`.** The owner's hand-built test level
+  (`editor/dungeon1986970473/levels/boss_test_traps.xml`) does exactly this,
+  and `level_temple_3.xml` ships its valuables spewers disabled too. This is
+  what makes a per-health-tier trap rig possible at all.
+- `trigger-times` is `-1` on every shipped example.
+- The parameters sit in a `<dictionary name="parameters">`, in the order
+  `direction`, `projectile`, `spread`, `spawn-rate`.
+
+**Impact:** `NodeProjectileSpewer` in `objects/nodes.ts` and the whole Traps
+section of the Boss tab. `boss/traps.ts` maps our word directions onto the
+integers above and documents where the evidence came from, so a future reader
+does not have to re-derive it. The two projectiles proven in game are
+`projectiles/enemy_axe.xml` and `projectiles/enemy_boss_anubis_fireball.xml`;
+the other 66 in `objects/projectileTypes.ts` are `[EMITTED]`.
+
+### 2026-09-01 — `assetsExtract/projectiles/` holds 68 usable projectile assets
+**Tag:** **[VERIFIED]** for the file list and the stats; **[EMITTED]** for
+firing 66 of them from a spewer.
+**Context:** Building the Traps dropdown.
+**Evidence:** The folder holds 68 `.xml` files (plus loose `.png` textures that
+are NOT loadable as projectiles). Each file's root `<projectile>` element
+carries `damage`, `speed`, `collision`, `directions` and sometimes `behavior`
+(`seeker`, `penetrating`, `explode`, `spray`, `neutral`). Two facts worth
+knowing before picking one:
+- **`damage="0"` means the projectile has no damage of its own** — every
+  `player_*` and both sorcerer shards are normally fired by a weapon that
+  supplies damage from the character's stats. A spewer has no stats, so these
+  are harmless light shows. `shooter_valuables.xml` (also 0) is what the
+  shipped campaign uses to shower a room with coins.
+- **`directions="1"` means one sprite angle** — the tower beams and most magic
+  balls draw the same frame whichever way they fly. They still travel
+  correctly.
+- `shooter_stone_ball.xml` is `damage="1000"`, i.e. an unconditional kill.
+
+**Impact:** `src/generator/objects/projectileTypes.ts` transcribes all 68 with
+their real stats; `tests/bossTraps.test.ts` asserts every entry resolves. The
+`damage: 0` and `directions: 1` caveats are surfaced in the form's tooltips so
+a dungeon master does not build a trap that does nothing.
+
 ### 2026-09-01 — an arena's alcove portal into a DUNGEON FLOOR works in game
 **Tag:** **[VERIFIED]** — played by the repo owner.
 **Context:** All three presets now end on an "escape floor": one extra dungeon

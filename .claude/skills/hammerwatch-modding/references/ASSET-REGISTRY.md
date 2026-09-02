@@ -660,6 +660,14 @@ and the four `_v2` corners.
 | `ToggleImmortality` | makes an **actor** immortal, or takes it back | `state` (0 = immortal), `element` = actor id |
 | `DangerArea` | damage-over-time field bound to a shape; negative damage heals | `damage`, `shape`, `freq` (ms), `buff` (path or empty) |
 | `PlaySound` | plays one cue | `sound` (`sound/<bank>.xml:<cue>`), `loop`, `play3d`, `range3d` |
+| `ProjectileSpewer` | fires a projectile stream in one cardinal direction, forever | `direction` (0 up, 1 down, 2 left, 3 right), `projectile` (path), `spread` (float 0..2), `spawn-rate` (ms) |
+
+`ProjectileSpewer` is the boss arena’s wall traps (`src/generator/boss/traps.ts`).
+The direction enum is `[VERIFIED]` — derived from a four-way spewer fountain in
+`campaign/levels/level_10.xml`; see DISCOVERY-LOG 2026-09-01. `spread` is a
+float 0..2 (0 = a single linear stream) and `spawn-rate` is milliseconds with no
+engine-imposed floor. A spewer may ship `enabled: False` and be switched on by a
+`ToggleElement`, which is how the per-health-tier rig works.
 
 The boss arena’s rig is `SpawnObject`, `GlobalEventTrigger`, `TimerTrigger`,
 `DestroyObject` and `ToggleImmortality` (`src/generator/boss/waves.ts`,
@@ -674,6 +682,45 @@ Bit 1 is `[VERIFIED]` (timer mode ships it and monsters take no damage); bit 2
 is `[UNVERIFIED]` — inferred from shipped content, see DISCOVERY-LOG 2026-08-23
 and 2026-08-24. `BUFF_TARGET_TYPES` in `config/parameters.ts` is the mapping the
 buff feature uses.
+
+## Projectiles `[VERIFIED 2026-09-01]`
+
+Source of truth: `src/generator/objects/projectileTypes.ts` — all 68 `.xml`
+assets the game ships under `assets/projectiles/`, transcribed from a real
+install with their real `damage`, `speed`, `directions` and `behavior`. We never
+emit a projectile file; we only reference a shipped one by path from a
+`ProjectileSpewer` node's `projectile` parameter, the same way the wave rig
+references a monster actor.
+
+Paths are `projectiles/<id>.xml`. The folder also holds loose `.png` textures
+which are **not** loadable as projectiles — only the `.xml` files are.
+
+Useful groupings, by filename prefix:
+
+| Prefix | What it is |
+| --- | --- |
+| `shooter_*` | the game's own trap ammunition — arrow, spike, two fireballs, the boulder, the coin spray. The group to reach for first. |
+| `enemy_tower_*` | beams and tower balls. The `_overload` variants are the same beam without `penetrating`. |
+| `enemy_lich_*`, `enemy_mummy_*` | caster bolts, several `penetrating` |
+| `enemy_boss_*`, `boss_*` | boss ammunition, including the two homing Anubis/Krilith balls |
+| `player_*`, `sorcerer_ice_shard`, `sorcerer_orb_shard` | **`damage="0"`** — the firing weapon supplies the damage from player stats, so a spewer firing these is harmless |
+
+Two traps worth knowing before picking one, both surfaced in the Boss tab's
+tooltips:
+
+- **`damage="0"` means no damage of its own.** All the `player_*` entries, both
+  sorcerer shards, `lightningball`, `lifesteal_shard`, the two dragon-blood
+  splatters and `shooter_valuables` are in this class. `shooter_valuables` is
+  what the shipped campaign uses to shower a room with coins.
+- **`directions="1"` means one sprite angle** — the beams and most magic balls
+  draw the same frame whichever way they fly. They still travel correctly.
+
+`shooter_stone_ball.xml` is `damage="1000"` with a 13-wide collision: an
+unconditional kill, not a hard hit.
+
+In game so far: `enemy_axe.xml` and `enemy_boss_anubis_fireball.xml`
+`[VERIFIED]` (the owner's hand-built `boss_test_traps.xml`); the other 66 are
+`[EMITTED]` — same asset kind, referenced the same way, never fired.
 
 ## Buffs
 

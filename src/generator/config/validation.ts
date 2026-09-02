@@ -20,8 +20,14 @@ import {
   isScatterMode,
   waveSpawnMode,
   waveBuffs,
-  wavePickups
+  wavePickups,
+  waveTraps,
+  BOSS_TRAP_DIRECTIONS,
+  MAX_TRAP_COUNT,
+  TRAP_FAST_SPAWN_RATE_MS,
+  TRAP_SPREAD_MAX
 } from './parameters'
+import type { BossTrapDirection } from './parameters'
 import type { BossFight, BossOptions } from './parameters'
 import type { CampaignSlot } from '../campaign'
 import { getTheme } from './themes'
@@ -36,11 +42,13 @@ import {
 import { corpseCollision } from '../objects/actorCollision'
 import { BUFF_HELPFUL_IDS, buffById } from '../objects/buffTypes'
 import { MAX_PICKUP_COUNT, pickupById } from '../objects/pickupTypes'
+import { projectileById } from '../objects/projectileTypes'
 import { LOBBY_DIAMOND_VALUE } from '../lobby/build'
 import { ALL_LOBBY_CATEGORIES, isLobbyCategory, lobbyCategoryCounts, vendorOfCategory } from '../lobby/shops'
 import { DIAMOND_VALUE, MAX_DIAMOND_COUNT, UPGRADE_KINDS } from '../levelTemplate/surgery'
 import type { UpgradeCounts } from '../levelTemplate/surgery'
 import { ARENA_MIN_HEIGHT, ARENA_MIN_WIDTH, freeFloorArea } from '../boss/geometry'
+import { wallCapacity } from '../boss/traps'
 import { scaledMax } from '../boss/waves'
 import { TWEAK_BASELINE } from '../tweak/baseline'
 import { SHOP_PRICE_MAX } from '../tweak/bulk'
@@ -697,6 +705,52 @@ function validateBossFight(
       }
     })
 
+    // The tier's wall traps. An empty list means none, which is what a tier
+    // that has never been touched carries and is never invalid.
+    waveTraps(wave).forEach((row, j) => {
+      if (projectileById(row.projectile) === undefined) {
+        errors.push({
+          field: af(`waves.${i}.traps.${j}.projectile`),
+          message: `"${row.projectile}" is not a projectile the game ships.`
+        })
+      }
+      if (!BOSS_TRAP_DIRECTIONS.includes(row.direction)) {
+        errors.push({
+          field: af(`waves.${i}.traps.${j}.direction`),
+          message: `"${row.direction}" is not a firing direction — use ${BOSS_TRAP_DIRECTIONS.join(', ')}.`
+        })
+      }
+      // Decimal on purpose: the reference axe rig fires at 0.5. The engine
+      // clamps outside 0..2 with no warning, so the bound is ours to enforce.
+      if (!Number.isFinite(row.spread) || row.spread < 0 || row.spread > TRAP_SPREAD_MAX) {
+        errors.push({
+          field: af(`waves.${i}.traps.${j}.spread`),
+          message: `Wave ${i + 1}'s "${row.projectile}" trap fans at ${row.spread} — spread must be between 0 and ${TRAP_SPREAD_MAX}.`
+        })
+      }
+      if (!Number.isInteger(row.spawnRateMs) || row.spawnRateMs < 1) {
+        errors.push({
+          field: af(`waves.${i}.traps.${j}.spawnRateMs`),
+          message: `Wave ${i + 1}'s "${row.projectile}" trap fires every ${row.spawnRateMs} ms — the rate must be a whole number of milliseconds, at least 1.`
+        })
+      } else if (row.spawnRateMs < TRAP_FAST_SPAWN_RATE_MS) {
+        // A warning, not an error: the engine imposes no bound and a very fast
+        // lane is a legitimate thing to build deliberately. It is worth saying
+        // out loud because nothing else will.
+        warnings.push({
+          field: af(`waves.${i}.traps.${j}.spawnRateMs`),
+          message: `Wave ${i + 1}'s "${row.projectile}" trap fires every ${row.spawnRateMs} ms. Below ${TRAP_FAST_SPAWN_RATE_MS} ms the arena fills with projectiles faster than the party can cross it, and the framerate suffers.`
+        })
+      }
+      // Every spewer is its own node on its own tile — see boss/traps.ts.
+      if (!Number.isInteger(row.count) || row.count < 1 || row.count > MAX_TRAP_COUNT) {
+        errors.push({
+          field: af(`waves.${i}.traps.${j}.count`),
+          message: `Wave ${i + 1} places ${row.count} × "${row.projectile}" — the count must be a whole number 1..${MAX_TRAP_COUNT}.`
+        })
+      }
+    })
+
     // Spawn modes. A key for a monster that is no longer in the pool is
     // ignored rather than reported — the parser and the form both rebuild the
     // record from the pool, so a stale key is housekeeping, not user error.
@@ -947,6 +1001,33 @@ function validateBossFight(
           message: `"${id}" in wave ${i + 1} is scattered, so its ${wave.intervalMs[id]} ms interval is ignored — scattered monsters all spawn at once.`
         })
       }
+    }
+  }
+
+  // A wall's slot pool belongs to the arena, not to a tier: boss/traps.ts
+  // carries it across all five so tier 3's spewers cannot land on tier 1's.
+  // Counted the same way here — against the SMALLEST arena the size range can
+  // roll, since that is the one that overflows. A warning rather than an error
+  // because overflowing is not fatal: the rig simply stops placing, so the
+  // campaign still generates and still plays, just with fewer traps than asked
+  // for. Cover pillars can only reduce the real capacity further, which is the
+  // other reason this cannot be an exact promise.
+  const perWall = new Map<BossTrapDirection, number>()
+  for (const wave of arena.waves) {
+    for (const row of waveTraps(wave)) {
+      if (projectileById(row.projectile) === undefined) continue
+      if (!BOSS_TRAP_DIRECTIONS.includes(row.direction)) continue
+      if (!Number.isInteger(row.count) || row.count < 1) continue
+      perWall.set(row.direction, (perWall.get(row.direction) ?? 0) + row.count)
+    }
+  }
+  for (const [direction, wanted] of perWall) {
+    const capacity = wallCapacity(arena.minWidth, arena.minHeight, direction)
+    if (wanted > capacity) {
+      warnings.push({
+        field: af('waves'),
+        message: `The ${direction === 'up' ? 'south' : direction === 'down' ? 'north' : direction === 'left' ? 'east' : 'west'} wall is asked for ${wanted} ${direction}-firing spewers across all tiers, but an arena ${arena.minWidth}×${arena.minHeight} only has room for about ${capacity} spaced along it. The extra ones will be skipped.`
+      })
     }
   }
 
