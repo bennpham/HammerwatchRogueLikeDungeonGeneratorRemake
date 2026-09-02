@@ -55,7 +55,9 @@ src/
 │   │                     (overlay + mixed floor datasets), coverShape.ts
 │   │                     (the whole-map RectangleShape buffs and timer share)
 │   ├── objects/          monsterTypes.ts (roster data + variants),
-│   │                     buffTypes.ts (the 41 shipped buffs), monster.ts,
+│   │                     buffTypes.ts (the 41 shipped buffs),
+│   │                     pickupTypes.ts (PICKUP_DEFS + MAX_PICKUP_COUNT —
+│   │                     the items a wave tier can drop), monster.ts,
 │   │                     item.ts, doodad.ts, nodes.ts, scriptNode.ts,
 │   │                     objectSet.ts, actorCollision.ts (which wrecks block)
 │   ├── levelTemplate/    surgery.ts — shared id-targeted edits for the three
@@ -112,20 +114,25 @@ src/
 │                         LevelPreview, LoadoutSheet, MonsterPoolsEditor,
 │                         PoolGroup, PoolTextField, MonsterFilterBar,
 │                         MonsterMaxTable, FloorTimerEditor, FloorBuffEditor,
-│                         BuffPicker, UpgradeCountFields, InfoTip, OutputPanel,
-│                         fields},
+│                         BuffPicker, BuffListEditor, PickupListEditor,
+│                         PickupPicker, UpgradeCountFields, InfoTip,
+│                         OutputPanel, fields},
 │                         styles/app.css
 └── shared/ipc.ts         types shared across the bridge
-tests/                    vitest, 33 files / 972 tests: rand, context,
+tests/                    vitest, 36 suites / 1362 tests: rand, context,
                           configFile, validation, generation, reachability,
                           sealIntegrity, themes (+ a
                           snapshot), presets, monsters, monsterVariants,
-                          doodad, nodes, objectSet, actorCollision, xmlHelpers,
+                          doodad, nodes, objectSet, actorCollision,
                           lobby, bossprep, boss, bossWaves, bossCover,
-                          bossInvulnerability, bossWaveBuffs,
-                          floorTimer, floorBuffs,
+                          bossInvulnerability, bossWaveBuffs, bossWavePickups,
+                          campaignOrder, rearrange, floorTimer, floorBuffs,
                           bossGeometry, bossSpawnPoints, bosses, anchors,
-                          arenaPattern, packer, tweak, tweakChains, tweakBulk
+                          arenaPattern, packer, tweak, tweakChains, tweakBulk.
+                          Helpers (not suites): params.ts — plainParameters(),
+                          the default-order base every suite that mutates
+                          `levels` or the fight count must build on — plus
+                          sealProbe.ts and xmlHelpers.ts
 reference/original-java/  the Java original (read-only reference)
 reference/hammerwatch-tweak-stats.md
                           human-readable tables of the same stock balance data
@@ -234,24 +241,27 @@ reference/hammerwatch-tweak-stats.md
 `BossFight` is `{prep: BossPrepOptions, arena: BossArenaOptions}`. Defaults from
 `defaultBossOptions()`, one fight from `defaultBossFight()`; read the list
 through `bossFights(boss)`, which returns `[]` for a disabled or absent boss.
-The table below describes one fight — `fights[i].prep`, `fights[i].arena`:
+`boss.fights` itself defaults to one stock fight: ordered, at least one when
+enabled, **no upper bound** (mirrors `levels`), written as `bossFights` in
+`parameters.txt`. The table below describes one fight — `fights[i].prep`,
+`fights[i].arena`:
 
 | Field | Default | Notes |
 | --- | --- | --- |
-| `enabled` | `true` | off reproduces the pre-boss campaign; the final floor keeps its own orb room |
-| `fights` | one stock fight | ordered, at least one when enabled, **no upper bound** (mirrors `levels`). `bossFights` in `parameters.txt` |
+| `enabled` | `true` | off reproduces the pre-boss campaign; the final floor keeps its own orb room. Top-level, like `fights` below |
 | `prep.shopCategories` | all 21, `power` included | same full set as the lobby; buyable lives are safe because the stock `player.shared.remove.life` tweak deletes that upgrade |
 | `prep.startingGold` | 20000 | whole multiple of 500, one red diamond each |
 | `prep.upgrades` | every kind 0 | the same free upgrade pickups as the lobby, on the prep floor. `boss<i>Upgrades` in `parameters.txt` |
 | `arena.theme` | `g_mixed` | any `THEME_DEFS` id, independent of the floors' themes |
 | `arena.floorPattern` | `random` | one of `BOSS_FLOOR_PATTERNS`; only meaningful for a `- mixed` theme |
-| `arena.minWidth`–`maxWidth` | 42–64 | ≥ `ARENA_MIN_WIDTH` (14). Found from both ends: 24–32 was too small to hold the horde, the 2026-08-27 interim 66–88 was so open a scattered wave never re-formed and got picked off piecemeal |
-| `arena.minHeight`–`maxHeight` | 42–64 | ≥ `ARENA_MIN_HEIGHT` (18); same story as the width |
+| `arena.minWidth`–`maxWidth` | 42–64 | `boss<i>Width=42,64` in `parameters.txt`; ≥ `ARENA_MIN_WIDTH` (14). Found from both ends: 24–32 was too small to hold the horde, the 2026-08-27 interim 66–88 was so open a scattered wave never re-formed and got picked off piecemeal |
+| `arena.minHeight`–`maxHeight` | 42–64 | `boss<i>Height=42,64`; ≥ `ARENA_MIN_HEIGHT` (18); same story as the width |
 | `arena.bossPool` | the 4 castle bosses | non-empty subset of `BOSS_IDS` (7); the seed picks one per campaign |
 | `arena.waves` | 5 populated tiers | exactly `BOSS_WAVE_COUNT`; see *Boss finale* |
 | `arena.waves[i].buffs` | tier 5 only: `bloodlust` on `monsters` | any number of arena-wide buffs per tier, each `{buff, target}` aimed at `players`/`monsters`/`both`. Tiers **replace** one another rather than stacking. The pre-list fields `buff`/`buffTarget` still parse — read a tier through `waveBuffs(wave)`, never off the raw field. `boss<i>WaveBuffN` in `parameters.txt`. Every preset ships `bossDeathBuffs()` on the boss-death tier and nothing on the other four, so the walk to the orb is fought against a strengthened horde. See *Buffs per boss wave tier* |
-| `arena.cover` | `symmetric`, 0.08, 4, 3 | `density` is the fraction of free floor filled and is capped at `BOSS_COVER_DENSITY_MAX` (0.25). Playtest preference, 2026-08-28; every preset inherits it |
-| `arena.spawn` | spacing 2, ring 4, clusters 3, batchSize 8, batchIntervalMs 1500 | tuning for the scatter modes only; deliberately separate from `cover`. `batchSize` caps how many of one monster may appear at once — see *Boss finale* |
+| `arena.cover` | `symmetric`, 0.08, 4, 3 | `boss<i>Cover=symmetric,0.08,4,3` in `parameters.txt`. `density` is the fraction of free floor filled and is capped at `BOSS_COVER_DENSITY_MAX` (0.25). Playtest preference, 2026-08-28; every preset inherits it |
+| `arena.spawn` | spacing 2, ring 4, clusters 3, batchSize 8, batchIntervalMs 1500 | `boss<i>Spawn=2,4,3,8,1500` — five comma fields, `spacing,ringSpacing,clusters,batchSize,batchIntervalMs`; the older three-field form still parses. Tuning for the scatter modes only; deliberately separate from `cover`. `batchSize` caps how many of one monster may appear at once, the rest trickling in every `batchIntervalMs` — see *Boss finale* |
+| `arena.waves[i].pickups` | 50%: 1× `powerup_health` + 2× `mana_2`; 25%: 1× `potion_2`; boss dead: double the 50% table | item drops per health tier, each `{item, count}` with `item` in `PICKUP_DEFS` and `count` 1..`MAX_PICKUP_COUNT` (64). Unlike the buffs the tiers do **not** replace one another — drops accumulate on the entrance drop pad (`boss/pickupPad.ts`). `boss<i>WavePickupN=<item>:<count>|…` in `parameters.txt`, on its own key so older files round-trip unchanged; a tier a file describes without a pickup line drops nothing. See *Item drops per boss wave tier* |
 | `arena.invulnerability` | on, `[30, 30, 30]`, countdown on | seconds of boss immortality per health threshold (`BOSS_INVULN_THRESHOLDS`: 75/50/25%); 0 disables one threshold, `boss<i>Invuln` / `boss<i>InvulnCountdown` in `parameters.txt`. Independent of `waves` — see *Boss finale* |
 | `arena.monsterMultiplier` | 1.0 | scales each tier's `monsterMax`; `-1`/endless stays endless. `boss<i>MonsterMultiplier` in `parameters.txt`, separate from the dungeon's |
 | `arena.foodMultiplier` | 1.2 | scales the arena's health/mana pickup clusters; `boss<i>FoodMultiplier` in `parameters.txt` |

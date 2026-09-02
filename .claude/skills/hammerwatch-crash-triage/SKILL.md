@@ -25,8 +25,12 @@ orchestrator.
 | Floor looks open in the preview but the exit can't be reached in game | The three-tile wall overhang — `reachability.ts` should have re-rolled that floor. A **real bug**, not a validation gap | §B |
 | Arena walled off by dead towers / boss unreachable | A blocking-wreck monster on a scatter mode, or cover pruning | §F |
 | "The whole floor damages us after a few minutes" / "a floor heals us" | Timer mode is on for that floor (`timerN` / the Dungeon tab's *Timer mode*). Negative damage heals — both are the feature, not a bug | §A |
-| "The boss can't be hurt for half a minute" | An invulnerability window at 75/50/25% health. `bossInvuln=off` disables it | §F |
-| "The whole floor is slowed / the monsters are enraged" | A buff aura on that floor (`buffN`), or an arena-wide tier buff (`bossWaveBuffN`) | §A |
+| "The boss can't be hurt for half a minute" | An invulnerability window at 75/50/25% health. `boss<i>Invuln=0,0,0` disables all three | §F |
+| "The whole floor is slowed / the monsters are enraged" | A buff aura on that floor (`buffN`), or an arena-wide tier buff (`boss<i>WaveBuffN`) | §A |
+| "We got another floor *after* the boss and it killed us" | The escape floor. All three presets ship it, with `timer<N>` on — 90 s, then 1 health per 100 ms. Working as designed | §A |
+| "The campaign runs the floors in the wrong order" / "the boss came too early" | `levelOrder`. Absent means the historical order; a stored one is validated, see §A | §A |
+| "The last arena sends us onward instead of ending the run" | Only the **last** campaign slot carries the orb and `GameEnd`; an earlier arena emits `BossPortal` (`objects/objectSet.ts`) | §F |
+| "The health drop at 50% never appeared" | Wave pickups land on the drop pad by the arena entrance (`boss/wavePickups.ts`), not where the tier spawns | §F |
 | `Generate a dungeon first.` on export | User flow, not a bug | — |
 
 ## §A — Parameter-constraint failures (most common)
@@ -53,14 +57,17 @@ Constraints enforced today (`src/generator/config/validation.ts`):
 | **`maxRoomSize ≥ 7`** | the stair prefab is 6 tiles wide |
 | `themes.length ≥ levels`, each an id in `THEME_DEFS` | short list → index out of bounds. Valid ids are the bases `a`–`i` and `bonus1`–`bonus5`, each base's overlay pairings (`c_tiles`, `d_carpet`, …) and its `_mixed` palette — the stock campaign is `a_mixed`…`g_mixed`. Never hard-code the list; read `config/themes.ts` |
 | `levelMonsters.length ≥ levels`, none empty, all ids known | short/empty pool → index out of bounds |
-| lobby/prep `startingGold`: whole ≥ 0, multiple of 500, ≤ `GOLD_SAFETY_MAX` | one diamond per 500. The old 12000/42000 caps are **gone**; `GOLD_SAFETY_MAX` (5,000,000) only stops a typo emitting millions of item nodes |
-| lobby/prep `shopCategories` all real columns | see `ALL_LOBBY_CATEGORIES` |
-| lobby/prep `upgrades[kind]`: whole ≥ 0, ≤ `UPGRADE_COUNT_MAX` (10000) | free upgrade pickups; **not** a game limit, just the point past which the stack is too large to emit. 0 (the default for every kind) emits no item array |
+| prep `startingGold` (`boss.fights.<i>.prep.startingGold`) / lobby `startingGold`: whole ≥ 0, multiple of 500, ≤ `GOLD_SAFETY_MAX` | one diamond per 500. The old 12000/42000 caps are **gone**; `GOLD_SAFETY_MAX` (5,000,000) only stops a typo emitting millions of item nodes |
+| lobby/prep `shopCategories` all real columns | see `ALL_LOBBY_CATEGORIES`. Prep-room field keys are scoped per fight: `boss.fights.<i>.prep.shopCategories` |
+| lobby/prep `upgrades[kind]` (prep: `boss.fights.<i>.prep.upgrades`): whole ≥ 0, ≤ `UPGRADE_COUNT_MAX` (10000) | free upgrade pickups; **not** a game limit, just the point past which the stack is too large to emit. 0 (the default for every kind) emits no item array |
 | `finalLockMode` ∈ `button` / `key` | anything else is rejected by name; absent means `button` |
 | enabled `levelTimers[i]`: `seconds` whole 1…`MAX_TIMER_SECONDS` (3600), `freqMs` whole `MIN_TIMER_FREQ_MS`…`MAX_TIMER_FREQ_MS` (50…600000), `damage` whole, `|damage| ≤ MAX_TIMER_DAMAGE` (10000) | negative damage is **legal** — it heals. A disabled floor timer is never checked |
 | every `levelBuffs[i][j]`: `buff` in `BUFF_DEFS`, `target` in `BUFF_TARGETS` | unknown ids are an error here; the rig itself skips them, so validation is the only gate |
 | every `waves[i].buffs[j]`: same two rules | the arena tiers, same registry |
-| `boss.arena.invulnerability.seconds`: exactly `BOSS_INVULN_COUNT` whole values ≥ 0 | one per `BOSS_INVULN_THRESHOLDS` (75/50/25%); 0 disables that one threshold |
+| every `waves[i].pickups[j]`: `item` in `PICKUP_DEFS`, `count` whole `1..MAX_PICKUP_COUNT` (64) | each copy is its own `SpawnObject` node, so the count is a node count (`objects/pickupTypes.ts`, `boss/wavePickups.ts`) |
+| `boss.fights.<i>.arena.invulnerability.seconds`: exactly `BOSS_INVULN_COUNT` whole values ≥ 0 | one per `BOSS_INVULN_THRESHOLDS` (75/50/25%); 0 disables that one threshold |
+| `boss.fights` non-empty when `boss.enabled` | a campaign with the boss on must have something to fight. **No upper bound** — `levels` has none either |
+| `levelOrder`, when present: every entry a `floor` or `boss` slot; every index inside `levels` / `fights.length`; no slot twice; floors ascending among themselves and fights among themselves; every floor and every fight placed | five separate errors in `validateLevelOrder`. **Absent is always valid** — it means the default order. `campaign.normalizeOrder` repairs all five on import, so a stale `parameters.txt` is never fatal; the form edits the stored value directly, so a broken order there must still report |
 | the whole boss block | see §F |
 | chances in `[0,1]`; multipliers ≥ 0 | |
 | every `monsterMax` an integer ≥ 0 | |
@@ -77,9 +84,17 @@ empty *health* wave tier; a scattered monster's ignored interval; an arena
 scattering ≥ `BOSS_SCATTER_WARN` (2000) spawns; a floor timer with 0 damage; a
 countdown longer than `TIMER_COUNTDOWN_NODE_WARN` (200s — one announce node per
 second); timer or buff entries past `levels`; the same buff twice on one floor
-or tier; a `BUFF_HELPFUL_IDS` buff (`bloodlust`, `banner_bloodlust`, `test`)
-aimed at anything but `players`; a monster-targeted buff on the boss-death tier,
-which spawns none; every invulnerability window at 0 with the feature still on.
+or tier; a **per-floor** `BUFF_HELPFUL_IDS` buff (`bloodlust`, `banner_bloodlust`,
+`test`) aimed at anything but `players`; a monster-targeted buff on the
+boss-death tier, which spawns none; every invulnerability window at 0 with the
+feature still on; two fights whose one-entry `bossPool` pins the same boss; the
+same pickup item on two rows of one tier; a tier wanting more scatter points
+than the smallest arena it can roll has free floor for.
+
+There is deliberately **no** helpful-buff warning on the arena's five tiers.
+Strengthening the horde there is the feature — the stock boss-death tier ships
+`bloodlust:monsters` — so the rule fires for `levelBuffs` only. A report that
+"the arena buff warning disappeared" is that change, not a regression.
 
 **Known gaps — likely causes of a §A report.** Confirm before "fixing":
 
@@ -100,9 +115,15 @@ first:
 
 ```ts
 // tests/validation.test.ts
-const p = { ...defaultParameters(), maxPassageWidth: 12, minRoomSize: 6 }
+const p = { ...plainParameters(), maxPassageWidth: 12, minRoomSize: 6 }
 expect(validateParameters(p).valid).toBe(false)
 ```
+
+Build on `plainParameters()` from `tests/params.ts`, not on
+`defaultParameters()`. The stock defaults now carry a **non-default**
+`levelOrder` (the escape floor), so spreading them and changing `levels` or the
+fight count leaves the order naming a slot that no longer exists — a spurious
+`levelOrder` error on top of the one you meant to provoke.
 
 For generation failures, `generateDungeon(params, FIXED_SEED)` in
 `tests/generation.test.ts` reproduces deterministically — always ask for the
@@ -167,10 +188,13 @@ from the `walls` bitmap string and room/passage geometry — an exception there
 usually means a preview field is missing for a newly added room type. Nothing
 in the renderer should crash generation; if it does, the boundary leaked.
 
-The left panel has Dungeon/Player tabs and the right panel Preview/Loadout
-tabs (`App.tsx`). Note that **"Reset defaults" is tab-sensitive**: on the
-Player tab it clears tweaks only, on the Dungeon tab it resets parameters and
-*keeps* tweaks. "I hit reset and my changes are still there" is that, not a bug.
+The left panel has Lobby / Dungeon / Boss / **Floor order** / Player tabs and
+the right panel Preview/Loadout tabs (`App.tsx`). The order tab is
+`FloorOrderEditor.tsx`; the arena's tier drops are `PickupListEditor.tsx` +
+`PickupPicker.tsx`. Note that **"Reset defaults" is tab-sensitive**: on the
+Player tab it clears tweaks only, on the Floor order tab it restores the
+default order only, and on the other tabs it resets parameters and *keeps*
+tweaks. "I hit reset and my changes are still there" is that, not a bug.
 
 ## §E — Player tweaks (`tweak/*.xml`)
 
@@ -305,9 +329,11 @@ number there silently ships wrong balance to every user.
 
 ## §F — Boss arena and the optional levels
 
-The arena is the only generated geometry outside the floor loop
-(`src/generator/boss/`), and it draws from **`ctx.bossRand`**, a third stream.
-The lobby and prep room draw nothing at all. Consequence for triage: turning
+The arenas are the only generated geometry outside the floor loop
+(`src/generator/boss/`), and they draw from **`ctx.bossRand`**, a third stream,
+**in fight-list order** — so fight 1 is exactly the arena a single-fight
+campaign has always produced, and appending a fight cannot move an earlier one.
+The lobby and prep rooms draw nothing at all. Consequence for triage: turning
 any of them on or off must leave every `levels/level*.xml` byte-identical for a
 seed. If a report says a dungeon floor changed when the boss was toggled, that
 is an RNG-stream leak — escalate, do not patch.
@@ -323,14 +349,25 @@ is an RNG-stream leak — escalate, do not patch.
 | Endless (`-1`) rejected | Only on a scatter mode — a one-shot spawn has no endless budget. `-1` is fine on `anchors`, and is never scaled by the multiplier. |
 | Huge boss level / slow pack | Each scattered spawn is its own `SpawnObject` node; the stock presets emit ~1300. Validation warns at `BOSS_SCATTER_WARN` (2000). Not an error — there is no hard limit. |
 | "Starting gold was rejected" | Whole number, multiple of 500, ≤ `GOLD_SAFETY_MAX`. The old 12000/42000 caps were removed — deeper diamond stacks are supported. |
+| "Beating the boss didn't end the campaign" | Working as designed with more than one fight: fight *i*'s arena teleports the party into fight *i+1*'s **prep room**, and only the last campaign slot carries `Orb` + `GameEnd` (`objects/objectSet.ts`). |
+| "A tier's item drops never showed up" | They spawn on the drop pad just inside the arena entrance, identical on every seed — not at the tier's spawn points. The tiers do **not** replace one another, so drops accumulate. |
+| "Adding a second fight changed the first one" | A `ctx.bossRand` leak — escalate. The fights share one stream in list order precisely so this cannot happen. |
+
+Every arena field key is scoped per fight — `boss.fights.<i>.arena.*`, and
+`boss.fights.<i>.prep.*` for the prep room (the `af()` / `pf()` helpers in
+`validation.ts`). An inline message anchors to the fight tab that is wrong.
 
 Arena constraints beyond the wave rules: `min ≤ max` on both axes,
 `minWidth ≥ ARENA_MIN_WIDTH` (14) and `minHeight ≥ ARENA_MIN_HEIGHT` (18),
 non-empty `bossPool` of known `BOSS_IDS`, exactly `BOSS_WAVE_COUNT` (5) waves,
-intervals 100..60000 ms, wave pool entries valid **variant keys** (`bat1#0`,
-`archer1#2` — a non-canonical spelling of a pinned tier is its own error),
-`monsterMax ≥ -1`, a `BOSS_SPAWN_MODES` name, and integers ≥ 1 for every
-`cover.*` / `spawn.*` spacing and cluster knob.
+intervals `MIN_WAVE_INTERVAL_MS`..`MAX_WAVE_INTERVAL_MS` (100..60000), wave pool
+entries valid **variant keys** (`bat1#0`, `archer1#2` — a non-canonical spelling
+of a pinned tier is its own error), `monsterMax ≥ -1`, a `BOSS_SPAWN_MODES`
+name, integers ≥ 1 for every `cover.*` / `spawn.*` spacing and cluster knob
+(including `spawn.batchSize`), and `spawn.batchIntervalMs` in the same
+100..60000 window. `boss<i>Spawn` is the 5-field
+`spacing,ringSpacing,clusters,batchSize,batchIntervalMs`; the older three-field
+form still parses.
 
 ## Where the logs and state live
 

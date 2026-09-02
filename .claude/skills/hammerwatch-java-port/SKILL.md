@@ -22,7 +22,9 @@ roster** — that modified pair, not the vanilla one, is what this port follows.
 | — (no equivalent) | `config/validation.ts` | **new**: the original had no validation |
 | — (no equivalent) | `tweak/**` | **new**: player balance files. No Java counterpart at all — see divergence 7 |
 | — (no equivalent) | `lobby/**`, `bossprep/**`, `levelTemplate/**` | **new**: hand-authored levels edited by id. RNG-free — see divergence 9 |
-| — (no equivalent) | `boss/**` | **new**: the generated arena. Its own RNG stream — see divergence 9 |
+| — (no equivalent) | `boss/**` | **new**: the generated arenas, one per boss fight. Their own RNG stream — see divergence 9 |
+| — (no equivalent) | `campaign.ts` | **new**: the campaign order — `CampaignSlot`, `campaignOrder` / `normalizeOrder` / `defaultOrder` / `isDefaultOrder`, `gatewayAfter`, the `bossPrepId` / `bossArenaId` / `bossPrepPath` / `bossArenaPath` naming. See divergence 11 |
+| — (no equivalent) | `objects/pickupTypes.ts` | **new**: `PICKUP_DEFS`, the item roster the arena's per-tier drops choose from |
 | — (no equivalent) | `map/reachability.ts` | **new**: rejects a floor the player cannot finish — see divergence 10 |
 | — (no equivalent) | `map/tilemapOverlay.ts`, theme overlays/palettes in `config/themes.ts` | **new**: extra floor tileset layers — see divergence 9 |
 | `Level` | `map/level.ts` | |
@@ -34,7 +36,7 @@ roster** — that modified pair, not the vanilla one, is what this port follows.
 | `Monster` (modified) | `objects/monster.ts` + `objects/monsterTypes.ts` | roster split out as pure data |
 | `Item` | `objects/item.ts` | |
 | `Doodad` (+ `DoodadType` enum) | `objects/doodad.ts` | enum → `const` object with `themeSubs` |
-| `ObjectSet` | `objects/objectSet.ts` | stair/shop/orb prefabs |
+| `ObjectSet` | `objects/objectSet.ts` | stair/shop/orb prefabs. `BossPortal` was added deliberately with the **same three-id shape** as `Orb`, so swapping one for the other makes no extra draw |
 | `ScriptNode` | `objects/scriptNode.ts` | |
 | `Node*.java` (9 classes) | `objects/nodes.ts` | one file, one exported class each |
 | `XMLObject`/`XMLDictionary`/`XMLArray`/`XMLInt`/`XMLFloat`/`XMLBool`/`XMLString`/`XMLIntArray` | `xml/*.ts` | same tag shapes |
@@ -61,8 +63,15 @@ Rules:
   unconditional is a draw-order change. So is short-circuiting `&&`.
 - `ctx.cosmeticRand` (seed + 1) exists precisely so floor-tile variants don't
   consume from the layout stream. Keep it that way. `ctx.bossRand` (seed + 2)
-  does the same job for the boss arena, which is generated after every floor so
-  it can draw as much as it likes without touching either stream above it.
+  does the same job for the boss arenas, which are generated after every floor
+  so they can draw as much as they like without touching either stream above
+  them.
+- **The arenas share that one `bossRand` stream, in fight-list order.** Fight 0
+  therefore draws exactly what a single-fight campaign has always drawn, and
+  appending a second fight cannot move the first arena or any floor. Generating
+  the fights in any other sequence — or giving each its own stream — moves
+  every existing seed. Same rule as the floors: built in list order, off one
+  stream.
 - `tests/rand.test.ts` holds reference vectors from `java.util.Random`. If you
   touch `rand.ts`, that suite is the proof.
 
@@ -71,7 +80,9 @@ Rules:
 The Java tool kept everything in statics — `Monster.monsters`,
 `Item.items`, `Doodad.doodads`, `ScriptNode.nodes`, `ObjectSet.sets`,
 `Level.idCounter`, `Room.lastLockType` — and called `X.Clear()` on each between
-levels. All of it now lives on one `GenerationContext` threaded through the
+levels. `ctx.gateway` (divergence 11) joins them as per-level context: what this
+floor leads to, set before the floor is built and read by `map/level.ts`,
+`map/room.ts` and `objects/objectSet.ts`. All of it now lives on one `GenerationContext` threaded through the
 pipeline; `ctx.clearLevel()` is the equivalent of that Clear() block.
 `idCounter` resets to 0 per level (ids are level-local, referenced by script
 nodes within the same file).
@@ -126,8 +137,10 @@ These are intentional. Do not "fix" them back.
    matters for parity is only which stream each one draws from:
    - `lobby/**`, `bossprep/**`, `tweak/**` — **no draws at all**, applied after
      the level loop.
-   - `boss/**` — draws freely, but only from `ctx.bossRand` (seed + 2). The
-     arena is built after every floor for exactly that reason.
+   - `boss/**` — draws freely, but only from `ctx.bossRand` (seed + 2), and the
+     arenas are built after every floor, in fight-list order, for exactly that
+     reason. The per-tier item drops (`boss/wavePickups.ts`, `PICKUP_DEFS`) are
+     placed on a fixed pad and draw nothing at all.
    - theme overlays and mixed palettes — `ctx.cosmeticRand` on a dungeon floor,
      `ctx.bossRand` in the arena, and **zero draws** when the theme has neither
      (the early return in `overlayDataset` / `mixedDatasets` is load-bearing).
@@ -146,6 +159,21 @@ These are intentional. Do not "fix" them back.
    before this landed can produce a different dungeon from the offending floor
    on. That was a deliberate, announced break: the alternative was shipping
    campaigns that cannot be completed.
+11. **The campaign order replaced the Java finality tests.** The original
+   decided what a floor leads to arithmetically: `Level`, `Room` and
+   `ObjectSet` tested `level < params.levels - 1` for stairs and
+   `level === params.levels - 1` for the orb. Those tests are **gone**. The
+   port sets `ctx.gateway` from `campaign.ts`'s order and reads it in
+   `map/level.ts`, `map/room.ts` and `objects/objectSet.ts`; `lockFinalRoom`
+   now gates on `gateway.kind !== 'exit'` rather than on a floor index. A boss
+   fight can therefore sit anywhere in the campaign and the last slot — floor
+   or arena — is the one that carries the orb.
+
+   The parity property to protect: **an absent `levelOrder` must generate
+   byte-identical output to the pre-feature port.** That is why the default
+   order is stored as absent and never as an explicit list, and why `gateway`
+   carries no draws of its own. A change that makes the default path store or
+   compare an order differently is a parity regression.
 
 ## Verified parity status
 
