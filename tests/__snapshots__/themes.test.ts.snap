@@ -93,6 +93,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_a/a_h_8.xml",
   },
+  "a:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
+  },
   "a:Spawn": {
     "offset": {
       "x": 1,
@@ -281,6 +288,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 2,
     },
     "path": "doodads/theme_a/a_h_8.xml",
+  },
+  "a_dirt:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
   },
   "a_dirt:Spawn": {
     "offset": {
@@ -471,6 +485,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_a/a_h_8.xml",
   },
+  "a_mixed:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
+  },
   "a_mixed:Spawn": {
     "offset": {
       "x": 1,
@@ -659,6 +680,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 2,
     },
     "path": "doodads/theme_b/b_h_8.xml",
+  },
+  "b:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
   },
   "b:Spawn": {
     "offset": {
@@ -849,6 +877,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_b/b_h_8.xml",
   },
+  "b_mixed:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
+  },
   "b_mixed:Spawn": {
     "offset": {
       "x": 1,
@@ -1037,6 +1072,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 2,
     },
     "path": "doodads/theme_b/b_h_8.xml",
+  },
+  "b_tiles_mixed:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
   },
   "b_tiles_mixed:Spawn": {
     "offset": {
@@ -1227,6 +1269,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_b/b_h_8.xml",
   },
+  "b_tiles_red:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
+  },
   "b_tiles_red:Spawn": {
     "offset": {
       "x": 1,
@@ -1415,6 +1464,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 0,
     },
     "path": "doodads/theme_bonus1/bonus1_h_8.xml",
+  },
+  "bonus1:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
   },
   "bonus1:Spawn": {
     "offset": {
@@ -1605,6 +1661,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_bonus2/bonus2_h_8.xml",
   },
+  "bonus2:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
+  },
   "bonus2:Spawn": {
     "offset": {
       "x": 1,
@@ -1793,6 +1856,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 0,
     },
     "path": "doodads/theme_bonus3/bonus3_h_8.xml",
+  },
+  "bonus3:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
   },
   "bonus3:Spawn": {
     "offset": {
@@ -1983,6 +2053,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_bonus4/bonus4_h_8.xml",
   },
+  "bonus4:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
+  },
   "bonus4:Spawn": {
     "offset": {
       "x": 1,
@@ -2171,6 +2248,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 0,
     },
     "path": "doodads/theme_bonus5/bonus5_h_8.xml",
+  },
+  "bonus5:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
   },
   "bonus5:Spawn": {
     "offset": {
@@ -2361,6 +2445,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_c/c_h_8.xml",
   },
+  "c:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
+  },
   "c:Spawn": {
     "offset": {
       "x": 1,
@@ -2549,6 +2640,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 2,
     },
     "path": "doodads/theme_c/c_h_8.xml",
+  },
+  "c_mixed:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
   },
   "c_mixed:Spawn": {
     "offset": {
@@ -2739,6 +2837,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_c/c_h_8.xml",
   },
+  "c_tiles:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
+  },
   "c_tiles:Spawn": {
     "offset": {
       "x": 1,
@@ -2927,6 +3032,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 2,
     },
     "path": "doodads/theme_c/c_h_8.xml",
+  },
+  "c_tiles_dirt:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
   },
   "c_tiles_dirt:Spawn": {
     "offset": {
@@ -3117,6 +3229,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_d/d_h_8.xml",
   },
+  "d:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
+  },
   "d:Spawn": {
     "offset": {
       "x": 1,
@@ -3305,6 +3424,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 2,
     },
     "path": "doodads/theme_d/d_h_8.xml",
+  },
+  "d_carpet:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
   },
   "d_carpet:Spawn": {
     "offset": {
@@ -3495,6 +3621,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_d/d_h_8.xml",
   },
+  "d_default_dirt:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
+  },
   "d_default_dirt:Spawn": {
     "offset": {
       "x": 1,
@@ -3683,6 +3816,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 2,
     },
     "path": "doodads/theme_d/d_h_8.xml",
+  },
+  "d_mixed:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
   },
   "d_mixed:Spawn": {
     "offset": {
@@ -3873,6 +4013,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_e/e_h_8.xml",
   },
+  "e:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
+  },
   "e:Spawn": {
     "offset": {
       "x": 1,
@@ -4061,6 +4208,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 2,
     },
     "path": "doodads/theme_e/e_h_8.xml",
+  },
+  "e_default_dark:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
   },
   "e_default_dark:Spawn": {
     "offset": {
@@ -4251,6 +4405,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_e/e_h_8.xml",
   },
+  "e_fine:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
+  },
   "e_fine:Spawn": {
     "offset": {
       "x": 1,
@@ -4439,6 +4600,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 2,
     },
     "path": "doodads/theme_e/e_h_8.xml",
+  },
+  "e_mixed:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
   },
   "e_mixed:Spawn": {
     "offset": {
@@ -4629,6 +4797,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_f/f_h_8.xml",
   },
+  "f:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
+  },
   "f:Spawn": {
     "offset": {
       "x": 1,
@@ -4817,6 +4992,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 2,
     },
     "path": "doodads/theme_f/f_h_8.xml",
+  },
+  "f_fine:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
   },
   "f_fine:Spawn": {
     "offset": {
@@ -5007,6 +5189,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_f/f_h_8.xml",
   },
+  "f_frozen:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
+  },
   "f_frozen:Spawn": {
     "offset": {
       "x": 1,
@@ -5195,6 +5384,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 2,
     },
     "path": "doodads/theme_f/f_h_8.xml",
+  },
+  "f_mixed:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
   },
   "f_mixed:Spawn": {
     "offset": {
@@ -5385,6 +5581,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_g/g_h_8.xml",
   },
+  "g:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
+  },
   "g:Spawn": {
     "offset": {
       "x": 1,
@@ -5573,6 +5776,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 2,
     },
     "path": "doodads/theme_g/g_h_8.xml",
+  },
+  "g_fine:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
   },
   "g_fine:Spawn": {
     "offset": {
@@ -5763,6 +5973,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_g/g_h_8.xml",
   },
+  "g_mixed:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
+  },
   "g_mixed:Spawn": {
     "offset": {
       "x": 1,
@@ -5951,6 +6168,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 2,
     },
     "path": "doodads/theme_g/g_h_8.xml",
+  },
+  "g_path_dense:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
   },
   "g_path_dense:Spawn": {
     "offset": {
@@ -6141,6 +6365,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_h/h_h_8_dn.xml",
   },
+  "h:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
+  },
   "h:Spawn": {
     "offset": {
       "x": 1,
@@ -6329,6 +6560,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 2,
     },
     "path": "doodads/theme_i/i_h_8.xml",
+  },
+  "i:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
   },
   "i:Spawn": {
     "offset": {
@@ -6519,6 +6757,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
     },
     "path": "doodads/theme_i/i_h_8.xml",
   },
+  "i_mixed:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
+  },
   "i_mixed:Spawn": {
     "offset": {
       "x": 1,
@@ -6707,6 +6952,13 @@ exports[`doodad resolution matrix — regression guard for the Pillar addition >
       "y": 2,
     },
     "path": "doodads/theme_i/i_h_8.xml",
+  },
+  "i_symbols:LobbyPortal": {
+    "offset": {
+      "x": 0,
+      "y": 0,
+    },
+    "path": "doodads/generic/exit_teleport.xml",
   },
   "i_symbols:Spawn": {
     "offset": {

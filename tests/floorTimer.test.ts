@@ -28,8 +28,9 @@ function generateOk(params: DungeonParameters, seed: number): DungeonResult {
 
 /**
  * Stock parameters with the optional layers off, so the file list is just the
- * dungeon floors. Same isolation discipline as lobby.test.ts — the defaults now
- * ship the lobby, the boss and one tweak on.
+ * dungeon floors. Same isolation discipline as lobby.test.ts — `plainParameters()`
+ * ships no lobbies, but the boss and one tweak default on and are switched off
+ * here too.
  */
 function bareParams(): DungeonParameters {
   const params = plainParameters()
@@ -37,7 +38,7 @@ function bareParams(): DungeonParameters {
   params.themes = params.themes.slice(0, 3)
   params.levelMonsters = params.levelMonsters.slice(0, 3)
   params.levelTimers = Array.from({ length: 3 }, () => defaultFloorTimer())
-  params.lobby = { ...params.lobby, enabled: false }
+  params.lobbies = []
   params.boss = { ...params.boss, enabled: false }
   params.playerTweaks = {}
   return params

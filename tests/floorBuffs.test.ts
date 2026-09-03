@@ -55,7 +55,7 @@ function bareParams(): DungeonParameters {
   params.levelMonsters = params.levelMonsters.slice(0, 3)
   params.levelBuffs = Array.from({ length: 3 }, () => defaultFloorBuffs())
   params.levelTimers = Array.from({ length: 3 }, () => defaultFloorTimer())
-  params.lobby = { ...params.lobby, enabled: false }
+  params.lobbies = []
   params.boss = { ...params.boss, enabled: false }
   params.playerTweaks = {}
   return params

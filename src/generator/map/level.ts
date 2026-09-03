@@ -150,9 +150,10 @@ export class Level {
         this.levelValid = false
       }
     } else {
-      // Nothing follows, or a boss fight does: the victory orb, or the portal
-      // that Room.transform swaps in for it. Same room selection either way —
-      // both prefabs register the same ids off the same draws.
+      // Nothing follows, a boss fight does, or a lobby does: the victory orb,
+      // or one of the two portals Room.transform swaps in for it (red for a
+      // fight, blue for a lobby). Same room selection either way — all three
+      // prefabs register the same ids off the same draws.
       success = false
       for (let attempt = 0; attempt < 2000; attempt++) {
         const r = this.rooms[rand.iRand(0, this.rooms.length)]
@@ -200,10 +201,10 @@ export class Level {
     // room so it can never steal this one, and writing ctx.lastLockType here at
     // the very end of the final level cannot leak into a later level.
     // Gates whichever room carries the campaign's gateway prefab — the victory
-    // orb, or a boss portal. Under the default order there is exactly one such
-    // room, on floor `levels - 1`, which is what this used to test for
-    // directly; a rearranged campaign can have several, and each is the last
-    // gate before something that matters.
+    // orb, a boss portal, or a lobby portal. Under the default order there is
+    // exactly one such room, on floor `levels - 1`, which is what this used to
+    // test for directly; a rearranged campaign can have several, and each is
+    // the last gate before something that matters.
     if (params.lockFinalRoom && ctx.gateway?.kind !== 'exit') {
       // transform('Orb') already refused every room with more than one
       // passage, so the orb room is a dead end and lockRoom accepts it

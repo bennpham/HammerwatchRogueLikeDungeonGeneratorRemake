@@ -40,56 +40,72 @@ lockFinalRoom=1
 # so no key can be hoarded, mis-spent or left on an earlier floor. key = the
 # original gold door plus its gold key.
 finalLockMode=button
-# Prebuilt starting level: 1 = the party spawns in a lobby with the upgrade
-# vendors and walks a teleport into the dungeon, 0 = straight into level 1.
-# lobbyGold is a multiple of 500 (one red diamond each); more diamonds than the
-# floor has spots simply stack on the same spots.
-# lobbyShops is the space-separated list of shop columns the stalls sell; a
-# stall with none of its columns listed is left out of the level.
-lobby=1
-lobbyGold=10000
-lobbyShops=combo1 combo2 combo3 combo4 combo5 def1 def2 def3 def4 def5 misc1 misc2 misc3 misc4 misc5 off1 off2 off3 off4 off5 power
-# Free upgrade pickups lying on the lobby floor: eight whole numbers, in the
-# order damage defense health mana damage2 defense2 health2 mana2 (the 2s are
-# the game's own second-tier items). Each kind has one spot on the floor, so a
-# count above one stacks there; 0 lays none of that kind out at all.
-lobbyUpgrades=0 0 0 0 0 0 0 0
+# Lobbies (issue #48): hand-authored shop rooms, any number of them, each
+# independently placed by levelOrder below. `lobbies` is how many the
+# campaign has; every other lobby key carries its lobby's index directly
+# after `lobby`, the same way boss keys carry a fight index — lobby0Preset is
+# the first lobby's, and a third lobby adds a full lobby2* block. There is no
+# unprefixed spelling and no "disabled" lobby: one exists iff it is in this
+# list, and a lobby that used to be off is simply absent.
+#
+# lobby<i>Preset picks which committed room this lobby edits — BETA-dungeon-prep
+# (the campaign's original starting lobby) or BETA-boss-prep (the room that
+# used to be welded to the front of every boss fight, now just another lobby).
+# lobby<i>Gold is a multiple of 500 (one red diamond each); more diamonds than
+# the room has spots simply stack on the same spots. lobby<i>Shops is the
+# space-separated list of shop columns its stalls sell. lobby<i>Upgrades is the
+# same eight free-upgrade counts as before, in the order damage defense health
+# mana damage2 defense2 health2 mana2 (the 2s are the game's own second-tier
+# items); each kind has one spot in the room, so a count above one stacks
+# there, and 0 lays none of that kind out at all.
+#
+# The stock campaign carries two: the dungeon-prep lobby at the very start,
+# and the boss-prep lobby right before the fight — see levelOrder below.
+lobbies=2
+lobby0Preset=BETA-dungeon-prep
+lobby0Gold=10000
+lobby0Shops=combo1 combo2 combo3 combo4 combo5 def1 def2 def3 def4 def5 misc1 misc2 misc3 misc4 misc5 off1 off2 off3 off4 off5 power
+lobby0Upgrades=0 0 0 0 0 0 0 0
+lobby1Preset=BETA-boss-prep
+lobby1Gold=20000
+lobby1Shops=combo1 combo2 combo3 combo4 combo5 def1 def2 def3 def4 def5 misc1 misc2 misc3 misc4 misc5 off1 off2 off3 off4 off5 power
+lobby1Upgrades=0 0 0 0 0 0 0 0
 # levelOrder is the order the campaign is PLAYED in: dungeon floors by their
-# 1-based number, boss fights as B1, B2, ... e.g. levelOrder=1,2,B1,3,4,B2, or
-# levelOrder=B1,1,2,3 to open on a boss fight. A boss fight is one entry even
-# though it is two levels — its prep room comes with it.
+# 1-based number, boss fights as B1, B2, ... and lobbies as L1, L2, ...
+# e.g. levelOrder=L1,1,2,B1,3,4,B2, or levelOrder=B1,1,2,3 to open on a boss
+# fight. Unlike before issue #48, a fight is only ever ONE level (its arena) —
+# a shop in front of it is a separate lobby entry, placed next to it here.
 #
-# Floors keep their own order and so do fights (2 can never come before 1);
-# only how the two interleave is free. Whichever entry is LAST holds the
-# victory orb, so a campaign can equally well end on a dungeon floor.
+# Floors keep their own order, and so do fights, and so do lobbies (2 can
+# never come before 1 within its own kind); only how the three interleave is
+# free. Whichever entry is LAST holds the victory orb, so a campaign can
+# equally well end on a dungeon floor — but a lobby may never be last, since it
+# has no orb of its own.
 #
-# Omit the key for the default order — every floor, then every boss fight.
-# The stock campaign is NOT that order: floor 8 is the escape floor, played
-# after the boss arena, so it is written out below.
-levelOrder=1,2,3,4,5,6,7,B1,8
+# Omit the key for the default order — every lobby, then every floor, then
+# every boss fight. The stock campaign is NOT that order (it would put both
+# lobbies ahead of every floor): floor 8 is the escape floor, played after the
+# boss arena, and the boss-prep lobby sits right before the fight rather than
+# at the very front, so it is written out below.
+levelOrder=L1,1,2,3,4,5,6,7,L2,B1,8
 #
-# Boss fight after the last dungeon floor: 1 = a shop room (prep) then a
-# generated arena with a boss, 0 = campaign ends on the final floor.
+# Boss fight after the last dungeon floor: 1 = a generated arena with a boss,
+# 0 = campaign ends on the final floor. A fight carries no prep room of its
+# own any more — the lobby keys above are where that shop's settings live now.
 #
-# bossFights is how many of them the campaign chains. Each fight has its own
-# prep room and its own arena, and beating one teleports the party into the NEXT
-# fight's prep room, so the run reads fight, shop, fight; only the last arena
+# bossFights is how many arenas the campaign chains. Beating one fight leads
+# into whatever levelOrder puts next — the next fight directly, or a lobby
+# first if the dungeon master put a shop between them; only the last arena
 # holds the orb that ends the campaign. Every per-fight key therefore carries
 # its fight index directly after `boss` — boss0Theme is the first fight's, and a
 # second fight adds a full boss1* block below. (The unprefixed spelling files
 # written before multiple fights used still imports, read as fight 0.)
 #
-# boss0Gold is a multiple of 500, same rule as lobbyGold. boss0Shops is the
-# space-separated shop columns the prep stalls sell. boss0Width/boss0Height are
-# the arena's min,max in tiles. boss0Pool is the comma-separated boss ids from
-# the seven (boss_anubis boss_dragon boss_knight boss_krilith boss_lich
-# boss_queen boss_worm); the seed picks one per fight.
+# boss0Width/boss0Height are the arena's min,max in tiles. boss0Pool is the
+# comma-separated boss ids from the seven (boss_anubis boss_dragon boss_knight
+# boss_krilith boss_lich boss_queen boss_worm); the seed picks one per fight.
 boss=1
 bossFights=1
-boss0Gold=20000
-boss0Shops=combo1 combo2 combo3 combo4 combo5 def1 def2 def3 def4 def5 misc1 misc2 misc3 misc4 misc5 off1 off2 off3 off4 off5 power
-# The same eight free upgrade counts as lobbyUpgrades, for the prep-room floor.
-boss0Upgrades=0 0 0 0 0 0 0 0
 boss0Theme=g_mixed
 # How a "- mixed" boss0Theme arranges its floor palette; ignored by every other
 # theme. random | checker | bandsH | bandsV | bandsDiag | rings | diamond | cross | triangle

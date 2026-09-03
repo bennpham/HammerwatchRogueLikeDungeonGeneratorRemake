@@ -44,7 +44,7 @@ describe('the final room cannot be entered without opening its gate', () => {
         // keeping this sweep cheap enough not to time out its neighbours. The
         // orb room ships a crystal instead of the portal; the probe reads both.
         params.boss.enabled = false
-        params.lobby.enabled = false
+        params.lobbies = []
         const result = generateDungeon(params, seed)
         expect(result.ok, `${theme} seed ${seed} failed to generate`).toBe(true)
 

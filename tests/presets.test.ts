@@ -86,11 +86,12 @@ describe('campaign presets', () => {
       const last = params.levels - 1
 
       it(`${preset.id}: plays it last, after the boss fight`, () => {
-        // stored explicitly, because this is NOT the default order
+        // stored explicitly, because this is NOT the default order — the
+        // default puts every lobby ahead of every floor, and the shipped
+        // order tucks the second one in right before the fight instead
         expect(params.levelOrder).toBeDefined()
-        expect(isDefaultOrder(params.levelOrder!, params.levels, params.boss.fights.length)).toBe(
-          false
-        )
+        const counts = { levels: params.levels, fights: params.boss.fights.length, lobbies: params.lobbies.length }
+        expect(isDefaultOrder(params.levelOrder!, counts)).toBe(false)
         expect(params.levelOrder!.at(-1)).toEqual({ kind: 'floor', index: last })
         expect(params.levelOrder!.at(-2)).toEqual({ kind: 'boss', index: 0 })
       })
@@ -145,10 +146,12 @@ describe('campaign presets', () => {
             '>DangerArea<'
           )
         }
-        // and it is the last level the campaign lists
+        // and it is the last level the campaign lists — the boss-prep lobby
+        // leads straight into the arena now (no welded-on prep room), so it
+        // is the entry that precedes 'boss0' instead of 'bossprep0'
         const levelsXml = result.files.find((f) => f.path === 'levels.xml')!.content
         const ids = [...levelsXml.matchAll(/<level id="([^"]+)"/g)].map((m) => m[1])
-        expect(ids.slice(-3)).toEqual(['bossprep0', 'boss0', String(last)])
+        expect(ids.slice(-3)).toEqual(['lobby1', 'boss0', String(last)])
       })
     }
   })
@@ -170,7 +173,7 @@ describe('campaign presets', () => {
       expect(a).not.toBe(b)
       a.levelMonsters[0].push('bat1')
       a.monsterMax.bat1 = 1
-      a.lobby.shopCategories.push('power')
+      a.lobbies[0].shopCategories.push('power')
       expect(preset.build()).toEqual(b)
     }
   })

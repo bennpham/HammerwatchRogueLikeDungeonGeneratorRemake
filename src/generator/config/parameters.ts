@@ -195,17 +195,22 @@ export function escapeFloorTimer(): FloorTimer {
 }
 
 /**
- * The shipped campaign order: every floor but the last, then the boss fight,
- * then that last floor — the escape floor.
+ * The shipped campaign order: the dungeon-prep lobby, every floor but the
+ * last, the boss-prep lobby, the boss fight, then that last floor — the
+ * escape floor.
  *
- * Stored explicitly because it is genuinely NOT the default order (which is
- * every floor then every fight), so `isDefaultOrder` is false for it and a
+ * Stored explicitly because it is genuinely NOT the default order (which,
+ * with two lobbies, would put BOTH of them before any floor — see
+ * `defaultOrder` in campaign.ts), so `isDefaultOrder` is false for it and a
  * stock export writes a `levelOrder=` line. All three presets use it, and each
- * ships exactly one fight.
+ * ships exactly one fight and the same two stock lobbies `defaultParameters()`
+ * does.
  */
-export function escapeFloorOrder(levels: number): CampaignSlot[] {
+export function shippedOrder(levels: number): CampaignSlot[] {
   return [
+    { kind: 'lobby' as const, index: 0 },
     ...Array.from({ length: Math.max(0, levels - 1) }, (_, index) => ({ kind: 'floor' as const, index })),
+    { kind: 'lobby' as const, index: 1 },
     { kind: 'boss' as const, index: 0 },
     { kind: 'floor' as const, index: Math.max(0, levels - 1) }
   ]
@@ -271,17 +276,19 @@ export interface DungeonParameters {
    */
   levelTimers?: FloorTimer[]
   /**
-   * The order the campaign's floors and boss fights are played in.
+   * The order the campaign's lobbies, floors and boss fights are played in.
    *
-   * Optional, and absent is the historical shape: every dungeon floor in order,
-   * then every boss fight. Same byte-identity contract as `levelBuffs` and
-   * `levelTimers` — a params object without it must generate exactly what the
+   * Optional, and absent is the historical shape: every lobby, then every
+   * dungeon floor, then every boss fight, all in order. With `lobbies` empty
+   * this is the same byte-identity contract `levelBuffs` and `levelTimers`
+   * carry — a params object without it must generate exactly what the
    * generator produced before floors could be rearranged.
    *
-   * One entry per floor and per boss FIGHT (a fight is one slot even though it
-   * emits a prep room and an arena). Both sequences stay ascending — only the
-   * interleaving is free, so `1, 2, B1, 3` and `B1, 1, 2, 3` are both legal but
-   * `2, 1` is not. `campaign.ts` owns the model and the repair.
+   * One entry per lobby, per floor and per boss fight. All three sequences
+   * stay ascending — only the interleaving is free, so `L1, 1, 2, B1, 3` and
+   * `B1, 1, 2, 3` are both legal but `2, 1` is not. A lobby may never be the
+   * campaign's last entry — it has no victory orb of its own — which
+   * `validation.ts` enforces. `campaign.ts` owns the model and the repair.
    */
   levelOrder?: CampaignSlot[]
   /** max horde size per monster id */
@@ -293,10 +300,15 @@ export interface DungeonParameters {
    */
   playerTweaks: PlayerTweaks
   /**
-   * The prebuilt starting level. `enabled: false` reproduces the pre-lobby
-   * campaign exactly — same files, same `levels.xml`, same seeds.
+   * The campaign's shop rooms — hand-authored levels, not generated geometry.
+   * An arbitrary number, each independently ordered by `levelOrder` and each
+   * built from one of `LOBBY_PRESETS`. A lobby exists iff it is in this list;
+   * an empty array reproduces the pre-lobby campaign exactly — same files,
+   * same `levels.xml`, same seeds. `LobbyOptions.enabled` is gone: there is no
+   * "disabled lobby" any more, only "no entry for it in this list", the same
+   * rule `boss.fights` already followed for a boss fight.
    */
-  lobby: LobbyOptions
+  lobbies: LobbyOptions[]
   /**
    * The boss fight appended after the last dungeon floor. `enabled: false`
    * reproduces the pre-boss campaign exactly — the arena draws from its own
@@ -306,12 +318,16 @@ export interface DungeonParameters {
 }
 
 /**
- * The lobby is a hand-authored level, not generated geometry, so its options
- * describe what to *edit* in the committed template rather than how to lay it
- * out. See src/generator/lobby/.
+ * One lobby slot: a hand-authored level, not generated geometry, so its
+ * options describe what to *edit* in the committed template rather than how
+ * to lay it out. `preset` picks which committed room (`LOBBY_PRESETS` in
+ * `src/generator/lobby/presets.ts`) this slot edits — the same options shape
+ * fits either template, since `buildLobby()` reads every coordinate and id off
+ * the preset rather than off a hardcoded room. See src/generator/lobby/.
  */
 export interface LobbyOptions {
-  enabled: boolean
+  /** a `LOBBY_PRESETS` id — which committed room this lobby edits */
+  preset: string
   /** multiple of 500 — each 500 is one red diamond on the lobby floor */
   startingGold: number
   /** selected shop columns, e.g. ['misc1', 'misc2', 'off1', 'power'] */
@@ -321,16 +337,6 @@ export interface LobbyOptions {
    * Anything above one stacks on that kind's single slot, so the count is not
    * bounded by the room's layout — it is the dungeon master's dial.
    */
-  upgrades: UpgradeCounts
-}
-
-/** The prep room half of one boss fight: a straight copy of the lobby's shop rig. */
-export interface BossPrepOptions {
-  /** shop columns the five stalls sell — ALL_LOBBY_CATEGORIES, power INCLUDED */
-  shopCategories: string[]
-  /** multiple of 500 — each 500 is one red diamond on the prep floor */
-  startingGold: number
-  /** free upgrade pickups on the prep floor; see `LobbyOptions.upgrades` */
   upgrades: UpgradeCounts
 }
 
@@ -426,12 +432,16 @@ export interface BossArenaOptions {
 }
 
 /**
- * One boss fight: a hand-authored prep room (shop + starting gold, like the
- * lobby) then a generated arena. A campaign may carry several, and each one is
- * edited independently — nothing is shared between them.
+ * One boss fight: a generated arena. A campaign may carry several, and each
+ * one is edited independently — nothing is shared between them.
+ *
+ * Before issue #48 a fight also carried its own welded-on prep room
+ * (`BossPrepOptions`, now deleted). A shop in front of a fight is a `lobby`
+ * slot now, like any other — placed next to the fight in `levelOrder` rather
+ * than travelling with it, which is what lets a dungeon master skip the shop
+ * before one fight or put two in front of another.
  */
 export interface BossFight {
-  prep: BossPrepOptions
   arena: BossArenaOptions
 }
 
@@ -445,10 +455,11 @@ export interface BossFight {
  *
  * `fights` is ordered and, like `levels`, has a lower bound but no upper one:
  * a campaign may chain as many arenas as the dungeon master wants. Fight N's
- * arena teleports the party into fight N+1's prep room; only the last one ends
- * the campaign. They share `ctx.bossRand` in order, so fight 0 draws exactly
- * what a single-fight campaign always did and the extra fights continue the
- * same stream after it.
+ * arena leads into whatever `levelOrder` puts next — the next fight directly,
+ * or a lobby first if the dungeon master put a shop between them; only the
+ * last slot in the whole campaign ends it. They share `ctx.bossRand` in order,
+ * so fight 0 draws exactly what a single-fight campaign always did and the
+ * extra fights continue the same stream after it.
  */
 export interface BossOptions {
   enabled: boolean
@@ -624,9 +635,33 @@ export const BOSS_IDS = [
 ] as const
 
 /**
- * The default boss options: feature on, a prep room that sells every column
- * *including* power (extra lives matter more right before a boss than at the
- * start of a run) and 20000 gold on the floor, a `g - mixed` arena 42–64 × 42–64
+ * One stock lobby built from `presetId`. A fresh object every call, like
+ * `defaultBossFight()` — the list it goes into is edited in place by the form
+ * and imported by configFile.ts, so two lobbies must never share a
+ * `shopCategories` array.
+ *
+ * Both stock rooms sell every column, power included — see the `LobbyOptions`
+ * interface comment for why: extra lives matter more right before a boss than
+ * at the start of a run, and the one thing that made buying them anywhere
+ * questionable is removed by `defaultParameters()`'s own
+ * `player.shared.remove.life` tweak. The only difference between the two is
+ * gold: 10000 for the campaign's own starting lobby, 20000 — the last shop
+ * before a fight, so the party arrives able to actually spend at it — for the
+ * boss-prep room.
+ */
+export function defaultLobby(presetId: string): LobbyOptions {
+  return {
+    preset: presetId,
+    startingGold: presetId === 'BETA-boss-prep' ? 20000 : 10000,
+    shopCategories: [...ALL_LOBBY_CATEGORIES],
+    // no free upgrades by default: the vendors are the intended way to get
+    // them, so handing eight out on the floor is opt-in per kind
+    upgrades: noUpgrades()
+  }
+}
+
+/**
+ * The default boss options: feature on, a `g - mixed` arena 42–64 × 42–64
  * with the four castle bosses in the pool, symmetric cover, and four waves whose
  * shared intervals tighten as the fight goes on.
  *
@@ -650,21 +685,15 @@ export function defaultBossOptions(): BossOptions {
 /**
  * One stock boss fight. A fresh object every call, like `CampaignPreset.build`:
  * the fight list is edited in place by the form and imported by configFile.ts,
- * so two fights must never share a `prep`, an `arena` or a `waves` array.
+ * so two fights must never share an `arena` or a `waves` array.
+ *
+ * Carries no prep room any more — see the `BossFight` interface comment. A
+ * shop in front of this fight is `defaultLobby('BETA-boss-prep')`, placed next
+ * to it in `levelOrder` by whoever builds the campaign (`defaultParameters()`
+ * does, via `shippedOrder`).
  */
 export function defaultBossFight(): BossFight {
   return {
-    prep: {
-      // unlike the lobby, power is on by default — see the interface comment
-      shopCategories: [...ALL_LOBBY_CATEGORIES],
-      // the last shop before the boss, so the party arrives able to actually
-      // spend at it — 40 red diamonds on the prep floor
-      startingGold: 20000,
-      // no free upgrades by default: the prep room's shop is the intended way to
-      // get them, and handing out eight for free changes the balance of the boss
-      // run. The dungeon master turns them on per kind.
-      upgrades: noUpgrades()
-    },
     arena: {
       theme: 'g_mixed',
       floorPattern: 'random',
@@ -1064,10 +1093,11 @@ export function defaultParameters(): DungeonParameters {
         'mb_lich'
       ]
     ],
-    // Floors 1-7 in order, the boss fight, then the escape floor. The arena's
-    // alcove holds a portal to that floor instead of the victory orb, which the
-    // orb follows onto the last slot — verified in game.
-    levelOrder: escapeFloorOrder(8),
+    // The dungeon-prep lobby, floors 1-7 in order, the boss-prep lobby, the
+    // boss fight, then the escape floor. The arena's alcove holds a portal to
+    // that floor instead of the victory orb, which the orb follows onto the
+    // last slot — verified in game.
+    levelOrder: shippedOrder(8),
     monsterMax: {
       ...Object.fromEntries(MONSTER_TYPES.map((t) => [t.id, t.defaultMax])),
       // A horde is trunc(fRand(cap/5, cap)) per lair, so this is what makes the
@@ -1082,18 +1112,12 @@ export function defaultParameters(): DungeonParameters {
     // the one tweak a stock run ships, so a stock campaign now emits exactly
     // one tweak file (see CLAUDE.md invariant 6).
     playerTweaks: { [removeKey('shared', 'life')]: 1 },
-    // lobby on, but no gold on the floor: the point of the default is to show
-    // the vendors exist, not to hand the party a head start they didn't ask for.
-    // power is on: it sells the potions and rejuv, and the one thing that made
-    // it questionable — buyable extra lives — is removed by the tweak above
-    lobby: {
-      enabled: true,
-      startingGold: 10000,
-      shopCategories: [...ALL_LOBBY_CATEGORIES],
-      // no free upgrades by default: the vendors are the intended way to get
-      // them, so handing eight out on the floor is opt-in per kind
-      upgrades: noUpgrades()
-    },
+    // Two stock lobbies, matching the pre-#48 campaign's two shop rooms: the
+    // campaign's own starting lobby (10000 gold) and what used to be the boss
+    // fight's welded-on prep room (20000 gold) — now just the second lobby in
+    // the order, placed by `shippedOrder` right before the fight. Both sell
+    // every column including power; see `defaultLobby`'s comment for why.
+    lobbies: [defaultLobby('BETA-dungeon-prep'), defaultLobby('BETA-boss-prep')],
     boss: defaultBossOptions()
   }
 }

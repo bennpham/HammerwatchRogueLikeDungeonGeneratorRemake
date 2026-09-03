@@ -44,6 +44,7 @@ import { BUFF_HELPFUL_IDS, buffById } from '../objects/buffTypes'
 import { MAX_PICKUP_COUNT, pickupById } from '../objects/pickupTypes'
 import { projectileById } from '../objects/projectileTypes'
 import { LOBBY_DIAMOND_VALUE } from '../lobby/build'
+import { LOBBY_PRESETS } from '../lobby/presets'
 import { ALL_LOBBY_CATEGORIES, isLobbyCategory, lobbyCategoryCounts, vendorOfCategory } from '../lobby/shops'
 import { DIAMOND_VALUE, MAX_DIAMOND_COUNT, UPGRADE_KINDS } from '../levelTemplate/surgery'
 import type { UpgradeCounts } from '../levelTemplate/surgery'
@@ -90,18 +91,13 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
   }
 
   // 0 floors is legal and means "boss-only campaign": no generated dungeon at
-  // all, straight into the prep room. The rules just below keep that honest.
+  // all, straight into the arena (or a lobby first, if one leads to it). The
+  // rules just below keep that honest.
   requirePositiveInt('levels', p.levels, 0)
   if (p.levels === 0 && p.boss?.enabled !== true) {
     errors.push({
       field: 'levels',
       message: 'With 0 floors the boss fight must be enabled — otherwise the campaign has no levels to play.'
-    })
-  }
-  if (p.levels === 0 && p.lobby?.enabled === true) {
-    warnings.push({
-      field: 'lobby.enabled',
-      message: 'The lobby is skipped with 0 floors — its teleport leads to floor 1, so the campaign starts in the boss prep room instead.'
     })
   }
   requirePositiveInt('minRoomSize', p.minRoomSize, 3)
@@ -273,7 +269,7 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
   validatePlayerTweaks(p, errors, warnings)
   validateLevelBuffs(p, errors, warnings)
   validateLevelTimers(p, errors, warnings)
-  validateLobby(p, errors, warnings)
+  validateLobbies(p, errors, warnings)
   validateBoss(p, errors, warnings)
   validateLevelOrder(p, errors)
 
@@ -281,16 +277,15 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
 }
 
 /**
- * The lobby is a hand-authored template with a fixed number of authored slots,
+ * A lobby is a hand-authored template with a fixed number of authored slots,
  * so its rules are about what the template can physically carry rather than
  * about layout feasibility.
- */
-/**
- * Not a game limit. The lobby and the boss prep room stack diamonds round-robin
- * over their authored slots without bound, so any amount of starting gold fits —
- * it just piles deeper on the same spots. This ceiling exists only so a typed
- * typo (`99999999999`) is rejected instead of emitting millions of `<item>`
- * nodes and hanging the generator.
+ *
+ * Not a game limit, either of the below. Both `LOBBY_PRESETS` rooms stack
+ * diamonds round-robin over their authored slots without bound, so any amount
+ * of starting gold fits — it just piles deeper on the same spots. This
+ * ceiling exists only so a typed typo (`99999999999`) is rejected instead of
+ * emitting millions of `<item>` nodes and hanging the generator.
  */
 export const GOLD_SAFETY_MAX = DIAMOND_VALUE * MAX_DIAMOND_COUNT
 
@@ -307,8 +302,8 @@ export const UPGRADE_COUNT_MAX = 10_000
 /**
  * The shared rule for one room's free upgrade counts.
  *
- * The lobby and the prep room carry the identical block, so the messages are
- * generated from the field prefix rather than written twice.
+ * Every lobby, whichever preset it edits, carries the identical block, so the
+ * messages are generated from the field prefix rather than written twice.
  */
 function validateUpgrades(
   upgrades: UpgradeCounts | undefined,
@@ -338,9 +333,10 @@ function validateUpgrades(
  *
  * Absent is always valid — it means the default order, which is what every
  * campaign had before this was configurable. A stored order has to describe
- * exactly this campaign: one entry per floor and per boss fight, no duplicates,
- * nothing that does not exist, and each of the two sequences ascending. Only
- * the interleaving is free.
+ * exactly this campaign: one entry per lobby, per floor and per boss fight, no
+ * duplicates, nothing that does not exist, and each of the three sequences
+ * ascending. Only the interleaving is free — except that a lobby can never be
+ * the campaign's very last entry, since it has no victory orb of its own.
  *
  * `campaign.normalizeOrder` can repair every one of these, and the importer
  * uses it so a stale file is never fatal — but the form edits the stored value
@@ -352,14 +348,16 @@ function validateLevelOrder(p: DungeonParameters, errors: ValidationIssue[]): vo
   if (order === undefined) return
 
   const fightCount = p.boss?.enabled === true ? (p.boss.fights?.length ?? 0) : 0
-  const limit = (kind: string): number => (kind === 'floor' ? p.levels : fightCount)
-  const name = (slot: CampaignSlot): string => (slot.kind === 'floor' ? `floor ${slot.index + 1}` : `boss fight ${slot.index + 1}`)
+  const lobbyCount = p.lobbies?.length ?? 0
+  const limit = (kind: string): number => (kind === 'floor' ? p.levels : kind === 'boss' ? fightCount : lobbyCount)
+  const name = (slot: CampaignSlot): string =>
+    slot.kind === 'floor' ? `floor ${slot.index + 1}` : slot.kind === 'boss' ? `boss fight ${slot.index + 1}` : `lobby ${slot.index + 1}`
 
   const seen = new Set<string>()
   const last = new Map<string, number>()
   for (const slot of order) {
-    if (slot === null || typeof slot !== 'object' || (slot.kind !== 'floor' && slot.kind !== 'boss')) {
-      errors.push({ field: 'levelOrder', message: 'The floor order contains an entry that is neither a floor nor a boss fight.' })
+    if (slot === null || typeof slot !== 'object' || (slot.kind !== 'floor' && slot.kind !== 'boss' && slot.kind !== 'lobby')) {
+      errors.push({ field: 'levelOrder', message: 'The floor order contains an entry that is neither a floor, a boss fight nor a lobby.' })
       continue
     }
     if (!Number.isInteger(slot.index) || slot.index < 0 || slot.index >= limit(slot.kind)) {
@@ -382,64 +380,105 @@ function validateLevelOrder(p: DungeonParameters, errors: ValidationIssue[]): vo
     if (previous !== undefined && slot.index < previous) {
       errors.push({
         field: 'levelOrder',
-        message: `The floor order puts ${name(slot)} after a later one. Floors and boss fights each stay in order; only how they interleave is up to you.`
+        message: `The floor order puts ${name(slot)} after a later one. Floors, boss fights and lobbies each stay in their own order; only how they interleave is up to you.`
       })
     }
     last.set(slot.kind, slot.index)
   }
 
-  for (const slot of [
+  const named = [
+    ...Array.from({ length: Math.max(0, lobbyCount) }, (_, index) => ({ kind: 'lobby' as const, index })),
     ...Array.from({ length: Math.max(0, p.levels) }, (_, index) => ({ kind: 'floor' as const, index })),
     ...Array.from({ length: Math.max(0, fightCount) }, (_, index) => ({ kind: 'boss' as const, index }))
-  ]) {
+  ]
+  for (const slot of named) {
     if (!seen.has(`${slot.kind}:${slot.index}`)) {
       errors.push({ field: 'levelOrder', message: `The floor order never places ${name(slot)}.` })
     }
   }
+
+  // A lobby has no victory orb of its own, so it may never be the campaign's
+  // very last entry — including when it is the ONLY thing the order names.
+  // Checked after the rules above so a malformed order reports its actual
+  // problem first, rather than a misleading "ends in a lobby" on top of it.
+  if (order.length > 0) {
+    const lastSlot = order[order.length - 1]
+    if (lastSlot !== null && typeof lastSlot === 'object' && lastSlot.kind === 'lobby') {
+      errors.push({
+        field: 'levelOrder',
+        message: 'The campaign cannot end in a lobby: the last floor or boss arena carries the victory orb.'
+      })
+    }
+  }
 }
 
-function validateLobby(
+/**
+ * Every rule for one lobby. Field keys are scoped by index (`lobbies.0.*`) so
+ * the form can anchor an inline message to the sub-tab that is actually
+ * wrong — the same shape `validateBossFight` uses for `boss.fights.N.*`.
+ */
+function validateLobbies(
   p: DungeonParameters,
   errors: ValidationIssue[],
   warnings: ValidationIssue[]
 ): void {
   // a settings file or parameters.txt written before the feature existed has no
-  // lobby block at all; that means "off", not "invalid"
-  const lobby = p.lobby
-  if (lobby === undefined) return
+  // lobbies list at all; that means "none", not "invalid"
+  const lobbies = p.lobbies
+  if (lobbies === undefined) return
+
+  lobbies.forEach((lobby, index) => validateLobby(lobby, index, p, errors, warnings))
+}
+
+function validateLobby(
+  lobby: DungeonParameters['lobbies'][number],
+  index: number,
+  p: DungeonParameters,
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[]
+): void {
   const before = errors.length
+  /** field key for one setting of this lobby */
+  const lf = (suffix: string): string => `lobbies.${index}.${suffix}`
+
+  if (LOBBY_PRESETS.every((preset) => preset.id !== lobby.preset)) {
+    errors.push({
+      field: lf('preset'),
+      message: `"${lobby.preset}" is not a lobby preset. Valid presets: ${LOBBY_PRESETS.map((preset) => preset.id).join(', ')}.`
+    })
+  }
 
   const gold = lobby.startingGold
   if (!Number.isInteger(gold) || gold < 0) {
-    errors.push({ field: 'lobby.startingGold', message: 'Starting gold must be a whole number ≥ 0.' })
+    errors.push({ field: lf('startingGold'), message: 'Starting gold must be a whole number ≥ 0.' })
   } else if (gold % LOBBY_DIAMOND_VALUE !== 0) {
     errors.push({
-      field: 'lobby.startingGold',
+      field: lf('startingGold'),
       message: `Starting gold must be a multiple of ${LOBBY_DIAMOND_VALUE} — each ${LOBBY_DIAMOND_VALUE} is one red diamond.`
     })
   } else if (gold > GOLD_SAFETY_MAX) {
     errors.push({
-      field: 'lobby.startingGold',
+      field: lf('startingGold'),
       message: `Starting gold cannot exceed ${GOLD_SAFETY_MAX} — not a game limit, just the point past which the diamond pile is too large to emit.`
     })
   }
 
-  validateUpgrades(lobby.upgrades, 'lobby.upgrades', errors)
+  validateUpgrades(lobby.upgrades, lf('upgrades'), errors)
 
   const unknown = lobby.shopCategories.filter((c) => !isLobbyCategory(c))
   for (const id of [...new Set(unknown)].sort()) {
     errors.push({
-      field: 'lobby.shopCategories',
+      field: lf('shopCategories'),
       message: `"${id}" is not a shop column. Valid columns: ${ALL_LOBBY_CATEGORIES.join(', ')}.`
     })
   }
 
-  if (!lobby.enabled || errors.length > before) return
+  if (errors.length > before) return
 
   if (lobby.shopCategories.length === 0) {
     warnings.push({
-      field: 'lobby.shopCategories',
-      message: 'The lobby has no vendors; the party can only walk to the teleport.'
+      field: lf('shopCategories'),
+      message: 'This lobby has no vendors; the party can only walk to the teleport.'
     })
   }
 
@@ -451,11 +490,11 @@ function validateLobby(
   if (empty.length > 0) {
     const vendors = [...new Set(empty.map((c) => vendorOfCategory(c)?.label ?? c))].sort()
     warnings.push({
-      field: 'lobby.shopCategories',
+      field: lf('shopCategories'),
       message:
         `${empty.length === 1 ? 'One selected shop column has' : `${empty.length} selected shop columns have`} ` +
         `no upgrades left after the Player tab's edits (${vendors.join(', ')}). ` +
-        'Those stalls will stand in the lobby with nothing to sell.'
+        'Those stalls will stand in this lobby with nothing to sell.'
     })
   }
 }
@@ -562,8 +601,6 @@ function validateBossFight(
   const arena = fight.arena
   /** field key for an arena setting of this fight */
   const af = (suffix: string): string => `boss.fights.${index}.arena.${suffix}`
-  /** field key for a prep-room setting of this fight */
-  const pf = (suffix: string): string => `boss.fights.${index}.prep.${suffix}`
 
   // min ≤ max on both axes
   if (arena.minWidth > arena.maxWidth) {
@@ -795,33 +832,6 @@ function validateBossFight(
     errors.push({
       field: af('floorPattern'),
       message: `"${arena.floorPattern}" is not one of: ${BOSS_FLOOR_PATTERNS.join(', ')}.`
-    })
-  }
-
-  // starting gold
-  const gold = fight.prep.startingGold
-  if (!Number.isInteger(gold) || gold < 0) {
-    errors.push({ field: pf('startingGold'), message: 'Starting gold must be a whole number ≥ 0.' })
-  } else if (gold % DIAMOND_VALUE !== 0) {
-    errors.push({
-      field: pf('startingGold'),
-      message: `Starting gold must be a multiple of ${DIAMOND_VALUE} — each ${DIAMOND_VALUE} is one red diamond.`
-    })
-  } else if (gold > GOLD_SAFETY_MAX) {
-    errors.push({
-      field: pf('startingGold'),
-      message: `Starting gold cannot exceed ${GOLD_SAFETY_MAX} — not a game limit, just the point past which the diamond pile is too large to emit.`
-    })
-  }
-
-  validateUpgrades(fight.prep.upgrades, pf('upgrades'), errors)
-
-  // every prep shop column must be a real one
-  const unknownShop = fight.prep.shopCategories.filter((c: string) => !isLobbyCategory(c))
-  for (const id of [...new Set(unknownShop)].sort()) {
-    errors.push({
-      field: pf('shopCategories'),
-      message: `"${id}" is not a shop column. Valid columns: ${ALL_LOBBY_CATEGORIES.join(', ')}.`
     })
   }
 

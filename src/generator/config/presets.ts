@@ -3,7 +3,7 @@ import {
   defaultFloorBuffs,
   defaultFloorTimer,
   defaultParameters,
-  escapeFloorOrder,
+  shippedOrder,
   escapeFloorTimer,
   scatterWave,
   stockWavePickups
@@ -265,7 +265,7 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
       levelTimers: escapeTimers(6),
       // the sixth is the escape floor, played after the boss — see levelOrder
       themes: ['h', 'h', 'i', 'i_symbols', 'i_mixed', 'i_mixed'],
-      levelOrder: escapeFloorOrder(6),
+      levelOrder: shippedOrder(6),
       boss: withBoss('i_mixed', ['boss_anubis', 'boss_worm'], desertWaves()),
       levelMonsters: [
         ['guard_desert', 'guard_desert_range'],
@@ -351,7 +351,7 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
       levelTimers: escapeTimers(6),
       // bonus5 twice: the escape floor after the boss stays on the last tileset
       themes: ['bonus1', 'bonus2', 'bonus3', 'bonus4', 'bonus5', 'bonus5'],
-      levelOrder: escapeFloorOrder(6),
+      levelOrder: shippedOrder(6),
       boss: withBoss(
         'g_mixed',
         ['boss_knight', 'boss_lich', 'boss_krilith', 'boss_dragon'],

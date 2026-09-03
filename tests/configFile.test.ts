@@ -12,6 +12,7 @@ import {
   waveBuffs,
   wavePickups
 } from '../src/generator/config/parameters'
+import { DEFAULT_LOBBY_PRESET_ID } from '../src/generator/lobby/presets'
 import {
   SHOP_PRICE_MAX,
   applyCostPolicy,
@@ -180,8 +181,6 @@ describe('parameters.txt parsing', () => {
   it('round-trips the boss options', () => {
     const original = defaultParameters()
     original.boss.enabled = true
-    original.boss.fights[0].prep.startingGold = 2500
-    original.boss.fights[0].prep.shopCategories = ['misc1', 'power']
     original.boss.fights[0].arena.theme = 'h'
     original.boss.fights[0].arena.minWidth = 20
     original.boss.fights[0].arena.maxWidth = 40
@@ -205,7 +204,9 @@ describe('parameters.txt parsing', () => {
 
     const text = serializeParametersTxt(original)
     // the wire contract: fixed camelCase keys, and the four-field wave encoding
-    expect(text).toContain('boss0Gold=2500')
+    // — no boss0Gold/Shops/Upgrades any more, since a fight carries no prep
+    // room of its own (issue #48); see 'round-trips both rooms' counts' below
+    // for the lobby keys that replaced them
     expect(text).toContain('boss0Cover=ring,0.6,5,2')
     expect(text).toContain('boss0Invuln=30,45,60')
     expect(text).toContain('boss0InvulnCountdown=0')
@@ -813,7 +814,7 @@ describe('buffN — per-floor buff auras', () => {
   })
 
   it('leaves a file written before buffs existed with every floor empty', () => {
-    const parsed = parseParametersTxt('levels=7\nlobby=1')
+    const parsed = parseParametersTxt('levels=7')
     expect(parsed.params.levelBuffs?.every((list) => list.length === 0)).toBe(true)
     expect(parsed.unknownKeys).toEqual([])
   })
@@ -874,7 +875,7 @@ describe('timerN — per-floor timer mode', () => {
   })
 
   it('leaves a file written before timer mode existed entirely on the defaults', () => {
-    const parsed = parseParametersTxt('levels=7\nlobby=1')
+    const parsed = parseParametersTxt('levels=7')
     expect(parsed.params.levelTimers?.every((t) => !t.enabled)).toBe(true)
     expect(parsed.unknownKeys).toEqual([])
   })
@@ -899,35 +900,35 @@ describe('timerN — per-floor timer mode', () => {
 })
 
 describe('parameters.txt — free upgrades', () => {
-  it('round-trips both rooms\' counts', () => {
+  it('round-trips both stock lobbies\' counts independently', () => {
     const original = defaultParameters()
-    original.lobby.upgrades = { ...noUpgrades(), damage: 3, mana2: 12 }
-    original.boss.fights[0].prep.upgrades = { ...oneOfEachUpgrade(), health: 0 }
+    original.lobbies[0].upgrades = { ...noUpgrades(), damage: 3, mana2: 12 }
+    original.lobbies[1].upgrades = { ...oneOfEachUpgrade(), health: 0 }
 
     const parsed = parseParametersTxt(serializeParametersTxt(original))
 
-    expect(parsed.params.lobby.upgrades).toEqual(original.lobby.upgrades)
-    expect(parsed.params.boss.fights[0].prep.upgrades).toEqual(original.boss.fights[0].prep.upgrades)
+    expect(parsed.params.lobbies[0].upgrades).toEqual(original.lobbies[0].upgrades)
+    expect(parsed.params.lobbies[1].upgrades).toEqual(original.lobbies[1].upgrades)
     expect(parsed.unknownKeys).toEqual([])
   })
 
   it('writes the counts in UPGRADE_KINDS order', () => {
     const original = defaultParameters()
-    original.lobby.upgrades = { ...noUpgrades(), damage: 1, mana2: 8 }
+    original.lobbies[0].upgrades = { ...noUpgrades(), damage: 1, mana2: 8 }
     const text = serializeParametersTxt(original)
-    expect(text).toContain('lobbyUpgrades=1 0 0 0 0 0 0 8')
+    expect(text).toContain('lobby0Upgrades=1 0 0 0 0 0 0 8')
   })
 
   // a file written before the feature existed carries no key at all
   it('leaves the defaults alone when the key is absent', () => {
     const parsed = parseParametersTxt('levels=3\n')
-    expect(parsed.params.lobby.upgrades).toEqual(defaultParameters().lobby.upgrades)
+    expect(parsed.params.lobbies).toEqual(defaultParameters().lobbies)
     expect(parsed.unknownKeys).toEqual([])
   })
 
   it('reports a malformed count without dropping the rest of the line', () => {
-    const parsed = parseParametersTxt('lobbyUpgrades=2 -1 x 4 5 6 7 8\n')
-    expect(parsed.params.lobby.upgrades).toEqual({
+    const parsed = parseParametersTxt('lobby0Upgrades=2 -1 x 4 5 6 7 8\n')
+    expect(parsed.params.lobbies[0].upgrades).toEqual({
       ...noUpgrades(),
       damage: 2,
       mana: 4,
@@ -936,22 +937,119 @@ describe('parameters.txt — free upgrades', () => {
       health2: 7,
       mana2: 8
     })
-    expect(parsed.unknownKeys).toEqual(['lobbyUpgrades value "-1"', 'lobbyUpgrades value "x"'])
+    expect(parsed.unknownKeys).toEqual(['lobby0Upgrades value "-1"', 'lobby0Upgrades value "x"'])
   })
 
   it('reports values past the eight kinds, and takes the eight it knows', () => {
-    const parsed = parseParametersTxt('boss0Upgrades=1 1 1 1 1 1 1 1 1 2\n')
-    expect(parsed.params.boss.fights[0].prep.upgrades).toEqual(oneOfEachUpgrade())
+    const parsed = parseParametersTxt('lobby1Upgrades=1 1 1 1 1 1 1 1 1 2\n')
+    expect(parsed.params.lobbies[1].upgrades).toEqual(oneOfEachUpgrade())
     expect(parsed.unknownKeys).toEqual([
-      'boss0Upgrades extra value "1"',
-      'boss0Upgrades extra value "2"'
+      'lobby1Upgrades extra value "1"',
+      'lobby1Upgrades extra value "2"'
     ])
   })
 
   it('leaves the kinds a short list does not reach at zero', () => {
-    const parsed = parseParametersTxt('lobbyUpgrades=4 5\n')
-    expect(parsed.params.lobby.upgrades).toEqual({ ...noUpgrades(), damage: 4, defense: 5 })
+    const parsed = parseParametersTxt('lobby0Upgrades=4 5\n')
+    expect(parsed.params.lobbies[0].upgrades).toEqual({ ...noUpgrades(), damage: 4, defense: 5 })
     expect(parsed.unknownKeys).toEqual([])
+  })
+
+  // Issue #48 is a HARD BREAK on the old keys: the campaign's one lobby
+  // (`lobby`/`lobbyGold`/`lobbyShops`/`lobbyUpgrades`) and a fight's welded-on
+  // prep room (`boss<i>Gold`/`Shops`/`Upgrades`) are both gone. None of them
+  // is aliased onto the new shape — a file naming them reports every one as
+  // unknown, but still imports (invariant #5).
+  it('reports the old singular lobby keys and boss<i>Upgrades as unknown, never fatal', () => {
+    const parsed = parseParametersTxt(
+      ['lobby=1', 'lobbyGold=5000', 'lobbyShops=power', 'lobbyUpgrades=1 0 0 0 0 0 0 0', 'boss0Upgrades=1 0 0 0 0 0 0 0'].join(
+        '\n'
+      )
+    )
+    expect(parsed.unknownKeys.slice().sort()).toEqual(
+      ['boss0Upgrades', 'lobby', 'lobbyGold', 'lobbyShops', 'lobbyUpgrades'].sort()
+    )
+    // and the defaults are untouched — no silent lobby-0 alias
+    expect(parsed.params.lobbies).toEqual(defaultParameters().lobbies)
+  })
+})
+
+describe('parameters.txt — lobbies (issue #48)', () => {
+  it('round-trips preset, gold and shops for several lobbies', () => {
+    // mutates the two stock lobbies in place — the STOCK COUNT, so the
+    // shipped levelOrder (which names exactly these two) stays valid and the
+    // round trip does not have to reconcile a stale base against a changed
+    // lobby count (see the config file's own note on why base + diff files
+    // must be re-parsed against the object they were exported from)
+    const original = defaultParameters()
+    original.lobbies[0].startingGold = 2500
+    original.lobbies[0].preset = 'BETA-boss-prep'
+    original.lobbies[1].shopCategories = ['misc1', 'power']
+    original.lobbies[1].startingGold = 15000
+
+    const text = serializeParametersTxt(original)
+    expect(text).toContain('lobbies=2')
+    expect(text).toContain('lobby0Preset=BETA-boss-prep')
+    expect(text).toContain('lobby0Gold=2500')
+    expect(text).toContain('lobby1Shops=misc1 power')
+    expect(text).toContain('lobby1Gold=15000')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.lobbies).toEqual(original.lobbies)
+    expect(parsed.params.levelOrder).toEqual(original.levelOrder)
+  })
+
+  it('overwrites a named lobby without a `lobbies=` count, and never trims', () => {
+    // index 1 already exists (the base object's second stock lobby is
+    // 'BETA-boss-prep'); naming it a different preset proves the key was
+    // actually read rather than just already matching the default
+    const text = ['lobby1Preset=BETA-dungeon-prep'].join('\r\n')
+    const parsed = parseParametersTxt(text)
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.lobbies).toHaveLength(2)
+    expect(parsed.params.lobbies[1].preset).toBe('BETA-dungeon-prep')
+  })
+
+  it('grows past the base object\'s own lobbies when a higher index is named', () => {
+    const text = ['lobby3Gold=5000'].join('\r\n')
+    const parsed = parseParametersTxt(text)
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.lobbies).toHaveLength(4)
+    expect(parsed.params.lobbies[3].startingGold).toBe(5000)
+    // the gap is filled with the stock preset, not left undefined
+    expect(parsed.params.lobbies[2].preset).toBe(DEFAULT_LOBBY_PRESET_ID)
+  })
+
+  it('an explicit `lobbies=0` clears the list entirely', () => {
+    const parsed = parseParametersTxt('lobbies=0')
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.lobbies).toEqual([])
+  })
+
+  it('reports keys for a lobby past `lobbies` instead of adding one', () => {
+    const text = ['lobbies=1', 'lobby0Preset=BETA-boss-prep', 'lobby1Preset=BETA-boss-prep'].join('\r\n')
+    const parsed = parseParametersTxt(text)
+    expect(parsed.params.lobbies).toHaveLength(1)
+    expect(parsed.unknownKeys).toEqual(['lobby1Preset'])
+  })
+
+  it('reports an unknown preset id and keeps the default', () => {
+    const parsed = parseParametersTxt('lobby0Preset=nonsense')
+    expect(parsed.unknownKeys).toEqual(['lobby0Preset value "nonsense"'])
+    expect(parsed.params.lobbies[0].preset).toBe(defaultParameters().lobbies[0].preset)
+  })
+
+  it('reports malformed gold instead of throwing', () => {
+    const parsed = parseParametersTxt('lobby0Gold=abc')
+    expect(parsed.unknownKeys).toEqual(['lobby0Gold'])
+    expect(parsed.params.lobbies[0].startingGold).toBe(defaultParameters().lobbies[0].startingGold)
+  })
+
+  it('reports a malformed shop column instead of throwing', () => {
+    const parsed = parseParametersTxt('lobby0Shops=misc1 nonsense power')
+    expect(parsed.params.lobbies[0].shopCategories).toEqual(['misc1', 'power'])
+    expect(parsed.unknownKeys).toEqual(['lobby0Shops value "nonsense"'])
   })
 })
 
@@ -966,7 +1064,6 @@ describe('parameters.txt — multiple boss fights (issue #43)', () => {
     ]
     original.boss.fights[1].arena.theme = 'h'
     original.boss.fights[1].arena.bossPool = ['boss_anubis']
-    original.boss.fights[1].prep.startingGold = 3500
     original.boss.fights[2].arena.cover = { pattern: 'ring', density: 0.2, ringSpacing: 5, clusters: 2 }
     original.boss.fights[2].arena.waves[0].defaultIntervalMs = 7000
 
@@ -974,7 +1071,6 @@ describe('parameters.txt — multiple boss fights (issue #43)', () => {
     expect(text).toContain('bossFights=3')
     expect(text).toContain('boss1Theme=h')
     expect(text).toContain('boss1Pool=boss_anubis')
-    expect(text).toContain('boss1Gold=3500')
     expect(text).toContain('boss2Cover=ring,0.2,5,2')
     expect(text).toMatch(/^boss2Wave1=[^|]*\|7000\|/m)
 
@@ -994,10 +1090,12 @@ describe('parameters.txt — multiple boss fights (issue #43)', () => {
   })
 
   it('reports keys for a fight past bossFights instead of adding one', () => {
-    const text = ['boss=1', 'bossFights=1', 'boss1Theme=h', 'boss1Gold=1000'].join('\r\n')
+    // boss1Width is a real, recognized suffix — the point is that its INDEX
+    // is past the declared count, not that the suffix itself is unknown
+    const text = ['boss=1', 'bossFights=1', 'boss1Theme=h', 'boss1Width=10,20'].join('\r\n')
     const parsed = parseParametersTxt(text)
     expect(parsed.params.boss.fights).toHaveLength(1)
-    expect(parsed.unknownKeys).toEqual(['boss1Theme', 'boss1Gold'])
+    expect(parsed.unknownKeys).toEqual(['boss1Theme', 'boss1Width'])
   })
 
   it('keeps the per-fight wave post-passes from leaking across fights', () => {
@@ -1016,15 +1114,18 @@ describe('parameters.txt — multiple boss fights (issue #43)', () => {
     )
   })
 
-  it('still imports the unprefixed keys older files used, as fight 0', () => {
+  it('still imports the unprefixed arena keys older files used, as fight 0', () => {
     const text = ['boss=1', 'bossTheme=h', 'bossGold=1500', 'bossWave1=bat1|2500|bat1:9||'].join('\r\n')
     const parsed = parseParametersTxt(text)
 
-    expect(parsed.unknownKeys).toEqual([])
+    // bossTheme and bossWave1 still land on fight 0, unprefixed form and all
     expect(parsed.params.boss.fights).toHaveLength(1)
     expect(parsed.params.boss.fights[0].arena.theme).toBe('h')
-    expect(parsed.params.boss.fights[0].prep.startingGold).toBe(1500)
     expect(parsed.params.boss.fights[0].arena.waves[0].monsters).toEqual(['bat1'])
+    // bossGold named the fight's old welded-on prep room, gone since issue
+    // #48 — not aliased onto a lobby, so it is reported like any other key
+    // this parser no longer recognizes (invariant #5: never fatal)
+    expect(parsed.unknownKeys).toEqual(['bossGold'])
   })
 })
 
@@ -1036,6 +1137,10 @@ describe('parameters.txt — levelOrder (issue #43)', () => {
     p.levelMonsters = p.levelMonsters.slice(0, 3)
     p.levelBuffs = p.levelBuffs?.slice(0, 3)
     p.levelTimers = p.levelTimers?.slice(0, 3)
+    // this describe block is about floor/fight interleaving specifically —
+    // clear the two stock lobbies defaultParameters() ships, or the repair
+    // below would append them onto every hand-written order here
+    p.lobbies = []
     p.levelOrder = [
       { kind: 'boss', index: 0 },
       { kind: 'floor', index: 0 },
@@ -1062,20 +1167,26 @@ describe('parameters.txt — levelOrder (issue #43)', () => {
     expect(serializeParametersTxt(plainParameters())).not.toMatch(/^levelOrder=/m)
   })
 
-  // The shipped campaign is not in the default order: its last floor is played
-  // after the boss fight, so an export of it does carry the key.
+  // The shipped campaign is not in the default order — which would put BOTH
+  // stock lobbies ahead of every floor — so an export of it does carry the
+  // key: the dungeon-prep lobby opens the campaign, the boss-prep lobby sits
+  // right before the fight, and the escape floor is played after it.
   it('writes the shipped order, escape floor last', () => {
-    expect(serializeParametersTxt(defaultParameters())).toMatch(/^levelOrder=1,2,3,4,5,6,7,B1,8$/m)
+    expect(serializeParametersTxt(defaultParameters())).toMatch(/^levelOrder=L1,1,2,3,4,5,6,7,L2,B1,8$/m)
   })
 
+  // Every case below parses with no `base`, so it starts from
+  // `defaultParameters()` — which ships two stock lobbies. `lobbies=0` clears
+  // them so this stays a test of floor/fight interleaving specifically; each
+  // is what the repair pass would otherwise append them onto every order.
   it('stores an explicitly-default order as absent, not as a list', () => {
-    const parsed = parseParametersTxt(['levels=3', 'levelOrder=1,2,3,B1'].join('\r\n'))
+    const parsed = parseParametersTxt(['levels=3', 'lobbies=0', 'levelOrder=1,2,3,B1'].join('\r\n'))
     expect(parsed.params.levelOrder).toBeUndefined()
   })
 
   it('repairs a stale order against the campaign it is attached to', () => {
     // names floor 5 of a 3-floor campaign, and never mentions floor 3
-    const parsed = parseParametersTxt(['levels=3', 'levelOrder=1,B1,5,2'].join('\r\n'))
+    const parsed = parseParametersTxt(['levels=3', 'lobbies=0', 'levelOrder=1,B1,5,2'].join('\r\n'))
     expect(parsed.params.levelOrder).toEqual([
       { kind: 'floor', index: 0 },
       { kind: 'boss', index: 0 },
@@ -1085,13 +1196,13 @@ describe('parameters.txt — levelOrder (issue #43)', () => {
   })
 
   it('reports a malformed token and keeps the rest of the line', () => {
-    const parsed = parseParametersTxt(['levels=3', 'levelOrder=1,nope,B1,2,3'].join('\r\n'))
+    const parsed = parseParametersTxt(['levels=3', 'lobbies=0', 'levelOrder=1,nope,B1,2,3'].join('\r\n'))
     expect(parsed.unknownKeys).toEqual(['levelOrder value "nope"'])
     expect(parsed.params.levelOrder?.map((s) => s.kind)).toEqual(['floor', 'boss', 'floor', 'floor'])
   })
 
   it('falls back to the default order rather than failing on a garbage line', () => {
-    const parsed = parseParametersTxt(['levels=3', 'levelOrder=???'].join('\r\n'))
+    const parsed = parseParametersTxt(['levels=3', 'lobbies=0', 'levelOrder=???'].join('\r\n'))
     expect(parsed.unknownKeys).toEqual(['levelOrder value "???"'])
     expect(parsed.params.levelOrder).toBeUndefined()
   })
