@@ -8,6 +8,30 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-02 — The per-tier trap rig fires, and `ToggleElement`'s polarity holds for a spewer
+**Tag:** **[VERIFIED]** — playtested by the repo owner on a generated campaign.
+**Context:** First end-to-end run of `boss/traps.ts` in game, after the tile-centre
+fix below.
+**Evidence:**
+- **The `ProjectileSpewer` contract is right as emitted.** `direction`,
+  `projectile`, `spread` and `spawn-rate` on a `<dictionary name="parameters">`,
+  with the node itself written `enabled="false"` for a non-opening tier. Traps
+  fire from arena load with no trigger on tier 0.
+- **The direction enum behaves exactly as read off `level_10.xml`** — `0` up,
+  `1` down, `2` left, `3` right, each trap on the wall it fires away from. The
+  file-derived mapping (2026-09-01 entry) needed no correction; it is now
+  confirmed by firing rather than by reading.
+- **`ToggleElement`'s inverted polarity holds when the target is a spewer:**
+  `state: 0` enables, `state: 1` disables. Crossing a health threshold switched
+  the previous carrying tier's spewers off and the new tier's on, so tiers
+  replace rather than accumulate, as `waveBuffs.ts` does for buff fields.
+**Consequence:** the rig needs no change. The engine-contract half of the traps
+feature is now verified rather than inferred.
+**Still open:** 66 of the 68 entries in `objects/projectileTypes.ts` remain
+`[EMITTED]` — only `enemy_axe` and `enemy_boss_anubis_fireball` have been fired.
+The seeker, `explode`, `damage: 0` and `directions: 1` cases are the ones worth
+sampling, since each is a claim the tooltips make.
+
 ### 2026-09-02 — A wall-hugging node must sit on the tile CENTRE, and off the north wall's overhang
 **Tag:** **[VERIFIED]** — playtested by the repo owner, first firing of a
 generated `ProjectileSpewer`.
@@ -38,9 +62,15 @@ other two walls played correctly.
 axes and starts its north wall at `northWallRow`. Generalises beyond traps:
 **anything placed against a wall band must be emitted on the tile centre**, and
 anything against the north wall must clear the overhang as well.
+**Confirmed 2026-09-02, second playtest:** all four walls fire cleanly, and the
+theme-aware branch is right in both directions — a lettered theme's north trap
+on row 2 stands clear of the art, and theme h's on row 0 is clean too, so the
+flat themes really do bury nothing.
 **Still open:** whether the half-tile alone would have fixed the north wall.
 Both corrections shipped together, so the overhang half is reasoned from the
-verified dragon precedent rather than isolated in its own playtest.
+verified dragon precedent rather than isolated in its own playtest. Nothing
+depends on the answer — it would only mean the north row could sit one tile
+closer to the wall.
 
 ### 2026-09-01 — `ProjectileSpewer`: the direction enum, the spread range, the rate
 **Tag:** **[VERIFIED]** — three independent sources agree, and two of the

@@ -102,7 +102,9 @@ import { TIER_EVENT_NAMES } from './waves'
  * `campaign/levels/level_10.xml` ids 2579-2582 — four spewers ringing the point
  * (-31.5, -6), each offset one tile in the direction it fires: the one below
  * centre is 1, the one to the right 3, to the left 2, above 0. Confirmed
- * against the same level's second cluster and `level_temple_3.xml`.
+ * against the same level's second cluster and `level_temple_3.xml`, and then
+ * [VERIFIED] in game 2026-09-02 by firing all four from a generated arena: the
+ * file-derived mapping needed no correction.
  */
 const SPEWER_DIRECTION: Record<BossTrapDirection, number> = {
   up: 0,
@@ -139,7 +141,8 @@ export const TRAP_MIN_SPACING = 2
  *
  * [VERIFIED] 2026-09-02 in game: the traps on the two minimum-edge walls fired
  * but their projectiles were intercepted immediately; the maximum-edge walls
- * (whose corner point falls between two interior tiles) played correctly.
+ * (whose corner point falls between two interior tiles) played correctly. With
+ * the half-tile applied, all four walls fire cleanly.
  */
 const TILE_CENTRE = 0.5
 
@@ -347,7 +350,9 @@ function wallSlots(arena: TrapArena, direction: BossTrapDirection): Slot[] {
  *
  * `overhangRows` is asked per theme rather than assumed: theme h and the bonus
  * themes anchor their art on its own tile and bury nothing, so a trap there
- * sits on row 0 as the other three walls do on theirs.
+ * sits on row 0 as the other three walls do on theirs. [VERIFIED] 2026-09-02 in
+ * game on both branches — row 2 on a lettered theme and row 0 on theme h are
+ * each clear of their own wall's art.
  *
  * The south wall needs no equivalent: art hangs DOWN, so the band at row
  * `height` buries rows outside the arena, not the interior row in front of it.

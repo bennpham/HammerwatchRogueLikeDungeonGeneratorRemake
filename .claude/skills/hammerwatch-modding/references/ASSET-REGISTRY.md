@@ -663,11 +663,21 @@ and the four `_v2` corners.
 | `ProjectileSpewer` | fires a projectile stream in one cardinal direction, forever | `direction` (0 up, 1 down, 2 left, 3 right), `projectile` (path), `spread` (float 0..2), `spawn-rate` (ms) |
 
 `ProjectileSpewer` is the boss arena’s wall traps (`src/generator/boss/traps.ts`).
-The direction enum is `[VERIFIED]` — derived from a four-way spewer fountain in
-`campaign/levels/level_10.xml`; see DISCOVERY-LOG 2026-09-01. `spread` is a
+The whole contract above is `[VERIFIED]` **in game from generated output**,
+2026-09-02: a generated arena's spewers fire, and the direction enum behaves
+exactly as the `level_10.xml` fountain predicted — `0` up, `1` down, `2` left,
+`3` right, each trap standing on the wall it fires away from. `spread` is a
 float 0..2 (0 = a single linear stream) and `spawn-rate` is milliseconds with no
 engine-imposed floor. A spewer may ship `enabled: False` and be switched on by a
-`ToggleElement`, which is how the per-health-tier rig works.
+`ToggleElement`, which is how the per-health-tier rig works — also `[VERIFIED]`
+in the same session, including the inverted polarity (`state: 0` enables,
+`state: 1` disables): crossing a health threshold switched the previous tier's
+spewers off and the new tier's on.
+
+**A `ProjectileSpewer` must be emitted on its tile CENTRE** (`tile + 0.5` on
+both axes), and one against the north wall must additionally clear that wall's
+art overhang. Both are `[VERIFIED]` — see DISCOVERY-LOG 2026-09-02, and note
+the rule generalises to anything placed against a wall band, not just traps.
 
 The boss arena’s rig is `SpawnObject`, `GlobalEventTrigger`, `TimerTrigger`,
 `DestroyObject` and `ToggleImmortality` (`src/generator/boss/waves.ts`,
