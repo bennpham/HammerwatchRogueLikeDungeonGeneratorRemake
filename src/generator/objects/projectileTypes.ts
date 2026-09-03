@@ -15,30 +15,55 @@
  * file's root `<projectile>` element. They are carried as data rather than
  * folded into the description alone so the form can sort and warn on them.
  *
- * Two traps for the dungeon master, both visible in the tooltips:
+ * ## A curated subset, not the whole folder
  *
- * 1. **`damage: 0` means the projectile carries no damage of its own.** Every
- *    `player_*` entry, both sorcerer shards and a few decorative ones are
- *    normally fired by a weapon that supplies the damage from the character's
- *    stats. A spewer has no stats, so firing one is a light show, not a hazard.
- *    They are kept in the roster anyway — a harmless sweeping projectile is a
- *    legitimate thing to want, and `shooter_valuables` (also 0) is how the
- *    shipped campaign showers a room with coins.
- * 2. **`directions: 1` means one sprite angle.** The tower beams and most magic
+ * The folder holds 68 `.xml` files. **46 are listed here**; the other 22 were
+ * cut after the 2026-09-02 playtest, and the rule for the cut is worth keeping
+ * because it decides any future addition too:
+ *
+ *   **A projectile with `damage: 0` is not a trap.** Those are fired by a
+ *   weapon that supplies the damage from the character's stats — every
+ *   `player_*` entry, the sorcerer shards, the Warlock lightning and lifesteal
+ *   shards, the dragon blood splatters, and `shooter_valuables`, the coin
+ *   spray. A spewer has no stats, so from a wall they are a light show and
+ *   nothing else. Offering them made the picker confusing (22 of 68 options
+ *   carrying a "this does nothing" warning), and at least one — a combo nova —
+ *   lodged in the wall rather than flying. Do not add them back without a
+ *   reason better than "it looks nice".
+ *
+ * ## What the surviving fields mean
+ *
+ * `damage`, `speed`, `directions` and `behavior` are read verbatim off each
+ * file's root `<projectile>` element. They are carried as data rather than
+ * folded into the description alone so the form can sort and warn on them.
+ *
+ * Two things the tooltips still have to say:
+ *
+ * 1. **`directions: 1` means one sprite angle.** The tower beams and most magic
  *    balls draw the same frame whichever way they travel; they still fly
- *    correctly, they just do not rotate.
+ *    correctly, they just do not rotate. 27 of the 46 are like this.
+ * 2. **`behavior` does not survive the spewer.** A projectile fired from a wall
+ *    travels in a straight line whatever its behavior says — homing is the
+ *    *monster's* aim, not the projectile's, so a `seeker` shot from a spewer
+ *    will not chase anybody. It still hurts on contact. [VERIFIED] 2026-09-02
+ *    in game on the lich family. Descriptions must not promise otherwise.
  *
  * Verification status (see hammerwatch-modding/references/):
  *   [VERIFIED] Every id, path and stat below — read directly from the root
  *              `<projectile>` element of each file in
  *              `editor/assetsExtract/projectiles/` on a real Hammerwatch
- *              install, 2026-09-01. The folder holds 68 `.xml` files and all
- *              68 are listed here.
+ *              install, 2026-09-01.
  *   [VERIFIED] `projectiles/enemy_axe.xml` and
  *              `projectiles/enemy_boss_anubis_fireball.xml` load in a
- *              ProjectileSpewer — the owner's hand-built test level.
- *   [EMITTED]  The other 66 are the same asset kind referenced the same way;
- *              none has been fired from a generated spewer yet.
+ *              ProjectileSpewer, plus the lich family fired from a generated
+ *              arena, 2026-09-02.
+ *   [EMITTED]  The rest are the same asset kind referenced the same way, and
+ *              have not been fired from a generated spewer yet.
+ *   [OPEN]     One projectile crashed the game outright — a
+ *              NullReferenceException inside `BehaviorData.Get`, reached from
+ *              `NeutralBehavior..ctor`. The culprit therefore carries
+ *              `behavior: 'neutral'`, and 18 such entries survive the cut, so
+ *              this is NOT closed by it. See DISCOVERY-LOG 2026-09-02.
  */
 
 export interface ProjectileDef {
@@ -121,17 +146,6 @@ export const PROJECTILE_DEFS: readonly ProjectileDef[] = [
     behavior: 'penetrating',
     description: '1000 damage, speed 1.5, penetrating, 13-wide collision. An instant kill that cannot be outlived — use it only if you mean the lane to be lethal.'
   },
-  {
-    id: 'shooter_valuables',
-    path: 'projectiles/shooter_valuables.xml',
-    label: 'Coin spray',
-    group: 'Traps & shooters',
-    damage: 0,
-    speed: 0.75,
-    directions: 1,
-    behavior: 'neutral',
-    description: 'Harmless. Speed 0.75. What the shipped campaign uses to shower a room with coins — a reward spewer, not a hazard.'
-  },
 
   // --- Enemy -----------------------------------------------------------------
   {
@@ -203,7 +217,7 @@ export const PROJECTILE_DEFS: readonly ProjectileDef[] = [
     speed: 0.85,
     directions: 8,
     behavior: 'seeker',
-    description: '5 damage, speed 0.85, seeker — it curves toward a player instead of flying straight, so spread matters less than usual.'
+    description: '5 damage, speed 0.85. Tagged seeker, but from a spewer it flies straight like everything else â the homing is the spider’s aim, not the shot’s.'
   },
   {
     id: 'enemy_maggot_1',
@@ -269,17 +283,6 @@ export const PROJECTILE_DEFS: readonly ProjectileDef[] = [
     directions: 1,
     behavior: 'neutral',
     description: '40 damage, speed 0.85. One sprite angle.'
-  },
-  {
-    id: 'enemy_dragon_blood',
-    path: 'projectiles/enemy_dragon_blood.xml',
-    label: 'Dragon blood',
-    group: 'Enemy',
-    damage: 0,
-    speed: 0.25,
-    directions: 1,
-    behavior: 'neutral',
-    description: 'Harmless on impact, speed 0.25 — a crawling decorative splatter, not a hazard.'
   },
 
   // --- Enemy towers ----------------------------------------------------------
@@ -472,7 +475,7 @@ export const PROJECTILE_DEFS: readonly ProjectileDef[] = [
     speed: 0.8,
     directions: 1,
     behavior: 'seeker',
-    description: '5 damage, speed 0.8, seeker — it curves toward a player rather than flying straight.'
+    description: '5 damage, speed 0.8. Tagged seeker, but a spewer fires it in a straight line.'
   },
 
   // --- Boss ------------------------------------------------------------------
@@ -485,7 +488,7 @@ export const PROJECTILE_DEFS: readonly ProjectileDef[] = [
     speed: 2,
     directions: 8,
     behavior: 'seeker',
-    description: '50 damage, speed 2, seeker, 3.25-wide collision. It homes, so it stays dangerous at spread 0 as a slow single stream — which is how the reference rig uses it.'
+    description: '50 damage, speed 2, 3.25-wide collision â the hardest-hitting boss shot here. Tagged seeker, but from a wall it flies straight; the wide collision is what makes a single stream dangerous.'
   },
   {
     id: 'enemy_boss_anubis_fireball_small',
@@ -510,17 +513,6 @@ export const PROJECTILE_DEFS: readonly ProjectileDef[] = [
     description: '30 damage, speed 1.45, explodes on impact — the blast catches players standing near whoever it hits.'
   },
   {
-    id: 'enemy_boss_dragon_blood',
-    path: 'projectiles/enemy_boss_dragon_blood.xml',
-    label: 'Dragon blood (boss)',
-    group: 'Boss',
-    damage: 0,
-    speed: 0.25,
-    directions: 1,
-    behavior: 'neutral',
-    description: 'Harmless on impact, speed 0.25 — decorative splatter.'
-  },
-  {
     id: 'enemy_boss_krilith_frostball',
     path: 'projectiles/enemy_boss_krilith_frostball.xml',
     label: 'Krilith frostball',
@@ -529,7 +521,7 @@ export const PROJECTILE_DEFS: readonly ProjectileDef[] = [
     speed: 0.6,
     directions: 1,
     behavior: 'seeker',
-    description: '30 damage, speed 0.6, seeker — slow but it follows, so a lane of them becomes a chase.'
+    description: '30 damage, speed 0.6 â slow enough to walk beside. Tagged seeker, but a spewer fires it straight, so a lane of them is a wall to time rather than a chase.'
   },
   {
     id: 'enemy_boss_krilith_wave',
@@ -551,7 +543,7 @@ export const PROJECTILE_DEFS: readonly ProjectileDef[] = [
     speed: 0.35,
     directions: 1,
     behavior: 'seeker',
-    description: '20 damage, speed 0.35, seeker. The slowest homing projectile in the roster.'
+    description: '20 damage, speed 0.35 â the slowest thing in the roster bar the ice orb. Tagged seeker; fired from a wall it does not home.'
   },
   {
     id: 'enemy_boss_lich',
@@ -596,162 +588,6 @@ export const PROJECTILE_DEFS: readonly ProjectileDef[] = [
     description: '15 damage, speed 1, 5-wide collision. Poison hit.'
   },
 
-  // --- Player ----------------------------------------------------------------
-  // All zero damage: the weapon that fires them supplies it from the character's
-  // stats, and a spewer has no stats. Harmless light shows — kept because a
-  // harmless sweeping projectile is a legitimate thing to want.
-  {
-    id: 'player_arrow_1',
-    path: 'projectiles/player_arrow_1.xml',
-    label: 'Player arrow I',
-    group: 'Player (no damage)',
-    damage: 0,
-    speed: 2,
-    directions: 8,
-    description: 'Harmless from a spewer — a ranger bow supplies the damage. Speed 2.'
-  },
-  {
-    id: 'player_arrow_2',
-    path: 'projectiles/player_arrow_2.xml',
-    label: 'Player arrow II',
-    group: 'Player (no damage)',
-    damage: 0,
-    speed: 2.5,
-    directions: 8,
-    description: 'Harmless from a spewer. Speed 2.5.'
-  },
-  {
-    id: 'player_arrow_3',
-    path: 'projectiles/player_arrow_3.xml',
-    label: 'Player arrow III',
-    group: 'Player (no damage)',
-    damage: 0,
-    speed: 3,
-    directions: 8,
-    description: 'Harmless from a spewer. Speed 3 — the fastest sprite in the roster.'
-  },
-  {
-    id: 'player_knife',
-    path: 'projectiles/player_knife.xml',
-    label: 'Player knife',
-    group: 'Player (no damage)',
-    damage: 0,
-    speed: 2.25,
-    directions: 8,
-    behavior: 'penetrating',
-    description: 'Harmless from a spewer. Speed 2.25, penetrating.'
-  },
-  {
-    id: 'player_fireball_1',
-    path: 'projectiles/player_fireball_1.xml',
-    label: 'Player fireball I',
-    group: 'Player (no damage)',
-    damage: 0,
-    speed: 0.8,
-    directions: 8,
-    description: 'Harmless from a spewer — a wizard staff supplies the damage. Speed 0.8.'
-  },
-  {
-    id: 'player_fireball_2',
-    path: 'projectiles/player_fireball_2.xml',
-    label: 'Player fireball II',
-    group: 'Player (no damage)',
-    damage: 0,
-    speed: 1,
-    directions: 8,
-    description: 'Harmless from a spewer. Speed 1.'
-  },
-  {
-    id: 'player_fireball_3',
-    path: 'projectiles/player_fireball_3.xml',
-    label: 'Player fireball III',
-    group: 'Player (no damage)',
-    damage: 0,
-    speed: 1.25,
-    directions: 8,
-    description: 'Harmless from a spewer. Speed 1.25.'
-  },
-  {
-    id: 'player_fireball_4',
-    path: 'projectiles/player_fireball_4.xml',
-    label: 'Player fireball IV',
-    group: 'Player (no damage)',
-    damage: 0,
-    speed: 1.45,
-    directions: 8,
-    description: 'Harmless from a spewer. Speed 1.45.'
-  },
-  {
-    id: 'player_fireball_5',
-    path: 'projectiles/player_fireball_5.xml',
-    label: 'Player fireball V',
-    group: 'Player (no damage)',
-    damage: 0,
-    speed: 1.65,
-    directions: 8,
-    description: 'Harmless from a spewer. Speed 1.65.'
-  },
-  {
-    id: 'player_fireball_6',
-    path: 'projectiles/player_fireball_6.xml',
-    label: 'Player fireball VI',
-    group: 'Player (no damage)',
-    damage: 0,
-    speed: 1.8,
-    directions: 8,
-    description: 'Harmless from a spewer. Speed 1.8, 3.25-wide — the biggest of the six.'
-  },
-  {
-    id: 'player_gargoyle_fireball',
-    path: 'projectiles/player_gargoyle_fireball.xml',
-    label: 'Gargoyle fireball',
-    group: 'Player (no damage)',
-    damage: 0,
-    speed: 2.75,
-    directions: 8,
-    description: 'Harmless from a spewer. Speed 2.75.'
-  },
-  {
-    id: 'player_ice_shard',
-    path: 'projectiles/player_ice_shard.xml',
-    label: 'Player ice shard',
-    group: 'Player (no damage)',
-    damage: 0,
-    speed: 2.75,
-    directions: 8,
-    description: 'Harmless from a spewer. Speed 2.75.'
-  },
-  {
-    id: 'player_combo_nova_1',
-    path: 'projectiles/player_combo_nova_1.xml',
-    label: 'Combo nova I',
-    group: 'Player (no damage)',
-    damage: 0,
-    speed: 1.5,
-    directions: 8,
-    description: 'Harmless from a spewer. Speed 1.5, 5-wide — a big soft ring.'
-  },
-  {
-    id: 'player_combo_nova_2',
-    path: 'projectiles/player_combo_nova_2.xml',
-    label: 'Combo nova II',
-    group: 'Player (no damage)',
-    damage: 0,
-    speed: 1.75,
-    directions: 8,
-    description: 'Harmless from a spewer. Speed 1.75, 7-wide.'
-  },
-  {
-    id: 'player_combo_nova_3',
-    path: 'projectiles/player_combo_nova_3.xml',
-    label: 'Combo nova III',
-    group: 'Player (no damage)',
-    damage: 0,
-    speed: 2,
-    directions: 8,
-    description: 'Harmless from a spewer. Speed 2, 9-wide — the largest sprite in the roster.'
-  },
-
   // --- Sorcerer --------------------------------------------------------------
   {
     id: 'sorcerer_ice_orb',
@@ -763,48 +599,6 @@ export const PROJECTILE_DEFS: readonly ProjectileDef[] = [
     directions: 1,
     behavior: 'neutral',
     description: '40 damage, speed 0.15 — by far the slowest thing here. A stream of them parks a wall of orbs across the arena.'
-  },
-  {
-    id: 'sorcerer_ice_shard',
-    path: 'projectiles/sorcerer_ice_shard.xml',
-    label: 'Sorcerer ice shard',
-    group: 'Sorcerer',
-    damage: 0,
-    speed: 2.25,
-    directions: 8,
-    description: 'Harmless from a spewer — the caster supplies the damage. Speed 2.25.'
-  },
-  {
-    id: 'sorcerer_orb_shard',
-    path: 'projectiles/sorcerer_orb_shard.xml',
-    label: 'Sorcerer orb shard',
-    group: 'Sorcerer',
-    damage: 0,
-    speed: 2.25,
-    directions: 8,
-    description: 'Harmless from a spewer. Speed 2.25.'
-  },
-
-  // --- Misc ------------------------------------------------------------------
-  {
-    id: 'lightningball',
-    path: 'projectiles/lightningball.xml',
-    label: 'Lightning ball',
-    group: 'Misc',
-    damage: 0,
-    speed: 1.75,
-    directions: 1,
-    description: 'Harmless on impact. Speed 1.75. One sprite angle.'
-  },
-  {
-    id: 'lifesteal_shard',
-    path: 'projectiles/lifesteal_shard.xml',
-    label: 'Lifesteal shard',
-    group: 'Misc',
-    damage: 0,
-    speed: 1.5,
-    directions: 16,
-    description: 'Harmless on impact. Speed 1.5, and the only 16-angle sprite in the roster.'
   }
 ]
 

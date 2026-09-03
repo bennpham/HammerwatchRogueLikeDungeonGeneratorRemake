@@ -24,7 +24,7 @@ import { defaultParameters } from '../src/generator/config/parameters'
 import type { BossTrap, BossTrapDirection, BossWave } from '../src/generator/config/parameters'
 import { BOSS_TRAP_DIRECTIONS, MAX_TRAP_COUNT, TRAP_SPREAD_MAX } from '../src/generator/config/parameters'
 import { validateParameters } from '../src/generator/config/validation'
-import { PROJECTILE_DEFS, projectileById } from '../src/generator/objects/projectileTypes'
+import { PROJECTILE_DEFS, PROJECTILE_GROUPS, projectileById } from '../src/generator/objects/projectileTypes'
 import { buildBossArena } from '../src/generator/boss/arena'
 import { TRAP_MIN_SPACING, TRAP_WALL_MARGIN, buildTrapRig, wallCapacity } from '../src/generator/boss/traps'
 import type { TrapArena } from '../src/generator/boss/traps'
@@ -528,6 +528,18 @@ describe('boss traps — the projectile roster', () => {
       expect(def.description.length).toBeGreaterThan(0)
       expect(projectileById(def.id)).toBe(def)
     }
+  })
+
+  it('offers nothing that does zero damage from a spewer', () => {
+    // The 2026-09-02 playtest cut 22 entries on this rule: a spewer has no
+    // character stats, so a projectile whose damage comes from the weapon that
+    // normally fires it is a light show, not a trap. Asserting it here means a
+    // future "these look nice, put them back" has to argue with a test.
+    for (const def of PROJECTILE_DEFS) {
+      expect(def.damage).toBeGreaterThan(0)
+    }
+    expect(PROJECTILE_GROUPS).not.toContain('Player (no damage)')
+    expect(PROJECTILE_GROUPS).not.toContain('Misc')
   })
 
   it('resolves every entry through the rig', () => {

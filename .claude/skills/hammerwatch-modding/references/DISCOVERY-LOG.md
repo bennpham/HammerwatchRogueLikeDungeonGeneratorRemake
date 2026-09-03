@@ -8,6 +8,57 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-02 — What a spewer can and cannot fire: damage, behavior, and one crash
+**Tag:** **[VERIFIED]** for the first three findings, **[OPEN]** for the crash.
+**Context:** Firing the trap roster (`objects/projectileTypes.ts`) projectile by
+projectile from a generated boss arena.
+**Evidence:**
+- **`damage: 0` is decoration, confirmed.** Every `player_*` entry does nothing
+  from a wall; the damage those carry in normal play comes from the weapon and
+  the character's stats, and a spewer has neither. One combo nova also lodged in
+  the wall instead of flying. All 22 zero-damage assets were cut from the roster
+  in the same change, leaving 46. The assets are fine — they are just not traps.
+- **`behavior` does not survive the spewer.** The lich family fired in straight
+  lines regardless of what each file's `behavior` says. Homing is the *monster's*
+  aim, not the projectile's, so a `seeker` fired from a wall does not chase. It
+  still damages on contact. Five roster entries carry `behavior: 'seeker'` and
+  their descriptions were corrected to stop promising a chase.
+- **A `spread` of 0 is a single stream, as documented**, and the trap never fires
+  out of the alcove wall — the mouth exclusion in `boss/traps.ts` does its job.
+- **The smallest arena (14x18) with a dragon places no north traps.** Correct,
+  not a bug: the dragon is a `topWall` boss occupying the rows `northWallRow`
+  would otherwise use, so the wall's slot pool comes back empty and the rig
+  stops placing rather than stacking.
+**The crash, unresolved:**
+```
+System.NullReferenceException
+  at TiltedEngine.WorldObjects.WorldObjectProducers.BehaviorData.Get (System.String id)
+  at ARPGGame.Behaviors.Projectiles.NeutralBehavior..ctor (BehaviorData data, ResourceBank resBank)
+  at ARPGGame.WorldItemBehaviors.BehaviorFactory.ProduceProjectileBehavior (System.String id, BehaviorData param)
+  at TiltedEngine.WorldObjects.WorldObjectProducers.ProjectileType.Produce (...)
+  at ARPGGame.ScriptNodes.ProjectileSpewer.Update (Int32 ms, WorldNodeLeaf worldNode)
+```
+One projectile killed the game outright; which one was not recorded. The trace
+is specific about the *kind*: the constructor is `NeutralBehavior`, so the
+culprit carries `behavior="neutral"`, and `BehaviorData.Get(id)` returned null —
+a behavior-data id the resource bank has nothing for when the shot is produced
+by a spewer rather than by its usual owner.
+
+The zero-damage cut removed three neutral entries (`shooter_valuables`,
+`enemy_dragon_blood`, `enemy_boss_dragon_blood` — the blood splatters being
+plausible culprits, since their behavior data may only exist while the dragon
+that spawns them does). **But 18 neutral entries survive the cut, so the crash
+is not closed by it.** The surviving suspects, cheapest discriminators first:
+`enemy_tower_firebeam_overload`, `enemy_tower_icebeam_overload`,
+`enemy_tower_drainbeam_overload`, `enemy_wisp_1`, `enemy_wisp_1_small`,
+`enemy_wisp_2`, `boss_maggot_nova`, `enemy_maggot_1`, `enemy_maggot_1_mb`,
+`enemy_tower_iceball`, `enemy_tower_iceball_large`, `enemy_lich_desert_1`,
+`enemy_lich_desert_2`, `enemy_mummy_ranged_1`, `enemy_mummy_ranged_2`,
+`enemy_boss_anubis_fireball_small`, `sorcerer_ice_orb`, `shooter_fireball`.
+**Next step:** fire those, one tier at a time, and record which one dies. Until
+then no roster entry should be promoted past `[EMITTED]` on the strength of "the
+group works".
+
 ### 2026-09-02 — The per-tier trap rig fires, and `ToggleElement`'s polarity holds for a spewer
 **Tag:** **[VERIFIED]** — playtested by the repo owner on a generated campaign.
 **Context:** First end-to-end run of `boss/traps.ts` in game, after the tile-centre

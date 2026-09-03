@@ -693,14 +693,34 @@ is `[UNVERIFIED]` — inferred from shipped content, see DISCOVERY-LOG 2026-08-2
 and 2026-08-24. `BUFF_TARGET_TYPES` in `config/parameters.ts` is the mapping the
 buff feature uses.
 
-## Projectiles `[VERIFIED 2026-09-01]`
+## Projectiles `[VERIFIED 2026-09-01, curated 2026-09-02]`
 
-Source of truth: `src/generator/objects/projectileTypes.ts` — all 68 `.xml`
-assets the game ships under `assets/projectiles/`, transcribed from a real
-install with their real `damage`, `speed`, `directions` and `behavior`. We never
-emit a projectile file; we only reference a shipped one by path from a
+Source of truth: `src/generator/objects/projectileTypes.ts` — **46 of the 68**
+`.xml` assets the game ships under `assets/projectiles/`, transcribed from a
+real install with their real `damage`, `speed`, `directions` and `behavior`. We
+never emit a projectile file; we only reference a shipped one by path from a
 `ProjectileSpewer` node's `projectile` parameter, the same way the wave rig
 references a monster actor.
+
+**Why 46 and not 68.** A projectile with `damage: 0` carries no damage of its
+own — the weapon that normally fires it supplies that from the character's
+stats, and a spewer has no stats. All 22 such assets (every `player_*`, the
+sorcerer shards, the Warlock lightning and lifesteal shards, the dragon blood
+splatters, and `shooter_valuables`, the coin spray) were cut after the
+2026-09-02 playtest confirmed they are decoration from a wall, one of them
+lodging in the wall rather than flying. They remain perfectly good assets — they
+are simply not traps, and offering them made the picker misleading. `[VERIFIED]`
+
+**`behavior` does not survive the spewer.** A projectile fired from a wall
+travels in a straight line whatever its `behavior` says; homing belongs to the
+monster's aim, not the shot. A `seeker` fired from a spewer will not chase the
+player, though it still damages on contact. `[VERIFIED]` 2026-09-02, lich family.
+
+**One projectile crashes the game and has not been identified.** A
+`NullReferenceException` in `BehaviorData.Get`, reached via
+`NeutralBehavior..ctor` — so the culprit carries `behavior="neutral"`, and 18
+such entries survive the cut above. Treat the neutral entries as unproven until
+someone fires them. See DISCOVERY-LOG 2026-09-02. `[OPEN]`
 
 Paths are `projectiles/<id>.xml`. The folder also holds loose `.png` textures
 which are **not** loadable as projectiles — only the `.xml` files are.

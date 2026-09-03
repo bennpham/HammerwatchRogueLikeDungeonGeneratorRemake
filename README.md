@@ -115,8 +115,9 @@ The lobby and the boss finale are **on by default**; timer mode is **off**.
   spawns, each tier's buffs replace the previous tier's, so only one tier's
   aura is ever live and the fight reads as phases. A tier can also line the walls with
   **traps** — projectile spewers firing straight across the room, chosen from
-  all 68 projectiles the game ships, each with its own spread, fire rate and
-  count. Like the buffs, a tier's traps replace the previous tier's, so the
+  46 of the game's own projectiles (the ones that actually hurt: the 22 that do
+  no damage without a character behind them are left out), each with its own
+  spread, fire rate and count. Like the buffs, a tier's traps replace the previous tier's, so the
   hazard changes with the phase. Traps are off unless you add them.
 - **Floor order** — the campaign's floors and boss fights can be **rearranged**
   from its own tab, between Boss and Player: a row of chips reading
