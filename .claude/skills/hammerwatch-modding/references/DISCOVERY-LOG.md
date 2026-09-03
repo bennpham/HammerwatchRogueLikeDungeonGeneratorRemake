@@ -8,6 +8,215 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-02 — Crash identified: `sorcerer_ice_orb`, and the neutral-behavior sweep clears everything else
+**Tag:** **[VERIFIED]** — resolves the crash left `[OPEN]` in the entry below.
+**Context:** Following up the `NullReferenceException` in `BehaviorData.Get` /
+`NeutralBehavior..ctor` from the entry directly below, by firing the 18
+`behavior: 'neutral'` roster entries that survived the zero-damage cut.
+**Evidence:**
+- **`sorcerer_ice_orb` is the crash.** Fired alone from a spewer, it reproduces
+  the exact trace: `NullReferenceException` in `BehaviorData.Get`, reached from
+  `NeutralBehavior..ctor`. It was the Sorcerer group's only entry left after the
+  zero-damage cut (`sorcerer_ice_shard` and `sorcerer_orb_shard` were both 0
+  damage and already gone), so the whole group is now removed and the roster
+  drops from 46 to **45**.
+- **Everything else fired clean.** The three `enemy_tower_*_overload` beams
+  (firebeam, drainbeam, icebeam), both wisps, `boss_maggot_nova`,
+  `enemy_boss_dragon_fireball` (the roster's one `explode` entry) and
+  `enemy_boss_krilith_confusion` all fired without incident. Krilith's confusion
+  shot also confirmed the seeker finding a second way: tagged `seeker`, travels
+  straight from a spewer, same as the lich family.
+- **Seeker behavior, precisely stated:** the homing belongs to a boss or monster
+  choosing where to aim *when it fires its own attack* — never to the projectile
+  itself, and never to a spewer, which has no aim to speak of. Worth keeping the
+  wording exact, since "seeker" as a tag invites the opposite assumption.
+- The remaining neutral entries (`enemy_maggot_1`, `enemy_maggot_1_mb`,
+  `enemy_tower_iceball`, `enemy_tower_iceball_large`, `enemy_lich_desert_1`,
+  `enemy_lich_desert_2`, `enemy_mummy_ranged_1`, `enemy_mummy_ranged_2`,
+  `enemy_boss_anubis_fireball_small`, `shooter_fireball`) were not fired this
+  round. Nothing points at them — the crash is identified and the asset removed
+  — but they are `[EMITTED]`, not `[VERIFIED]`, same as the rest of the roster.
+**Consequence:** `sorcerer_ice_orb` removed from `objects/projectileTypes.ts`
+along with the now-empty `Sorcerer` group header. Roster is 45. No generator
+change; no seed moves. An older `parameters.txt` naming `sorcerer_ice_orb` now
+fails validation with "is not a projectile the game ships" — correct, since the
+game itself cannot run it from a spewer.
+
+### 2026-09-02 — What a spewer can and cannot fire: damage, behavior, and one crash
+**Tag:** **[VERIFIED]** for the first three findings, **[OPEN]** for the crash.
+**Context:** Firing the trap roster (`objects/projectileTypes.ts`) projectile by
+projectile from a generated boss arena.
+**Evidence:**
+- **`damage: 0` is decoration, confirmed.** Every `player_*` entry does nothing
+  from a wall; the damage those carry in normal play comes from the weapon and
+  the character's stats, and a spewer has neither. One combo nova also lodged in
+  the wall instead of flying. All 22 zero-damage assets were cut from the roster
+  in the same change, leaving 46. The assets are fine — they are just not traps.
+- **`behavior` does not survive the spewer.** The lich family fired in straight
+  lines regardless of what each file's `behavior` says. Homing is the *monster's*
+  aim, not the projectile's, so a `seeker` fired from a wall does not chase. It
+  still damages on contact. Five roster entries carry `behavior: 'seeker'` and
+  their descriptions were corrected to stop promising a chase.
+- **A `spread` of 0 is a single stream, as documented**, and the trap never fires
+  out of the alcove wall — the mouth exclusion in `boss/traps.ts` does its job.
+- **The smallest arena (14x18) with a dragon places no north traps.** Correct,
+  not a bug: the dragon is a `topWall` boss occupying the rows `northWallRow`
+  would otherwise use, so the wall's slot pool comes back empty and the rig
+  stops placing rather than stacking.
+**The crash, unresolved:**
+```
+System.NullReferenceException
+  at TiltedEngine.WorldObjects.WorldObjectProducers.BehaviorData.Get (System.String id)
+  at ARPGGame.Behaviors.Projectiles.NeutralBehavior..ctor (BehaviorData data, ResourceBank resBank)
+  at ARPGGame.WorldItemBehaviors.BehaviorFactory.ProduceProjectileBehavior (System.String id, BehaviorData param)
+  at TiltedEngine.WorldObjects.WorldObjectProducers.ProjectileType.Produce (...)
+  at ARPGGame.ScriptNodes.ProjectileSpewer.Update (Int32 ms, WorldNodeLeaf worldNode)
+```
+One projectile killed the game outright; which one was not recorded. The trace
+is specific about the *kind*: the constructor is `NeutralBehavior`, so the
+culprit carries `behavior="neutral"`, and `BehaviorData.Get(id)` returned null —
+a behavior-data id the resource bank has nothing for when the shot is produced
+by a spewer rather than by its usual owner.
+
+The zero-damage cut removed three neutral entries (`shooter_valuables`,
+`enemy_dragon_blood`, `enemy_boss_dragon_blood` — the blood splatters being
+plausible culprits, since their behavior data may only exist while the dragon
+that spawns them does). **But 18 neutral entries survive the cut, so the crash
+is not closed by it.** The surviving suspects, cheapest discriminators first:
+`enemy_tower_firebeam_overload`, `enemy_tower_icebeam_overload`,
+`enemy_tower_drainbeam_overload`, `enemy_wisp_1`, `enemy_wisp_1_small`,
+`enemy_wisp_2`, `boss_maggot_nova`, `enemy_maggot_1`, `enemy_maggot_1_mb`,
+`enemy_tower_iceball`, `enemy_tower_iceball_large`, `enemy_lich_desert_1`,
+`enemy_lich_desert_2`, `enemy_mummy_ranged_1`, `enemy_mummy_ranged_2`,
+`enemy_boss_anubis_fireball_small`, `sorcerer_ice_orb`, `shooter_fireball`.
+**Next step:** fire those, one tier at a time, and record which one dies. Until
+then no roster entry should be promoted past `[EMITTED]` on the strength of "the
+group works".
+
+### 2026-09-02 — The per-tier trap rig fires, and `ToggleElement`'s polarity holds for a spewer
+**Tag:** **[VERIFIED]** — playtested by the repo owner on a generated campaign.
+**Context:** First end-to-end run of `boss/traps.ts` in game, after the tile-centre
+fix below.
+**Evidence:**
+- **The `ProjectileSpewer` contract is right as emitted.** `direction`,
+  `projectile`, `spread` and `spawn-rate` on a `<dictionary name="parameters">`,
+  with the node itself written `enabled="false"` for a non-opening tier. Traps
+  fire from arena load with no trigger on tier 0.
+- **The direction enum behaves exactly as read off `level_10.xml`** — `0` up,
+  `1` down, `2` left, `3` right, each trap on the wall it fires away from. The
+  file-derived mapping (2026-09-01 entry) needed no correction; it is now
+  confirmed by firing rather than by reading.
+- **`ToggleElement`'s inverted polarity holds when the target is a spewer:**
+  `state: 0` enables, `state: 1` disables. Crossing a health threshold switched
+  the previous carrying tier's spewers off and the new tier's on, so tiers
+  replace rather than accumulate, as `waveBuffs.ts` does for buff fields.
+**Consequence:** the rig needs no change. The engine-contract half of the traps
+feature is now verified rather than inferred.
+**Still open:** 66 of the 68 entries in `objects/projectileTypes.ts` remain
+`[EMITTED]` — only `enemy_axe` and `enemy_boss_anubis_fireball` have been fired.
+The seeker, `explode`, `damage: 0` and `directions: 1` cases are the ones worth
+sampling, since each is a claim the tooltips make.
+
+### 2026-09-02 — A wall-hugging node must sit on the tile CENTRE, and off the north wall's overhang
+**Tag:** **[VERIFIED]** — playtested by the repo owner, first firing of a
+generated `ProjectileSpewer`.
+**Context:** The boss arena's new wall traps (`src/generator/boss/traps.ts`)
+fired, but the spewers on two of the four walls had their projectiles
+intercepted the instant they spawned — visibly stuck inside the wall — while the
+other two walls played correctly.
+**Evidence:**
+- The broken walls were the **minimum-edge** ones (interior row 0 and column 0);
+  the maximum-edge walls (`height - 1`, `width - 1`) were fine. An integer
+  coordinate in this dialect is a tile **corner**, not a centre, so a node
+  emitted at `(0, y)` sits exactly on the boundary with the band at column `-1`
+  and its projectiles are born in collision. On a maximum edge the same corner
+  falls between two interior tiles, which is why only two walls showed it.
+- The engine's own files agree: `campaign/levels/level_10.xml`'s spewer cluster
+  is placed on half coordinates (`-31.5 -6`, `-31.5 -5.375`, …), and this
+  repo's `objects/doodad.ts` already gives every floor-anchored piece — Cover,
+  TriggerButton, Torch — an `xOffset`/`yOffset` of `0.5` for the same reason.
+- Nodes in open floor never exposed it: the wave rig, the pickups and the spawn
+  points all emit raw integers and land visibly inside a tile. Traps are the
+  first thing this generator puts against a wall.
+- Separately, the **north wall buries the two floor rows in front of it** on the
+  lettered themes — the `OVERHANG_ROWS` fact `map/reachability.ts` already
+  models, and the same one that made a dragon at interior row 0 read as off the
+  map (2026-08-16 entry). A north-wall trap therefore belongs on
+  `overhangRows(theme)`, which is `0` on theme h and the bonus themes.
+**Consequence:** `boss/traps.ts` emits every spewer at `tile + 0.5` on both
+axes and starts its north wall at `northWallRow`. Generalises beyond traps:
+**anything placed against a wall band must be emitted on the tile centre**, and
+anything against the north wall must clear the overhang as well.
+**Confirmed 2026-09-02, second playtest:** all four walls fire cleanly, and the
+theme-aware branch is right in both directions — a lettered theme's north trap
+on row 2 stands clear of the art, and theme h's on row 0 is clean too, so the
+flat themes really do bury nothing.
+**Still open:** whether the half-tile alone would have fixed the north wall.
+Both corrections shipped together, so the overhang half is reasoned from the
+verified dragon precedent rather than isolated in its own playtest. Nothing
+depends on the answer — it would only mean the north row could sit one tile
+closer to the wall.
+
+### 2026-09-01 — `ProjectileSpewer`: the direction enum, the spread range, the rate
+**Tag:** **[VERIFIED]** — three independent sources agree, and two of the
+projectiles have been fired in game by the repo owner.
+**Context:** Adding wall traps to the boss arena
+(`src/generator/boss/traps.ts`). The node type was known to exist but nothing
+recorded what its four parameters mean.
+**Evidence:**
+- **`direction` is `0` up, `1` down, `2` left, `3` right.** Read off
+  `editor/campaign/levels/level_10.xml`, ids 2579-2582: four spewers ringing
+  the single point `(-31.5, -6)`, each offset one step in the direction it
+  fires — the one at `(-31.5, -5.375)` (below centre, +y) is `1`, the one at
+  `(-30.875, -6)` (right, +x) is `3`, `(-32.125, -6)` (left, -x) is `2`, and
+  `(-31.5, -6.75)` (above, -y) is `0`. Confirmed against the same file's second
+  cluster (ids 3823/3824, a vertical pair reading 0 above 1) and against
+  `campaign2/levels/level_temple_3.xml`.
+- **`spread` is a float, 0..2 inclusive**, not an integer — the owner's own
+  measurement. `0` is a single linear stream; the shipped campaign uses `0.25`;
+  the owner's axe rig uses `0.5`. The engine gives no warning outside the range.
+- **`spawn-rate` is milliseconds**, with no engine-imposed floor and no
+  warning. A very low value fills the room with projectiles and costs framerate.
+- **A spewer may ship `enabled: False` and be switched on later by a
+  `ToggleElement`.** The owner's hand-built test level
+  (`editor/dungeon1986970473/levels/boss_test_traps.xml`) does exactly this,
+  and `level_temple_3.xml` ships its valuables spewers disabled too. This is
+  what makes a per-health-tier trap rig possible at all.
+- `trigger-times` is `-1` on every shipped example.
+- The parameters sit in a `<dictionary name="parameters">`, in the order
+  `direction`, `projectile`, `spread`, `spawn-rate`.
+
+**Impact:** `NodeProjectileSpewer` in `objects/nodes.ts` and the whole Traps
+section of the Boss tab. `boss/traps.ts` maps our word directions onto the
+integers above and documents where the evidence came from, so a future reader
+does not have to re-derive it. The two projectiles proven in game are
+`projectiles/enemy_axe.xml` and `projectiles/enemy_boss_anubis_fireball.xml`;
+the other 66 in `objects/projectileTypes.ts` are `[EMITTED]`.
+
+### 2026-09-01 — `assetsExtract/projectiles/` holds 68 usable projectile assets
+**Tag:** **[VERIFIED]** for the file list and the stats; **[EMITTED]** for
+firing 66 of them from a spewer.
+**Context:** Building the Traps dropdown.
+**Evidence:** The folder holds 68 `.xml` files (plus loose `.png` textures that
+are NOT loadable as projectiles). Each file's root `<projectile>` element
+carries `damage`, `speed`, `collision`, `directions` and sometimes `behavior`
+(`seeker`, `penetrating`, `explode`, `spray`, `neutral`). Two facts worth
+knowing before picking one:
+- **`damage="0"` means the projectile has no damage of its own** — every
+  `player_*` and both sorcerer shards are normally fired by a weapon that
+  supplies damage from the character's stats. A spewer has no stats, so these
+  are harmless light shows. `shooter_valuables.xml` (also 0) is what the
+  shipped campaign uses to shower a room with coins.
+- **`directions="1"` means one sprite angle** — the tower beams and most magic
+  balls draw the same frame whichever way they fly. They still travel
+  correctly.
+- `shooter_stone_ball.xml` is `damage="1000"`, i.e. an unconditional kill.
+
+**Impact:** `src/generator/objects/projectileTypes.ts` transcribes all 68 with
+their real stats; `tests/bossTraps.test.ts` asserts every entry resolves. The
+`damage: 0` and `directions: 1` caveats are surfaced in the form's tooltips so
+a dungeon master does not build a trap that does nothing.
+
 ### 2026-09-01 — an arena's alcove portal into a DUNGEON FLOOR works in game
 **Tag:** **[VERIFIED]** — played by the repo owner.
 **Context:** All three presets now end on an "escape floor": one extra dungeon

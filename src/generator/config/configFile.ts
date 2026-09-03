@@ -14,7 +14,9 @@ import {
   defaultParameters,
   isScatterMode,
   waveBuffs,
-  wavePickups
+  wavePickups,
+  waveTraps,
+  BOSS_TRAP_DIRECTIONS
 } from './parameters'
 import { UPGRADE_KINDS, noUpgrades } from '../levelTemplate/surgery'
 import type { UpgradeCounts } from '../levelTemplate/surgery'
@@ -25,11 +27,14 @@ import type {
   BossSpawnMode,
   BuffTarget,
   FloorBuff,
-  WavePickup
+  WavePickup,
+  BossTrap,
+  BossTrapDirection
 } from './parameters'
 import { MONSTER_TYPES } from '../objects/monsterTypes'
 import { buffById } from '../objects/buffTypes'
 import { pickupById } from '../objects/pickupTypes'
+import { projectileById } from '../objects/projectileTypes'
 import { isLobbyCategory } from '../lobby/shops'
 import { campaignOrder, isDefaultOrder, normalizeOrder, parseSlotLabel, slotLabel } from '../campaign'
 import type { CampaignSlot } from '../campaign'
@@ -139,10 +144,11 @@ interface BossFightParseState {
   // keys may appear in either order.
   sawWaveLine: Set<number>
   sawPickupLine: Set<number>
+  sawTrapLine: Set<number>
 }
 
 function newBossFightParseState(): BossFightParseState {
-  return { sawAnyWave: false, sawDeathWave: false, sawWaveLine: new Set(), sawPickupLine: new Set() }
+  return { sawAnyWave: false, sawDeathWave: false, sawWaveLine: new Set(), sawPickupLine: new Set(), sawTrapLine: new Set() }
 }
 
 /**
@@ -342,6 +348,66 @@ function parseBossFightKey(
 
     arena.waves[idx].pickups = entries
     state.sawPickupLine.add(idx)
+    return true
+  }
+
+  // waveTrapN=<projectile>:<direction>:<spread>:<rate>:<count>|… — one line per
+  // tier that runs wall traps, written only for those tiers. Absent means the
+  // tier carries none, so a file written before traps existed parses exactly as
+  // it always did. Tested BEFORE the waveN branch for the same anchored-pattern
+  // reason as wavePickupN above.
+  const waveTrapMatch = suffix.match(/^wavetrap(\d+)$/)
+  if (waveTrapMatch) {
+    const idx = parseInt(waveTrapMatch[1], 10) - 1
+    if (idx < 0 || idx >= BOSS_WAVE_COUNT) {
+      unknownKeys.push(key)
+      return true
+    }
+    const rows: BossTrap[] = []
+
+    for (const segment of value.split('|')) {
+      const trimmed = segment.trim()
+      if (trimmed === '') continue
+      const parts = trimmed.split(':').map((p) => p.trim())
+      const id = parts[0] ?? ''
+
+      if (projectileById(id) === undefined) {
+        unknownKeys.push(`${key} projectile "${id}"`)
+        continue
+      }
+
+      // Everything after the id is optional and falls back to a sane default —
+      // the friendliest reading of a hand-written line, and never fatal
+      // (invariant #5). A bare projectile is one linear spewer firing north
+      // every second.
+      const directionText = (parts[1] ?? 'up').toLowerCase()
+      if (!(BOSS_TRAP_DIRECTIONS as readonly string[]).includes(directionText)) {
+        unknownKeys.push(`${key} direction "${parts[1]}"`)
+        continue
+      }
+      const direction = directionText as BossTrapDirection
+
+      const spread = parts[2] === undefined || parts[2] === '' ? 0 : parseFloat(parts[2])
+      if (Number.isNaN(spread)) {
+        unknownKeys.push(`${key} spread "${parts[2]}"`)
+        continue
+      }
+      const spawnRateMs = parts[3] === undefined || parts[3] === '' ? 1000 : parseInt(parts[3], 10)
+      if (Number.isNaN(spawnRateMs)) {
+        unknownKeys.push(`${key} rate "${parts[3]}"`)
+        continue
+      }
+      const count = parts[4] === undefined || parts[4] === '' ? 1 : parseInt(parts[4], 10)
+      if (Number.isNaN(count)) {
+        unknownKeys.push(`${key} count "${parts[4]}"`)
+        continue
+      }
+
+      rows.push({ projectile: id, direction, spread, spawnRateMs, count })
+    }
+
+    arena.waves[idx].traps = rows
+    state.sawTrapLine.add(idx)
     return true
   }
 
@@ -831,6 +897,8 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     // pickups existed would silently hand every tier the stock drop table.
     for (const idx of state.sawWaveLine) {
       if (!state.sawPickupLine.has(idx)) delete arena.waves[idx].pickups
+      // Same rule, same reason, for the tier's wall traps.
+      if (!state.sawTrapLine.has(idx)) delete arena.waves[idx].traps
     }
 
     // A file written before the boss-death tier existed carries wave1..4 and
@@ -1038,6 +1106,17 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
       const pickups = wavePickups(wave)
       if (pickups.length > 0) {
         lines.push(`boss${f}WavePickup${i + 1}=${pickups.map((d) => `${d.item}:${d.count}`).join('|')}`)
+      }
+      // And once more for the tier's wall traps. All five fields are always
+      // written even where the parser would default them, so an exported file
+      // says what it means rather than relying on the reader's fallbacks.
+      const traps = waveTraps(wave)
+      if (traps.length > 0) {
+        lines.push(
+          `boss${f}WaveTrap${i + 1}=${traps
+            .map((t) => `${t.projectile}:${t.direction}:${t.spread}:${t.spawnRateMs}:${t.count}`)
+            .join('|')}`
+        )
       }
     }
   })

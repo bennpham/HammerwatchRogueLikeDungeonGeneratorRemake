@@ -9,10 +9,14 @@
  * on why that third stream exists. Draw order (fixed, so the same seed always
  * produces the same arena): width, height, boss pick, alcove wall, then
  * whatever `placeCoverPillars` draws, then `placeFood`'s own clusters (see
- * its header), and last `placeSpawnPoints` for any wave monster on a scatter
- * spawn mode. That step is deliberately last: with every monster on the
- * default `anchors` mode it makes no draws at all, so adding it left every
- * arena that existed before spawn modes byte-identical. `Item.create` rolls a
+ * its header), then `placeSpawnPoints` for any wave monster on a scatter
+ * spawn mode. That step is deliberately last of the layout draws: with every
+ * monster on the default `anchors` mode it makes no draws at all, so adding it
+ * left every arena that existed before spawn modes byte-identical. After the
+ * layout comes the mixed-theme floor-pattern roll, then `buildTrapRig` (one
+ * draw per wall spewer, none at all when no tier carries a trap — see its
+ * header), and finally `getArenaXML`'s own per-tile cosmetic rolls.
+ * `Item.create` rolls a
  * variant from `ctx.rand` when `index` is omitted — every arena Item.create
  * call passes one explicitly, from `ctx.bossRand`, so the layout stream is
  * never touched.
@@ -75,6 +79,7 @@ import { buildWaveRig, scatterRequests } from './waves'
 import { buildInvulnerabilityRig } from './invulnerability'
 import { buildWaveBuffRig } from './waveBuffs'
 import { buildWavePickupRig } from './wavePickups'
+import { buildTrapRig } from './traps'
 import { placeSpawnPoints } from './spawnPoints'
 
 /**
@@ -477,6 +482,34 @@ export function buildBossArena(
           themeDef.mixed.length,
           arena.floorPattern === 'random' ? undefined : arena.floorPattern
         )
+
+  // --- wall traps: the only optional rig that DRAWS from ctx.bossRand, so
+  // where it sits in this function matters.
+  //
+  // It is placed after every draw that decides LAYOUT — the size, the boss, the
+  // alcove wall, the cover pillars, the food, the scattered spawn points — and
+  // after the mixed-theme floor-pattern roll above. So switching traps on cannot
+  // move any of those: the same seed lays out the same arena, with the same
+  // pillars in the same places, trapped or not.
+  //
+  // It cannot be later than this. getArenaXML below is itself a bossRand
+  // consumer — getTiles rolls a variant per floor tile, and the overlay and
+  // mixed palettes roll again — so the honest statement is that turning traps on
+  // shifts the arena's floor-tile COSMETICS, and (like every other arena knob)
+  // a later fight's stream. Neither changes how a fight plays.
+  //
+  // It returns before touching the stream at all when no tier carries a trap,
+  // which is what keeps every existing seed byte-identical. ---
+  buildTrapRig(ctx, arena.waves, {
+    width,
+    height,
+    theme: arena.theme,
+    entrance: entranceRect,
+    alcoveWall,
+    midX,
+    midY,
+    walkable
+  })
 
   return {
     xml: getArenaXML(ctx, tileArray, gridWidth, gridHeight, themeDef, originX, originY, width, height, pattern),

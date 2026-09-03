@@ -20,6 +20,7 @@ export type NodeTypeName =
   | 'DangerArea'
   | 'PlaySound'
   | 'ChangeDoodadState'
+  | 'ProjectileSpewer'
 
 /**
  * Base scripting node (ported from ScriptNode.java). Most subclasses override

@@ -435,3 +435,46 @@ export class NodeDangerArea extends ScriptNode {
     return d
   }
 }
+
+/**
+ * Fires a stream of projectiles in one cardinal direction, forever, from the
+ * tile it sits on. This is what the boss arena's traps are made of — see
+ * boss/traps.ts.
+ *
+ * Parameter shape [VERIFIED] 2026-09-01 against three sources that agree:
+ * `campaign/levels/level_10.xml`, `campaign2/levels/level_temple_3.xml`, and a
+ * test level the owner hand-built and loaded in game.
+ *
+ *   direction   int    0 up, 1 down, 2 left, 3 right (see boss/traps.ts)
+ *   projectile  str    a `projectiles/*.xml` path
+ *   spread      float  0..2 — 0 is a single linear stream, 2 the widest fan
+ *   spawn-rate  int    milliseconds between shots
+ *
+ * Ships disabled, like NodeTimerTrigger and NodeDangerArea, because the tier
+ * rig switches it on with a ToggleElement; the opening tier flips `enabled`
+ * back to true itself. A disabled spewer waiting on a toggle is exactly the
+ * shape the owner's test level uses, so the engine is known to accept it.
+ */
+export class NodeProjectileSpewer extends ScriptNode {
+  constructor(
+    ctx: GenerationContext,
+    x: number,
+    y: number,
+    public projectilePath: string,
+    public direction: number,
+    public spread: number,
+    public spawnRateMs: number
+  ) {
+    super(ctx, x, y, 'ProjectileSpewer')
+    this.enabled = false
+  }
+
+  protected getParametersDict(): XMLDictionary {
+    const d = new XMLDictionary('parameters')
+    d.addData(new XMLInt('direction', this.direction))
+    d.addData(new XMLString('projectile', this.projectilePath))
+    d.addData(new XMLFloat('spread', this.spread))
+    d.addData(new XMLInt('spawn-rate', this.spawnRateMs))
+    return d
+  }
+}

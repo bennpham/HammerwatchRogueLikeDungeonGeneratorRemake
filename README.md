@@ -113,7 +113,12 @@ The lobby and the boss finale are **on by default**; timer mode is **off**.
   run reads fight, shop, fight, and only the last arena ends the campaign. Each of the five tiers can also
   carry **arena-wide buffs** aimed at players, monsters or both; unlike the
   spawns, each tier's buffs replace the previous tier's, so only one tier's
-  aura is ever live and the fight reads as phases.
+  aura is ever live and the fight reads as phases. A tier can also line the walls with
+  **traps** — projectile spewers firing straight across the room, chosen from
+  45 of the game's own projectiles (the 22 that do no damage without a
+  character behind them, plus one that crashes the game, are left out), each
+  with its own spread, fire rate and count. Like the buffs, a tier's traps replace the previous tier's, so the
+  hazard changes with the phase. Traps are off unless you add them.
 - **Floor order** — the campaign's floors and boss fights can be **rearranged**
   from its own tab, between Boss and Player: a row of chips reading
   `1 2 B1 3 4 B2` that the ◀ ▶ buttons shuffle. A fight can go anywhere — before the first floor, between two
