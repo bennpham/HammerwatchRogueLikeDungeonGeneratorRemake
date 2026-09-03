@@ -17,53 +17,55 @@
  *
  * ## A curated subset, not the whole folder
  *
- * The folder holds 68 `.xml` files. **46 are listed here**; the other 22 were
- * cut after the 2026-09-02 playtest, and the rule for the cut is worth keeping
- * because it decides any future addition too:
+ * The folder holds 68 `.xml` files. **45 are listed here**; the other 23 were
+ * cut after the 2026-09-02 playtest, and the rules for the cut are worth
+ * keeping because they decide any future addition too:
  *
- *   **A projectile with `damage: 0` is not a trap.** Those are fired by a
- *   weapon that supplies the damage from the character's stats — every
- *   `player_*` entry, the sorcerer shards, the Warlock lightning and lifesteal
- *   shards, the dragon blood splatters, and `shooter_valuables`, the coin
- *   spray. A spewer has no stats, so from a wall they are a light show and
- *   nothing else. Offering them made the picker confusing (22 of 68 options
- *   carrying a "this does nothing" warning), and at least one — a combo nova —
- *   lodged in the wall rather than flying. Do not add them back without a
- *   reason better than "it looks nice".
- *
- * ## What the surviving fields mean
- *
- * `damage`, `speed`, `directions` and `behavior` are read verbatim off each
- * file's root `<projectile>` element. They are carried as data rather than
- * folded into the description alone so the form can sort and warn on them.
+ *   1. **A projectile with `damage: 0` is not a trap.** Those are fired by a
+ *      weapon that supplies the damage from the character's stats — every
+ *      `player_*` entry, the sorcerer shards, the Warlock lightning and
+ *      lifesteal shards, the dragon blood splatters, and `shooter_valuables`,
+ *      the coin spray. A spewer has no stats, so from a wall they are a light
+ *      show and nothing else. Offering them made the picker confusing (22 of
+ *      68 options carrying a "this does nothing" warning), and at least one —
+ *      a combo nova — lodged in the wall rather than flying. Do not add them
+ *      back without a reason better than "it looks nice".
+ *   2. **`sorcerer_ice_orb` crashes the game.** [VERIFIED] 2026-09-02 in game:
+ *      a `System.NullReferenceException` inside
+ *      `TiltedEngine.WorldObjects.WorldObjectProducers.BehaviorData.Get`,
+ *      reached from `ARPGGame.Behaviors.Projectiles.NeutralBehavior..ctor` —
+ *      the resource bank has no behavior data for it when a spewer produces
+ *      it, rather than the Sorcerer's own cast. It was the Sorcerer group's
+ *      only damaging entry, so the whole group is gone with it. See
+ *      DISCOVERY-LOG 2026-09-02 for the full trace and the sweep that cleared
+ *      every other `behavior: 'neutral'` survivor of suspicion.
  *
  * Two things the tooltips still have to say:
  *
  * 1. **`directions: 1` means one sprite angle.** The tower beams and most magic
  *    balls draw the same frame whichever way they travel; they still fly
- *    correctly, they just do not rotate. 27 of the 46 are like this.
+ *    correctly, they just do not rotate. 26 of the 45 are like this.
  * 2. **`behavior` does not survive the spewer.** A projectile fired from a wall
  *    travels in a straight line whatever its behavior says — homing is the
  *    *monster's* aim, not the projectile's, so a `seeker` shot from a spewer
- *    will not chase anybody. It still hurts on contact. [VERIFIED] 2026-09-02
- *    in game on the lich family. Descriptions must not promise otherwise.
+ *    will not chase anybody; that aim only ever belongs to the boss/monster
+ *    that fires its own attack, never to a spewer. It still hurts on contact.
+ *    [VERIFIED] 2026-09-02 in game on the lich family and
+ *    `enemy_boss_krilith_confusion`. Descriptions must not promise otherwise.
  *
  * Verification status (see hammerwatch-modding/references/):
  *   [VERIFIED] Every id, path and stat below — read directly from the root
  *              `<projectile>` element of each file in
  *              `editor/assetsExtract/projectiles/` on a real Hammerwatch
  *              install, 2026-09-01.
- *   [VERIFIED] `projectiles/enemy_axe.xml` and
- *              `projectiles/enemy_boss_anubis_fireball.xml` load in a
- *              ProjectileSpewer, plus the lich family fired from a generated
- *              arena, 2026-09-02.
+ *   [VERIFIED] `projectiles/enemy_axe.xml`,
+ *              `projectiles/enemy_boss_anubis_fireball.xml`, the three
+ *              `enemy_tower_*_overload` beams, both wisps, `boss_maggot_nova`,
+ *              `enemy_boss_dragon_fireball` and `enemy_boss_krilith_confusion`
+ *              all fire cleanly from a generated arena, 2026-09-02.
  *   [EMITTED]  The rest are the same asset kind referenced the same way, and
- *              have not been fired from a generated spewer yet.
- *   [OPEN]     One projectile crashed the game outright — a
- *              NullReferenceException inside `BehaviorData.Get`, reached from
- *              `NeutralBehavior..ctor`. The culprit therefore carries
- *              `behavior: 'neutral'`, and 18 such entries survive the cut, so
- *              this is NOT closed by it. See DISCOVERY-LOG 2026-09-02.
+ *              have not been fired from a generated spewer yet. Nothing further
+ *              is suspected of the `sorcerer_ice_orb` crash — see DISCOVERY-LOG.
  */
 
 export interface ProjectileDef {
@@ -586,19 +588,6 @@ export const PROJECTILE_DEFS: readonly ProjectileDef[] = [
     directions: 1,
     behavior: 'neutral',
     description: '15 damage, speed 1, 5-wide collision. Poison hit.'
-  },
-
-  // --- Sorcerer --------------------------------------------------------------
-  {
-    id: 'sorcerer_ice_orb',
-    path: 'projectiles/sorcerer_ice_orb.xml',
-    label: 'Sorcerer ice orb',
-    group: 'Sorcerer',
-    damage: 40,
-    speed: 0.15,
-    directions: 1,
-    behavior: 'neutral',
-    description: '40 damage, speed 0.15 — by far the slowest thing here. A stream of them parks a wall of orbs across the arena.'
   }
 ]
 

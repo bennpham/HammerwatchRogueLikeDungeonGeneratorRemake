@@ -695,32 +695,39 @@ buff feature uses.
 
 ## Projectiles `[VERIFIED 2026-09-01, curated 2026-09-02]`
 
-Source of truth: `src/generator/objects/projectileTypes.ts` — **46 of the 68**
+Source of truth: `src/generator/objects/projectileTypes.ts` — **45 of the 68**
 `.xml` assets the game ships under `assets/projectiles/`, transcribed from a
 real install with their real `damage`, `speed`, `directions` and `behavior`. We
 never emit a projectile file; we only reference a shipped one by path from a
 `ProjectileSpewer` node's `projectile` parameter, the same way the wave rig
 references a monster actor.
 
-**Why 46 and not 68.** A projectile with `damage: 0` carries no damage of its
-own — the weapon that normally fires it supplies that from the character's
-stats, and a spewer has no stats. All 22 such assets (every `player_*`, the
-sorcerer shards, the Warlock lightning and lifesteal shards, the dragon blood
-splatters, and `shooter_valuables`, the coin spray) were cut after the
-2026-09-02 playtest confirmed they are decoration from a wall, one of them
-lodging in the wall rather than flying. They remain perfectly good assets — they
-are simply not traps, and offering them made the picker misleading. `[VERIFIED]`
+**Why 45 and not 68 — two cuts.**
+
+1. A projectile with `damage: 0` carries no damage of its own — the weapon that
+   normally fires it supplies that from the character's stats, and a spewer has
+   no stats. All 22 such assets (every `player_*`, the sorcerer shards, the
+   Warlock lightning and lifesteal shards, the dragon blood splatters, and
+   `shooter_valuables`, the coin spray) were cut after the 2026-09-02 playtest
+   confirmed they are decoration from a wall, one of them lodging in the wall
+   rather than flying. They remain perfectly good assets — they are simply not
+   traps, and offering them made the picker misleading. `[VERIFIED]`
+2. **`sorcerer_ice_orb` crashes the game.** `[VERIFIED]` 2026-09-02 in game — a
+   `System.NullReferenceException` inside `BehaviorData.Get`, reached from
+   `NeutralBehavior..ctor`: the resource bank has no behavior data for it when
+   a spewer produces it rather than the Sorcerer's own cast. It was the only
+   damaging entry the Sorcerer group had, so the group is gone with it. The
+   same playtest fired a spread of the other `behavior: 'neutral'` survivors —
+   the tower `_overload` beams, both wisps, `boss_maggot_nova`,
+   `enemy_boss_dragon_fireball` — and none of them repeated the crash, so it is
+   not a `neutral`-wide problem, just this one asset. See DISCOVERY-LOG
+   2026-09-02 for the trace and the full sweep.
 
 **`behavior` does not survive the spewer.** A projectile fired from a wall
 travels in a straight line whatever its `behavior` says; homing belongs to the
-monster's aim, not the shot. A `seeker` fired from a spewer will not chase the
-player, though it still damages on contact. `[VERIFIED]` 2026-09-02, lich family.
-
-**One projectile crashes the game and has not been identified.** A
-`NullReferenceException` in `BehaviorData.Get`, reached via
-`NeutralBehavior..ctor` — so the culprit carries `behavior="neutral"`, and 18
-such entries survive the cut above. Treat the neutral entries as unproven until
-someone fires them. See DISCOVERY-LOG 2026-09-02. `[OPEN]`
+monster's own aim when it fires an attack, never to a spewer. A `seeker` fired
+from a spewer will not chase the player, though it still damages on contact.
+`[VERIFIED]` 2026-09-02, lich family and `enemy_boss_krilith_confusion`.
 
 Paths are `projectiles/<id>.xml`. The folder also holds loose `.png` textures
 which are **not** loadable as projectiles — only the `.xml` files are.

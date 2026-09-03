@@ -8,6 +8,40 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-02 — Crash identified: `sorcerer_ice_orb`, and the neutral-behavior sweep clears everything else
+**Tag:** **[VERIFIED]** — resolves the crash left `[OPEN]` in the entry below.
+**Context:** Following up the `NullReferenceException` in `BehaviorData.Get` /
+`NeutralBehavior..ctor` from the entry directly below, by firing the 18
+`behavior: 'neutral'` roster entries that survived the zero-damage cut.
+**Evidence:**
+- **`sorcerer_ice_orb` is the crash.** Fired alone from a spewer, it reproduces
+  the exact trace: `NullReferenceException` in `BehaviorData.Get`, reached from
+  `NeutralBehavior..ctor`. It was the Sorcerer group's only entry left after the
+  zero-damage cut (`sorcerer_ice_shard` and `sorcerer_orb_shard` were both 0
+  damage and already gone), so the whole group is now removed and the roster
+  drops from 46 to **45**.
+- **Everything else fired clean.** The three `enemy_tower_*_overload` beams
+  (firebeam, drainbeam, icebeam), both wisps, `boss_maggot_nova`,
+  `enemy_boss_dragon_fireball` (the roster's one `explode` entry) and
+  `enemy_boss_krilith_confusion` all fired without incident. Krilith's confusion
+  shot also confirmed the seeker finding a second way: tagged `seeker`, travels
+  straight from a spewer, same as the lich family.
+- **Seeker behavior, precisely stated:** the homing belongs to a boss or monster
+  choosing where to aim *when it fires its own attack* — never to the projectile
+  itself, and never to a spewer, which has no aim to speak of. Worth keeping the
+  wording exact, since "seeker" as a tag invites the opposite assumption.
+- The remaining neutral entries (`enemy_maggot_1`, `enemy_maggot_1_mb`,
+  `enemy_tower_iceball`, `enemy_tower_iceball_large`, `enemy_lich_desert_1`,
+  `enemy_lich_desert_2`, `enemy_mummy_ranged_1`, `enemy_mummy_ranged_2`,
+  `enemy_boss_anubis_fireball_small`, `shooter_fireball`) were not fired this
+  round. Nothing points at them — the crash is identified and the asset removed
+  — but they are `[EMITTED]`, not `[VERIFIED]`, same as the rest of the roster.
+**Consequence:** `sorcerer_ice_orb` removed from `objects/projectileTypes.ts`
+along with the now-empty `Sorcerer` group header. Roster is 45. No generator
+change; no seed moves. An older `parameters.txt` naming `sorcerer_ice_orb` now
+fails validation with "is not a projectile the game ships" — correct, since the
+game itself cannot run it from a spewer.
+
 ### 2026-09-02 — What a spewer can and cannot fire: damage, behavior, and one crash
 **Tag:** **[VERIFIED]** for the first three findings, **[OPEN]** for the crash.
 **Context:** Firing the trap roster (`objects/projectileTypes.ts`) projectile by

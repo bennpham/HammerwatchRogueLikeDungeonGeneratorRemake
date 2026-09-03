@@ -265,7 +265,7 @@ enabled, **no upper bound** (mirrors `levels`), written as `bossFights` in
 | `arena.cover` | `symmetric`, 0.08, 4, 3 | `boss<i>Cover=symmetric,0.08,4,3` in `parameters.txt`. `density` is the fraction of free floor filled and is capped at `BOSS_COVER_DENSITY_MAX` (0.25). Playtest preference, 2026-08-28; every preset inherits it |
 | `arena.spawn` | spacing 2, ring 4, clusters 3, batchSize 8, batchIntervalMs 1500 | `boss<i>Spawn=2,4,3,8,1500` — five comma fields, `spacing,ringSpacing,clusters,batchSize,batchIntervalMs`; the older three-field form still parses. Tuning for the scatter modes only; deliberately separate from `cover`. `batchSize` caps how many of one monster may appear at once, the rest trickling in every `batchIntervalMs` — see *Boss finale* |
 | `arena.waves[i].pickups` | 50%: 1× `powerup_health` + 2× `mana_2`; 25%: 1× `potion_2`; boss dead: double the 50% table | item drops per health tier, each `{item, count}` with `item` in `PICKUP_DEFS` and `count` 1..`MAX_PICKUP_COUNT` (64). Unlike the buffs the tiers do **not** replace one another — drops accumulate on the entrance drop pad (`boss/pickupPad.ts`). `boss<i>WavePickupN=<item>:<count>|…` in `parameters.txt`, on its own key so older files round-trip unchanged; a tier a file describes without a pickup line drops nothing. See *Item drops per boss wave tier* |
-| `arena.waves[i].traps` | absent everywhere | wall traps per health tier, each `{projectile, direction, spread, spawnRateMs, count}` with `projectile` in `PROJECTILE_DEFS` (46 assets; the 22 zero-damage ones are cut), `direction` one of `up`/`down`/`left`/`right`, `spread` a decimal 0..2 and `count` 1..`MAX_TRAP_COUNT` (24). A trap stands on the wall it fires *away* from. Like the buffs and unlike the drops, tiers **replace** one another. `boss<i>WaveTrapN=<projectile>:<dir>:<spread>:<rate>:<count>|…` in `parameters.txt`, on its own key so older files round-trip unchanged. The only optional boss rig that draws from `ctx.bossRand`. See *Wall traps per boss wave tier* |
+| `arena.waves[i].traps` | absent everywhere | wall traps per health tier, each `{projectile, direction, spread, spawnRateMs, count}` with `projectile` in `PROJECTILE_DEFS` (45 assets; the 22 zero-damage ones and the crashing `sorcerer_ice_orb` are cut), `direction` one of `up`/`down`/`left`/`right`, `spread` a decimal 0..2 and `count` 1..`MAX_TRAP_COUNT` (24). A trap stands on the wall it fires *away* from. Like the buffs and unlike the drops, tiers **replace** one another. `boss<i>WaveTrapN=<projectile>:<dir>:<spread>:<rate>:<count>|…` in `parameters.txt`, on its own key so older files round-trip unchanged. The only optional boss rig that draws from `ctx.bossRand`. See *Wall traps per boss wave tier* |
 | `arena.invulnerability` | on, `[30, 30, 30]`, countdown on | seconds of boss immortality per health threshold (`BOSS_INVULN_THRESHOLDS`: 75/50/25%); 0 disables one threshold, `boss<i>Invuln` / `boss<i>InvulnCountdown` in `parameters.txt`. Independent of `waves` — see *Boss finale* |
 | `arena.monsterMultiplier` | 1.0 | scales each tier's `monsterMax`; `-1`/endless stays endless. `boss<i>MonsterMultiplier` in `parameters.txt`, separate from the dungeon's |
 | `arena.foodMultiplier` | 1.2 | scales the arena's health/mana pickup clusters; `boss<i>FoodMultiplier` in `parameters.txt` |
@@ -509,8 +509,9 @@ file written before the feature does not silently hand it three tiers of loot.
 The hazard half of the same five tiers. Each `BossWave` may carry
 `traps: BossTrap[]`, rows of
 `{ projectile, direction, spread, spawnRateMs, count }` naming a projectile from
-`PROJECTILE_DEFS` (`objects/projectileTypes.ts`, 46 of the 68 the game ships —
-the 22 with `damage: 0` are decoration from a spewer and were cut). Read a
+`PROJECTILE_DEFS` (`objects/projectileTypes.ts`, 45 of the 68 the game ships —
+the 22 with `damage: 0` are decoration from a spewer, and `sorcerer_ice_orb`
+crashes the game from a spewer; all 23 are cut). Read a
 tier through `waveTraps(wave)`. No preset ships any — a stock arena is trapless.
 
 Each row places `count` `ProjectileSpewer` nodes; several rows may share a
