@@ -20,13 +20,19 @@
  *   node scripts/import-bossprep-assets.mjs --from "<HW>/editor/<campaign>" \
  *        [--level levels/test_non_related_to_map/test_boss_prep_room.xml]
  *
- * buildBossPrep() finds the vendor stalls, the diamonds and the exit by the id
- * constants at the bottom of template.ts and nothing else, so an import
- * *derives* those ids from the file it just read (see deriveMeta) rather than
- * hardcoding them. A re-import therefore stays correct without anyone editing
- * the generated file by hand; if the source level is missing a stall, an exit
- * or its diamonds, the derivation throws instead of emitting a template that
- * would fail later inside the generator.
+ * `buildLobby()` (src/generator/lobby/build.ts) finds the vendor stalls, the
+ * diamonds and the exit by the id constants at the bottom of template.ts and
+ * nothing else, so an import *derives* those ids from the file it just read
+ * (see deriveMeta) rather than hardcoding them. A re-import therefore stays
+ * correct without anyone editing the generated file by hand; if the source
+ * level is missing a stall, an exit or its diamonds, the derivation throws
+ * instead of emitting a template that would fail later inside the generator.
+ *
+ * Since issue #48 this template is one of two entries `LOBBY_PRESETS`
+ * (src/generator/lobby/presets.ts) can point a lobby slot at — it is no
+ * longer welded to a boss fight — but it is still generated into its own
+ * bossprep/ directory rather than moved under lobby/, so a re-import here
+ * changes nothing else about that file's layout.
  */
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'

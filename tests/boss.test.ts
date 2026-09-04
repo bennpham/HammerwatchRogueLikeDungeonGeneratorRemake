@@ -5,7 +5,8 @@ import { plainParameters } from './params'
 import { getTheme } from '../src/generator/config/themes'
 import type { BossArenaOptions, BossFight, BossOptions } from '../src/generator/config/parameters'
 import { buildBossArena } from '../src/generator/boss/arena'
-import { bossPrepId } from '../src/generator/campaign'
+import { bossArenaId, lobbyId } from '../src/generator/campaign'
+import type { Gateway } from '../src/generator/campaign'
 import { BOSS_DEF_LIST, BOSS_DEFS, topWallBossClearance, topWallBossY } from '../src/generator/boss/bosses'
 import { ANCHOR_INSET, NORTH_ANCHOR_INSET, anchors } from '../src/generator/boss/anchors'
 import type { AlcoveWall, BossDef } from '../src/generator/boss/bosses'
@@ -819,13 +820,13 @@ describe('boss campaign — determinism', () => {
 })
 
 describe('boss campaign — wiring', () => {
-  it('lists lobby, 0..N-1, bossprep, boss in order; wires the prep/portal targets; leaves start alone', () => {
+  it('lists 0..N-1, boss in order; wires the portal target; leaves start alone', () => {
     const seed = 4242
     const floors = plainParameters().levels
-    const on = generateOk(plainParameters(), seed) // lobby and boss both default on
+    const on = generateOk(plainParameters(), seed) // boss defaults on; plainParameters() ships no lobbies
 
     const levelsXml = on.files.find((f) => f.path === 'levels.xml')!.content
-    const order = ['lobby', ...Array.from({ length: floors }, (_, i) => String(i)), 'bossprep0', 'boss0']
+    const order = [...Array.from({ length: floors }, (_, i) => String(i)), 'boss0']
     let lastIdx = -1
     for (const id of order) {
       const idx = levelsXml.indexOf(`<level id="${id}"`)
@@ -833,24 +834,23 @@ describe('boss campaign — wiring', () => {
       lastIdx = idx
     }
 
-    // start is the lobby's concern, not the boss's — unaffected by boss on/off
+    // start is unaffected by whether the boss is on or off — with no boss the
+    // campaign just ends on the last floor instead
     const bossOff = generateOk(withBoss({ enabled: false }), seed)
     const startOf = (r: DungeonResult) => /<levels start="([^"]*)">/.exec(r.files.find((f) => f.path === 'levels.xml')!.content)?.[1]
     expect(startOf(on)).toBe(startOf(bossOff))
-    expect(startOf(on)).toBe('lobby')
+    expect(startOf(on)).toBe('0')
 
-    // the prep room's exit targets the arena
-    const prep = on.files.find((f) => f.path === 'levels/bossprep0.xml')!.content
-    expect(prep).toContain('<string name="level">boss0</string>')
-
-    // the final dungeon floor's portal targets the prep room
+    // the final dungeon floor's portal targets the arena directly — issue #48
+    // deleted the welded-on prep room, so there is no intermediate level any
+    // more
     const finalFloor = on.files.find((f) => f.path === `levels/level${floors - 1}.xml`)!.content
-    expect(finalFloor).toContain('<string name="level">bossprep0</string>')
+    expect(finalFloor).toContain('<string name="level">boss0</string>')
   })
 })
 
 describe('boss-only campaign — 0 dungeon floors', () => {
-  /** Defaults with the dungeon removed: the prep room and the arena, nothing else. */
+  /** Defaults with the dungeon removed: the arena, nothing else. */
   const zeroFloors = (): DungeonParameters => {
     const params = plainParameters()
     params.levels = 0
@@ -860,11 +860,10 @@ describe('boss-only campaign — 0 dungeon floors', () => {
   const startOf = (r: DungeonResult) =>
     /<levels start="([^"]*)">/.exec(r.files.find((f) => f.path === 'levels.xml')!.content)?.[1]
 
-  it('emits only the prep room and the arena, and starts in the prep room', () => {
+  it('emits only the arena, and starts there', () => {
     const result = generateOk(zeroFloors(), 12345)
     const paths = result.files.map((f) => f.path)
 
-    expect(paths).toContain('levels/bossprep0.xml')
     expect(paths).toContain('levels/boss0.xml')
     expect(paths.filter((p) => /^levels\/level\d+\.xml$/.test(p))).toEqual([])
     expect(paths).toContain('info.xml')
@@ -874,21 +873,9 @@ describe('boss-only campaign — 0 dungeon floors', () => {
     expect(result.levels).toHaveLength(1)
 
     const levelsXml = result.files.find((f) => f.path === 'levels.xml')!.content
-    expect(startOf(result)).toBe('bossprep0')
-    expect(levelsXml.match(/<level id="/g)).toHaveLength(2)
-    expect(levelsXml).toContain('<level id="bossprep0"')
+    expect(startOf(result)).toBe('boss0')
+    expect(levelsXml.match(/<level id="/g)).toHaveLength(1)
     expect(levelsXml).toContain('<level id="boss0"')
-  })
-
-  it('skips the lobby even when it is switched on — its teleport leads to floor 1', () => {
-    const params = zeroFloors()
-    params.lobby.enabled = true
-    const result = generateOk(params, 12345)
-    const paths = result.files.map((f) => f.path)
-
-    expect(paths).not.toContain('levels/lobby.xml')
-    expect(paths.filter((p) => p.startsWith('levels/lobby'))).toEqual([])
-    expect(startOf(result)).toBe('bossprep0')
   })
 
   it('builds the same arena as a full campaign — the floor count never reaches the RNG', () => {
@@ -909,10 +896,10 @@ describe('boss-only campaign — 0 dungeon floors', () => {
 
   it('leaves a normal campaign start untouched', () => {
     const seed = 4242
-    expect(startOf(generateOk(plainParameters(), seed))).toBe('lobby')
-    const noLobby = plainParameters()
-    noLobby.lobby.enabled = false
-    expect(startOf(generateOk(noLobby, seed))).toBe('0')
+    // plainParameters() ships no lobbies, so the default order opens directly
+    // on floor 0 — see 'campaign order — the default is unchanged' in
+    // rearrange.test.ts for the case with lobbies in front of it
+    expect(startOf(generateOk(plainParameters(), seed))).toBe('0')
   })
 })
 
@@ -1599,34 +1586,35 @@ describe('multiple boss fights (issue #43)', () => {
   const exitTargets = (xml: string) =>
     [...xml.matchAll(/<string name="level">([^<]*)<\/string>/g)].map((m) => m[1])
 
-  it('emits a prep room and an arena per fight, each indexed', () => {
+  it('emits an arena per fight, each indexed', () => {
     const result = generateOk(withFights(3), 4242)
     const paths = result.files.map((f) => f.path)
 
     for (let i = 0; i < 3; i++) {
-      expect(paths, `fight ${i}`).toContain(`levels/bossprep${i}.xml`)
       expect(paths, `fight ${i}`).toContain(`levels/boss${i}.xml`)
     }
-    // and no un-indexed leftovers from the single-fight shape
+    // and no un-indexed leftover from the single-fight shape, nor a prep room —
+    // issue #48 deleted the welded-on prep room entirely
     expect(paths).not.toContain('levels/boss.xml')
-    expect(paths).not.toContain('levels/bossprep.xml')
+    expect(paths.filter((p) => p.startsWith('levels/bossprep'))).toEqual([])
   })
 
-  it('chains fight, shop, fight — each arena leads into the NEXT prep room', () => {
+  it('chains fight into fight directly — each arena leads into the NEXT arena', () => {
+    // withFights() builds on plainParameters(), which ships no lobbies, so
+    // there is no shop between fights here; 'campaign order — a lobby in the
+    // chain' (rearrange.test.ts) covers a lobby put between two fights.
     const result = generateOk(withFights(3), 4242)
 
-    // the last dungeon floor still opens the first fight
+    // the last dungeon floor opens the first fight's arena directly
     const finalFloor = levelOf(result, `levels/level${plainParameters().levels - 1}.xml`)
-    expect(exitTargets(finalFloor)).toContain('bossprep0')
+    expect(exitTargets(finalFloor)).toContain('boss0')
 
     for (let i = 0; i < 3; i++) {
-      // prep i always leads into its own arena
-      expect(exitTargets(levelOf(result, `levels/bossprep${i}.xml`))).toContain(`boss${i}`)
-
       const arena = levelOf(result, `levels/boss${i}.xml`)
       if (i < 2) {
-        // a non-final arena's alcove is a portal into the next shop, not the orb
-        expect(exitTargets(arena), `arena ${i}`).toContain(`bossprep${i + 1}`)
+        // a non-final arena's alcove is a portal straight into the next
+        // arena, not the orb
+        expect(exitTargets(arena), `arena ${i}`).toContain(`boss${i + 1}`)
         expect(arena, `arena ${i}`).not.toContain('<string name="type">GameEnd</string>')
       } else {
         expect(exitTargets(arena), 'last arena').toEqual([])
@@ -1646,22 +1634,17 @@ describe('multiple boss fights (issue #43)', () => {
     const result = generateOk(withFights(2), 4242)
     const levelsXml = levelOf(result, 'levels.xml')
 
-    const order = [
-      'lobby',
-      ...Array.from({ length: plainParameters().levels }, (_, i) => String(i)),
-      'bossprep0',
-      'boss0',
-      'bossprep1',
-      'boss1'
-    ]
+    const order = [...Array.from({ length: plainParameters().levels }, (_, i) => String(i)), 'boss0', 'boss1']
     let lastIdx = -1
     for (const id of order) {
       const idx = levelsXml.indexOf(`<level id="${id}"`)
       expect(idx, `level id "${id}" missing or out of order`).toBeGreaterThan(lastIdx)
       lastIdx = idx
     }
-    // the in-game floor label keeps counting rather than repeating a number
-    expect(levelsXml).toContain('name="lvl.floor?floor=10"')
+    // the in-game floor label keeps counting rather than repeating a number —
+    // 7 floors (labels 0-6) then 2 fights, ONE label each now that a fight is
+    // a single arena rather than a prep room plus an arena
+    expect(levelsXml).toContain('name="lvl.floor?floor=8"')
   })
 
   it('previews every arena, one entry per fight after the floors', () => {
@@ -1703,18 +1686,54 @@ describe('multiple boss fights (issue #43)', () => {
 
   /**
    * The other half of that guarantee, stated exactly: swapping the alcove's orb
-   * for a portal must not consume a different number of `ctx.bossRand` draws,
-   * or every arena after the first in a chain would shift. Same shape as
-   * objectSet.test.ts's Orb-vs-BossPortal parity check.
+   * for either portal must not consume a different number of `ctx.bossRand`
+   * draws, or every arena after the first in a chain would shift. Same shape
+   * as objectSet.test.ts's Orb/BossPortal/LobbyPortal parity check.
    */
-  it('an alcove portal costs the same RNG draws as the victory orb', () => {
+  it('an alcove portal — either colour — costs the same RNG draws as the victory orb', () => {
     const arena = plainParameters().boss.fights[0].arena
-    const after = (exitTarget: string | null) => {
+    const after = (gateway: Gateway) => {
       const ctx = freshCtx(4242)
-      buildBossArena(ctx, arena, 7, exitTarget)
+      buildBossArena(ctx, arena, 7, gateway)
       return Array.from({ length: 20 }, () => ctx.bossRand.iRand(0, 1_000_000))
     }
-    expect(after(bossPrepId(1))).toEqual(after(null))
+    const orb = after({ kind: 'orb' })
+    expect(after({ kind: 'portal', target: bossArenaId(1) })).toEqual(orb)
+    expect(after({ kind: 'lobbyPortal', target: lobbyId(0) })).toEqual(orb)
+  })
+
+  /**
+   * The arena's own three-way choice, over all four `Gateway` kinds an arena
+   * can actually receive. An arena has no stairs prefab of its own, so
+   * `'exit'` — `gatewayAfter`'s answer whenever the next slot is an ordinary
+   * dungeon floor — still renders the RED portal here, same as `'portal'`;
+   * only `'lobbyPortal'` gets the blue one and only `'orb'` gets the orb.
+   */
+  it('picks the doodad and target by gateway kind, exit included', () => {
+    const arena = plainParameters().boss.fights[0].arena
+    const xmlFor = (gateway: Gateway) => buildBossArena(freshCtx(4242), arena, 0, gateway).xml
+
+    const onOrb = xmlFor({ kind: 'orb' })
+    expect(onOrb).toContain('items/crystal_purple.xml')
+    expect(onOrb).not.toContain('exit_teleport')
+
+    const onPortal = xmlFor({ kind: 'portal', target: bossArenaId(1) })
+    expect(onPortal).toContain('doodads/generic/exit_teleport_boss.xml')
+    expect(onPortal).toContain('<string name="level">boss1</string>')
+    expect(onPortal).not.toContain('items/crystal_purple.xml')
+
+    // the special case: an arena followed by an ordinary dungeon floor still
+    // gets the red portal, not stairs and not the orb
+    const onExit = xmlFor({ kind: 'exit', target: '3' })
+    expect(onExit).toContain('doodads/generic/exit_teleport_boss.xml')
+    expect(onExit).toContain('<string name="level">3</string>')
+    expect(onExit).not.toContain('items/crystal_purple.xml')
+
+    const onLobbyPortal = xmlFor({ kind: 'lobbyPortal', target: lobbyId(2) })
+    expect(onLobbyPortal).toContain('doodads/generic/exit_teleport.xml')
+    expect(onLobbyPortal).not.toContain('exit_teleport_boss.xml')
+    expect(onLobbyPortal).toContain('<string name="level">lobby2</string>')
+    expect(onLobbyPortal).not.toContain('items/crystal_purple.xml')
   })
 
   it("a later fight's settings never reach an earlier one", () => {
@@ -1741,17 +1760,8 @@ describe('multiple boss fights (issue #43)', () => {
     expect(generateOk(params, 2024).files).toEqual(generateOk(params, 2024).files)
   }, 60_000)
 
-  it("honours each fight's own prep-room settings", () => {
-    const params = withFights(2)
-    params.boss.fights[0].prep.startingGold = 500
-    params.boss.fights[1].prep.startingGold = 5000
-    const result = generateOk(params, 4242)
-
-    // one ItemSection per item type, so the payout is the entry count inside it,
-    // not how many times the item path appears — same shape bossprep.test.ts counts
-    const diamonds = (xml: string) =>
-      [...xml.matchAll(/<array><int>\d+<\/int><vec2>[^<]*<\/vec2><\/array>/g)].length
-    expect(diamonds(levelOf(result, 'levels/bossprep0.xml'))).toBe(1)
-    expect(diamonds(levelOf(result, 'levels/bossprep1.xml'))).toBe(10)
-  })
+  // A fight's prep room is gone (issue #48) — a shop in front of one is a
+  // `lobby` slot now, placed and edited independently. That coverage
+  // ("honours each fight's own prep-room settings", checking two lobbies'
+  // independent gold) now lives in lobby.test.ts's table-driven suite.
 })

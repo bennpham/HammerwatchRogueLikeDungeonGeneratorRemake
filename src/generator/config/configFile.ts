@@ -11,6 +11,7 @@ import {
   defaultFloorBuffs,
   defaultBossFight,
   defaultFloorTimer,
+  defaultLobby,
   defaultParameters,
   isScatterMode,
   waveBuffs,
@@ -27,6 +28,7 @@ import type {
   BossSpawnMode,
   BuffTarget,
   FloorBuff,
+  LobbyOptions,
   WavePickup,
   BossTrap,
   BossTrapDirection
@@ -36,6 +38,7 @@ import { buffById } from '../objects/buffTypes'
 import { pickupById } from '../objects/pickupTypes'
 import { projectileById } from '../objects/projectileTypes'
 import { isLobbyCategory } from '../lobby/shops'
+import { DEFAULT_LOBBY_PRESET_ID, LOBBY_PRESETS } from '../lobby/presets'
 import { campaignOrder, isDefaultOrder, normalizeOrder, parseSlotLabel, slotLabel } from '../campaign'
 import type { CampaignSlot } from '../campaign'
 import { TWEAK_FIELD_MAP, pruneTweaks } from '../tweak/overrides'
@@ -158,6 +161,12 @@ function newBossFightParseState(): BossFightParseState {
  * Everything here is per-fight state; the campaign-wide `boss` (enabled) and
  * `bossFights` (count) keys are handled by the caller, before the index is
  * even parsed.
+ *
+ * `gold`, `upgrades` and `shops` are deliberately NOT handled here any more —
+ * issue #48 moved the fight's prep room out to its own `lobby` slot, so a
+ * `boss<i>Gold` etc. from a file written before that lands in `unknownKeys`
+ * like any other key this parser no longer recognizes (invariant #5: never
+ * fatal). There is no alias to a lobby index; the break is deliberately loud.
  */
 function parseBossFightKey(
   suffix: string,
@@ -167,27 +176,8 @@ function parseBossFightKey(
   state: BossFightParseState,
   unknownKeys: string[]
 ): boolean {
-  const prep = fight.prep
   const arena = fight.arena
 
-  if (suffix === 'gold') {
-    const n = parseInt(value, 10)
-    if (Number.isNaN(n)) unknownKeys.push(key)
-    else prep.startingGold = n
-    return true
-  }
-  if (suffix === 'upgrades') {
-    prep.upgrades = parseUpgradeCounts(key, value, unknownKeys)
-    return true
-  }
-  if (suffix === 'shops') {
-    const wanted = value.split(/\s+/).filter((c) => c !== '')
-    prep.shopCategories = wanted.filter(isLobbyCategory)
-    for (const bad of wanted.filter((c) => !isLobbyCategory(c))) {
-      unknownKeys.push(`${key} value "${bad}"`)
-    }
-    return true
-  }
   if (suffix === 'invuln') {
     // `off` (or a bare 0) turns the feature off and leaves the window lengths
     // alone, so toggling it in a file and back does not lose the numbers. One
@@ -543,7 +533,7 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     : defaultParameters()
   // a base object round-tripped from an older settings file may predate these
   if (params.playerTweaks === undefined) params.playerTweaks = {}
-  if (params.lobby === undefined) params.lobby = defaultParameters().lobby
+  if (params.lobbies === undefined) params.lobbies = defaultParameters().lobbies
   if (params.boss === undefined) params.boss = defaultParameters().boss
   if (params.lockFinalRoom === undefined)
     params.lockFinalRoom = defaultParameters().lockFinalRoom
@@ -574,6 +564,22 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     if (named === undefined) fightKeys.set(index, [key])
     else named.push(key)
     return fights[index]
+  }
+
+  // Lobby bookkeeping, the same shape as the fight bookkeeping above: `lobby<i>`
+  // keys carry an index, the count (`lobbies=`) may be declared before or after
+  // them, and one lobby's keys say nothing about another.
+  /** the keys that named each lobby index, so an index past `lobbies` can be reported */
+  const lobbyKeys = new Map<number, string[]>()
+  /** the `lobbies=` count, or null when the file never declared one */
+  let declaredLobbyCount: number | null = null
+
+  const lobbyAt = (index: number, key: string): LobbyOptions => {
+    while (params.lobbies.length <= index) params.lobbies.push(defaultLobby(DEFAULT_LOBBY_PRESET_ID))
+    const named = lobbyKeys.get(index)
+    if (named === undefined) lobbyKeys.set(index, [key])
+    else named.push(key)
+    return params.lobbies[index]
   }
 
   const intKeys: Record<string, (v: number) => void> = {
@@ -638,28 +644,59 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       continue
     }
 
-    if (keyLower === 'lobby') {
-      params.lobby.enabled = value === '1'
-      continue
-    }
-    if (keyLower === 'lobbygold') {
+    // `lobbies=<n>` — how many lobby slots the campaign has. The old singular
+    // `lobby`/`lobbyGold`/`lobbyShops`/`lobbyUpgrades` keys (one lobby,
+    // always prepended) are a HARD BREAK from issue #48: they are not aliased
+    // to lobby 0, so a file written before the feature exists still imports
+    // (invariant #5) but reports them as unknown rather than silently
+    // resurrecting the old single-lobby shape.
+    if (keyLower === 'lobbies') {
       const n = parseInt(value, 10)
-      if (Number.isNaN(n)) result.unknownKeys.push(key)
-      else params.lobby.startingGold = n
+      if (Number.isNaN(n) || n < 0) result.unknownKeys.push(`${key} value "${value}"`)
+      else declaredLobbyCount = n
       continue
     }
-    if (keyLower === 'lobbyupgrades') {
-      params.lobby.upgrades = parseUpgradeCounts(key, value, result.unknownKeys)
-      continue
-    }
-    if (keyLower === 'lobbyshops') {
-      // space separated to mirror the `cats` string it becomes. Unknown column
-      // ids are reported rather than dropped silently, but never throw.
-      const wanted = value.split(/\s+/).filter((c) => c !== '')
-      params.lobby.shopCategories = wanted.filter(isLobbyCategory)
-      for (const bad of wanted.filter((c) => !isLobbyCategory(c))) {
-        result.unknownKeys.push(`${key} value "${bad}"`)
+
+    // Every other lobby key is `lobby<i><suffix>` — the index sits directly
+    // after `lobby`, mirroring the `boss<i><suffix>` dispatcher below. The
+    // `\d+` is what makes this a hard break rather than an alias: a bare
+    // `lobbyGold` has no digit here and falls through to the catch-all
+    // unknownKeys push at the end of the loop, exactly like `boss0Gold` now
+    // does.
+    const lobbyMatch = keyLower.match(/^lobby(\d+)(.+)$/)
+    if (lobbyMatch) {
+      const index = parseInt(lobbyMatch[1], 10)
+      const suffix = lobbyMatch[2]
+      const lobby = lobbyAt(index, key)
+
+      if (suffix === 'preset') {
+        if (LOBBY_PRESETS.some((preset) => preset.id === value)) lobby.preset = value
+        else result.unknownKeys.push(`${key} value "${value}"`)
+        continue
       }
+      if (suffix === 'gold') {
+        const n = parseInt(value, 10)
+        if (Number.isNaN(n)) result.unknownKeys.push(key)
+        else lobby.startingGold = n
+        continue
+      }
+      if (suffix === 'upgrades') {
+        lobby.upgrades = parseUpgradeCounts(key, value, result.unknownKeys)
+        continue
+      }
+      if (suffix === 'shops') {
+        // space separated to mirror the `cats` string it becomes. Unknown
+        // column ids are reported rather than dropped silently, but never throw.
+        const wanted = value.split(/\s+/).filter((c) => c !== '')
+        lobby.shopCategories = wanted.filter(isLobbyCategory)
+        for (const bad of wanted.filter((c) => !isLobbyCategory(c))) {
+          result.unknownKeys.push(`${key} value "${bad}"`)
+        }
+        continue
+      }
+
+      // an unrecognized lobby<i> suffix
+      result.unknownKeys.push(key)
       continue
     }
 
@@ -872,17 +909,35 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     fights.length = wanted
   }
 
-  // The order is only meaningful next to the campaign it describes, and both
-  // `levels` and `bossFights` may be parsed after it, so it is repaired here
-  // rather than inline. An order that turns out to be the default one is
-  // dropped entirely: absent is the shape that guarantees byte-identical
-  // output, and a file saying "1,2,3,B1" should not behave differently from one
-  // that says nothing.
+  // How many lobbies the campaign ends up with. An explicit `lobbies=` wins;
+  // otherwise whatever `params.lobbies` already held — the base object's own
+  // list (defaultParameters()'s two stock lobbies, backfilled above, unless a
+  // different base was passed) — grown by any `lobby<i>` key the file named.
+  // Unlike fights there is no floor of 1: an explicit `lobbies=0` clears the
+  // list entirely.
+  if (declaredLobbyCount !== null) {
+    while (params.lobbies.length < declaredLobbyCount) params.lobbies.push(defaultLobby(DEFAULT_LOBBY_PRESET_ID))
+    if (params.lobbies.length > declaredLobbyCount) {
+      // Same reporting shape as the fights trim above: keys past the declared
+      // count are dropped rather than silently keeping an extra lobby around,
+      // and the import panel names what was ignored.
+      for (let i = declaredLobbyCount; i < params.lobbies.length; i++) {
+        for (const named of lobbyKeys.get(i) ?? []) result.unknownKeys.push(named)
+      }
+      params.lobbies.length = declaredLobbyCount
+    }
+  }
+
+  // The order is only meaningful next to the campaign it describes, and
+  // `levels`, `bossFights` and `lobbies` may all be parsed after it, so it is
+  // repaired here rather than inline. An order that turns out to be the
+  // default one is dropped entirely: absent is the shape that guarantees
+  // byte-identical output, and a file saying "1,2,3,B1" should not behave
+  // differently from one that says nothing.
   if (params.levelOrder !== undefined) {
-    const repaired = normalizeOrder(params.levelOrder, params.levels, params.boss.fights?.length ?? 0)
-    params.levelOrder = isDefaultOrder(repaired, params.levels, params.boss.fights?.length ?? 0)
-      ? undefined
-      : repaired
+    const counts = { levels: params.levels, fights: params.boss.fights?.length ?? 0, lobbies: params.lobbies.length }
+    const repaired = normalizeOrder(params.levelOrder, counts)
+    params.levelOrder = isDefaultOrder(repaired, counts) ? undefined : repaired
     if (params.levelOrder === undefined) delete params.levelOrder
   }
 
@@ -1010,39 +1065,43 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
     }
   }
 
-  // Add lobby params after the main loop
-  lines.push(`lobby=${params.lobby.enabled ? 1 : 0}`)
-  lines.push(`lobbyGold=${params.lobby.startingGold}`)
-  lines.push(`lobbyShops=${params.lobby.shopCategories.join(' ')}`)
-  lines.push(`lobbyUpgrades=${upgradeCountsLine(params.lobby.upgrades)}`)
+  // Add lobby params after the main loop — every lobby fully indexed
+  // (`lobby0Preset`, `lobby1Gold`, …), the same shape the per-fight keys
+  // below use. No bare `lobbyGold` alias to lobby 0: the old singular lobby
+  // is a hard break (see the parser's comment on the same keys).
+  const lobbies = params.lobbies ?? []
+  lines.push(`lobbies=${lobbies.length}`)
+  lobbies.forEach((lobby, i) => {
+    lines.push(`lobby${i}Preset=${lobby.preset}`)
+    lines.push(`lobby${i}Gold=${lobby.startingGold}`)
+    lines.push(`lobby${i}Shops=${lobby.shopCategories.join(' ')}`)
+    lines.push(`lobby${i}Upgrades=${upgradeCountsLine(lobby.upgrades)}`)
+  })
 
-  // Add boss params after the lobby params. Keys past the flag mirror the
-  // lobby's camelCase (lobbyGold/lobbyShops) — parsing is case-insensitive, so
-  // this is cosmetic with zero compatibility cost.
+  // Add boss params after the lobby params.
   //
-  // Every per-fight key carries its fight index (`boss0Gold`, `boss1Wave3`), so
+  // Every per-fight key carries its fight index (`boss0Theme`, `boss1Wave3`), so
   // a campaign with several fights writes one full block per fight and each is
   // read back onto the fight it names. The parser still accepts the unprefixed
   // form as fight 0, which is what keeps older files importable, but nothing
-  // writes it any more — an export is always fully indexed.
+  // writes it any more — an export is always fully indexed. `boss<i>Gold`,
+  // `boss<i>Shops` and `boss<i>Upgrades` are gone entirely: the fight's prep
+  // room is a `lobby` slot now, so a shop in front of a fight is written as one
+  // of the `lobby<i>*` blocks above, not as part of the fight.
   const fights = params.boss.fights ?? []
 
   // Written only when the campaign was actually rearranged, so a stock export
   // gains no line and still round-trips byte for byte against one written
   // before floors could be reordered.
-  const order = campaignOrder(params.levels, fights.length, params.levelOrder)
-  if (!isDefaultOrder(order, params.levels, fights.length)) {
+  const order = campaignOrder({ levels: params.levels, fights: fights.length, lobbies: lobbies.length }, params.levelOrder)
+  if (!isDefaultOrder(order, { levels: params.levels, fights: fights.length, lobbies: lobbies.length })) {
     lines.push(`levelOrder=${order.map(slotLabel).join(',')}`)
   }
 
   lines.push(`boss=${params.boss.enabled ? 1 : 0}`)
   lines.push(`bossFights=${fights.length}`)
   fights.forEach((fight, f) => {
-    const prep = fight.prep
     const arena = fight.arena
-    lines.push(`boss${f}Gold=${prep.startingGold}`)
-    lines.push(`boss${f}Shops=${prep.shopCategories.join(' ')}`)
-    lines.push(`boss${f}Upgrades=${upgradeCountsLine(prep.upgrades)}`)
     lines.push(`boss${f}Theme=${arena.theme}`)
     lines.push(`boss${f}FloorPattern=${arena.floorPattern}`)
     lines.push(`boss${f}Width=${arena.minWidth},${arena.maxWidth}`)

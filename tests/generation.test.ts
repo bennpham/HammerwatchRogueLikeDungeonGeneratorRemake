@@ -669,12 +669,10 @@ describe('generateDungeon', () => {
     for (let i = 0; i < plainParameters().levels; i++) {
       expect(levelsXml).toContain(`<level id="${i}" res="levels/level${i}.xml"`)
     }
-    // and the boss's own two entries follow them, in order
-    expect(levelsXml).toContain('<level id="bossprep0" res="levels/bossprep0.xml"')
+    // and the boss's own arena follows them
     expect(levelsXml).toContain('<level id="boss0" res="levels/boss0.xml"')
     const lastFloorPath = `levels/level${plainParameters().levels - 1}.xml`
-    expect(levelsXml.indexOf(lastFloorPath)).toBeLessThan(levelsXml.indexOf('levels/bossprep0.xml'))
-    expect(levelsXml.indexOf('levels/bossprep0.xml')).toBeLessThan(levelsXml.indexOf('levels/boss0.xml'))
+    expect(levelsXml.indexOf(lastFloorPath)).toBeLessThan(levelsXml.indexOf('levels/boss0.xml'))
   })
 
   it('respects the level count parameter', () => {
@@ -716,8 +714,8 @@ describe('generateDungeon', () => {
 
 describe('dungeon floors — arrival respawn', () => {
   // The rig the ExitUp prefab has always emitted, now pinned: it is what
-  // revives a co-op player who died on the previous floor, and the lobby, the
-  // prep room and the boss arena all copy it. Nothing asserted on it before.
+  // revives a co-op player who died on the previous floor, and every lobby
+  // room and the boss arena all copy it. Nothing asserted on it before.
   it('gives every floor a one-shot respawn at the entrance stairs', () => {
     const result = generateOk(31337)
     for (const file of result.files.filter((f) => /^levels\/level\d+\.xml$/.test(f.path))) {

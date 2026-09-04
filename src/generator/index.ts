@@ -3,14 +3,13 @@ import { Level } from './map/level'
 import { DungeonParameters, defaultParameters, bossFights } from './config/parameters'
 import { validateParameters, ValidationResult } from './config/validation'
 import { emitTweakFiles } from './tweak/overrides'
-import { LOBBY_ASSETS, LOBBY_LEVEL_ID, LOBBY_LEVEL_PATH, buildLobby } from './lobby'
-import { buildBossPrep } from './bossprep'
+import { DEFAULT_LOBBY_PRESET_ID, buildLobby, lobbyPresetById } from './lobby'
 import { buildBossArena } from './boss'
-import { bossArenaId, bossArenaPath, bossPrepId, bossPrepPath, campaignOrder, gatewayAfter, slotEntryId, slotLabel } from './campaign'
+import { bossArenaId, bossArenaPath, campaignOrder, gatewayAfter, lobbyId, lobbyPath, slotEntryId, slotLabel } from './campaign'
 import { buildFloorHazardRig } from './timer/hazard'
 import { buildFloorBuffRig } from './buffs/field'
 
-export type { DungeonParameters, LobbyOptions, BossOptions, BossFight, BossPrepOptions, BossArenaOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FinalLockMode, FloorBuff, BuffTarget, WavePickup, BossTrap, BossTrapDirection } from './config/parameters'
+export type { DungeonParameters, LobbyOptions, BossOptions, BossFight, BossArenaOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FinalLockMode, FloorBuff, BuffTarget, WavePickup, BossTrap, BossTrapDirection } from './config/parameters'
 export {
   THEMES,
   BOSS_IDS,
@@ -27,6 +26,8 @@ export {
   DEFAULT_WAVE_MONSTER_MAX,
   defaultBossOptions,
   defaultBossFight,
+  defaultLobby,
+  shippedOrder,
   bossFights,
   defaultFloorTimer,
   FINAL_LOCK_MODES,
@@ -61,17 +62,19 @@ export type { ArenaPatternKind } from './boss/arenaPattern'
 export { defaultParameters }
 export {
   bossArenaId,
-  bossPrepId,
+  bossArenaPath,
   campaignOrder,
   defaultOrder,
   gatewayAfter,
   isDefaultOrder,
+  lobbyId,
+  lobbyPath,
   normalizeOrder,
   parseSlotLabel,
   slotEntryId,
   slotLabel
 } from './campaign'
-export type { CampaignSlot, Gateway } from './campaign'
+export type { CampaignCounts, CampaignSlot, Gateway } from './campaign'
 export { CAMPAIGN_PRESETS, DEFAULT_PRESET_ID, campaignPresetById } from './config/presets'
 export type { CampaignPreset } from './config/presets'
 export { validateParameters } from './config/validation'
@@ -90,20 +93,19 @@ export { parseParametersTxt, serializeParametersTxt } from './config/configFile'
 export type { ParsedConfig } from './config/configFile'
 export {
   ALL_LOBBY_CATEGORIES,
-  LOBBY_DIAMOND_SLOTS,
+  DEFAULT_LOBBY_PRESET_ID,
   LOBBY_DIAMOND_VALUE,
-  LOBBY_LEVEL_ID,
-  LOBBY_LEVEL_PATH,
-  LOBBY_RESPAWN_ID_BASE,
+  LOBBY_PRESETS,
   LOBBY_VENDORS,
   buildLobby,
   categoriesFor,
   diamondCount,
   isLobbyCategory,
   lobbyCategoryCounts,
+  lobbyPresetById,
   vendorOfCategory
 } from './lobby'
-export type { LobbyVendorDef } from './lobby'
+export type { LobbyPresetDef, LobbyVendorDef } from './lobby'
 export {
   MONSTER_CATEGORIES,
   MONSTER_GROUPS,
@@ -301,12 +303,14 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
   const arenaPreviews = new Map<number, LevelPreview>()
   let levelString = ''
 
-  // The campaign's play order — every floor then every fight by default, or
-  // whatever `levelOrder` arranged. Everything below reads position in THIS
-  // list rather than a floor's own index: which prefab a floor's way out gets,
-  // where it points, what `start` is, and what order levels.xml lists.
+  // The campaign's play order — every lobby then every floor then every fight
+  // by default, or whatever `levelOrder` arranged. Everything below reads
+  // position in THIS list rather than a floor's own index: which prefab a
+  // floor's way out gets, where it points, what `start` is, what a lobby's
+  // teleport targets, and what order levels.xml lists.
   const fights = bossFights(params.boss)
-  const order = campaignOrder(params.levels, fights.length, params.levelOrder)
+  const lobbies = params.lobbies ?? []
+  const order = campaignOrder({ levels: params.levels, fights: fights.length, lobbies: lobbies.length }, params.levelOrder)
 
   // Floors are still generated in numeric order, whatever the campaign order
   // is. Their draws come off ctx.rand one floor after another, so generating
@@ -361,38 +365,16 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
     ctx.clearLevel()
   }
 
-  // The lobby is hand-authored, so it is emitted after the level loop and draws
-  // nothing from ctx.rand or ctx.cosmeticRand — exactly like emitTweakFiles.
-  // Same seed means the same dungeon whether the lobby is on or off; it only
-  // prepends a level entry and moves the campaign's `start`.
-  //
-  // With 0 floors there is nothing for it to teleport to, so the lobby is
-  // skipped rather than stranding the party. Gating it here and not only in the
-  // GUI also covers a parameters.txt that imports `levels=0` alongside
-  // `lobby=true`.
-  const lobbyEnabled = params.lobby?.enabled === true && params.levels > 0
-  if (lobbyEnabled) {
-    // whatever the campaign opens on — floor 0 by default, but a rearranged
-    // campaign can start on a boss fight's prep room
-    const firstSlot = order[0]
-    const lobbyTarget = firstSlot === undefined ? '0' : slotEntryId(firstSlot)
-    files.push({ path: LOBBY_LEVEL_PATH, content: buildLobby(params.lobby, lobbyTarget) })
-    files.push(...LOBBY_ASSETS)
-    levelString =
-      `<level id="${LOBBY_LEVEL_ID}" res="${LOBBY_LEVEL_PATH}" name="lvl.floor?floor=0" />\n` + levelString
-  }
-
-  // Each boss fight is a hand-authored prep room plus a generated arena,
-  // appended after every numeric dungeon floor — same shape as the lobby
-  // above: emitted after the level loop, drawing nothing from ctx.rand or
+  // Each boss fight is a generated arena, appended after every numeric dungeon
+  // floor — emitted after the level loop, drawing nothing from ctx.rand or
   // ctx.cosmeticRand (the arenas have their own ctx.bossRand stream), so the
   // same seed produces the same dungeon whether the boss is on or off. It
   // only appends level entries; `start` is untouched.
   //
-  // The fights chain: fight i's prep room leads into fight i's arena, and that
-  // arena leads into fight i+1's PREP room, not straight into the next arena —
-  // the party shops between bosses. Only the last arena keeps the victory orb,
-  // so a campaign still has exactly one way to win.
+  // Where one fight leads is purely a matter of the campaign ORDER, exactly
+  // like a floor's stairs: the next slot, whatever kind it is (another fight
+  // directly, or a lobby first if the dungeon master put a shop there), or the
+  // victory orb if this is the last slot in the whole campaign.
   //
   // They share ctx.bossRand in list order, so fight 0 draws precisely what a
   // single-fight campaign has always drawn and each extra fight continues the
@@ -403,30 +385,56 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
   })
 
   fights.forEach((fight, i) => {
-    files.push({ path: bossPrepPath(i), content: buildBossPrep(fight.prep, bossArenaId(i)) })
-
-    // Where this arena leads follows the campaign ORDER, exactly like a floor's
-    // stairs: the last slot ends the campaign and keeps the victory orb,
-    // whether that slot is an arena or — in a rearranged campaign — a dungeon
-    // floor. `gatewayAfter` is the same function the floors use.
     const position = bossPosition.get(i)
     const gateway = position === undefined ? { kind: 'orb' as const } : gatewayAfter(order, position)
 
-    const { xml, preview } = buildBossArena(
-      ctx,
-      fight.arena,
-      params.levels + i,
-      gateway.kind === 'orb' ? null : gateway.target
-    )
+    const { xml, preview } = buildBossArena(ctx, fight.arena, params.levels + i, gateway)
     files.push({ path: bossArenaPath(i), content: xml })
     arenaPreviews.set(i, preview)
   })
 
+  // Every lobby is a hand-authored shop room, built after both loops above and
+  // drawing nothing from either RNG stream — exactly like emitTweakFiles. Same
+  // seed means the same dungeon whatever lobbies the order carries; a lobby
+  // slot only ever appends a level entry and points its own teleport at
+  // whichever slot follows it — the next floor, the next fight's arena, or
+  // even another lobby.
+  //
+  // Validation forbids a lobby from being the campaign's last slot (it has no
+  // victory orb of its own), but the generator falls back to `'0'` rather than
+  // throwing if one somehow got there anyway — a hand-edited parameters.txt
+  // bypasses the form, and invariant #5 is "validate, don't crash".
+  const usedLobbyPresets = new Set<string>()
+  order.forEach((slot, position) => {
+    if (slot.kind !== 'lobby') return
+    const options = lobbies[slot.index]
+    if (options === undefined) return
+    const preset = lobbyPresetById(options.preset) ?? lobbyPresetById(DEFAULT_LOBBY_PRESET_ID)!
+    usedLobbyPresets.add(preset.id)
+
+    const next = order[position + 1]
+    const exitTarget = next === undefined ? '0' : slotEntryId(next)
+    files.push({ path: lobbyPath(slot.index), content: buildLobby(preset, options, exitTarget) })
+  })
+
+  // The union of every preset actually used, deduped by path — two
+  // dungeon-prep lobbies (or a campaign that never uses a lobby at all) must
+  // not push the same asset file twice, or ship one nothing references.
+  const seenAssetPaths = new Set<string>()
+  for (const presetId of usedLobbyPresets) {
+    for (const asset of lobbyPresetById(presetId)!.assets) {
+      if (seenAssetPaths.has(asset.path)) continue
+      seenAssetPaths.add(asset.path)
+      files.push(asset)
+    }
+  }
+
   // levels.xml lists the campaign in PLAY order, and the in-game floor label
-  // counts positions in that order rather than a floor's own index — a fight
-  // takes two labels because it is two levels. Under the default order this is
-  // floors 0..N-1 then the fights, which is exactly what was emitted before the
-  // order was configurable.
+  // counts positions in that order rather than a floor's own index. Every kind
+  // of slot — floor, fight, lobby — is exactly one level and consumes exactly
+  // one label; under the default order with no lobbies this is floors 0..N-1
+  // then the fights, which is exactly what was emitted before the order was
+  // configurable.
   const previews: LevelPreview[] = []
   let floorLabel = 0
   for (const slot of order) {
@@ -435,13 +443,16 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
       floorLabel += 1
       const preview = floorPreviews.get(slot.index)
       if (preview !== undefined) previews.push({ ...preview, label: slotLabel(slot) })
-    } else {
-      levelString +=
-        `<level id="${bossPrepId(slot.index)}" res="${bossPrepPath(slot.index)}" name="lvl.floor?floor=${floorLabel}" />\n` +
-        `<level id="${bossArenaId(slot.index)}" res="${bossArenaPath(slot.index)}" name="lvl.floor?floor=${floorLabel + 1}" />\n`
-      floorLabel += 2
+    } else if (slot.kind === 'boss') {
+      levelString += `<level id="${bossArenaId(slot.index)}" res="${bossArenaPath(slot.index)}" name="lvl.floor?floor=${floorLabel}" />\n`
+      floorLabel += 1
       const preview = arenaPreviews.get(slot.index)
       if (preview !== undefined) previews.push({ ...preview, label: slotLabel(slot) })
+    } else {
+      // A lobby contributes no preview — it has no generated geometry, and
+      // LobbyDiagram in the form is its stand-in.
+      levelString += `<level id="${lobbyId(slot.index)}" res="${lobbyPath(slot.index)}" name="lvl.floor?floor=${floorLabel}" />\n`
+      floorLabel += 1
     }
   }
 
@@ -455,14 +466,12 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
       '</info>'
   })
 
-  // The lobby comes first when it is there, otherwise whatever the campaign
-  // order opens on — floor 0 by default, a boss fight's prep room when the
-  // order was rearranged to put one first or when there are no floors at all.
-  const startLevel = lobbyEnabled
-    ? LOBBY_LEVEL_ID
-    : order.length > 0
-      ? slotEntryId(order[0])
-      : bossPrepId(0)
+  // Whatever the campaign order opens on — a lobby, a floor or a fight's
+  // arena. Order is never empty when generation actually reaches this point
+  // (validation requires at least one floor or an enabled boss), but the
+  // fallback is here rather than a non-null assertion for the same reason as
+  // the lobby exit-target fallback above.
+  const startLevel = order.length > 0 ? slotEntryId(order[0]) : '0'
 
   files.push({
     path: 'levels.xml',

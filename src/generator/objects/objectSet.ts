@@ -14,9 +14,9 @@ import {
   NodeToggleElement
 } from './nodes'
 import type { GenerationContext } from '../core/context'
-import { bossPrepId } from '../campaign'
+import { bossArenaId, lobbyId } from '../campaign'
 
-export type SetTypeName = 'ExitUp' | 'ExitDn' | 'Shop' | 'Orb' | 'RestoreOrb' | 'BossPortal'
+export type SetTypeName = 'ExitUp' | 'ExitDn' | 'Shop' | 'Orb' | 'RestoreOrb' | 'BossPortal' | 'LobbyPortal'
 
 /**
  * A prefab group of doodads, items and script nodes — stair entrances/exits,
@@ -211,13 +211,14 @@ export class ObjectSet {
         shape.height = 3
         this.scriptNodes.push(shape)
 
-        // Points at a named level, not the next numeric floor. On a dungeon
-        // floor that is the first fight's prep room — the boss fight sits
-        // between the last dungeon floor and the arena itself. The same rig
-        // also ends a non-final arena, where it points at the NEXT fight's prep
-        // room, which is how a multi-fight campaign chains: fight, shop, fight.
+        // Points at a named level, not the next numeric floor: the id of
+        // whatever slot the campaign order puts next — the first fight's
+        // arena directly, or a lobby first if the dungeon master put a shop
+        // there. The same rig also ends a non-final arena, where it points at
+        // whatever comes after THAT fight, which is how a multi-fight
+        // campaign chains.
         const exit = new NodeLevelExit(ctx, x, y + 2)
-        exit.level = exitTarget ?? bossPrepId(0)
+        exit.level = exitTarget ?? bossArenaId(0)
         exit.connectToShape(shape)
         this.scriptNodes.push(exit)
 
@@ -225,6 +226,36 @@ export class ObjectSet {
         // which ExitDn only uses *under* its stair sprite, so using it alone
         // would render a floor marker where the portal should be
         this.doodads.push(Doodad.create(ctx, x, y, 'BossPortal', theme))
+
+        this.width = 1
+        this.height = 1
+        this.replaceWalls = false
+        break
+      }
+
+      case 'LobbyPortal': {
+        // Cloned from 'BossPortal' above, differing only in which doodad is
+        // laid — the blue teleport rather than the red one, so a party can
+        // tell "shop" from "boss fight" before stepping through. Same
+        // contract for the same reason: replaces 'Orb' at the same
+        // coordinates when the next slot is a lobby, so it must register
+        // exactly 3 ctx ids and draw nothing from either RNG stream — a
+        // mismatch here would shift every wall doodad id placed after it.
+        const shape = new NodeRectangleShape(ctx, x, y)
+        shape.width = 3
+        shape.height = 3
+        this.scriptNodes.push(shape)
+
+        // Points at the lobby the campaign order puts next. A boss arena can
+        // also end in this rig (an arena followed by a lobby), which is why
+        // boss/arena.ts picks the doodad by gateway kind the same way
+        // map/room.ts does for a dungeon floor.
+        const exit = new NodeLevelExit(ctx, x, y + 2)
+        exit.level = exitTarget ?? lobbyId(0)
+        exit.connectToShape(shape)
+        this.scriptNodes.push(exit)
+
+        this.doodads.push(Doodad.create(ctx, x, y, 'LobbyPortal', theme))
 
         this.width = 1
         this.height = 1

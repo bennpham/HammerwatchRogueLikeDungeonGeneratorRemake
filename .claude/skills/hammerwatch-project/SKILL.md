@@ -17,8 +17,8 @@ objects — each of which places rooms, connects them with passages, assigns
 special rooms, rasterizes a wall grid, pattern-matches wall doodads, and
 serializes itself into Hammerwatch's XML dialect — and returns an array of
 `{path, content}` files (`info.xml`, `levels.xml`, `levels/levelN.xml`, plus
-`levels/lobby.xml`, `levels/bossprep<i>.xml` + `levels/boss<i>.xml` (one pair
-per boss fight) and `tweak/*.xml`
+`levels/lobby<i>.xml` (one per lobby slot), `levels/boss<i>.xml` (one per boss
+fight) and `tweak/*.xml`
 for whichever optional layers are on) plus per-floor preview geometry. Electron's main process does everything else:
 writes those files into `<Hammerwatch>/editor/<name>/`, runs
 `LevelPacker.exe`, moves the resulting `.hwm` into `<Hammerwatch>/levels/`.
@@ -41,12 +41,14 @@ src/
 │   │   ├── configFile.ts parameters.txt parse/serialize (original format)
 │   │   └── validation.ts every crash path of the original, as a rule
 │   ├── campaign.ts       the campaign's PLAY ORDER and level ids —
-│   │                     CampaignSlot, campaignOrder/normalizeOrder,
+│   │                     CampaignSlot (floor | boss | lobby), CampaignCounts,
+│   │                     campaignOrder/normalizeOrder, the four-kind Gateway,
 │   │                     gatewayAfter, slotEntryId/slotLabel, and
-│   │                     bossPrepId/bossArenaId with their paths. Shared,
+│   │                     bossArenaId/lobbyId with their paths. Shared,
 │   │                     because both ends of every link need them (index.ts
-│   │                     names the files, level.ts/room.ts/objectSet.ts read
-│   │                     the gateway, bossprep/build.ts points at an arena)
+│   │                     names the files, level.ts/room.ts/objectSet.ts and
+│   │                     boss/arena.ts read the gateway, lobby/build.ts
+│   │                     points a lobby's teleport at the next slot)
 │   ├── xml/              XMLDictionary/Array/Int/Float/Bool/String/IntArray
 │   ├── map/              level.ts, room.ts, passage.ts, tile.ts,
 │   │                     wallPattern.ts, posDir.ts, reachability.ts,
@@ -60,18 +62,27 @@ src/
 │   │                     the items a wave tier can drop), monster.ts,
 │   │                     item.ts, doodad.ts, nodes.ts, scriptNode.ts,
 │   │                     objectSet.ts, actorCollision.ts (which wrecks block)
-│   ├── levelTemplate/    surgery.ts — shared id-targeted edits for the three
-│   │                     hand-authored levels (lobby, prep room, and the
+│   ├── levelTemplate/    surgery.ts — shared id-targeted edits for the
+│   │                     hand-authored levels (both lobby templates and the
 │   │                     arena's borrowed rig), plus UPGRADE_KINDS and
 │   │                     upgradeArrays() for the free upgrade pickups and
 │   │                     respawnOnEntryNodes() for the arrival revive
-│   ├── lobby/            the prebuilt starting level — NOT generated geometry
-│   │   ├── template.ts   the lobby XML verbatim (generated + committed)
+│   ├── lobby/            the campaign's shop rooms — hand-authored levels,
+│   │   │                 NOT generated geometry, any number of them
+│   │   ├── presets.ts    LobbyPresetDef / LOBBY_PRESETS / lobbyPresetById —
+│   │   │                 one descriptor per committed room (template, its
+│   │   │                 vendor ids, exit node, diamond/upgrade slots, id
+│   │   │                 bases, assets). `BETA-dungeon-prep` and
+│   │   │                 `BETA-boss-prep`; adding a room is an entry here
+│   │   ├── template.ts   the dungeon-prep XML verbatim (generated+committed)
 │   │   ├── assets.ts     custom files it references, base64 when binary
 │   │   ├── shops.ts      the five vendor stalls and their shop columns
-│   │   └── build.ts      buildLobby() — surgical edits only, no RNG
-│   ├── bossprep/         the prep room between the last floor and the arena —
-│   │                     same template+surgery shape as the lobby, no RNG
+│   │   └── build.ts      buildLobby(preset, options, exitTarget) — surgical
+│   │                     edits only, no RNG, no per-preset branching
+│   ├── bossprep/         template.ts ONLY — the boss-prep room's committed
+│   │                     XML, imported by lobby/presets.ts. It stays here
+│   │                     because scripts/import-bossprep-assets.mjs
+│   │                     regenerates it; its build.ts and index.ts are gone
 │   ├── buffs/            field.ts — buff auras, the optional per-floor buff
 │   │                     fields. Appends always-on DangerAreas after a floor
 │   │                     is built; no RNG, no files of its own
@@ -118,24 +129,26 @@ src/
 │                         PoolGroup, PoolTextField, MonsterFilterBar,
 │                         MonsterMaxTable, FloorTimerEditor, FloorBuffEditor,
 │                         BuffPicker, BuffListEditor, PickupListEditor,
-│                         PickupPicker, UpgradeCountFields, InfoTip,
+│                         PickupPicker, TrapListEditor, TrapPicker,
+│                         UpgradeCountFields, InfoTip,
 │                         OutputPanel, fields},
 │                         styles/app.css
 └── shared/ipc.ts         types shared across the bridge
-tests/                    vitest, 36 suites / 1362 tests: rand, context,
+tests/                    vitest, 36 suites / 1439 tests: rand, context,
                           configFile, validation, generation, reachability,
                           sealIntegrity, themes (+ a
                           snapshot), presets, monsters, monsterVariants,
                           doodad, nodes, objectSet, actorCollision,
-                          lobby, bossprep, boss, bossWaves, bossCover,
-                          bossInvulnerability, bossWaveBuffs, bossWavePickups,
+                          lobby (both presets and the slot model), boss,
+                          bossWaves, bossCover, bossInvulnerability,
+                          bossWaveBuffs, bossWavePickups, bossTraps,
                           campaignOrder, rearrange, floorTimer, floorBuffs,
                           bossGeometry, bossSpawnPoints, bosses, anchors,
                           arenaPattern, packer, tweak, tweakChains, tweakBulk.
                           Helpers (not suites): params.ts — plainParameters(),
-                          the default-order base every suite that mutates
-                          `levels` or the fight count must build on — plus
-                          sealProbe.ts and xmlHelpers.ts
+                          the default-order, NO-LOBBY base every suite that
+                          mutates `levels`, the fight count or the lobby list
+                          must build on — plus sealProbe.ts and xmlHelpers.ts
 reference/original-java/  the Java original (read-only reference)
 reference/hammerwatch-tweak-stats.md
                           human-readable tables of the same stock balance data
@@ -176,14 +189,20 @@ reference/hammerwatch-tweak-stats.md
    in `src/main/ipc.ts` and are *stripped* from the renderer response; the
    renderer only ever receives previews. Don't send megabytes of XML over the
    bridge.
-8. **Tweaks, the lobby, the prep room and timer mode never touch the RNG.** `src/generator/tweak/**` draws no random
+8. **Tweaks, the lobbies and timer mode never touch the RNG.** `src/generator/tweak/**` draws no random
    values and is called *after* every level is built. A stock run (no player
    edits) must emit exactly the files it emitted before the feature existed —
    no `tweak/` folder at all. Adding a tweak field must not change any seed's
-   dungeon. The same holds for `src/generator/lobby/**` and
-   `src/generator/bossprep/**`: applied after the level loop, no random values,
-   and a seed's `levels/level*.xml` must be byte-identical whether they are on
-   or off. `src/generator/boss/**` is the exception that proves the rule — it
+   dungeon. The same holds for `src/generator/lobby/**`: both committed rooms
+   are edited by surgery after the floor loop *and* the fight loop, no random
+   values, so adding, removing or reordering lobbies leaves a seed's
+   `levels/level*.xml` byte-identical — only which extra files exist, and which
+   level id a gateway names, may change. The one thing that *does* move a floor
+   is the **kind** of gateway it gets, which is invariant 9's business, not
+   this one's. An empty `lobbies` list emits no `levels/lobby*.xml` at all, and
+   a preset's `assets` ship only when some lobby actually uses that preset,
+   deduped by path so two dungeon-prep lobbies push each file once.
+   `src/generator/boss/**` is the exception that proves the rule — it
    *does* draw, but only from `ctx.bossRand`, so turning the boss on or off
    still leaves every dungeon floor byte-identical.
    `src/generator/timer/**` and `src/generator/buffs/**` are the two optional
@@ -193,16 +212,27 @@ reference/hammerwatch-tweak-stats.md
    byte-identical, and a floor with neither configured must emit nothing at
    all. They share the floor loop, so each emitting **nothing** when its floor
    is unconfigured is also what keeps the other's ids from shifting.
-   The lobby's and prep room's **free upgrade pickups** and their two extra
+   Both lobby templates' **free upgrade pickups** and their two extra
    lights are on the RNG-free side of this line too: however many upgrades a
    room hands out, every `levels/level*.xml` stays byte-identical, and a kind
    left at 0 emits no item array at all.
 9. **The campaign order changes links, never generation.** `levelOrder`
    (`campaign.ts`) decides where each level leads, what `levels.xml` lists and
-   in what order, and which slot ends the campaign — through `ctx.gateway`.
-   Floors are still built in numeric order off `ctx.rand` and arenas in list
-   order off `ctx.bossRand`. An absent `levelOrder` is byte-identical to the
-   pre-feature generator, so the default order is stored as **absent**.
+   in what order, and which slot carries the victory orb — through
+   `ctx.gateway`, which `map/level.ts`, `map/room.ts`, `objects/objectSet.ts`
+   and `boss/arena.ts` read. A slot is a floor, a boss fight or a lobby; a
+   fight is entered at its **arena**, and a lobby may never be the last slot
+   because it has no orb. `gatewayAfter` yields four kinds — `exit` (stairs to
+   a floor), `portal` (red, to an arena), `lobbyPortal` (blue, to a lobby) and
+   `orb`. The three non-stairs kinds share one room-selection branch in
+   `level.ts` and one three-id, zero-draw prefab contract, so swapping among
+   **them** shifts nothing; swapping to or from `exit` is not free and moves
+   that floor and every floor after it. Floors are still built in numeric
+   order off `ctx.rand` and arenas in list order off `ctx.bossRand`. An absent
+   `levelOrder` **with no lobbies** is byte-identical to the pre-feature
+   generator, so that default order is stored as **absent** — but the shipped
+   campaign's order is not the default one, so `defaultParameters()` and every
+   preset store theirs explicitly.
 10. **A floor the player cannot finish is invalid.** `map/reachability.ts`
    flood-fills the finished grid and rejects a floor unless the entrance
    reaches the exit (or orb/portal) and every key. Tile connectivity is not
@@ -226,7 +256,7 @@ reference/hammerwatch-tweak-stats.md
 | `minPassageWidth`–`maxPassageWidth` | 3–6 | **`maxPassageWidth` ≤ `minRoomSize`** or doors land outside rooms |
 | `edgePadding` / `roomPadding` | 2 / 2 | ≥ 0 |
 | `themes` | `a_mixed`…`g_mixed` | one per level; any id in `THEME_DEFS` — bases `a`–`i`, `bonus1`–`bonus5`, each base's overlay pairings (`c_tiles`) and its `_mixed` palette. Registry in `config/themes.ts`; see *Themes* below |
-| `lockFinalRoom` | `true` | final floor only: the orb sits in a dead-end room behind a gate |
+| `lockFinalRoom` | `true` | the room carrying a gateway prefab (`gateway.kind !== 'exit'` — orb, boss portal or lobby portal) sits in a dead-end behind a gate. Under the default order that is one room on the last floor; a rearranged campaign can have several |
 | `finalLockMode` | `'button'` | how that gate opens. `'button'` = a destructible wall across the corridor plus a floor button hidden elsewhere on the floor, placed like a key (`map/buttonSeal.ts`) — no key exists, so one cannot be hoarded from an earlier floor or spent on the wrong door. `'key'` = the original gold door, with one gold key per gold door on that floor |
 | `shopChance` / `vaultChance` / `lockChance` / `keyChance` | 1.0 / 0.3 / 0.8 / 1.0 | 0–1 inclusive |
 | `monsterMultiplier` / `goldMultiplier` / `foodMultiplier` | 1.0 / 1.1 / 1.2 | ≥ 0 |
@@ -235,26 +265,28 @@ reference/hammerwatch-tweak-stats.md
 | `levelBuffs[i]` | absent / all empty | buff auras, one `FloorBuff[]` per floor: each `{buff, target}` where `buff` is a `BUFF_DEFS` id and `target` is `players`/`monsters`/`both`. No cap on how many a floor carries. Empty on every floor reproduces the pre-feature campaign exactly. See *Buff auras* below |
 | `levelTimers[i]` | all off but the escape floor (90s, 1 dmg / 100ms) | timer mode, one `FloorTimer` per floor: `enabled`, `seconds` (1–3600), `damage` (−10000–10000, **negative heals**), `freqMs` (50–600000), `countdown`. Off on every floor reproduces the pre-feature campaign exactly. See *Timer mode* below |
 | `playerTweaks` | `{ 'player.shared.remove.life': 1 }` | sparse `Record<lowercase key, number>` of player-balance overrides; empty = no `tweak/` folder. See below |
-| `lobby` | on, 10000 gold, all 21 columns, no free upgrades | prebuilt starting level: `enabled`, `startingGold` (whole multiple of 500, no upper cap beyond `GOLD_SAFETY_MAX`), `shopCategories`, `upgrades`. `enabled: false` reproduces the pre-lobby campaign exactly |
-| `lobby.upgrades` | every kind 0 | free upgrade pickups on the lobby floor, one count per `UPGRADE_KINDS` entry (`damage`, `defense`, `health`, `mana`, then the four `*2` tiers). Whole number 0…`UPGRADE_COUNT_MAX` (10000) each; **0 emits no item array**. One authored slot per kind, so a count above one *stacks* on that slot rather than needing the room's layout to grow. `lobbyUpgrades` in `parameters.txt`. See *Free upgrades* below |
-| `boss` | **on** | the finale: `{enabled, fights}`, two appended levels **per fight**. See the sub-table below and *Boss finale* |
-| `levelOrder` | the escape-floor order (**not** absent) | the campaign's play order, one `CampaignSlot` per floor and per boss **fight**. Absent = every floor then every fight, the pre-feature shape, and the only value that is guaranteed byte-identical. Both sequences stay ascending; only the interleaving is free. `levelOrder=1,2,B1,3` in `parameters.txt`, written only when it differs from the default. See *Campaign order* |
+| `lobbies` | **two** — `BETA-dungeon-prep` at 10000g and `BETA-boss-prep` at 20000g, both selling all 21 columns, no free upgrades | the campaign's shop rooms, `LobbyOptions[]`. A lobby exists iff it is in this list: there is no `enabled` flag any more, and `lobbies: []` reproduces the pre-lobby campaign exactly — the same rule `boss.fights` already followed. Any number, each independently placed by `levelOrder`. `lobbies=N` in `parameters.txt`. See *Lobbies* below |
+| `lobbies[i].preset` | `BETA-dungeon-prep` for a freshly added lobby (`DEFAULT_LOBBY_PRESET_ID`) | which committed room this slot edits — an id from `LOBBY_PRESETS`. `BETA-dungeon-prep` is the campaign's original starting lobby, `BETA-boss-prep` the larger room that used to be welded to every fight. `lobby<i>Preset` in `parameters.txt`; an id that is not in the registry is an error, not a fallback |
+| `lobbies[i].startingGold` | 10000 / 20000 by preset | whole multiple of `LOBBY_DIAMOND_VALUE` (500) — one red diamond each — and ≤ `GOLD_SAFETY_MAX`, which is an emission limit rather than a game one. `lobby<i>Gold` |
+| `lobbies[i].shopCategories` | all 21, `power` included | the shop columns this room's five stalls sell; a stall left with nothing is removed outright, shape included. Buyable lives are safe because the stock `player.shared.remove.life` tweak deletes that upgrade. `lobby<i>Shops` |
+| `lobbies[i].upgrades` | every kind 0 | free upgrade pickups on that lobby's floor, one count per `UPGRADE_KINDS` entry (`damage`, `defense`, `health`, `mana`, then the four `*2` tiers). Whole number 0…`UPGRADE_COUNT_MAX` (10000) each; **0 emits no item array**. One authored slot per kind **per preset**, so a count above one *stacks* on that slot rather than needing the room's layout to grow. `lobby<i>Upgrades` in `parameters.txt`. See *Free upgrades* below |
+| `boss` | **on** | the finale: `{enabled, fights}`, **one** appended level per fight — the arena. A shop before a fight is an ordinary lobby slot now, not part of the fight. See the sub-table below and *Boss finale* |
+| `levelOrder` | the shipped order (**not** absent): `L1,1,…,7,L2,B1,8` | the campaign's play order, one `CampaignSlot` per lobby, per floor and per boss **fight**. Absent = every lobby, then every floor, then every fight; with `lobbies: []` that is the pre-feature shape and the only value guaranteed byte-identical. All three sequences stay ascending; only the interleaving is free, and a **lobby may never be last** (it carries no victory orb). `levelOrder=L1,1,2,B1,3` in `parameters.txt`, written only when it differs from the default. See *Campaign order* |
 
 `BossOptions` (`config/parameters.ts`) is `{enabled, fights: BossFight[]}`, and a
-`BossFight` is `{prep: BossPrepOptions, arena: BossArenaOptions}`. Defaults from
+`BossFight` is `{arena: BossArenaOptions}` — an arena and nothing else since
+issue #48 took the prep room out of the fight (`BossPrepOptions` is deleted;
+`defaultLobby('BETA-boss-prep')` placed before `B1` in `levelOrder` is what
+replaces it). Defaults from
 `defaultBossOptions()`, one fight from `defaultBossFight()`; read the list
 through `bossFights(boss)`, which returns `[]` for a disabled or absent boss.
 `boss.fights` itself defaults to one stock fight: ordered, at least one when
 enabled, **no upper bound** (mirrors `levels`), written as `bossFights` in
-`parameters.txt`. The table below describes one fight — `fights[i].prep`,
-`fights[i].arena`:
+`parameters.txt`. The table below describes one fight — `fights[i].arena`:
 
 | Field | Default | Notes |
 | --- | --- | --- |
 | `enabled` | `true` | off reproduces the pre-boss campaign; the final floor keeps its own orb room. Top-level, like `fights` below |
-| `prep.shopCategories` | all 21, `power` included | same full set as the lobby; buyable lives are safe because the stock `player.shared.remove.life` tweak deletes that upgrade |
-| `prep.startingGold` | 20000 | whole multiple of 500, one red diamond each |
-| `prep.upgrades` | every kind 0 | the same free upgrade pickups as the lobby, on the prep floor. `boss<i>Upgrades` in `parameters.txt` |
 | `arena.theme` | `g_mixed` | any `THEME_DEFS` id, independent of the floors' themes |
 | `arena.floorPattern` | `random` | one of `BOSS_FLOOR_PATTERNS`; only meaningful for a `- mixed` theme |
 | `arena.minWidth`–`maxWidth` | 42–64 | `boss<i>Width=42,64` in `parameters.txt`; ≥ `ARENA_MIN_WIDTH` (14). Found from both ends: 24–32 was too small to hold the horde, the 2026-08-27 interim 66–88 was so open a scattered wave never re-formed and got picked off piecemeal |
@@ -277,24 +309,30 @@ enabled, **no upper bound** (mirrors `levels`), written as `bossFights` in
 `desert` (6 floors, `h,h,i,i_symbols,i_mixed,i_mixed`) and `bonus` (6 floors,
 `bonus1`–`bonus5` then `bonus5`). A preset overrides `levels`, `themes`,
 `levelMonsters`, `levelTimers`, `levelOrder` and — via the `withBoss` helper —
-the **first fight's** arena `theme`, `bossPool` and `waves`. `monsterMax` is
+the **first fight's** arena `theme`, `bossPool` and `waves`. It does **not**
+override `lobbies`: all three inherit `defaultParameters()`'s two stock rooms,
+which is why `shippedOrder(levels)` names `L1` and `L2`. `monsterMax` is
 otherwise left at the global defaults so the caps keep bounding horde sizes; the
 one exception is `tower_empty`, raised to 150 in `defaultParameters()` for the
 escape floor and pooled on no other floor of any preset.
 
 **The escape floor** is that last floor, and all three presets ship it: one
-extra dungeon floor played **after** the boss arena (`escapeFloorOrder`), on a
+extra dungeon floor played **after** the boss arena (`shippedOrder`, which also
+opens the campaign on `L1` and puts `L2` between the last ordinary floor and
+the fight), on a
 90-second hazard timer (`escapeFloorTimer` — 1 damage every 100ms, countdown
 on), with `tower_empty` four times over in a nine-entry pool so a couple of
 hundred breakable 450-HP battlements wall its routes off. It is built entirely
 from shipped features — the campaign order, timer mode and pool weighting — so
 nothing in the generator knows it exists. Two consequences worth remembering:
 the arena's alcove holds a portal to it instead of the victory orb (verified in
-game), and because the stored order is not the default one, mutating `levels` or
-the fight count on a preset's parameters **without repairing the order** now
-produces a validation error — which is why `ParameterForm.setLevels` and
-`BossForm.set` both run `normalizeOrder`, and why the test suites build on
-`tests/params.ts`'s `plainParameters()` rather than `defaultParameters()`. Every preset ships a single fight: the count shapes the campaign rather
+game) — the **red** one, because an arena has no stairs prefab of its own, so
+`gatewayAfter`'s `exit` still renders `BossPortal` there — and because the
+stored order is not the default one, mutating `levels`, the fight count or the
+lobby list on a preset's parameters **without repairing the order** produces a
+validation error — which is why `ParameterForm.setLevels`, `BossForm.set` and
+`LobbyForm.setLobbies` all run `normalizeOrder`, and why the test suites build
+on `tests/params.ts`'s `plainParameters()` rather than `defaultParameters()`. Every preset ships a single fight: the count shapes the campaign rather
 than flavouring it, so it is left to the dungeon master. `withBoss` spreads
 three levels deep on purpose (`boss` -> the `fights` array -> `fights[0]` ->
 `arena`): a shallow `{...base, boss}` would share one `arena` object between
@@ -318,9 +356,11 @@ Plus two app settings that are *not* generator parameters:
    random connected one with a straight or L-shaped corridor of random width;
    reject if it cuts another room or passage. If rooms remain unconnected
    after 1000 tries, `levelValid = false` and the whole floor is re-rolled.
-3. **Special rooms** — `Entrance` (ExitUp prefab), `Exit` (ExitDn) or on the
-   last floor `Orb`; then `Shop`, `Vault`, an extra locked room and its `Key`
-   by chance. Everything left becomes a `Lair`. With `lockFinalRoom` on, the
+3. **Special rooms** — `Entrance` (ExitUp prefab), then `Exit` (ExitDn) when
+   the next slot is another floor, or the `Orb`/`BossPortal`/`LobbyPortal`
+   prefab when it is anything else (one room branch, one three-id contract —
+   see *Campaign order*); then `Shop`, `Vault`, an extra locked room and its
+   `Key` by chance. Everything left becomes a `Lair`. With `lockFinalRoom` on, the
    orb room is gated last — by `buttonSeal.ts`'s wall-and-button rig by
    default, or by `Room.lockRoom()`'s gold door under `finalLockMode: 'key'`.
    The wall spans the corridor's whole cross-section plus one tile of wall band
@@ -588,26 +628,51 @@ all.
 
 ## Campaign order (`campaign.ts`)
 
-The campaign is an ordered list of **slots**: a dungeon floor, or a boss fight
-(one slot, two levels — the prep room comes with the fight). `levelOrder` stores
-it; absent means the historical order and is what the byte-identity contract is
-written against, so the form and the importer both store the default as
-**absent** rather than as an explicit list.
+The campaign is an ordered list of **slots**, and there are three kinds: a
+dungeon floor, a boss fight (one slot, one level — the arena; since issue #48
+the shop in front of a fight is a separate lobby slot, not part of it) and a
+lobby. `levelOrder` stores the arrangement; absent means every lobby, then
+every floor, then every fight, and *with no lobbies* that is the historical
+order the byte-identity contract is written against — so the form and the
+importer store a default order as **absent** rather than as an explicit list.
+The counts a stored order is repaired and validated against travel as a
+`CampaignCounts` object (`{levels, fights, lobbies}`), deliberately not
+positional arguments: every call site has to name `lobbies` instead of
+silently defaulting it to zero.
 
 Two things follow from position in that list, and nothing else does:
 
 - **Where each level leads.** `gatewayAfter(order, position)` returns the one
-  `Gateway` a slot gets — `exit` (stairs to the next floor), `portal` (into a
-  fight's prep room) or `orb` (the campaign ends here). The generator writes it
+  `Gateway` a slot gets, decided purely by what comes next — `exit` (the stairs
+  prefab, into the next dungeon floor), `portal` (the red boss portal, into a
+  fight's arena), `lobbyPortal` (the blue teleport
+  `doodads/generic/exit_teleport.xml`, into a lobby — visually distinct from
+  the red one so a party can tell "shop" from "boss fight" before stepping
+  through) or `orb` (the campaign ends here). Each gated kind carries the level
+  id it leads to. The generator writes it
   to `ctx.gateway` before each `new Level()`, and `map/level.ts`,
-  `map/room.ts` and `objects/objectSet.ts` read it there. That is why the
+  `map/room.ts`, `objects/objectSet.ts` and `boss/arena.ts` read it there. That
+  is why the
   finality tests `level < params.levels - 1` and `level === params.levels - 1`
   are gone: a rearranged campaign can end on a dungeon floor, and several floors
   can lead into fights. `lockFinalRoom` likewise gates whichever room carries a
   gateway prefab (`gateway.kind !== 'exit'`), not floor `levels - 1`.
+
+  **`Orb`, `BossPortal` and `LobbyPortal` are one branch and one contract.**
+  `level.ts` picks the room for all three the same way, and each prefab
+  registers exactly three `ctx` ids off zero RNG draws, so swapping among the
+  three is layout-neutral: the fight-adjacent floor of an existing seed differs
+  from its pre-#48 self in exactly two lines, the portal art and its target.
+  Swapping to or from `exit` is a different matter — that is the other room
+  branch — and moves that floor and every floor generated after it. An arena
+  has no stairs prefab of its own, so `arena.ts` renders `exit` as the **red**
+  portal too; only `orb` and `lobbyPortal` differ there.
 - **What `levels.xml` lists, and in what order** — plus the `lvl.floor?floor=`
-  label, which counts positions rather than floor indices, and the preview
-  array, whose entries carry a `label` (`3`, `B2`) from `slotLabel`.
+  label, which counts positions rather than floor indices. Every kind of slot
+  is exactly one level and consumes exactly one label (a fight used to take
+  two). The preview array's entries carry a `label` (`3`, `B2`) from
+  `slotLabel`; a lobby contributes **no** preview, having no generated
+  geometry — `LobbyForm`'s diagram is its stand-in.
 
 What does **not** follow from it: how anything is generated. Floors are still
 built in numeric order off `ctx.rand` and arenas in list order off
@@ -615,44 +680,130 @@ built in numeric order off `ctx.rand` and arenas in list order off
 Rearranging is a linking change; generating in a different sequence would move
 every seed.
 
+`slotLabel`/`parseSlotLabel` are the whole vocabulary: `3` for a floor, `B2`
+for a fight, `L2` for a lobby, all 1-based because a person reads them, and
+those are exactly the tokens `levelOrder=` carries in `parameters.txt`.
+
+**A lobby may never be the campaign's last slot** — it has no victory orb, so a
+campaign ending on one cannot be finished. `validation.ts` rejects it, and
+`FloorOrderEditor` disables any arrow that would produce it, checking **both**
+sides of the swap: the back arrow on the last chip pulls whatever is there into
+the last slot just as the forward arrow on the second-to-last pushes one there.
+The generator still falls back to `'0'` rather than throwing if a hand-edited
+file gets one there anyway (invariant 5).
+
 The editor is its own left-panel tab (`FloorOrderEditor`), sitting between Boss
-and Player rather than inside the Dungeon form: half the chips on it are boss
-fights, so it belongs to neither tab it used to live under.
+and Player rather than inside the Dungeon form: its chips are boss fights and
+lobbies as well as floors, so it belongs to none of the tabs it could live
+under. Its "nothing to arrange" gate counts all three kinds, so a
+lobbies-and-floors campaign with the boss off still gets an editor.
 
 `normalizeOrder` repairs a stale order — drops slots that no longer exist,
-appends missing ones, drops duplicates, and deals each kind's indices back into
+appends missing ones (in `defaultOrder`'s shape: lobbies, then floors, then
+fights), drops duplicates, and deals each kind's indices back into
 the positions that kind already occupies so the interleaving survives while the
-numbering is made ascending. The importer and `ParameterForm.setLevels` both use
-it, so a stale file or a changed floor count is never fatal. `validation.ts`
+numbering is made ascending. The importer, `ParameterForm.setLevels`,
+`BossForm.set` and `LobbyForm.setLobbies` all use
+it, so a stale file or a changed floor, fight or lobby count is never fatal.
+`validation.ts`
 still reports a broken stored order, because the form edits the value directly
 and must not have it silently rewritten underneath.
 
-## Boss finale (`bossprep/` + `boss/`)
+## Lobbies (`src/generator/lobby/`)
 
-Two levels appended after the last floor **per fight** when `boss.enabled`. The
-final floor's orb room becomes a portal into fight 0's prep room, so there is
-exactly one way to win.
+A lobby is a **hand-authored level, not generated geometry**: a committed XML
+template edited by id through `levelTemplate/surgery.ts`, with no RNG in scope
+at all. The campaign can carry any number of them, each an independently
+placeable `CampaignSlot`, and `lobbies: []` is how the feature is switched off
+— there is no `enabled` flag, the same rule `boss.fights` follows.
 
-**The chain.** Fight `i`'s prep room leads into fight `i`'s arena; that arena
-leads into fight `i+1`'s **prep** room — the party shops between bosses. Only
-the last arena keeps the victory `Orb` and the campaign's single `GameEnd`; an
-earlier arena's alcove holds a `BossPortal` instead, which is deliberately the
-same three-id shape as `Orb` (`objectSet.ts`) so swapping it in shifts nothing
-allocated after it and makes no `ctx.bossRand` draw. Level ids and paths come
-from `src/generator/campaign.ts` (`bossPrepId`/`bossArenaId`, `bossprep<i>` and
-`boss<i>`) — a single source, because both ends of every link need them.
+**One builder, one descriptor per room.** Before issue #48 the starting lobby
+and the boss prep room were two features doing the same job: a name-normalised
+diff of their two `build.ts` files differed only in an import path and a default
+argument. `presets.ts` now holds one `LobbyPresetDef` per committed room and
+`buildLobby(preset, options, exitTarget)` reads every coordinate and id off it —
+template text, vendor ids, exit node, diamond slots, upgrade slots, the two id
+bases, the respawn id base, the extra asset files, and the label surgery's error
+messages use. There is **no per-preset branching** anywhere in the builder, and
+adding a third room means regenerating a template and adding an entry, nothing
+else. Two ship:
+
+- `BETA-dungeon-prep` — the campaign's original starting lobby, five vendor
+  stalls around a teleport. Ships `LOBBY_ASSETS`, the custom files its template
+  references.
+- `BETA-boss-prep` — the larger room that used to be welded to every fight, now
+  placeable anywhere. Stock assets only (`[VERIFIED]` 2026-08-10), which is why
+  its `assets` is `[]`.
+
+The preset id is stored in `LobbyOptions.preset` and written to
+`parameters.txt` as `lobby<i>Preset`, so it is a compatibility surface: an id
+that is not in `LOBBY_PRESETS` is a validation error on the parameter object
+and an `unknownKeys` entry on import, never a silent fallback.
+`bossprep/template.ts` stays where it is rather than moving under `lobby/` —
+it is generated data (`scripts/import-bossprep-assets.mjs` rewrites it), and
+`presets.ts` is simply another importer of it.
+
+**Emission** (`index.ts`). Lobbies are built after the floor loop *and* the
+fight loop, drawing from neither stream, so which lobbies exist and where they
+sit cannot move a seed's dungeon (invariant 8). Each lobby slot in the campaign
+order emits one `levels/lobby<i>.xml`, and its single `LevelExitArea` is
+repointed at `slotEntryId` of whatever slot follows it — a floor, a fight's
+arena, or another lobby. A preset's `assets` are pushed once per *used* preset,
+deduped by path, so two dungeon-prep lobbies ship each file once and an unused
+preset ships none.
+
+**`parameters.txt`.** `lobbies=N` is the count, and every other key is fully
+indexed — `lobby<i>Preset`, `lobby<i>Gold`, `lobby<i>Shops`,
+`lobby<i>Upgrades` — mirroring the `boss<i>` keys. The count may be declared
+before or after the indexed keys, and an explicit `lobbies=0` clears the base
+object's lobbies (reporting the keys of any lobby it drops). The old singular
+`lobby`, `lobbyGold`, `lobbyShops`, `lobbyUpgrades` and the fight-scoped
+`boss<i>Gold`/`boss<i>Shops`/`boss<i>Upgrades` are a **deliberate pre-release
+break**: they land in `unknownKeys` and are reported, never aliased to lobby 0
+and never fatal. Note that `lobbyGold` has no digit after `lobby`, so it falls
+past the `^lobby(\d+)(.+)$` dispatcher to the catch-all on purpose.
+
+**The form.** The Lobby tab carries a lobby count, `Lobby 1 … Lobby n` sub-tabs
+with a copy-to-next button (the same shape as the fight tabs) and a preset
+dropdown per lobby; the Boss tab's Prep room sub-tab is gone with the concept.
+Growing the list clones the **last** lobby rather than the
+stock default — a dungeon master tuning lobby 1 and asking for a second almost
+always wants a variation on it. The diagram plots the selected preset's own
+diamond and upgrade slot tables instead of hardcoding the dungeon room's grid,
+so a new preset draws whatever its tables describe with no UI change.
+
+## Boss finale (`boss/`)
+
+**One** level per fight when `boss.enabled` — the arena — generated after every
+numeric floor. A fight used to drag a prep room along with it; since issue #48
+a shop in front of a boss is an ordinary lobby slot the dungeon master places,
+which is exactly what `defaultParameters()` does (`L2` immediately before `B1`
+in `shippedOrder`).
+
+**The chain follows the campaign order, not the fight list.** A fight is
+entered at its arena (`slotEntryId` returns `bossArenaId(i)`), and where the
+arena leads is `gatewayAfter`'s answer for its position, exactly like a floor's
+stairs: the next fight directly, a lobby if a shop was put between them, a
+dungeon floor, or the victory `Orb` if it is the campaign's last slot — and a
+campaign has exactly one `Orb` and one `GameEnd` however the slots are
+arranged. `BossPortal` and `LobbyPortal` are deliberately the
+same three-id shape as `Orb` (`objectSet.ts`) so whichever lands in the alcove
+shifts nothing allocated after it and makes no `ctx.bossRand` draw. Level ids
+and paths come
+from `src/generator/campaign.ts` (`bossArenaId`/`bossArenaPath`, `boss<i>` and
+`levels/boss<i>.xml`) — a single source, because both ends of every link need
+them.
 
 **One `ctx.bossRand`, shared in list order.** Fight 0 draws exactly what a
 single-fight campaign always drew, and each later fight continues the stream
 after it, so adding a fight can never move an earlier one or any dungeon floor.
 
-- **Prep room** (`bossprep/`) — the lobby's shop rig again, via
-  `levelTemplate/surgery.ts`: hand-authored XML edited by id, no RNG.
-- Both templates, and the arena, also carry the **one-shot arrival respawn**
+- Both lobby templates, and the arena, also carry the **one-shot arrival
+  respawn**
   every dungeon floor's `ExitUp` prefab emits — an `AreaTrigger` over the
   spawn point firing `RespawnPlayers` plus a `ToggleElement` that disables the
-  trigger. Without it a player who died on the last floor arrives dead and
-  cannot shop. The two templates get it inserted at build time by
+  trigger. Without it a player who died on the previous slot arrives dead and
+  cannot shop. The templates get it inserted at build time by
   `respawnOnEntryNodes()`/`insertNodes()` (ids from 9000), never by editing
   `template.ts`, which the import scripts regenerate.
 - **Arena** (`boss/arena.ts`) — generated, but not a `Level`: no rooms, no
@@ -733,8 +884,10 @@ case did not exist and every monster sent to C spawned inside the boss.
 
 ## Free upgrades and the arrival revive (`levelTemplate/surgery.ts`)
 
-Two things both hand-authored rooms — the lobby and the prep room — gained
-after they shipped, neither drawing from any stream.
+Two things both hand-authored rooms — the `BETA-dungeon-prep` and
+`BETA-boss-prep` lobby templates — gained after they shipped, neither drawing
+from any stream. Both are per-preset data on `LobbyPresetDef` now, which is
+what lets one `buildLobby()` serve either room.
 
 **Free upgrade pickups.** `UPGRADE_KINDS` is the fixed eight-entry order
 (`damage`, `defense`, `health`, `mana`, `damage2`, `defense2`, `health2`,
@@ -743,8 +896,9 @@ out in, the order `parameters.txt` writes the counts in, and the order the form
 shows them in. `upgradeArrays(counts, slots, idBase)` emits one `ItemSection`
 per kind with a count above 0; a kind at 0 emits **no** array, for the same
 reason zero gold emits no diamond array (LevelPacker throws on an empty one).
-Each room has exactly one slot per kind (`LOBBY_UPGRADE_SLOTS`,
-`BOSSPREP_UPGRADE_SLOTS`), so a count above one **stacks** on that slot — which
+Each template has exactly one slot per kind (`LOBBY_UPGRADE_SLOTS`,
+`BOSSPREP_UPGRADE_SLOTS`, reached as `preset.upgradeSlots`), so a count above
+one **stacks** on that slot — which
 is why the count needs no gameplay cap, only `UPGRADE_COUNT_MAX` (10000) to stop
 a typo emitting an unserializable pile. `upgradeItemPath` maps `mana2` to
 `items/upgrade_mana_2.xml`: the `2` is the game's own second-tier pickup, not a
@@ -759,8 +913,9 @@ is never rewritten at build time, and the ids the source levels carried
 (10020/10021, 10047/10048) sat inside the span a deep diamond payout walks.
 The lights are unconditional and have no parameter.
 
-**Arrival revive.** `respawnOnEntryNodes()` + `insertNodes()` (ids from 9000)
-give the lobby, the prep room and the arena the one-shot `RespawnPlayers` rig
+**Arrival revive.** `respawnOnEntryNodes()` + `insertNodes()` (ids from 9000,
+`preset.respawnIdBase`)
+give both lobby templates and the arena the one-shot `RespawnPlayers` rig
 every dungeon floor's `ExitUp` prefab already emitted — an `AreaTrigger` over
 the spawn point, then a `ToggleElement` that disables the trigger, so dying
 mid-fight stays permanent. Inserted at **build** time, never by editing
@@ -899,8 +1054,11 @@ same `GeneratedFile[]` the levels produce.
   (baseline integrity, whole-file emission, no-change-no-file, loadout
   ceilings, and the bulk knobs' stat-group coverage and derive round-trip).
 - **An optional level's on/off switch must not move the dungeon.** The suites
-  assert it directly: flipping `lobby`, `boss` or any tweak leaves every
-  `levels/level*.xml` byte-identical for a seed.
+  assert it directly: emptying `lobbies`, flipping `boss` or changing any tweak
+  leaves every `levels/level*.xml` byte-identical for a seed. Moving a lobby
+  around the order is the one case with a caveat: it is byte-identical too
+  *unless* it changes some floor's gateway KIND between `exit` and the portal/
+  orb family, which picks a different room.
 - **Changing the RNG draw order is a breaking change.** It invalidates every
   seed users have saved. If a fix requires it, say so explicitly in the PR
   body — do not slip it in.
@@ -917,7 +1075,10 @@ before the early return in a no-op theme path; adds a parameter without a
 validation rule; adds an unbounded loop; sends file contents through IPC;
 weakens `reachability.ts` instead of letting a bad floor re-roll; generates
 floors or arenas in campaign order instead of their own fixed sequences, or
-stores the default `levelOrder` as an explicit list rather than as absent; or
+stores the default `levelOrder` as an explicit list rather than as absent;
+branches on a lobby preset id inside `lobby/build.ts` instead of reading the
+`LobbyPresetDef`; adds a gateway kind or a gateway prefab that does not
+register exactly three ids off zero draws; or
 lands generator behaviour without a test.
 
 Tweak-specific: reject a diff that hand-writes a `TweakFieldDef` instead of

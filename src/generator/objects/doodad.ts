@@ -25,6 +25,12 @@ export const DoodadType = {
   // walks between — unlike ExitMarker above, which is a flat editor decal on
   // layer -5 and is only ever laid *under* real art. [VERIFIED] 2026-08-11
   BossPortal: { path: 'doodads/generic/exit_teleport_boss.xml', xOffset: 0, yOffset: 0, themeSubs: 0 },
+  // The blue teleport into a lobby — visually distinct from BossPortal's red
+  // so a party can tell "shop" from "boss fight" before stepping through.
+  // Already used by the lobby template's own authored exit and by the
+  // dungeon-prep preset's teleport doodad, so it is stock and known to
+  // render. [VERIFIED] — see ASSET-REGISTRY.md.
+  LobbyPortal: { path: 'doodads/generic/exit_teleport.xml', xOffset: 0, yOffset: 0, themeSubs: 0 },
   CornerLD: { path: 'doodads/theme_%s/%s_crn_l_dn.xml', xOffset: 0, yOffset: 2, themeSubs: 2 },
   CornerLU: { path: 'doodads/theme_%s/%s_crn_l_up.xml', xOffset: 0, yOffset: 1, themeSubs: 2 },
   CornerRD: { path: 'doodads/theme_%s/%s_crn_r_dn.xml', xOffset: 0, yOffset: 2, themeSubs: 2 },

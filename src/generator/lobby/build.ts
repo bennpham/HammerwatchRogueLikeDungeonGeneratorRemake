@@ -1,13 +1,5 @@
-import {
-  LOBBY_DIAMOND_SLOTS,
-  LOBBY_EXIT_NODE_ID,
-  LOBBY_ITEM_ID_BASE,
-  LOBBY_TEMPLATE,
-  LOBBY_UPGRADE_ID_BASE,
-  LOBBY_UPGRADE_SLOTS,
-  LOBBY_TEMPLATE_IDS
-} from './template'
 import { LOBBY_VENDORS, categoriesFor } from './shops'
+import type { LobbyPresetDef } from './presets'
 import type { LobbyOptions } from '../config/parameters'
 import {
   DIAMOND_VALUE,
@@ -32,39 +24,26 @@ export { diamondCount }
 export const LOBBY_DIAMOND_VALUE = DIAMOND_VALUE
 
 /**
- * The level the lobby's teleport lands on by default: floor 0, the first slot
- * of an unrearranged campaign.
- *
- * The lobby ships as level id `"lobby"` precisely so this is the only id that
- * moves: dungeon level files, their ids and every existing seed's output stay
- * byte-identical whether the lobby is on or off. A rearranged campaign passes
- * its own first slot instead — see `buildLobby`.
- */
-export const LOBBY_EXIT_TARGET = '0'
-
-/**
- * The first of the four ids the respawn rig allocates.
- *
- * Above everything the authored template uses and below the diamonds'
- * `LOBBY_ITEM_ID_BASE`, so neither the rig nor the payout can collide with the
- * template or with each other.
- */
-export const LOBBY_RESPAWN_ID_BASE = 9000
-
-/**
- * Apply the user's lobby options to the committed template.
+ * Apply the user's lobby options to `preset`'s committed template.
  *
  * Surgical edits and nothing else — no RNG (neither `ctx.rand` nor
  * `ctx.cosmeticRand` is even in scope here), no theme substitution, and no
  * round trip through `src/generator/xml/`. The template is treated as opaque
- * text located by the element ids it was generated with, so replacing it with a
- * purpose-built lobby only means regenerating `template.ts`.
+ * text located by the element ids it was generated with, so replacing it with
+ * a purpose-built room only means regenerating `template.ts` and adding an
+ * entry to `LOBBY_PRESETS` — this function itself never has to change.
+ *
+ * `exitTarget` is the level id this lobby's teleport leads to — the id of
+ * whatever slot follows it in the campaign order, or `'0'` when a lobby
+ * somehow ends up last (validation forbids that; the generator falls back
+ * rather than throwing). One lobby, one exit: unlike a boss fight a lobby
+ * slot has nothing else to wire up.
  */
-export function buildLobby(options: LobbyOptions, exitTarget: string = LOBBY_EXIT_TARGET): string {
-  let xml = LOBBY_TEMPLATE
+export function buildLobby(preset: LobbyPresetDef, options: LobbyOptions, exitTarget: string): string {
+  let xml = preset.template
 
   for (const vendor of LOBBY_VENDORS) {
-    const ids = LOBBY_TEMPLATE_IDS[vendor.id]
+    const ids = preset.templateIds[vendor.id]
     if (ids === undefined) continue
 
     const selected = categoriesFor(vendor, options.shopCategories)
@@ -73,12 +52,18 @@ export function buildLobby(options: LobbyOptions, exitTarget: string = LOBBY_EXI
       // a stall with nothing to sell is removed outright, shape included, so
       // the file never leaves a ShopArea pointing at a shape that is gone
       for (const id of [ids.shop, ids.shape, ids.vendor, ids.speech, ids.badge]) {
-        if (id !== null) xml = removeElement(xml, id, 'lobby')
+        if (id !== null) xml = removeElement(xml, id, preset.surgeryLabel)
       }
       continue
     }
 
-    xml = replaceInElement(xml, ids.shop, /<string name="cats">[^<]*<\/string>/, `<string name="cats">${selected.join(' ')}</string>`, 'lobby')
+    xml = replaceInElement(
+      xml,
+      ids.shop,
+      /<string name="cats">[^<]*<\/string>/,
+      `<string name="cats">${selected.join(' ')}</string>`,
+      preset.surgeryLabel
+    )
 
     if (ids.badge !== null) {
       xml = replaceInElement(
@@ -86,33 +71,33 @@ export function buildLobby(options: LobbyOptions, exitTarget: string = LOBBY_EXI
         ids.badge,
         /<string name="type">[^<]*<\/string>/,
         `<string name="type">doodads/special/vendor_speech_level${selected.length}.xml</string>`,
-        'lobby'
+        preset.surgeryLabel
       )
     }
   }
 
   xml = replaceInElement(
     xml,
-    LOBBY_EXIT_NODE_ID,
+    preset.exitNodeId,
     /<string name="level">[^<]*<\/string>/,
     `<string name="level">${exitTarget}</string>`,
-    'lobby'
+    preset.surgeryLabel
   )
 
-  // the same arrival net the dungeon floors and the prep room carry — nobody
-  // should be stuck dead in a room whose whole point is shopping
-  const [startX, startY] = levelStartPos(xml, 'lobby')
-  xml = insertNodes(xml, respawnOnEntryNodes(LOBBY_RESPAWN_ID_BASE, startX, startY), 'lobby')
+  // the same arrival net the dungeon floors carry — nobody should be stuck
+  // dead in a room whose whole point is shopping
+  const [startX, startY] = levelStartPos(xml, preset.surgeryLabel)
+  xml = insertNodes(xml, respawnOnEntryNodes(preset.respawnIdBase, startX, startY), preset.surgeryLabel)
 
   // one items section, two independent populations: the gold payout, and the
   // free upgrades the dungeon master hands the party. Their id ranges cannot
-  // overlap however large either gets — see LOBBY_UPGRADE_ID_BASE.
+  // overlap however large either gets — see preset.upgradeIdBase.
   return setItems(
     xml,
     itemsBody([
-      ...diamondArray(options.startingGold, LOBBY_DIAMOND_SLOTS, LOBBY_ITEM_ID_BASE),
-      ...upgradeArrays(options.upgrades, LOBBY_UPGRADE_SLOTS, LOBBY_UPGRADE_ID_BASE)
+      ...diamondArray(options.startingGold, preset.diamondSlots, preset.itemIdBase),
+      ...upgradeArrays(options.upgrades, preset.upgradeSlots, preset.upgradeIdBase)
     ]),
-    'lobby'
+    preset.surgeryLabel
   )
 }

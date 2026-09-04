@@ -1,11 +1,6 @@
-export { LOBBY_ASSETS } from './assets'
-export {
-  LOBBY_DIAMOND_VALUE,
-  LOBBY_EXIT_TARGET,
-  LOBBY_RESPAWN_ID_BASE,
-  buildLobby,
-  diamondCount
-} from './build'
+export { LOBBY_DIAMOND_VALUE, buildLobby, diamondCount } from './build'
+export { DEFAULT_LOBBY_PRESET_ID, LOBBY_PRESETS, lobbyPresetById } from './presets'
+export type { LobbyPresetDef } from './presets'
 export {
   ALL_LOBBY_CATEGORIES,
   LOBBY_VENDORS,
@@ -15,8 +10,4 @@ export {
   vendorOfCategory
 } from './shops'
 export type { LobbyVendorDef } from './shops'
-export { LOBBY_DIAMOND_SLOTS } from './template'
-
-/** The level id the lobby ships under, and the campaign's `start` when enabled. */
-export const LOBBY_LEVEL_ID = 'lobby'
-export const LOBBY_LEVEL_PATH = 'levels/lobby.xml'
+export type { LobbyVendorIds } from './template'

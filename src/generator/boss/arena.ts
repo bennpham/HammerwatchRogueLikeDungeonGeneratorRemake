@@ -68,6 +68,7 @@ import { dataAFromDataT, mixedDatasets, overlayDataset } from '../map/tilemapOve
 import { patternVariant, pickArenaPattern } from './arenaPattern'
 import type { ArenaPattern } from './arenaPattern'
 import type { GenerationContext } from '../core/context'
+import type { Gateway } from '../campaign'
 import type { BossArenaOptions } from '../config/parameters'
 import type { LevelPreview, PreviewRoom } from '../index'
 import { ENTRANCE_DEPTH, ENTRANCE_WIDTH, anchors } from './anchors'
@@ -115,17 +116,29 @@ export interface BossArenaResult {
  * counter itself (like a dungeon `Level`'s constructor does), so it does not
  * depend on the caller having done so.
  *
- * `exitTarget` is the level id the alcove leads to once the boss dies, or
- * `null` when this is the campaign's last fight and the alcove holds the
- * victory orb instead. It changes nothing else — in particular it makes no
- * `ctx.bossRand` draw, so an arena's geometry, cover, food and spawn points are
- * the same whether or not another fight follows it.
+ * `gateway` is what the alcove leads to once the boss dies — the same
+ * `Gateway` a dungeon floor's orb room reads (see `campaign.ts` and
+ * `map/room.ts`'s `case 'Orb'`), with one difference: an arena has no stairs
+ * prefab of its own, so `gateway.kind === 'exit'` — `gatewayAfter`'s answer
+ * whenever the NEXT slot is an ordinary dungeon floor, whoever is asking —
+ * still renders the RED portal here, not stairs. `{ kind: 'orb' }` (the
+ * default) is the campaign's last slot, ending on the victory orb;
+ * `'lobbyPortal'` is the blue teleport into a lobby, when the dungeon master
+ * put a shop after this fight; every other kind (`'exit'` and `'portal'`
+ * alike) is the red boss portal, into whatever comes next — the next fight's
+ * arena directly, or an ordinary dungeon floor.
+ *
+ * Which kind lands here changes nothing else — in particular it makes no
+ * `ctx.bossRand` draw, so an arena's geometry, cover, food and spawn points
+ * are the same whatever follows it. All three of `Orb`/`BossPortal`/
+ * `LobbyPortal` are the same three-id shape (see objectSet.ts), which is what
+ * guarantees that.
  */
 export function buildBossArena(
   ctx: GenerationContext,
   arena: BossArenaOptions,
   levelNumber: number,
-  exitTarget: string | null = null
+  gateway: Gateway = { kind: 'orb' }
 ): BossArenaResult {
   ctx.clearLevel()
   ctx.idCounter = 0
@@ -449,19 +462,23 @@ export function buildBossArena(
   // the existing Orb prefab's own ObjectEventTrigger -> GameEnd fires when the
   // player picks it up. No lock, no key, no door. ---
   //
-  // Unless another fight follows, in which case the alcove holds a portal to
-  // that fight's prep room instead of the orb: a campaign must have exactly one
-  // GameEnd, and it belongs to the last arena. `BossPortal` is deliberately the
-  // same three-id shape as `Orb` (see objectSet.ts), so which one lands here
-  // cannot shift any id allocated after it and the seal chain below is
-  // identical either way.
+  // Unless something follows, in which case the alcove holds a portal instead
+  // of the orb: blue into a lobby if the dungeon master put a shop after this
+  // fight, red for everything else an arena can lead into — the next fight's
+  // arena directly, OR a dungeon floor, since an arena has no stairs prefab of
+  // its own to fall back on (that is `gateway.kind === 'exit'`, the ordinary
+  // case for a FLOOR; here it still means "red portal", not "no portal"). A
+  // campaign must have exactly one GameEnd, and it belongs to the last slot.
+  // `BossPortal`/`LobbyPortal` are deliberately the same three-id shape as
+  // `Orb` (see objectSet.ts), so which one lands here cannot shift any id
+  // allocated after it and the seal chain below is identical either way.
   ObjectSet.create(
     ctx,
     orbLocal.x,
     orbLocal.y,
-    exitTarget === null ? 'Orb' : 'BossPortal',
+    gateway.kind === 'orb' ? 'Orb' : gateway.kind === 'lobbyPortal' ? 'LobbyPortal' : 'BossPortal',
     arena.theme,
-    exitTarget ?? undefined
+    gateway.kind === 'orb' ? undefined : gateway.target
   )
 
   const bossDied = new NodeGlobalEventTrigger(ctx, midX, midY, 'Boss Died')

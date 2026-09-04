@@ -101,8 +101,8 @@ export function App() {
       return
     }
     if (leftTab === 'lobby') {
-      setParams({ ...params, lobby: defaultParameters().lobby })
-      showToast('info', 'Lobby reset to defaults.')
+      setParams({ ...params, lobbies: defaultParameters().lobbies })
+      showToast('info', 'Lobbies reset to defaults.')
       return
     }
     if (leftTab === 'boss') {
@@ -118,7 +118,7 @@ export function App() {
       showToast('info', 'Floor order reset — every floor, then every boss fight.')
       return
     }
-    setParams({ ...defaultParameters(), playerTweaks: params.playerTweaks, lobby: params.lobby, boss: params.boss })
+    setParams({ ...defaultParameters(), playerTweaks: params.playerTweaks, lobbies: params.lobbies, boss: params.boss })
     showToast('info', 'Dungeon parameters reset to defaults.')
   }
 
@@ -205,7 +205,7 @@ export function App() {
             {leftTab === 'player'
               ? 'Reset player tweaks'
               : leftTab === 'lobby'
-                ? 'Reset lobby'
+                ? 'Reset lobbies'
                 : leftTab === 'boss'
                   ? 'Reset boss tab'
                   : leftTab === 'order'
@@ -223,7 +223,7 @@ export function App() {
               onClick={() => setLeftTab('lobby')}
             >
               Lobby
-              {params.lobby.enabled && <span className="tab-count">on</span>}
+              {params.lobbies.length > 0 && <span className="tab-count">on</span>}
             </button>
             <button
               className={leftTab === 'dungeon' ? 'tab active' : 'tab'}

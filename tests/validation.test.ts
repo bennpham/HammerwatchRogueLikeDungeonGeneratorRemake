@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { BOSS_COVER_DENSITY_MAX, BOSS_DEATH_WAVE, BOSS_WAVE_COUNT, defaultParameters } from '../src/generator/config/parameters'
+import { BOSS_COVER_DENSITY_MAX, BOSS_DEATH_WAVE, BOSS_WAVE_COUNT, defaultLobby, defaultParameters } from '../src/generator/config/parameters'
 import {
   GOLD_SAFETY_MAX,
   UPGRADE_COUNT_MAX,
   validateParameters
 } from '../src/generator/config/validation'
 import { CAMPAIGN_PRESETS } from '../src/generator/config/presets'
+import { DEFAULT_LOBBY_PRESET_ID, LOBBY_PRESETS } from '../src/generator/lobby/presets'
 import { plainParameters } from './params'
 import { noUpgrades, oneOfEachUpgrade } from '../src/generator/levelTemplate/surgery'
+import type { CampaignSlot } from '../src/generator/campaign'
 
 const fieldsOf = (issues: Array<{ field: string }>) => issues.map((i) => i.field)
 
@@ -146,13 +148,17 @@ describe('parameter validation', () => {
     expect(fieldsOf(result.errors)).toContain('levels')
   })
 
-  it('warns that the lobby is skipped with 0 floors, without blocking', () => {
+  // Issue #48: a lobby is an ordinary campaign slot now, so with 0 floors it
+  // simply leads straight into the fight rather than being silently skipped —
+  // the warning this used to be is gone, superseded by the trailing-lobby
+  // rule below (a lobby is only ever invalid as the campaign's LAST slot).
+  it('accepts a lobby with 0 floors — it leads straight into the fight', () => {
     const p = plainParameters()
     p.levels = 0
-    p.lobby.enabled = true
+    p.lobbies = [defaultLobby(DEFAULT_LOBBY_PRESET_ID)]
     const result = validateParameters(p)
     expect(result.valid).toBe(true)
-    expect(fieldsOf(result.warnings)).toContain('lobby.enabled')
+    expect(result.warnings).toEqual([])
   })
 
   it('warns (without blocking) when rooms may not all fit', () => {
@@ -250,22 +256,37 @@ describe('player tweak validation', () => {
 })
 
 describe('lobby validation', () => {
-  const withLobby = (patch: Partial<ReturnType<typeof defaultParameters>['lobby']>) => {
+  // Patches lobby 0 — `defaultParameters()` ships two, and every rule here is
+  // per-lobby (field keys are `lobbies.0.*`), so one exercises them all. Same
+  // shape as `withBoss` below it, patching fight 0.
+  const withLobby = (patch: Partial<ReturnType<typeof defaultLobby>>) => {
     const p = defaultParameters()
-    p.lobby = { ...p.lobby, ...patch }
+    p.lobbies = p.lobbies.map((lobby, i) => (i === 0 ? { ...lobby, ...patch } : lobby))
     return validateParameters(p)
   }
 
-  it('accepts the default lobby', () => {
+  it('accepts the default lobbies', () => {
     const result = withLobby({})
     expect(result.errors).toEqual([])
     expect(result.warnings).toEqual([])
   })
 
+  it('rejects an unknown preset id', () => {
+    const result = withLobby({ preset: 'nope' })
+    expect(result.valid).toBe(false)
+    expect(fieldsOf(result.errors)).toContain('lobbies.0.preset')
+  })
+
+  it('accepts every shipped preset id', () => {
+    for (const preset of LOBBY_PRESETS) {
+      expect(withLobby({ preset: preset.id }).errors, preset.id).toEqual([])
+    }
+  })
+
   it('rejects gold that is not a multiple of 500', () => {
     const result = withLobby({ startingGold: 750 })
     expect(result.valid).toBe(false)
-    expect(fieldsOf(result.errors)).toContain('lobby.startingGold')
+    expect(fieldsOf(result.errors)).toContain('lobbies.0.startingGold')
   })
 
   it('rejects negative and fractional gold', () => {
@@ -287,7 +308,7 @@ describe('lobby validation', () => {
   it('rejects gold past the safety ceiling, so a typo cannot hang the generator', () => {
     const over = withLobby({ startingGold: GOLD_SAFETY_MAX + 500 })
     expect(over.valid).toBe(false)
-    expect(fieldsOf(over.errors)).toContain('lobby.startingGold')
+    expect(fieldsOf(over.errors)).toContain('lobbies.0.startingGold')
   })
 
   it('accepts any whole number of free upgrades, however large', () => {
@@ -301,38 +322,37 @@ describe('lobby validation', () => {
     for (const bad of [-1, 2.5]) {
       const result = withLobby({ upgrades: { ...oneOfEachUpgrade(), defense: bad } })
       expect(result.valid, `${bad}`).toBe(false)
-      expect(fieldsOf(result.errors)).toContain('lobby.upgrades')
+      expect(fieldsOf(result.errors)).toContain('lobbies.0.upgrades')
     }
   })
 
   it('rejects a free upgrade count past the safety ceiling', () => {
     const over = withLobby({ upgrades: { ...noUpgrades(), damage: UPGRADE_COUNT_MAX + 1 } })
     expect(over.valid).toBe(false)
-    expect(fieldsOf(over.errors)).toContain('lobby.upgrades')
+    expect(fieldsOf(over.errors)).toContain('lobbies.0.upgrades')
   })
 
   it('rejects an unknown shop column', () => {
     const result = withLobby({ shopCategories: ['misc1', 'misc6'] })
     expect(result.valid).toBe(false)
-    expect(fieldsOf(result.errors)).toContain('lobby.shopCategories')
+    expect(fieldsOf(result.errors)).toContain('lobbies.0.shopCategories')
   })
 
   it('warns, without blocking, when no vendor is selected', () => {
     const result = withLobby({ shopCategories: [] })
     expect(result.valid).toBe(true)
-    expect(fieldsOf(result.warnings)).toContain('lobby.shopCategories')
+    expect(fieldsOf(result.warnings)).toContain('lobbies.0.shopCategories')
   })
 
-  it('stays quiet about vendors while the lobby is off', () => {
-    const result = withLobby({ enabled: false, shopCategories: [] })
-    expect(result.warnings).toEqual([])
-  })
+  // `enabled` is gone (issue #48): a lobby that used to be "off" is simply
+  // absent from `lobbies` now, so there is nothing left to warn about — see
+  // 'accepts a lobby with 0 floors' above for the closest replacement case.
 
   it('collapses emptied columns into one warning', () => {
     const p = defaultParameters()
-    // power is off by default, so add it to shopCategories
-    p.lobby.shopCategories.push('power')
-    // then strip every upgrade the power column sells
+    // both stock lobbies already sell power — strip every upgrade it sells
+    // so BOTH lobbies end up with an empty column, collapsed to one warning
+    // apiece rather than one per lobby per upgrade
     p.playerTweaks = {
       'player.shared.remove.life': 1,
       'player.shared.remove.rejuv': 1,
@@ -341,9 +361,74 @@ describe('lobby validation', () => {
       'player.shared.remove.pot-invul': 1
     }
     const result = validateParameters(p)
-    const lobbyWarnings = result.warnings.filter((w) => w.field === 'lobby.shopCategories')
+    const lobbyWarnings = result.warnings.filter((w) => w.field === 'lobbies.0.shopCategories')
     expect(lobbyWarnings).toHaveLength(1)
     expect(lobbyWarnings[0].message).toContain('Power')
+  })
+
+  it('scopes every rule to the lobby that broke it', () => {
+    const p = defaultParameters()
+    p.lobbies[1] = { ...p.lobbies[1], startingGold: 750 }
+    const result = validateParameters(p)
+    expect(fieldsOf(result.errors)).toContain('lobbies.1.startingGold')
+    expect(fieldsOf(result.errors)).not.toContain('lobbies.0.startingGold')
+  })
+})
+
+describe('levelOrder — lobbies (issue #48)', () => {
+  const floor = (index: number) => ({ kind: 'floor' as const, index })
+  const boss = (index: number) => ({ kind: 'boss' as const, index })
+  const lobby = (index: number) => ({ kind: 'lobby' as const, index })
+
+  const withOrder = (order: CampaignSlot[]) => {
+    const p = plainParameters()
+    p.levels = 2
+    p.themes = p.themes.slice(0, 2)
+    p.levelMonsters = p.levelMonsters.slice(0, 2)
+    p.levelBuffs = p.levelBuffs?.slice(0, 2)
+    p.levelTimers = p.levelTimers?.slice(0, 2)
+    p.lobbies = [defaultLobby(DEFAULT_LOBBY_PRESET_ID)]
+    p.levelOrder = order
+    return validateParameters(p)
+  }
+
+  it('accepts a lobby anywhere except last', () => {
+    expect(withOrder([lobby(0), floor(0), boss(0), floor(1)]).errors).toEqual([])
+    expect(withOrder([floor(0), lobby(0), boss(0), floor(1)]).errors).toEqual([])
+    expect(withOrder([floor(0), boss(0), lobby(0), floor(1)]).errors).toEqual([])
+  })
+
+  it('rejects an order that ends in a lobby', () => {
+    const result = withOrder([floor(0), boss(0), floor(1), lobby(0)])
+    expect(result.valid).toBe(false)
+    expect(result.errors.some((e) => e.message.includes('cannot end in a lobby'))).toBe(true)
+  })
+
+  it('rejects an order naming a lobby the campaign does not have', () => {
+    const result = withOrder([lobby(0), lobby(1), floor(0), boss(0), floor(1)])
+    expect(result.errors.some((e) => e.message.includes('does not have'))).toBe(true)
+  })
+
+  it('rejects a lobby order out of ascending sequence', () => {
+    const p = plainParameters()
+    p.levels = 1
+    p.themes = p.themes.slice(0, 1)
+    p.levelMonsters = p.levelMonsters.slice(0, 1)
+    p.levelBuffs = p.levelBuffs?.slice(0, 1)
+    p.levelTimers = p.levelTimers?.slice(0, 1)
+    p.boss = { ...p.boss, enabled: false }
+    p.lobbies = [defaultLobby(DEFAULT_LOBBY_PRESET_ID), defaultLobby(DEFAULT_LOBBY_PRESET_ID)]
+    p.levelOrder = [lobby(1), lobby(0), floor(0)]
+
+    const result = validateParameters(p)
+    expect(result.errors.some((e) => e.message.includes('after a later one'))).toBe(true)
+  })
+
+  // The plain junk-entry rule ('lobby', a bare string) still rejects: it is
+  // neither a floor, a fight nor a well-formed { kind: 'lobby', ... } object.
+  it('still rejects a bare string entry, kind "lobby" included', () => {
+    const result = withOrder([floor(0), 'lobby', boss(0), floor(1)] as unknown as CampaignSlot[])
+    expect(result.errors.some((e) => e.message.includes('neither a floor'))).toBe(true)
   })
 })
 
@@ -598,43 +683,9 @@ describe('boss validation', () => {
     expect(fieldsOf(result.errors)).not.toContain('boss.fights.0.arena.floorPattern')
   })
 
-  it('applies the same free upgrade rules to the prep room', () => {
-    const ok = withBoss({
-      prep: { ...defaultParameters().boss.fights[0].prep, upgrades: { ...noUpgrades(), health: 900 } }
-    })
-    expect(ok.valid).toBe(true)
-
-    const bad = withBoss({
-      prep: { ...defaultParameters().boss.fights[0].prep, upgrades: { ...oneOfEachUpgrade(), mana: -3 } }
-    })
-    expect(bad.valid).toBe(false)
-    expect(fieldsOf(bad.errors)).toContain('boss.fights.0.prep.upgrades')
-  })
-
-  it('rejects starting gold that is not a multiple of 500', () => {
-    const result = withBoss({ prep: { ...defaultParameters().boss.fights[0].prep, startingGold: 750 } })
-    expect(result.valid).toBe(false)
-    expect(fieldsOf(result.errors)).toContain('boss.fights.0.prep.startingGold')
-  })
-
-  it('accepts starting gold far past the authored prep slots — it stacks', () => {
-    const result = withBoss({ prep: { ...defaultParameters().boss.fights[0].prep, startingGold: 100_000 } })
-    expect(result.valid).toBe(true)
-    expect(fieldsOf(result.warnings)).not.toContain('boss.fights.0.prep.startingGold')
-  })
-
-  it('rejects starting gold past the safety ceiling', () => {
-    const result = withBoss({
-      prep: { ...defaultParameters().boss.fights[0].prep, startingGold: GOLD_SAFETY_MAX + 500 }
-    })
-    expect(result.valid).toBe(false)
-    expect(fieldsOf(result.errors)).toContain('boss.fights.0.prep.startingGold')
-  })
-
-  it('rejects an unknown prep shop category', () => {
-    const result = withBoss({ prep: { ...defaultParameters().boss.fights[0].prep, shopCategories: ['misc1', 'bogus'] } })
-    expect(fieldsOf(result.errors)).toContain('boss.fights.0.prep.shopCategories')
-  })
+  // A fight's prep room is gone (issue #48) — its gold/shops/upgrades rules
+  // moved to 'lobby validation' above, since a shop in front of a fight is a
+  // `lobby` slot now, not part of the `BossFight` object at all.
 
   it('rejects an unknown cover pattern', () => {
     const result = withBoss({
@@ -1133,10 +1184,10 @@ describe('levelOrder (issue #43)', () => {
   })
 
   it('rejects an entry that is not a slot at all', () => {
+    // the bare STRING 'lobby' — not a well-formed { kind: 'lobby', ... }
+    // object — is still neither a floor, a fight nor a lobby
     const result = withOrder([floor(0), 'lobby', floor(1), floor(2), boss(0)])
-    expect(result.errors.some((e) => e.message.includes('neither a floor nor a boss fight'))).toBe(
-      true
-    )
+    expect(result.errors.some((e) => e.message.includes('neither a floor'))).toBe(true)
   })
 
   // With the boss off there are no fights to place, so an order naming one is
@@ -1149,6 +1200,9 @@ describe('levelOrder (issue #43)', () => {
     p.levelBuffs = p.levelBuffs?.slice(0, 2)
     p.levelTimers = p.levelTimers?.slice(0, 2)
     p.boss = { ...p.boss, enabled: false }
+    // this block is about floor/fight interleaving specifically — clear the
+    // two stock lobbies or the order below would have to name them too
+    p.lobbies = []
 
     p.levelOrder = [floor(0), floor(1)]
     expect(validateParameters(p).errors).toEqual([])

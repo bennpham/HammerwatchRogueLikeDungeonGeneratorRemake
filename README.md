@@ -24,16 +24,15 @@ dungeon<seed>/
 ├── info.xml            campaign name & lives
 ├── levels.xml          the act/level list
 ├── levels/
-│   ├── lobby.xml       optional hub you start in (vendors, starting gold)
+│   ├── lobby0.xml      optional shop room, placed anywhere in the order
 │   ├── level0.xml      one Hammerwatch level per floor
 │   ├── …
-│   ├── bossprep0.xml   optional shop/prep room before each boss fight
-│   └── boss0.xml       optional boss arena; the last one holds the reward orb
+│   └── boss0.xml       optional boss arena; the last slot holds the reward orb
 └── tweak/
     └── shared.xml      optional player-balance overrides
 ```
 
-The lobby, the boss finale and the player tweaks are all optional; with them
+The lobbies, the boss finale and the player tweaks are all optional; with them
 off you get exactly the classic dungeon-only campaign the original tool made.
 
 If you point the app at your Hammerwatch install, it will write that folder
@@ -85,32 +84,35 @@ up front and keeps every retry loop bounded.
 
 Five additions sit outside the floor loop above. None of them draw from the
 dungeon's RNG stream — the arena draws from a third seeded stream of its own,
-the lobby, prep room, tweaks and timer mode draw nothing — so turning any of
+the lobbies, tweaks and timer mode draw nothing — so turning any of
 them on or off leaves a seed's floors **byte-identical** (timer mode appends
 script nodes to the floors it arms, but moves nothing that was already there).
-The lobby and the boss finale are **on by default**; timer mode is **off**.
+Two lobbies and the boss finale are **on by default**; timer mode is **off**.
 
-- **Lobby** — a hand-authored hub the campaign starts in, with vendor stalls
-  for the shop columns you pick, a configurable pile of starting gold, and a
-  portal to floor 0. It can also lay out **free upgrade pickups** — any number
-  of each of the game's eight upgrade items, none by default — and anyone who
-  died on the way in is revived on arrival, so a co-op partner never has to sit
-  out the shopping.
-- **Boss finale** — two levels appended after the last floor, per boss fight,
-  and a campaign can chain **as many fights as you like**. A **prep room**
-  (shops, a diamond payout, the same optional free upgrades, a portal — and the
-  same revive on arrival, so nobody reaches the boss dead) leads into a **boss
-  arena**: a walled
+- **Lobbies** — hand-authored shop rooms you can place **anywhere in the
+  campaign order**, as many as you like: one at the front as a starting hub,
+  one before each boss fight, one halfway through the floors, or none at all.
+  Each has its own **preset** — `BETA-dungeon-prep` or `BETA-boss-prep`, the
+  two rooms this tool used to ship as "the lobby" and "the prep room" — its own
+  vendor stalls for the shop columns you pick, its own pile of starting gold,
+  and its own **free upgrade pickups** (any number of each of the game's eight
+  upgrade items, none by default). Anyone who died on the way in is revived on
+  arrival, so a co-op partner never has to sit out the shopping. A lobby cannot
+  be the campaign's **last** slot, because it carries no victory orb.
+- **Boss finale** — one arena per boss fight, and a campaign can chain **as
+  many fights as you like**. Put a lobby in front of a fight and you get the
+  shopping stop this tool used to weld on automatically. The **boss arena** is
+  a walled
   room with one boss, five monster waves — four keyed to the boss's health
   (100 / 75 / 50 / 25%, switching on and never off) and a fifth that spawns
   the moment the boss *dies* — scattered cover pillars, and a sealed alcove
   holding the victory orb. Killing the boss destroys the alcove seals; the
   death wave fights you on the walk to the orb, and touching the orb ends the
-  game. With the boss on, the final floor's orb room is replaced by the
-  portal, so there is exactly one way to win. With **several fights**, each one
-  gets its own prep room and its own fully independent arena, and beating one
-  teleports the party into the next fight's shop rather than to the orb — the
-  run reads fight, shop, fight, and only the last arena ends the campaign. Each of the five tiers can also
+  game. Only the campaign's last slot carries the orb, so there is exactly one
+  way to win. With **several fights**, each gets its own fully independent
+  arena, and beating one leads to whatever the order puts next rather than to
+  the orb — put a lobby between two fights and the run reads fight, shop,
+  fight. Each of the five tiers can also
   carry **arena-wide buffs** aimed at players, monsters or both; unlike the
   spawns, each tier's buffs replace the previous tier's, so only one tier's
   aura is ever live and the fight reads as phases. A tier can also line the walls with
@@ -164,9 +166,10 @@ not create ground beneath it.
 1. **Set your Hammerwatch folder** (bottom panel) — the folder containing
    `editor/` and `levels/`. It's saved for next time.
 2. **Tweak parameters** in the left panel, across five tabs — **Lobby** (the
-   starting hub), **Dungeon** (floors, rooms, monsters), **Boss** (the arena,
-   its waves and its spawn modes), **Floor order** (how the floors and the boss
-   fights interleave) and **Player** (class stats, upgrade costs, shop
+   shop rooms and their presets), **Dungeon** (floors, rooms, monsters),
+   **Boss** (the arena, its waves and its spawn modes), **Floor order** (how
+   the lobbies, floors and boss fights interleave) and **Player** (class
+   stats, upgrade costs, shop
    contents). Invalid
    combinations show inline errors and disable the Generate button, with an
    explanation of what to fix; purely cosmetic caveats show as warnings and
@@ -230,21 +233,19 @@ User-data folder: `%APPDATA%/hammerwatch-roguelike-dungeon-generator` (Windows),
 | `timer0…N` | absent | Timer mode for that floor: `enabled|seconds|damage|freqMs|countdown`, e.g. `timer2=1|180|1|1000|1`. Written only for floors whose timer is on, so a stock file has none. Negative damage heals |
 | `max<Monster>` | see defaults | Horde-size cap per monster type; 0 disables the type |
 
-The optional levels add their own keys. The lobby, the boss finale and the one
+The optional levels add their own keys. The lobbies, the boss finale and the one
 stock player tweak are all **on by default**:
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
-| `lobby` | 1 | Start the campaign in a hub level instead of on floor 0 |
-| `lobbyGold` | 10000 | Starting gold, a multiple of 500 (one red diamond each). Past the 12 floor spots the diamonds simply stack on the same spots — there is no upper cap beyond a safety limit that stops a typo emitting millions of items |
-| `lobbyShops` | all 21 columns | Space-separated shop columns the lobby stalls sell |
-| `lobbyUpgrades` | `0 0 0 0 0 0 0 0` | Free upgrade pickups lying on the lobby floor: eight space-separated counts, in the order damage, defense, health, mana, then the four tier-2 versions. Each kind has one spot on the floor, so a count above one simply stacks there — there is no gameplay cap, only a safety limit. `0` means the kind is not laid out at all |
-| `levelOrder` | *(absent)* | The order the campaign is played in: floors by their 1-based number, boss fights as `B1`, `B2`, … — e.g. `1,2,B1,3,4,B2` or `B1,1,2,3`. A fight is one entry even though it is two levels. Floors keep their own order and so do fights; only the interleaving is free. Whichever entry is last holds the victory orb, so a campaign can end on a dungeon floor. Omit for the default order (every floor, then every fight) |
-| `boss` | 1 | Append a prep room and a boss arena after the final floor |
-| `bossFights` | 1 | How many boss fights the campaign chains. Each has its own prep room and arena, and every key below carries its fight index — `boss0Theme` is the first fight's, `boss1Theme` the second's. No upper limit, same as `levels` |
-| `boss<i>Gold` | 20000 | Gold paid out in the prep room, same 500-multiple rule |
-| `boss<i>Shops` | all 21 columns | Shop columns the prep-room stalls sell |
-| `boss<i>Upgrades` | `0 0 0 0 0 0 0 0` | Free upgrade pickups on the prep-room floor, same eight counts as `lobbyUpgrades` |
+| `lobbies` | 2 | How many shop rooms the campaign has. `0` means none. Every key below carries its lobby index — `lobby0Gold` is the first lobby's, `lobby1Gold` the second's. No upper limit, same as `levels` |
+| `lobby<i>Preset` | `BETA-dungeon-prep` | Which hand-authored room this lobby uses: `BETA-dungeon-prep` or `BETA-boss-prep` |
+| `lobby<i>Gold` | 10000, 20000 | Gold paid out in this lobby, a multiple of 500 (one red diamond each). Past the room's floor spots the diamonds simply stack — there is no upper cap beyond a safety limit that stops a typo emitting millions of items |
+| `lobby<i>Shops` | all 21 columns | Space-separated shop columns this lobby's stalls sell |
+| `lobby<i>Upgrades` | `0 0 0 0 0 0 0 0` | Free upgrade pickups lying on this lobby's floor: eight space-separated counts, in the order damage, defense, health, mana, then the four tier-2 versions. Each kind has one spot on the floor, so a count above one simply stacks there — there is no gameplay cap, only a safety limit. `0` means the kind is not laid out at all |
+| `levelOrder` | `L1,1,…,7,L2,B1,8` | The order the campaign is played in: floors by their 1-based number, boss fights as `B1`, `B2`, …, lobbies as `L1`, `L2`, … — e.g. `L1,1,2,B1,3` or `B1,1,2,3`. Each kind keeps its own order; only the interleaving is free. Whichever entry is last holds the victory orb, so a campaign can end on a dungeon floor — but **not** on a lobby, which carries no orb. Omit for the default order (every lobby, then every floor, then every fight) |
+| `boss` | 1 | Append a boss arena to the campaign. Put a `lobby<i>` in front of it for the shopping stop that used to come welded on |
+| `bossFights` | 1 | How many boss fights the campaign chains. Each has its own arena, and every key below carries its fight index — `boss0Theme` is the first fight's, `boss1Theme` the second's. No upper limit, same as `levels` |
 | `boss<i>Theme` | `g_mixed` | Tileset for the arena — any dungeon theme, independent of the floors' (`h` warns: its cliff art needs a thicker wall band and overlapping corners to stay sealed) |
 | `boss<i>FloorPattern` | `random` | How a `_mixed` arena theme arranges its floor palette: `random`, `checker`, `bandsH`, `bandsV`, `bandsDiag`, `rings`, `diamond`, `cross`, `triangle`. Ignored by every other theme |
 | `boss<i>Width`, `boss<i>Height` | 42–64, 42–64 | Arena size range in tiles. Bigger is not better: on a much larger floor a scattered wave arrives dispersed and never re-forms, so the horde trickles into the party and gets picked off |
@@ -296,8 +297,8 @@ list with actor files is in `src/generator/objects/monsterTypes.ts`.
 │   │   │                   class), items, doodads, script nodes, prefab
 │   │   │                   object sets (stairs, shop, orb)
 │   │   ├── levelTemplate/  Shared helpers for the hand-authored levels below
-│   │   ├── lobby/          The starting hub: vendor stalls, gold, portal
-│   │   ├── bossprep/       The prep room between the last floor and the boss
+│   │   ├── lobby/          Shop rooms: presets, vendor stalls, gold, portal
+│   │   ├── bossprep/       The boss-prep preset's committed template
 │   │   ├── boss/           The generated arena: geometry, spawn anchors,
 │   │   │                   cover pillars, wave rig, boss roster
 │   │   ├── tweak/          player tweak/*.xml emitters and bulk editors —
@@ -361,7 +362,7 @@ The optional levels add their own suites, and two properties are worth calling
 out because they are what keeps the feature safe to leave on:
 
 - **Nothing new touches the dungeon's RNG.** The arena draws only from a third
-  seeded stream, asserted directly; the lobby and the player tweaks draw
+  seeded stream, asserted directly; the lobbies and the player tweaks draw
   nothing at all. Turning any of them on or off leaves every floor
   byte-identical.
 - **Geometry is asserted against the game's rules, not the emitter's own.**
