@@ -205,7 +205,7 @@ export function App() {
             {leftTab === 'player'
               ? 'Reset player tweaks'
               : leftTab === 'lobby'
-                ? 'Reset lobby'
+                ? 'Reset lobbies'
                 : leftTab === 'boss'
                   ? 'Reset boss tab'
                   : leftTab === 'order'

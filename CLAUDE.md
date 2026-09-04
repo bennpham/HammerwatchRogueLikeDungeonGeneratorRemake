@@ -45,26 +45,37 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
 5. **`parameters.txt` compatibility.** The original file format keeps working
    as an import/override. Unknown keys are reported, never fatal.
 6. **The optional layers never move a seed's dungeon.**
-   `src/generator/tweak/**`, `lobby/**` and `bossprep/**` draw **no** random
-   values and run after every level is built; `boss/**` draws only from
-   `ctx.bossRand` — once per boss fight, in list order, so adding a second
-   fight cannot move the first. Turning any of them on or off must leave every
-   `levels/level*.xml` byte-identical — only which extra files exist may
-   change, and clearing every tweak emits no `tweak/` folder at all. The stock
-   defaults are not empty any more: `defaultParameters()` ships the lobby on,
-   the boss on, `player.shared.remove.life`, and the escape floor's timer, so a
-   stock run emits a lobby, a prep room, an arena, exactly one tweak file, and
-   one floor carrying a hazard rig.
+   `src/generator/tweak/**` and `lobby/**` draw **no** random values and run
+   after every level is built; `boss/**` draws only from `ctx.bossRand` — once
+   per boss fight, in list order, so adding a second fight cannot move the
+   first. Adding, removing or reordering lobbies must leave every
+   `levels/level*.xml` byte-identical — only which extra files exist, and which
+   level a floor's gateway names, may change; clearing every tweak emits no
+   `tweak/` folder at all. The one thing that *does* move a floor is the KIND
+   of gateway it gets (see invariant 7), because `map/level.ts` picks a
+   different room for stairs than for a portal or orb. The stock defaults are
+   not empty any more: `defaultParameters()` ships two lobbies, the boss on,
+   `player.shared.remove.life`, and the escape floor's timer, so a stock run
+   emits two lobbies, an arena, exactly one tweak file, and one floor carrying
+   a hazard rig.
 7. **The campaign order changes links, never generation.** `levelOrder`
    (`campaign.ts`) decides where each level leads, what `levels.xml` lists and
    in what order, and which slot carries the victory orb — via `ctx.gateway`,
-   which `map/level.ts`, `map/room.ts` and `objects/objectSet.ts` read. Floors
+   which `map/level.ts`, `map/room.ts`, `objects/objectSet.ts` and
+   `boss/arena.ts` read. A slot is a floor, a boss fight or a lobby; a fight is
+   entered at its ARENA, and a lobby may never be the last slot because it
+   carries no orb. `gatewayAfter` yields four kinds — stairs to a floor, the
+   red portal to an arena, the blue teleport to a lobby, the orb at the end.
+   The three non-stairs kinds share one room-selection branch and one three-id,
+   zero-draw prefab contract, so swapping between THEM is free; swapping to or
+   from stairs is not, and moves that floor and every floor after it. Floors
    are still built in numeric order off `ctx.rand` and arenas in list order off
    `ctx.bossRand`; generating them in a rearranged sequence would move every
-   seed. An absent `levelOrder` must stay byte-identical to the pre-feature
-   generator, so the *default* order is stored as absent, never as a list —
-   but the presets' order is not the default one (their last floor is played
-   after the boss fight), so they store it explicitly and must.
+   seed. An absent `levelOrder` with no lobbies must stay byte-identical to the
+   pre-feature generator, so that *default* order is stored as absent, never as
+   a list — but the presets' order is not the default one (a lobby sits before
+   the fight and their last floor is played after it), so they store it
+   explicitly and must.
 8. **A floor the player cannot finish is invalid.** `map/reachability.ts`
    flood-fills with the wall art's two-row overhang modelled (`OVERHANG_ROWS`)
    and rejects a floor unless the entrance reaches the exit/orb/portal and
