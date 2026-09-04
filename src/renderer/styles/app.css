@@ -1162,29 +1162,52 @@ button.primary:hover:not(:disabled) {
   gap: 6px;
 }
 
-.lobby-diagram-diamonds {
+/* The room's diamond and upgrade slots, plotted at their real template
+   coordinates (scaled to fit the box) rather than in a fixed row — the
+   dungeon-prep and boss-prep rooms lay them out differently, and this reads
+   correctly for either. */
+.lobby-diagram-scene {
+  position: relative;
+  width: 100%;
+  max-width: 280px;
+  margin: 0 auto;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+}
+
+.scene-dot {
+  position: absolute;
+  display: flex;
+  align-items: center;
   justify-content: center;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
 }
 
-.lobby-diagram .diamond {
+.scene-dot.diamond {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.scene-dot.diamond.on {
+  background: var(--error);
+}
+
+.scene-dot.upgrade {
+  border-radius: 3px;
+  border: 1px solid var(--border);
   color: var(--border);
-  font-size: 14px;
 }
 
-.lobby-diagram .diamond.on {
-  color: var(--error);
-}
-
-.lobby-diagram-upgrades {
-  justify-content: center;
-}
-
-.lobby-diagram .upgrade {
-  color: var(--border);
-  font-size: 12px;
-}
-
-.lobby-diagram .upgrade.on {
+.scene-dot.upgrade.on {
+  border-color: var(--accent);
   color: var(--accent);
 }
 
@@ -1237,11 +1260,15 @@ button.primary:hover:not(:disabled) {
   background: var(--bg-input);
 }
 
-/* A boss fight reads as a different KIND of slot, not a differently numbered
-   one — the whole constraint is that the two sequences interleave but never
-   mix, so they should not look alike. */
+/* Each kind of slot reads as visually distinct, not just differently
+   numbered — the whole constraint is that the three sequences interleave but
+   never mix, so they should not look alike. */
 .floor-chip-boss {
   border-color: #c0455f;
+}
+
+.floor-chip-lobby {
+  border-color: #4a90c0;
 }
 
 .floor-chip .chip-label {
@@ -1252,6 +1279,10 @@ button.primary:hover:not(:disabled) {
 
 .floor-chip-boss .chip-label {
   color: #e08095;
+}
+
+.floor-chip-lobby .chip-label {
+  color: #7fb8e0;
 }
 
 .chip-move {
@@ -1271,13 +1302,9 @@ button.primary:hover:not(:disabled) {
 
 /* --- Boss form ------------------------------------------------------------ */
 
-.boss-subtabs {
-  margin-bottom: 10px;
-}
-
-/* The fight selector sits above the Prep/Boss room tabs and only appears once a
-   campaign has more than one fight, so it needs its own spacing rather than
-   .boss-subtabs'. The copy button is pushed to the far end. */
+/* The fight (or lobby) selector row: only appears once there is more than one
+   to choose between, with its copy button pushed to the far end. Shared by
+   BossForm's fight tabs and LobbyForm's lobby tabs — same shape either way. */
 .boss-fight-tabs {
   margin-bottom: 6px;
   align-items: center;

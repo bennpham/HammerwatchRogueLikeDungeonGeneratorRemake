@@ -1,6 +1,6 @@
 import React from 'react'
 import { THEME_DEFS, defaultFloorTimer, isDefaultOrder, normalizeOrder } from '../../generator'
-import type { DungeonParameters, FinalLockMode, ValidationIssue } from '../../generator'
+import type { CampaignCounts, DungeonParameters, FinalLockMode, ValidationIssue } from '../../generator'
 import { BoolField, NumberField, Section, ToggleGroup } from './fields'
 import { MonsterPoolsEditor } from './MonsterPoolsEditor'
 import { MonsterMaxTable } from './MonsterMaxTable'
@@ -52,9 +52,13 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
       // instead of throwing it away every time the count changes; an order that
       // repairs back to the default is dropped, since absent IS the default.
       if (params.levelOrder !== undefined) {
-        const fightCount = params.boss?.enabled === true ? (params.boss.fights?.length ?? 0) : 0
-        const repaired = normalizeOrder(params.levelOrder, levels, fightCount)
-        if (isDefaultOrder(repaired, levels, fightCount)) delete next.levelOrder
+        const counts: CampaignCounts = {
+          levels,
+          fights: params.boss?.enabled === true ? (params.boss.fights?.length ?? 0) : 0,
+          lobbies: params.lobbies.length
+        }
+        const repaired = normalizeOrder(params.levelOrder, counts)
+        if (isDefaultOrder(repaired, counts)) delete next.levelOrder
         else next.levelOrder = repaired
       }
     }
@@ -71,7 +75,7 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
     <div className="parameter-form">
       <Section title="General" defaultOpen>
         <div className="field-grid">
-          <NumberField label="Levels" field="levels" value={params.levels} onChange={setLevels} issues={issues} min={0} max={50} title="Number of floors in the campaign — 0 means a boss-only campaign that starts in the prep room (needs the boss fight on)" />
+          <NumberField label="Levels" field="levels" value={params.levels} onChange={setLevels} issues={issues} min={0} max={50} title="Number of floors in the campaign — 0 means a boss-only campaign (needs the boss fight on, and usually a lobby to shop from first)" />
           <NumberField label="Map width" field="mapWidth" value={params.mapWidth} onChange={(v) => set('mapWidth', v)} issues={issues} min={20} step={20} title="In tiles — multiples of 20 recommended" />
           <NumberField label="Map height" field="mapHeight" value={params.mapHeight} onChange={(v) => set('mapHeight', v)} issues={issues} min={20} step={20} title="In tiles — multiples of 20 recommended" />
           <NumberField label="Edge padding" field="edgePadding" value={params.edgePadding} onChange={(v) => set('edgePadding', v)} issues={issues} min={0} title="Empty border around the map" />

@@ -8,9 +8,6 @@ import {
   BOSS_SPAWN_MODES,
   DEFAULT_BOSS_INVULN_SECONDS,
   DEFAULT_WAVE_MONSTER_MAX,
-  GOLD_SAFETY_MAX,
-  LOBBY_DIAMOND_VALUE,
-  LOBBY_VENDORS,
   MAX_BOSS_INVULN_SECONDS,
   MONSTER_VARIANT_GROUPS,
   THEME_DEFS,
@@ -19,11 +16,9 @@ import {
   corpseCollision,
   defaultBossFight,
   defaultTier,
-  diamondCount,
   getTheme,
   isDefaultOrder,
   isScatterMode,
-  lobbyCategoryCounts,
   monsterNote,
   monsterVariantsInGroup,
   normalizeOrder,
@@ -39,17 +34,15 @@ import type {
   BossFight,
   BossFloorPattern,
   BossOptions,
-  BossPrepOptions,
   BossSpawnMode,
   BossTrap,
   BossTrapDirection,
   BossWave,
+  CampaignCounts,
   DungeonParameters,
-  PlayerTweaks,
   ValidationIssue
 } from '../../generator'
 import { BoolField, NumberField, Section, Subsection, ToggleGroup } from './fields'
-import { UpgradeCountFields } from './UpgradeCountFields'
 import { BuffListEditor } from './BuffListEditor'
 import { PickupListEditor } from './PickupListEditor'
 import { TrapListEditor } from './TrapListEditor'
@@ -80,8 +73,7 @@ const THEME_GROUPS = THEME_DEFS.reduce<[string, (typeof THEME_DEFS)[number][]][]
 const WAVE_LABELS = ['Tier 100%', 'Tier 75%', 'Tier 50%', 'Tier 25%', 'After the boss dies']
 
 export function BossForm({ params, issues, onChange }: BossFormProps) {
-  const [subTab, setSubTab] = useState<'prep' | 'room'>('prep')
-  // Which fight the two sub-tabs below are editing. Clamped rather than reset
+  // Which fight the sub-tabs below are editing. Clamped rather than reset
   // when the count shrinks, so trimming the list does not throw away the view.
   const [fightIndex, setFightIndex] = useState(0)
   const boss = params.boss
@@ -100,17 +92,19 @@ export function BossForm({ params, issues, onChange }: BossFormProps) {
     const nextBoss = { ...boss, ...patch }
     const next: DungeonParameters = { ...params, boss: nextBoss }
     if (params.levelOrder !== undefined) {
-      const fightCount = nextBoss.enabled ? (nextBoss.fights?.length ?? 0) : 0
-      const repaired = normalizeOrder(params.levelOrder, params.levels, fightCount)
-      if (isDefaultOrder(repaired, params.levels, fightCount)) delete next.levelOrder
+      const counts: CampaignCounts = {
+        levels: params.levels,
+        fights: nextBoss.enabled ? (nextBoss.fights?.length ?? 0) : 0,
+        lobbies: params.lobbies.length
+      }
+      const repaired = normalizeOrder(params.levelOrder, counts)
+      if (isDefaultOrder(repaired, counts)) delete next.levelOrder
       else next.levelOrder = repaired
     }
     onChange(next)
   }
   const setFight = (index: number, patch: Partial<BossFight>) =>
     set({ fights: fights.map((f, i) => (i === index ? { ...f, ...patch } : f)) })
-  const setPrep = (patch: Partial<BossPrepOptions>) =>
-    setFight(active, { prep: { ...fight.prep, ...patch } })
   const setArena = (patch: Partial<BossArenaOptions>) =>
     setFight(active, { arena: { ...fight.arena, ...patch } })
   const setWave = (index: number, patch: Partial<BossWave>) => {
@@ -131,9 +125,9 @@ export function BossForm({ params, issues, onChange }: BossFormProps) {
     if (active >= count) setFightIndex(count - 1)
   }
 
-  // Copies the whole fight — prep room and arena both. The waves are the
-  // expensive part to set up, and a fight that differs only in its boss pool is
-  // the common reason to ask for this.
+  // Copies the whole fight's arena — general layout, boss pool, waves, buffs,
+  // pickups and traps. The waves are the expensive part to set up, and a fight
+  // that differs only in its boss pool is the common reason to ask for this.
   const copyToNext = () => {
     if (active + 1 >= fights.length) return
     setFight(active + 1, cloneFight(fight))
@@ -144,9 +138,10 @@ export function BossForm({ params, issues, onChange }: BossFormProps) {
     <div className="parameter-form boss-form">
       <Section title="Boss fight" defaultOpen>
         <p className="hint">
-          Appends a shop room and a generated arena after the last dungeon floor. Turning it off
-          reproduces today's campaign byte-for-byte — the arena draws from its own RNG stream, so the
-          dungeon itself is identical either way, for the same seed.
+          Appends a generated arena after the last dungeon floor. Turning it off reproduces today's
+          campaign byte-for-byte — the arena draws from its own RNG stream, so the dungeon itself is
+          identical either way, for the same seed. Put a lobby right in front of it, from the Lobby
+          tab, if the party should shop before the fight.
         </p>
         <BoolField
           label="Add a boss fight after the last floor"
@@ -163,8 +158,8 @@ export function BossForm({ params, issues, onChange }: BossFormProps) {
           onChange={setFightCount}
         />
         <p className="hint">
-          Each fight is its own prep room and arena. Beating one teleports the party into the next
-          fight's shop, so a chain reads fight, shop, fight — only the last arena ends the campaign.
+          Each fight is its own arena. Arrange several fights — and any lobbies between them — on the
+          Floor order tab; only the campaign's last slot carries the victory orb.
         </p>
       </Section>
 
@@ -186,40 +181,20 @@ export function BossForm({ params, issues, onChange }: BossFormProps) {
                 className="copy-down"
                 onClick={copyToNext}
                 disabled={active + 1 >= fights.length}
-                title="Replace the next fight's prep room and arena with this one's"
+                title="Replace the next fight's arena with this one's"
               >
                 Copy to next fight
               </button>
             </div>
           )}
 
-          <div className="panel-tabs boss-subtabs">
-            <button className={subTab === 'prep' ? 'tab active' : 'tab'} onClick={() => setSubTab('prep')}>
-              Prep room
-            </button>
-            <button className={subTab === 'room' ? 'tab active' : 'tab'} onClick={() => setSubTab('room')}>
-              Boss room
-            </button>
-          </div>
-
-          {subTab === 'prep' && (
-            <PrepTab
-              params={params}
-              prep={fight.prep}
-              fieldPrefix={`boss.fights.${active}.prep`}
-              issues={issues}
-              setPrep={setPrep}
-            />
-          )}
-          {subTab === 'room' && (
-            <ArenaTab
-              arena={fight.arena}
-              fieldPrefix={`boss.fights.${active}.arena`}
-              issues={issues}
-              setArena={setArena}
-              setWave={setWave}
-            />
-          )}
+          <ArenaTab
+            arena={fight.arena}
+            fieldPrefix={`boss.fights.${active}.arena`}
+            issues={issues}
+            setArena={setArena}
+            setWave={setWave}
+          />
         </>
       )}
     </div>
@@ -233,132 +208,6 @@ export function BossForm({ params, issues, onChange }: BossFormProps) {
  */
 function cloneFight(fight: BossFight): BossFight {
   return JSON.parse(JSON.stringify(fight)) as BossFight
-}
-
-interface PrepTabProps {
-  params: DungeonParameters
-  prep: BossPrepOptions
-  /** validation field root for this fight, e.g. `boss.fights.0.prep` */
-  fieldPrefix: string
-  issues: ValidationIssue[]
-  setPrep: (patch: Partial<BossPrepOptions>) => void
-}
-
-/** Mirrors LobbyForm.tsx — the prep room is the same shop rig, a different template. */
-function PrepTab({ params, prep, fieldPrefix, issues, setPrep }: PrepTabProps) {
-  const counts = lobbyCategoryCounts((params.playerTweaks ?? {}) as PlayerTweaks)
-  const selected = new Set(prep.shopCategories)
-
-  const toggle = (category: string, on: boolean) => {
-    const next = new Set(selected)
-    if (on) next.add(category)
-    else next.delete(category)
-    setPrep({ shopCategories: [...next] })
-  }
-
-  const setAll = (categories: readonly string[], on: boolean) => {
-    const next = new Set(selected)
-    for (const c of categories) {
-      if (on) next.add(c)
-      else next.delete(c)
-    }
-    setPrep({ shopCategories: [...next] })
-  }
-
-  const copyFromLobby = () => setPrep({ shopCategories: [...params.lobby.shopCategories] })
-
-  return (
-    <>
-      <Section title="Starting gold" defaultOpen badge={`${prep.startingGold}`}>
-        <div className="field-grid">
-          <NumberField
-            label="Gold on the prep room floor"
-            field={`${fieldPrefix}.startingGold`}
-            value={prep.startingGold}
-            onChange={(startingGold) => setPrep({ startingGold })}
-            issues={issues}
-            min={0}
-            max={GOLD_SAFETY_MAX}
-            step={LOBBY_DIAMOND_VALUE}
-            title={`Each ${LOBBY_DIAMOND_VALUE} is one red diamond`}
-          />
-        </div>
-        <p className="hint">{goldDescription(prep.startingGold)}</p>
-      </Section>
-
-      <UpgradeCountFields
-        upgrades={prep.upgrades}
-        field={`${fieldPrefix}.upgrades`}
-        issues={issues}
-        onChange={(upgrades) => setPrep({ upgrades })}
-      />
-
-      <Section title="Shops" defaultOpen badge={`${prep.shopCategories.length}/21`}>
-        <div className="boss-prep-actions">
-          <button type="button" onClick={copyFromLobby} title="Replace this shop's columns with the Lobby's">
-            Copy from Lobby
-          </button>
-        </div>
-        <p className="hint">
-          Same five stalls, same shop columns as the lobby — only the room differs. Unlike the lobby,
-          the power column (potions, extra life, health rejuvenation) is included by default: it matters
-          more right before a boss than at the start of a run.
-        </p>
-
-        {LOBBY_VENDORS.map((vendor) => {
-          const on = vendor.categories.filter((c) => selected.has(c))
-          return (
-            <div key={vendor.id} className="lobby-vendor">
-              <div className="lobby-vendor-head">
-                <span className="lobby-vendor-name">{vendor.label}</span>
-                <span className="lobby-vendor-badge">
-                  {vendor.categories.length === 1
-                    ? on.length === 1
-                      ? 'open'
-                      : 'closed'
-                    : `${on.length}/${vendor.categories.length}`}
-                </span>
-                <span className="lobby-vendor-actions">
-                  <button type="button" onClick={() => setAll(vendor.categories, true)}>
-                    All
-                  </button>
-                  <button type="button" onClick={() => setAll(vendor.categories, false)}>
-                    None
-                  </button>
-                </span>
-              </div>
-              <div className="lobby-columns">
-                {vendor.categories.map((category) => (
-                  <BoolField
-                    key={category}
-                    label={`${category} (${counts[category] ?? 0})`}
-                    checked={selected.has(category)}
-                    onChange={(checked) => toggle(category, checked)}
-                    title={`${counts[category] ?? 0} upgrade(s) in this column after the Player tab's edits`}
-                  />
-                ))}
-              </div>
-            </div>
-          )
-        })}
-
-        {issues
-          .filter((i) => i.field === `${fieldPrefix}.shopCategories`)
-          .map((issue, i) => (
-            <p key={i} className="field-message">
-              {issue.message}
-            </p>
-          ))}
-      </Section>
-    </>
-  )
-}
-
-function goldDescription(startingGold: number): string {
-  const diamonds = diamondCount(startingGold)
-  if (diamonds === 0) return 'No gold on the floor — the vendors are there for later.'
-  const noun = diamonds === 1 ? 'red diamond' : 'red diamonds'
-  return `${diamonds} ${noun} on the prep room floor.`
 }
 
 interface ArenaTabProps {
