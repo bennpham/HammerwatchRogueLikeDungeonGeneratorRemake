@@ -79,8 +79,8 @@ export interface LobbyPresetDef {
 export const LOBBY_PRESETS: readonly LobbyPresetDef[] = [
   {
     id: 'BETA-dungeon-prep',
-    label: 'Dungeon prep',
-    description: 'The campaign\'s original starting lobby — five vendor stalls around a teleport.',
+    label: 'BETA Dungeon prep',
+    description: 'Pre 1.0 dungeon prep room extracted from remnant of Dreadmann Mansion campaign.',
     surgeryLabel: 'lobby',
     template: LOBBY_TEMPLATE,
     templateIds: LOBBY_TEMPLATE_IDS,
@@ -97,8 +97,8 @@ export const LOBBY_PRESETS: readonly LobbyPresetDef[] = [
   },
   {
     id: 'BETA-boss-prep',
-    label: 'Boss prep',
-    description: 'The larger shop room that used to be welded to every boss fight — now placeable anywhere.',
+    label: 'BETA Boss prep',
+    description: 'Custom made prep room before 1.0 release.',
     surgeryLabel: 'bossprep',
     template: BOSSPREP_TEMPLATE,
     templateIds: BOSSPREP_TEMPLATE_IDS,
