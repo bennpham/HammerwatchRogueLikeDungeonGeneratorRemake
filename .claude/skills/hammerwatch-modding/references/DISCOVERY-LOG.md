@@ -8,6 +8,72 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-03 — The host crashes on a networked item pickup, and it is not our XML
+**Tag:** **[VERIFIED]** for the crash and its trace (three reproductions in one
+session, plus one on 2026-08-27); **[UNVERIFIED]** for which of our items
+triggers it — no solo control run has been played yet.
+**Context:** Desert preset, 0.6.0, **hosted co-op**. The game crashed to desktop
+on a dungeon floor, and then reliably during the final Worm fight at roughly
+1/4 boss health. The owner's question was whether this is a port bug or a
+desert doodad; it is neither.
+**Evidence:**
+
+1. **The trace is the engine's networking path, host side.** Verbatim, from
+   `<HW>/error.txt` at 2026-09-03 20:12, 20:39 and 21:08 (and identically at
+   2026-08-27 22:11):
+
+   ```
+   System.Reflection.TargetInvocationException ---> System.NullReferenceException
+     at ARPGGame.WorldItemBehaviors.WorldItemPickupBehavior.NetPickup(WorldItem item)
+        Behaviors/Items/WorldItemPickupBehavior.cs:line 82
+     at ARPGGame.Networking.WorldHandler.ItemPickedUp(Int32 peerId, Int32 id)
+        Networking/WorldHandler.cs:line 142
+     at TiltedEngine.Networking.NetworkMessage.Recieve(...)
+     at TiltedEngine.Networking.Network.Update()
+     at ARPGGame.GameBase.Update(Int32 ms)
+   ```
+
+   Nothing in it touches level loading, tilemaps, doodads or actors. The
+   `peerId` argument makes it the **host** processing a *client's* "I picked up
+   item N" message; the `WorldItem` it resolves is null or already destroyed by
+   the time the message lands. **Multiplayer-only by construction** — the host's
+   own pickups never go through `NetPickup`. Interleaved `UPnP port forward
+   failed` lines in the same file confirm the session was hosted.
+2. **`error.txt` appends, and holds three unrelated classes.** Read the
+   timestamps: the 2026-07-28 pair is `LevelList.SetLevel` /
+   `KeyNotFoundException` — a level id a gateway names that `levels.xml` does
+   not list, which *is* ours — and has not recurred since. Do not merge the two.
+3. **The `trap_stalactite` resource errors in `game.log` are unrelated.**
+   `doodads/generic/trap_stalactite.xml` and `_e.xml` log "All doodad
+   transitions must have existing from and to states" at startup on *every*
+   launch, crashing or not. The string appears nowhere in this repo; it is the
+   owner's extracted `assetsExtract/` shadowing `assets.bin`.
+4. **Item id collision is ruled out statically.** `ctx.idCounter` is one
+   monotonic counter per level shared by items, monsters, doodads and script
+   nodes (`objects/item.ts`, reset in `map/level.ts` and `boss/arena.ts`), and
+   the two hand-authored templates park their injected items at
+   `*_ITEM_ID_BASE = 10000`, clear of anything the source level uses.
+
+**Why our campaign provokes an engine bug the stock campaign rarely shows:**
+the Desert 25% tier carries `drops.quarter` (`config/presets.ts`), so its
+`SpawnObject` item drops land on the pad *exactly* at the health the crash
+happens; and wave tiers never switch off (`boss/wavePickups.ts`), so by 25%
+every earlier horde is still alive and still dropping loot — hundreds of world
+items and 1000+ monsters in one level, far past anything the stock campaign
+does.
+
+**Consequence:** no generator change. A guess-fix would mask it, same rule as
+the Thief `Autofire` entry in the triage skill. The discriminating experiment,
+still unrun:
+
+1. Replay the same seed **solo** past 25%. No crash ⇒ confirmed networking.
+2. Still crashes solo ⇒ it is the drop rig; escalate with the seed.
+3. If (1) confirms co-op-only: clear the 25% tier's drop rows and replay in
+   co-op. Crash gone ⇒ script-spawned items specifically; crash remains ⇒
+   ordinary monster loot density, and the drop rig is innocent.
+
+Only that result promotes this entry's trigger tag from `[UNVERIFIED]`.
+
 ### 2026-09-02 — Crash identified: `sorcerer_ice_orb`, and the neutral-behavior sweep clears everything else
 **Tag:** **[VERIFIED]** — resolves the crash left `[OPEN]` in the entry below.
 **Context:** Following up the `NullReferenceException` in `BehaviorData.Get` /

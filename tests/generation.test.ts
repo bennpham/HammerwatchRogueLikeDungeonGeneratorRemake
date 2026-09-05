@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { generateDungeon, defaultParameters, DungeonResult } from '../src/generator'
+import { CAMPAIGN_PRESETS, generateDungeon, defaultParameters, DungeonResult } from '../src/generator'
 import { plainParameters } from './params'
 import { doodadOffset, doodadPath } from '../src/generator/objects/doodad'
 import { nodesOfType, oneShotRespawn } from './xmlHelpers'
@@ -722,5 +722,95 @@ describe('dungeon floors — arrival respawn', () => {
       const rig = oneShotRespawn(file.content)
       expect(rig, typeof rig === 'string' ? `${file.path}: ${rig}` : '').not.toBeTypeOf('string')
     }
+  })
+})
+
+describe('campaign level references — levels.xml closure', () => {
+  // A level that points at an id `levels.xml` does not list is not caught by
+  // the packer: the game loads the campaign, plays the floor, and dies the
+  // moment somebody walks through the exit, with
+  //
+  //   System.Collections.Generic.KeyNotFoundException
+  //     at ARPGGame.LevelList.SetLevel(String id, …)
+  //     at ARPGGame.GameBase.ClearLevel()
+  //
+  // (seen in the owner's error.txt on 2026-07-28). Every kind of way out —
+  // a floor's stairs, an arena's portal, a lobby's teleport — ends up as the
+  // same `<string name="level">` on a LevelExitArea node, so one regex over
+  // everything under levels/ covers all three, whatever the campaign order is.
+
+  const levelsXmlOf = (result: DungeonResult): string =>
+    result.files.find((f) => f.path === 'levels.xml')!.content
+
+  const listedIds = (result: DungeonResult): Set<string> =>
+    new Set([...levelsXmlOf(result).matchAll(/<level id="([^"]*)"/g)].map((m) => m[1]))
+
+  const listedPaths = (result: DungeonResult): string[] =>
+    [...levelsXmlOf(result).matchAll(/<level id="[^"]*" res="([^"]*)"/g)].map((m) => m[1])
+
+  /** Every `(file, target)` pair any level XML points at. */
+  const references = (result: DungeonResult): { file: string; target: string }[] =>
+    result.files
+      .filter((f) => f.path.startsWith('levels/'))
+      .flatMap((f) =>
+        [...f.content.matchAll(/<string name="level">([^<]*)<\/string>/g)].map((m) => ({
+          file: f.path,
+          target: m[1]
+        }))
+      )
+
+  function expectClosed(result: DungeonResult, label: string): void {
+    const listed = listedIds(result)
+    expect(listed.size, label).toBeGreaterThan(0)
+
+    // `start` is a level id too, and a bad one kills the campaign at Start.
+    const start = /<levels start="([^"]*)">/.exec(levelsXmlOf(result))?.[1]
+    expect(listed.has(start ?? ''), `${label}: start="${start}" is not a listed level`).toBe(true)
+
+    // Every listed level's res file is actually in the pack, so closure runs
+    // both ways: no dangling target, and no entry pointing at a missing file.
+    const paths = new Set(result.files.map((f) => f.path))
+    for (const res of listedPaths(result)) {
+      expect(paths.has(res), `${label}: levels.xml lists ${res}, which the pack does not contain`).toBe(true)
+    }
+
+    // Non-vacuous: every slot but the last carries exactly one way out, so a
+    // silently dropped exit fails here rather than passing an empty loop.
+    const refs = references(result)
+    expect(refs, `${label}: expected exactly one way out per slot but the last`).toHaveLength(
+      listed.size - 1
+    )
+
+    for (const { file, target } of refs) {
+      expect(
+        listed.has(target),
+        `${label}: ${file} points at level "${target}", which levels.xml does not list`
+      ).toBe(true)
+    }
+  }
+
+  it('lists every level the neutral campaign points at', () => {
+    expectClosed(generateOk(4242), 'plain')
+  })
+
+  it('lists every level the shipped defaults point at (two lobbies, a fight, a post-boss floor)', () => {
+    const result = generateDungeon(defaultParameters(), 909)
+    expect(result.ok).toBe(true)
+    expectClosed(result as DungeonResult, 'defaults')
+  })
+
+  it('lists every level each preset points at', () => {
+    for (const preset of CAMPAIGN_PRESETS) {
+      const result = generateDungeon(preset.build(), 7)
+      expect(result.ok, preset.id).toBe(true)
+      expectClosed(result as DungeonResult, preset.id)
+    }
+  })
+
+  it('lists every level a two-fight campaign points at, including the arena that leads to another arena', () => {
+    const result = generateOk(1234, (p) => {
+      p.boss = { ...p.boss, fights: [p.boss.fights[0], { ...p.boss.fights[0] }] }
+    })
+    expectClosed(result, 'two fights')
   })
 })
