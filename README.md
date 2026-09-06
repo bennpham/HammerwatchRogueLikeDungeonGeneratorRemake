@@ -161,6 +161,17 @@ now reachability-checked), that monsters spawned off the engine's `Boss Died`
 event really do appear after the kill, and that destroying a wall doodad does
 not create ground beneath it.
 
+## Known issues in co-op
+
+When hosting a generated campaign in Hammerwatch 1.41:
+
+- **Rare host crash deep in a boss fight.** This is a Hammerwatch engine issue
+  with networked item pickup, not a fault in the generated campaign. Single-player
+  runs clean. If it happens often, reduce wave counts or disable item drops on
+  the later tiers (see the **Boss** tab).
+- **Dead players who reconnect after a crash stay dead for one floor.** They will
+  revive at the next stairs. This is a rare edge case specific to crash-reconnects.
+
 ## Using the app
 
 1. **Set your Hammerwatch folder** (bottom panel) — the folder containing

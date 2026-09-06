@@ -8,10 +8,125 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-05 — A crash-reload returns the party to LevelStart, and the entrance revive rig does not fire for them
+**Tag:** **[VERIFIED]** for where a reload puts the party and for the
+"dead **on connect**" scoping (owner, direct observation); **[OPEN]** for why
+the dead player stayed dead, though H3 below now fits the report better than
+either original hypothesis.
+**Context:** Follow-up to the entry below. During the same 2026-09-03 Desert
+session (seed `2015628872`), the host crashed on floor 3 or 4 with a co-op
+partner already dead. On relaunch the partner was **still dead**.
+**Evidence:**
+
+1. **A crash-reload puts the party back at the floor's `LevelStart`, at the
+   entrance stairs** — not at the position they were standing when the game
+   died. Owner observed this directly. This **falsifies** the obvious guess
+   (that a reload resumes mid-floor, past the entrance, so the arrival trigger
+   is simply never crossed). The party materialises *on top of* the revive rig
+   and it still does not bring the dead player back.
+2. **The rig they land on is one tile wide and one-shot.** Every floor's
+   `ExitUp` prefab emits, at the entrance stairs
+   (`objects/objectSet.ts`, the `ExitUp` case):
+
+   ```
+   NodeLevelStart      (x+3, y+5)
+   NodeRectangleShape  (x+3, y+5)   w = 1.0, h = 1.0   <- the whole area
+   NodeAreaTrigger     (x+3, y+6)   -> shape
+        ├─ NodeAnnounceText  "Level N"
+        ├─ NodeToggleElement state 1 (disable), element = the AreaTrigger ITSELF
+        └─ ScriptNode        "RespawnPlayers"
+   ```
+
+   `NodeRectangleShape` defaults to 1.0 x 1.0 (`objects/nodes.ts`), so the
+   trigger area is exactly the start tile. The `ToggleElement` is what stops an
+   infinite respawn loop, and it disables the trigger the first time the party
+   arrives.
+3. **The banner and the revive share one trigger.** `AnnounceText "Level N"` and
+   `RespawnPlayers` both hang off the *same* `AreaTrigger`, so the banner is a
+   free, visible proxy for whether the trigger fired at all.
+
+**Refinement, 2026-09-05 — the dead player is a JOINING CLIENT.** The owner
+narrowed the symptom: the partner is only dead **on connect**, having died on
+the previous floor before the crash. That reframes it. The party does not
+re-enter the floor together — the **host** loads the save alone and the partner
+reconnects afterwards. Which makes a third hypothesis the most likely, and it
+is the only one that is **ours**:
+
+- **H3 — the host's own arrival burns the one-shot.** The host reloads, lands on
+  the 1x1 start tile, and the trigger fires *for the host*: banner shows,
+  `RespawnPlayers` runs (the host is alive, so it does nothing useful), and the
+  `ToggleElement` disables the trigger. The partner connects seconds or minutes
+  later, materialises on the same tile, and finds the trigger already spent. No
+  revive. They stay dead until the party takes the stairs, where a *fresh*
+  floor's trigger fires with both players present — which is exactly why this
+  reads as "dead on connect" rather than "dead forever".
+
+H3 says the one-shot design silently assumes **the whole party arrives at once**,
+which is true for a normal stairs transition and false for a reconnect. Unlike
+H1 and H2 that is a gap in what we emit, not engine behaviour.
+
+**The two original hypotheses, kept because the same observation still splits
+all three:**
+
+- **H1 — the disable is persisted in the save.** The party entered the floor
+  normally, the trigger fired once and switched itself off, and the reload
+  restores that level state rather than re-parsing the XML fresh. The trigger
+  is still disabled, so nothing revives anybody. ⇒ **no "Level N" banner on the
+  reload.**
+- **H2 — the revive runs too early.** The trigger is armed, fires as the level
+  loads, and `RespawnPlayers` runs *before* the save/network restores each
+  player's alive-or-dead state — so the revive lands on nobody and is then
+  overwritten. ⇒ **the "Level N" banner DOES appear on the reload, and the
+  partner is still dead.**
+
+**The check:** on the next crash-reload with a dead partner, note whether the
+`Level N` banner appears **for the host, on the host's own reload, before the
+partner connects**. H1 predicts no banner at all. H2 and H3 both predict the
+host sees it — and H3 is then confirmed by the partner getting no second banner
+when they connect, because the trigger is already spent.
+
+**Consequence:** no change yet, for the same reason as the entry below. Note for
+whoever picks this up that the two hypotheses want different fixes and only one
+of them is ours to make:
+
+- H1 is engine save-state behaviour. Dropping the `ToggleElement` would re-arm
+  the trigger, but it is load-bearing (it is the only thing stopping the banner
+  and the respawn from firing on every lap past the stairs), so removing it
+  needs its own justification, not a guess.
+- H2 has a targeted mitigation already available: `ScriptNode.connectTo(node,
+  delayMs)` (`objects/scriptNode.ts`, added for `boss/invulnerability.ts` — see
+  the 2026-08-24 delay-dialect entry) would let the `RespawnPlayers` connection
+  carry a second or two of delay so player state settles first.
+- **H3 has the cleanest fix: split the rig in two.** Keep the one-shot on the
+  `AnnounceText` — the "Level N" banner *should* show once — and hang
+  `RespawnPlayers` off a **second AreaTrigger on the same shape that never
+  disables itself**. The entrance stairs then behave as a permanent revive pad:
+  harmless when nobody is dead (a no-op), and it catches a late joiner, a player
+  who dies and walks back, and the original previous-floor case alike. Cost is
+  two extra nodes per floor, which shifts every later id in every
+  `levels/level*.xml` — no RNG draw and no geometry change, but not a
+  byte-identical output either, so it wants the orchestrator's review, a
+  regenerated set of goldens, and an in-game confirmation before it ships.
+
+Either change rewrites the entrance rig on **every** floor of every seed, so it
+is an orchestrator-level change, not a triage fix — and worthless before the
+banner observation says which one is even the right target.
+
+**Decision, 2026-09-05: deliberately NOT fixed. Documented as a known co-op
+limitation instead** (`README.md`, "Known issues in co-op"). The owner weighed
+the H3 fix and declined it: the partner is revived at the next floor transition,
+so the cost is bounded at one floor spent dead, and that does not justify
+rewriting every `levels/level*.xml` on a diagnosis no in-game observation has
+confirmed yet. **Do not treat this entry as open work.** If it is ever revisited,
+the order is unchanged — take the banner observation first, then H3's two-trigger
+split — but it needs the owner to ask for it, not an agent deciding the
+limitation is worth the churn.
+
 ### 2026-09-03 — The host crashes on a networked item pickup, and it is not our XML
-**Tag:** **[VERIFIED]** for the crash and its trace (three reproductions in one
-session, plus one on 2026-08-27); **[UNVERIFIED]** for which of our items
-triggers it — no solo control run has been played yet.
+**Tag:** **[VERIFIED]** for the crash, its trace (three reproductions in one
+session, plus one on 2026-08-27) and for it being **multiplayer-only** (solo
+control run, 2026-09-05, below); **[UNVERIFIED]** for which of our items
+triggers it.
 **Context:** Desert preset, 0.6.0, **hosted co-op**. The game crashed to desktop
 on a dungeon floor, and then reliably during the final Worm fight at roughly
 1/4 boss health. The owner's question was whether this is a port bug or a
@@ -62,17 +177,30 @@ every earlier horde is still alive and still dropping loot — hundreds of world
 items and 1000+ monsters in one level, far past anything the stock campaign
 does.
 
-**Consequence:** no generator change. A guess-fix would mask it, same rule as
-the Thief `Autofire` entry in the triage skill. The discriminating experiment,
-still unrun:
+**Solo control run — 2026-09-05, step 1 of the experiment below: NO CRASH.**
+The owner replayed the same dungeon in **single-player** and it did not crash.
+That is the discriminating result: the same campaign XML, the same drop rig and
+the same horde, with the networking path removed, runs clean. Combined with the
+trace, the crash is **confirmed multiplayer-only** — nothing in the emitted
+level XML is malformed, and no generator change can fix it.
 
-1. Replay the same seed **solo** past 25%. No crash ⇒ confirmed networking.
-2. Still crashes solo ⇒ it is the drop rig; escalate with the seed.
-3. If (1) confirms co-op-only: clear the 25% tier's drop rows and replay in
-   co-op. Crash gone ⇒ script-spawned items specifically; crash remains ⇒
-   ordinary monster loot density, and the drop rig is innocent.
+*Caveat on the strength of that result:* a solo run is a different fight, and it
+is not recorded whether the Worm was actually pushed below 25% (the health at
+which `drops.quarter` fires and the co-op crashes clustered). Treat it as
+strong evidence for "multiplayer-only", weaker evidence that the tier drops are
+innocent.
 
-Only that result promotes this entry's trigger tag from `[UNVERIFIED]`.
+**Consequence:** no generator change, now for a settled reason rather than
+caution. What remains open is only *which* item pickup races — worth knowing if
+we ever want to reduce the arena's item pressure, but not a bug we can fix:
+
+1. ~~Replay the same seed **solo** past 25%.~~ **Done 2026-09-05 — no crash.**
+2. Still open, and optional: clear the 25% tier's drop rows and replay in co-op.
+   Crash gone ⇒ script-spawned items specifically; crash remains ⇒ ordinary
+   monster loot density, and the drop rig is innocent.
+
+The user-facing consequence is a known-issues note in `README.md` (added
+2026-09-05), not a code change.
 
 ### 2026-09-02 — Crash identified: `sorcerer_ice_orb`, and the neutral-behavior sweep clears everything else
 **Tag:** **[VERIFIED]** — resolves the crash left `[OPEN]` in the entry below.
