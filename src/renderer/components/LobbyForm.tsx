@@ -113,7 +113,8 @@ export function LobbyForm({ params, issues, onChange }: LobbyFormProps) {
           <strong>L2</strong>… — a lobby may go before the first floor, between two floors, or in
           front of a boss fight, but never last, since it carries no victory orb of its own. Zero
           lobbies reproduces the pre-lobby campaign exactly, the same rule <code>boss.fights</code>{' '}
-          already follows for its own list.
+          already follows for its own list. With saves on, each lobby also carries a save checkpoint
+          beside its exit.
         </p>
         <NumberField
           label="Number of lobbies"
@@ -123,6 +124,11 @@ export function LobbyForm({ params, issues, onChange }: LobbyFormProps) {
           min={0}
           step={1}
           onChange={setLobbyCount}
+        />
+        <BoolField
+          label="Allow save game in lobbies"
+          checked={params.lobbySaves}
+          onChange={(lobbySaves) => onChange({ ...params, lobbySaves })}
         />
       </Section>
 

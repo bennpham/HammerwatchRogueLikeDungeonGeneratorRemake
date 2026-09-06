@@ -539,6 +539,7 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     params.lockFinalRoom = defaultParameters().lockFinalRoom
   if (params.finalLockMode === undefined)
     params.finalLockMode = defaultParameters().finalLockMode
+  if (params.lobbySaves === undefined) params.lobbySaves = defaultParameters().lobbySaves
   const result: ParsedConfig = { params, unknownKeys: [] }
   /** highest N seen in a `monstersN=` key, or -1 if the file declared no pools */
   let highestPoolIndex = -1
@@ -641,6 +642,12 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     }
     if (keyLower === 'themes') {
       params.themes = value.split(',').map((t) => t.trim())
+      continue
+    }
+    if (keyLower === 'lobbysaves') {
+      // absent keeps the default (on) — parseParametersTxt starts from
+      // defaultParameters(); only an explicit `lobbySaves=0` turns it off
+      params.lobbySaves = value === '1'
       continue
     }
 
@@ -1070,6 +1077,9 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
   // below use. No bare `lobbyGold` alias to lobby 0: the old singular lobby
   // is a hard break (see the parser's comment on the same keys).
   const lobbies = params.lobbies ?? []
+  // the global heading over the per-lobby blocks: whether each carries a save
+  // checkpoint. `?? true` matches the default for a base params that predates it
+  lines.push(`lobbySaves=${(params.lobbySaves ?? true) ? 1 : 0}`)
   lines.push(`lobbies=${lobbies.length}`)
   lobbies.forEach((lobby, i) => {
     lines.push(`lobby${i}Preset=${lobby.preset}`)

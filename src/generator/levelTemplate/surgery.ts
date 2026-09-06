@@ -289,6 +289,25 @@ export function itemsBody(sections: readonly ItemSection[]): string {
   return out + '\t'
 }
 
+/** The stock save checkpoint a lobby carries when lobby saves are on. */
+const SAVE_BUTTON_ITEM = 'items/trigger_button_save.xml'
+
+/**
+ * The item section for a lobby's save checkpoint, or none when saves are off.
+ *
+ * `items/trigger_button_save.xml` is a plain `behavior="checkpoint"` item, not
+ * a scripting node — it needs nothing spliced into `<array name="nodes">`, just
+ * one entry in the items section like the diamonds and upgrades.
+ */
+export function saveButtonArray(
+  enabled: boolean,
+  slot: readonly [number, number],
+  id: number
+): ItemSection[] {
+  if (!enabled) return []
+  return [{ item: SAVE_BUTTON_ITEM, entries: [{ id, x: slot[0], y: slot[1] }] }]
+}
+
 /** How many diamonds a given amount of starting gold is worth. */
 export function diamondCount(startingGold: number): number {
   return Math.max(0, Math.floor(startingGold / DIAMOND_VALUE))

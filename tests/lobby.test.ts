@@ -64,8 +64,13 @@ function optionsFor(preset: LobbyPresetDef, patch: Partial<LobbyOptions> = {}): 
   return { ...defaultLobby(preset.id), ...patch }
 }
 
-function xmlFor(preset: LobbyPresetDef, patch: Partial<LobbyOptions> = {}, exitTarget = EXIT_TARGET): string {
-  return buildLobby(preset, optionsFor(preset, patch), exitTarget)
+function xmlFor(
+  preset: LobbyPresetDef,
+  patch: Partial<LobbyOptions> = {},
+  exitTarget = EXIT_TARGET,
+  saves = false
+): string {
+  return buildLobby(preset, optionsFor(preset, patch), exitTarget, saves)
 }
 
 function generateOk(params: DungeonParameters, seed: number): DungeonResult {
@@ -553,6 +558,60 @@ for (const preset of LOBBY_PRESETS) {
           }
         }
       })
+    })
+
+    describe('save checkpoint (lobbySaves)', () => {
+      it('places one trigger_button_save.xml on the preset slot when on', () => {
+        const xml = xmlFor(preset, { startingGold: 0, upgrades: noUpgrades() }, EXIT_TARGET, true)
+        const section = itemSection(xml, 'items/trigger_button_save.xml')
+        expect(section).not.toBeNull()
+        const [x, y] = preset.saveButtonSlot
+        expect(placementsIn(section ?? '')).toEqual([`${x},${y}`])
+        expect(section).toContain(`<int>${preset.saveButtonId}</int>`)
+      })
+
+      it('places nothing when off', () => {
+        const xml = xmlFor(preset, {}, EXIT_TARGET, false)
+        expect(xml).not.toContain('items/trigger_button_save.xml')
+      })
+
+      it('adds only the one item array — the rest of the file is untouched', () => {
+        const on = xmlFor(preset, {}, EXIT_TARGET, true)
+        const off = xmlFor(preset, {}, EXIT_TARGET, false)
+        const [x, y] = preset.saveButtonSlot
+        const added = `\t\t<array name="items/trigger_button_save.xml">\n\t\t\t<array><int>${preset.saveButtonId}</int><vec2>${x} ${y}</vec2></array>\n\t\t</array>\n`
+        expect(on.replace(added, '')).toBe(off)
+        expect(badIntArray(on)).toBeNull()
+      })
+
+      it('keeps its id clear of the diamond and upgrade payout however deep', () => {
+        const xml = xmlFor(
+          preset,
+          { startingGold: GOLD_SAFETY_MAX, upgrades: oneOfEachUpgrade() },
+          EXIT_TARGET,
+          true
+        )
+        const itemIds = [...xml.matchAll(/<array><int>(\d+)<\/int><vec2>/g)].map((m) => Number(m[1]))
+        expect(new Set(itemIds).size).toBe(itemIds.length)
+        expect(itemIds).toContain(preset.saveButtonId)
+        expect(preset.saveButtonId).toBeLessThan(preset.itemIdBase)
+        expect(preset.saveButtonId).toBeGreaterThan(preset.respawnIdBase + 3)
+      })
+
+      it('moves no dungeon level, on or off, for the same seed', () => {
+        const levelsOf = (r: DungeonResult) => r.files.filter((f) => /^levels\/level\d+\.xml$/.test(f.path))
+        for (const seed of [7, 55555]) {
+          const on = withOneLobby(preset)
+          on.lobbySaves = true
+          const off = withOneLobby(preset)
+          off.lobbySaves = false
+          const ron = generateOk(on, seed)
+          const roff = generateOk(off, seed)
+          expect(levelsOf(ron)).toEqual(levelsOf(roff))
+          expect(fileAt(ron, lobbyPath(0))).toContain('items/trigger_button_save.xml')
+          expect(fileAt(roff, lobbyPath(0))).not.toContain('items/trigger_button_save.xml')
+        }
+      }, 60_000)
     })
 
     describe('parameters.txt round trip', () => {

@@ -61,6 +61,11 @@ finalLockMode=button
 #
 # The stock campaign carries two: the dungeon-prep lobby at the very start,
 # and the boss-prep lobby right before the fight — see levelOrder below.
+#
+# lobbySaves is campaign-wide: 1 puts a save checkpoint by every lobby's exit
+# (items/trigger_button_save.xml), 0 emits each lobby exactly as authored. It
+# moves no dungeon floor — only the lobby files gain the one item. Defaults on.
+lobbySaves=1
 lobbies=2
 lobby0Preset=BETA-dungeon-prep
 lobby0Gold=10000
