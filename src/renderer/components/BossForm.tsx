@@ -860,8 +860,7 @@ function CheckpointsEditor({ checkpoints, onChange }: CheckpointsEditorProps) {
     <>
       <p className="hint">
         On each selected health milestone, the party's respawn point moves to the arena. Unchecking
-        both boxes below turns the feature off entirely — a long fight is otherwise expensive to redo
-        from the top after a wipe.
+        both boxes below turns the feature off entirely.
       </p>
       <label className="field">
         <span className="field-label">Fire at</span>
@@ -876,18 +875,20 @@ function CheckpointsEditor({ checkpoints, onChange }: CheckpointsEditorProps) {
           ))}
         </select>
       </label>
-      <BoolField
-        label="Respawn player"
-        checked={checkpoints.respawnPlayers}
-        onChange={(respawnPlayers) => onChange({ ...checkpoints, respawnPlayers })}
-        title="Also pull dead or lagging players back into the arena at each checkpoint"
-      />
-      <BoolField
-        label="Save game"
-        checked={checkpoints.saveGame}
-        onChange={(saveGame) => onChange({ ...checkpoints, saveGame })}
-        title="Write a save file at each checkpoint, not just move the respawn point"
-      />
+      <div style={{ marginTop: '8px' }}>
+        <BoolField
+          label="Respawn player"
+          checked={checkpoints.respawnPlayers}
+          onChange={(respawnPlayers) => onChange({ ...checkpoints, respawnPlayers })}
+          title="Also pull dead or lagging players back into the arena at each checkpoint"
+        />
+        <BoolField
+          label="Save game"
+          checked={checkpoints.saveGame}
+          onChange={(saveGame) => onChange({ ...checkpoints, saveGame })}
+          title="Write a save file at each checkpoint, not just move the respawn point"
+        />
+    </div>
     </>
   )
 }
