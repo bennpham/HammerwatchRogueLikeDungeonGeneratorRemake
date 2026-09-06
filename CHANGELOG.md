@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **The final room's gold-key gate is gone; the button is the only one.** "Lock final room" still toggles on and off — off leaves the victory orb open, exactly as before — but the "Opened by" choice underneath it is removed, and the gate is always the destructible wall with a floor button outside it. The gold door was the one gate a party could lock itself out of, by hoarding gold keys on earlier floors or spending this floor's key on a chance-rolled door; the wall cannot be opened wrong. `finalLockMode` is no longer read or written: a file that still carries it imports fine and gets the button, with the key reported as unknown, never fatal. `button` was already the default, so every existing seed generates byte-identical output. Chance-rolled gold doors elsewhere on a floor are untouched and still get their keys.
+
 ## [0.6.0]
 
 ### Added

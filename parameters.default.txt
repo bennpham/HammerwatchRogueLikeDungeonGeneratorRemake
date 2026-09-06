@@ -32,14 +32,10 @@ shopChance=1.000000
 vaultChance=0.300000
 lockChance=0.800000
 keyChance=1.000000
-# Final floor only: 1 = the victory orb sits in a dead-end room behind a gold
-# door, with one gold key hidden on that floor per gold door that exists
-# (a vault may also roll gold), 0 = orb is open.
+# Final floor only: 1 = the victory orb sits in a dead-end room behind a
+# destructible wall, opened by a floor button just outside it, so no key can be
+# hoarded, mis-spent or left on an earlier floor. 0 = orb is open.
 lockFinalRoom=1
-# How that gate works. button = a destructible wall opened by a floor button,
-# so no key can be hoarded, mis-spent or left on an earlier floor. key = the
-# original gold door plus its gold key.
-finalLockMode=button
 # Lobbies (issue #48): hand-authored shop rooms, any number of them, each
 # independently placed by levelOrder below. `lobbies` is how many the
 # campaign has; every other lobby key carries its lobby's index directly

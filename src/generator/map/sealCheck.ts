@@ -222,9 +222,9 @@ function standing(pass: Passability, x: number, y: number): number | null {
 /**
  * Close every locked door on the floor.
  *
- * The other half of the same promise: `finalLockMode: 'key'` gates the orb with
- * a gold door rather than a destructible wall, off the same `passages[0]` and so
- * with the same blind spot. A door is a solid one-tile-wide collider standing on
+ * The other half of the same promise: the chance-gated locks bar their room with
+ * a door rather than a destructible wall, off the same `passages[0]` and so with
+ * the same blind spot. A door is a solid one-tile-wide collider standing on
  * corridor floor; how far it reaches *up* differs by variant, and that is the
  * whole of the difference between the two door assets:
  *

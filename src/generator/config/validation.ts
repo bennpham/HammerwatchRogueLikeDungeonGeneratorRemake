@@ -152,16 +152,7 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
     warnings.push({
       field: 'minRoomCount',
       message:
-        (p.finalLockMode ?? 'button') === 'button'
-          ? 'With "Lock final room" on, floors with fewer than 3 rooms leave almost nowhere to put the button that opens it.'
-          : 'With "Lock final room" on, floors with fewer than 3 rooms leave almost nowhere to hide the gold key.'
-    })
-  }
-
-  if (p.finalLockMode !== undefined && p.finalLockMode !== 'key' && p.finalLockMode !== 'button') {
-    errors.push({
-      field: 'finalLockMode',
-      message: `Unknown final-room lock mode "${String(p.finalLockMode)}". Use "button" or "key".`
+        'With "Lock final room" on, floors with fewer than 3 rooms leave almost nowhere to put the button that opens it.'
     })
   }
 

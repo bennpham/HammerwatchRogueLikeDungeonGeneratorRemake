@@ -256,8 +256,7 @@ reference/hammerwatch-tweak-stats.md
 | `minPassageWidth`–`maxPassageWidth` | 3–6 | **`maxPassageWidth` ≤ `minRoomSize`** or doors land outside rooms |
 | `edgePadding` / `roomPadding` | 2 / 2 | ≥ 0 |
 | `themes` | `a_mixed`…`g_mixed` | one per level; any id in `THEME_DEFS` — bases `a`–`i`, `bonus1`–`bonus5`, each base's overlay pairings (`c_tiles`) and its `_mixed` palette. Registry in `config/themes.ts`; see *Themes* below |
-| `lockFinalRoom` | `true` | the room carrying a gateway prefab (`gateway.kind !== 'exit'` — orb, boss portal or lobby portal) sits in a dead-end behind a gate. Under the default order that is one room on the last floor; a rearranged campaign can have several |
-| `finalLockMode` | `'button'` | how that gate opens. `'button'` = a destructible wall across the corridor plus a floor button hidden elsewhere on the floor, placed like a key (`map/buttonSeal.ts`) — no key exists, so one cannot be hoarded from an earlier floor or spent on the wrong door. `'key'` = the original gold door, with one gold key per gold door on that floor |
+| `lockFinalRoom` | `true` | the room carrying a gateway prefab (`gateway.kind !== 'exit'` — orb, boss portal or lobby portal) sits in a dead-end behind a destructible wall, with a floor button hidden elsewhere on the floor, placed like a key (`map/buttonSeal.ts`). No key exists, so one cannot be hoarded from an earlier floor or spent on the wrong door. Under the default order that is one room on the last floor; a rearranged campaign can have several. Off leaves the room open |
 | `shopChance` / `vaultChance` / `lockChance` / `keyChance` | 1.0 / 0.3 / 0.8 / 1.0 | 0–1 inclusive |
 | `monsterMultiplier` / `goldMultiplier` / `foodMultiplier` | 1.0 / 1.1 / 1.2 | ≥ 0 |
 | `levelMonsters[i]` | see defaults | non-empty; ids must exist in `MONSTER_TYPES`; repeat an id to weight it |
@@ -361,8 +360,8 @@ Plus two app settings that are *not* generator parameters:
    prefab when it is anything else (one room branch, one three-id contract —
    see *Campaign order*); then `Shop`, `Vault`, an extra locked room and its
    `Key` by chance. Everything left becomes a `Lair`. With `lockFinalRoom` on, the
-   orb room is gated last — by `buttonSeal.ts`'s wall-and-button rig by
-   default, or by `Room.lockRoom()`'s gold door under `finalLockMode: 'key'`.
+   orb room is gated last — always by `buttonSeal.ts`'s wall-and-button rig,
+   never by a door (`Room.lockRoom()` refuses an `Orb` room outright).
    The wall spans the corridor's whole cross-section plus one tile of wall band
    at each end — do not shorten it back to the walkable rows, the flat-anchored
    themes (`h`, every `bonus<n>`) overhang nothing and the player walks around a

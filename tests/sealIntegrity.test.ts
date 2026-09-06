@@ -20,24 +20,14 @@ import { orbReachableWithoutButton } from './sealProbe'
 const ONCE_LEAKED = [8, 12, 20, 21, 29, 31, 35, 37, 55, 59, 60]
 
 describe('the final room cannot be entered without opening its gate', () => {
-  for (const [theme, mode] of [
-    ['a', 'button'],
-    ['h', 'button'],
-    ['bonus1', 'button'],
-    // the gold door is the same gate off the same `passages[0]`, so it inherited
-    // the same blind spot — a room open on a second side is not gated by a door
-    // across its corridor either
-    ['a', 'key'],
-    ['h', 'key']
-  ] as const) {
-    it(`holds on theme ${theme} in ${mode} mode`, () => {
+  for (const theme of ['a', 'h', 'bonus1'] as const) {
+    it(`holds on theme ${theme}`, () => {
       const seeds = [...new Set([...Array.from({ length: 12 }, (_, i) => i + 1), ...ONCE_LEAKED])]
       let checked = 0
 
       for (const seed of seeds) {
         const params = plainParameters()
         params.themes = params.themes.map(() => theme)
-        params.finalLockMode = mode
         // The boss and the lobby cost most of a campaign's generation time and
         // draw from their own streams, so turning them off leaves every
         // `levels/level*.xml` byte-identical (CLAUDE.md invariant 6) while
@@ -58,7 +48,7 @@ describe('the final room cannot be entered without opening its gate', () => {
         checked++
         expect(
           probe.reachable,
-          `${theme}/${mode} seed ${seed}: orb reachable with the gate intact`
+          `${theme} seed ${seed}: orb reachable with the gate intact`
         ).toBe(false)
       }
 

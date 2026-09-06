@@ -60,7 +60,6 @@ Constraints enforced today (`src/generator/config/validation.ts`):
 | prep `startingGold` (`boss.fights.<i>.prep.startingGold`) / lobby `startingGold`: whole ≥ 0, multiple of 500, ≤ `GOLD_SAFETY_MAX` | one diamond per 500. The old 12000/42000 caps are **gone**; `GOLD_SAFETY_MAX` (5,000,000) only stops a typo emitting millions of item nodes |
 | lobby/prep `shopCategories` all real columns | see `ALL_LOBBY_CATEGORIES`. Prep-room field keys are scoped per fight: `boss.fights.<i>.prep.shopCategories` |
 | lobby/prep `upgrades[kind]` (prep: `boss.fights.<i>.prep.upgrades`): whole ≥ 0, ≤ `UPGRADE_COUNT_MAX` (10000) | free upgrade pickups; **not** a game limit, just the point past which the stack is too large to emit. 0 (the default for every kind) emits no item array |
-| `finalLockMode` ∈ `button` / `key` | anything else is rejected by name; absent means `button` |
 | enabled `levelTimers[i]`: `seconds` whole 1…`MAX_TIMER_SECONDS` (3600), `freqMs` whole `MIN_TIMER_FREQ_MS`…`MAX_TIMER_FREQ_MS` (50…600000), `damage` whole, `|damage| ≤ MAX_TIMER_DAMAGE` (10000) | negative damage is **legal** — it heals. A disabled floor timer is never checked |
 | every `levelBuffs[i][j]`: `buff` in `BUFF_DEFS`, `target` in `BUFF_TARGETS` | unknown ids are an error here; the rig itself skips them, so validation is the only gate |
 | every `waves[i].buffs[j]`: same two rules | the arena tiers, same registry |

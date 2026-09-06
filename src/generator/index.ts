@@ -10,7 +10,7 @@ import { buildFloorHazardRig } from './timer/hazard'
 import { buildFloorBuffRig } from './buffs/field'
 import { buildMusicRig } from './music/rig'
 
-export type { DungeonParameters, LobbyOptions, BossOptions, BossFight, BossArenaOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FinalLockMode, FloorBuff, BuffTarget, WavePickup, BossTrap, BossTrapDirection, BossCheckpointPreset } from './config/parameters'
+export type { DungeonParameters, LobbyOptions, BossOptions, BossFight, BossArenaOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FloorBuff, BuffTarget, WavePickup, BossTrap, BossTrapDirection, BossCheckpointPreset } from './config/parameters'
 export {
   THEMES,
   BOSS_IDS,
@@ -33,7 +33,6 @@ export {
   shippedOrder,
   bossFights,
   defaultFloorTimer,
-  FINAL_LOCK_MODES,
   defaultFloorBuffs,
   BUFF_TARGETS,
   BUFF_TARGET_TYPES,

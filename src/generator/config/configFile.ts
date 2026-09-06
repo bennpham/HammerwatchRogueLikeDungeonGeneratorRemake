@@ -85,7 +85,6 @@ export const PARAMETER_ORDER = [
   'lockChance',
   'keyChance',
   'lockFinalRoom',
-  'finalLockMode',
   'monster', // placeholder: expanded to monsters0...monstersN
   'buff', // placeholder: expanded to buffN for each floor that carries a buff
   'timer', // placeholder: expanded to timerN for each floor whose timer is on
@@ -570,8 +569,6 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   if (params.boss === undefined) params.boss = defaultParameters().boss
   if (params.lockFinalRoom === undefined)
     params.lockFinalRoom = defaultParameters().lockFinalRoom
-  if (params.finalLockMode === undefined)
-    params.finalLockMode = defaultParameters().finalLockMode
   if (params.lobbySaves === undefined) params.lobbySaves = defaultParameters().lobbySaves
   const result: ParsedConfig = { params, unknownKeys: [] }
   /** highest N seen in a `monstersN=` key, or -1 if the file declared no pools */
@@ -662,17 +659,6 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     }
     if (keyLower === 'lockfinalroom') {
       params.lockFinalRoom = value === '1'
-      continue
-    }
-    if (keyLower === 'finallockmode') {
-      // an unrecognized mode is reported like any other bad key rather than
-      // silently becoming one of the two real ones
-      const mode = value.trim().toLowerCase()
-      if (mode === 'key' || mode === 'button') {
-        params.finalLockMode = mode
-      } else {
-        result.unknownKeys.push(key)
-      }
       continue
     }
     if (keyLower === 'themes') {
@@ -1098,8 +1084,6 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
       lines.push(`keyChance=${params.keyChance.toFixed(6)}`)
     } else if (key === 'lockFinalRoom') {
       lines.push(`lockFinalRoom=${params.lockFinalRoom ? 1 : 0}`)
-    } else if (key === 'finalLockMode') {
-      lines.push(`finalLockMode=${params.finalLockMode}`)
     } else if (key === 'monster') {
       params.levelMonsters.forEach((pool, i) => {
         lines.push(`monsters${i}=${pool.join(',')}`)
