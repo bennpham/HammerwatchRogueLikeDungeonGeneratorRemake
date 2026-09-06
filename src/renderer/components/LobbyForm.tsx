@@ -125,11 +125,13 @@ export function LobbyForm({ params, issues, onChange }: LobbyFormProps) {
           step={1}
           onChange={setLobbyCount}
         />
-        <BoolField
-          label="Allow save game in lobbies"
-          checked={params.lobbySaves}
-          onChange={(lobbySaves) => onChange({ ...params, lobbySaves })}
-        />
+        <div style={{ marginTop: '4px' }}>
+          <BoolField
+            label="Allow save game in lobbies"
+            checked={params.lobbySaves}
+            onChange={(lobbySaves) => onChange({ ...params, lobbySaves })}
+          />
+        </div>
       </Section>
 
       {lobby !== undefined && (
