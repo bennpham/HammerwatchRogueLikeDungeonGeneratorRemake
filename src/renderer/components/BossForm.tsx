@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import {
   ARENA_PATTERN_LABELS,
+  BOSS_CHECKPOINT_PRESETS,
   BOSS_COVER_DENSITY_MAX,
   BOSS_COVER_PATTERNS,
   BOSS_DEF_LIST,
@@ -31,6 +32,7 @@ import {
 import type {
   ArenaPatternKind,
   BossArenaOptions,
+  BossCheckpointPreset,
   BossFight,
   BossFloorPattern,
   BossOptions,
@@ -591,6 +593,13 @@ function ArenaTab({ arena, fieldPrefix, issues, setArena, setWave }: ArenaTabPro
         })}
       </Section>
 
+      <Section title="Checkpoints / Save game" badge={checkpointBadge(arena.checkpoints)}>
+        <CheckpointsEditor
+          checkpoints={arena.checkpoints}
+          onChange={(checkpoints) => setArena({ checkpoints })}
+        />
+      </Section>
+
       <Section title="Cover">
         <ToggleGroup
           label="Pattern"
@@ -817,6 +826,68 @@ function InvulnerabilityEditor({ invuln, fieldPrefix, issues, onChange }: Invuln
             {issue.message}
           </p>
         ))}
+    </>
+  )
+}
+
+type Checkpoints = BossArenaOptions['checkpoints']
+
+const CHECKPOINT_PRESET_LABELS: Record<BossCheckpointPreset, string> = {
+  '75-50-25': '75%, 50%, 25%',
+  '75-50-25-dead': '75%, 50%, 25%, boss dead',
+  '50': '50% only'
+}
+
+/** Section-header summary: `off`, or the preset plus which flags are on. */
+function checkpointBadge(checkpoints: Checkpoints): string {
+  if (!checkpoints.respawnPlayers && !checkpoints.saveGame) return 'off'
+  const flags = [checkpoints.respawnPlayers && 'respawn', checkpoints.saveGame && 'save'].filter(Boolean)
+  return `${CHECKPOINT_PRESET_LABELS[checkpoints.thresholds]} · ${flags.join(' + ')}`
+}
+
+interface CheckpointsEditorProps {
+  checkpoints: Checkpoints
+  onChange: (checkpoints: Checkpoints) => void
+}
+
+/**
+ * Which boss health milestones set the party's respawn point, and whether
+ * doing so also pulls dead players back in and/or writes a save. Both
+ * checkboxes off emits nothing at all — no trigger, no Checkpoint node.
+ */
+function CheckpointsEditor({ checkpoints, onChange }: CheckpointsEditorProps) {
+  return (
+    <>
+      <p className="hint">
+        On each selected health milestone, the party's respawn point moves to the arena. Unchecking
+        both boxes below turns the feature off entirely — a long fight is otherwise expensive to redo
+        from the top after a wipe.
+      </p>
+      <label className="field">
+        <span className="field-label">Fire at</span>
+        <select
+          value={checkpoints.thresholds}
+          onChange={(e) => onChange({ ...checkpoints, thresholds: e.target.value as BossCheckpointPreset })}
+        >
+          {(Object.keys(BOSS_CHECKPOINT_PRESETS) as BossCheckpointPreset[]).map((id) => (
+            <option key={id} value={id}>
+              {CHECKPOINT_PRESET_LABELS[id]}
+            </option>
+          ))}
+        </select>
+      </label>
+      <BoolField
+        label="Respawn player"
+        checked={checkpoints.respawnPlayers}
+        onChange={(respawnPlayers) => onChange({ ...checkpoints, respawnPlayers })}
+        title="Also pull dead or lagging players back into the arena at each checkpoint"
+      />
+      <BoolField
+        label="Save game"
+        checked={checkpoints.saveGame}
+        onChange={(saveGame) => onChange({ ...checkpoints, saveGame })}
+        title="Write a save file at each checkpoint, not just move the respawn point"
+      />
     </>
   )
 }

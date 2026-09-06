@@ -25,6 +25,18 @@ function arenaOptions(overrides: Partial<BossArenaOptions> = {}): BossArenaOptio
 }
 
 /**
+ * Stock checkpoints emit their own RespawnPlayers/GlobalEventTrigger nodes
+ * (checkpoints.ts) — off here so tests about the *other* rigs that use those
+ * same node types (the one-shot arrival respawn, the invulnerability
+ * triggers) aren't counting the checkpoint rig's nodes too.
+ */
+const NO_CHECKPOINTS: BossArenaOptions['checkpoints'] = {
+  thresholds: '75-50-25',
+  respawnPlayers: false,
+  saveGame: false
+}
+
+/**
  * The stock arena with every monster back on the anchors mode — the shape the
  * waves had before the stock presets scattered them. Used by the tests about
  * the timer rig and about the scatter knobs being inert, both of which are
@@ -1450,14 +1462,14 @@ describe('boss arena — arrival respawn', () => {
   // permanent — the ToggleElement disables the trigger the first time it fires.
   for (const seed of [1, 4242, 987654]) {
     it(`seed ${seed}: revives whoever arrived dead, exactly once`, () => {
-      const { xml } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
+      const { xml } = buildBossArena(freshCtx(seed), arenaOptions({ checkpoints: NO_CHECKPOINTS }), 0)
       const rig = oneShotRespawn(xml)
       expect(rig, typeof rig === 'string' ? rig : '').not.toBeTypeOf('string')
     })
   }
 
   it('watches its own shape, not the one the wave rig fires from', () => {
-    const { xml } = buildBossArena(freshCtx(4242), arenaOptions(), 0)
+    const { xml } = buildBossArena(freshCtx(4242), arenaOptions({ checkpoints: NO_CHECKPOINTS }), 0)
     const rig = oneShotRespawn(xml)
     if (typeof rig === 'string') throw new Error(rig)
 
@@ -1502,7 +1514,7 @@ describe('boss arena — invulnerability windows', () => {
   })
 
   it('gives each threshold trigger real connection delays that end on the window', () => {
-    const { xml } = buildBossArena(freshCtx(4242), arenaOptions(), 0)
+    const { xml } = buildBossArena(freshCtx(4242), arenaOptions({ checkpoints: NO_CHECKPOINTS }), 0)
     // The wave tier and this rig listen on every threshold; the drop rig listens
     // only on the thresholds the stock table actually drops on (50% and 25%).
     const expected: Record<string, number> = { 'Boss 75%': 2, 'Boss 50%': 3, 'Boss 25%': 3 }
@@ -1553,6 +1565,46 @@ describe('boss arena — invulnerability windows', () => {
     const on = plainParameters()
     const off = plainParameters()
     off.boss.fights[0].arena.invulnerability = { ...off.boss.fights[0].arena.invulnerability, enabled: false }
+
+    for (const seed of [1, 4242]) {
+      const a = generateOk(on, seed)
+      const b = generateOk(off, seed)
+
+      // every emitted file but the arena is byte-identical
+      const others = (r: DungeonResult) => r.files.filter((f) => f.path !== 'levels/boss0.xml')
+      expect(others(a).some((f) => /^levels\/level\d+\.xml$/.test(f.path)), `seed ${seed}`).toBe(true)
+      expect(others(b), `seed ${seed}`).toEqual(others(a))
+      expect(b.levels, `seed ${seed}`).toEqual(a.levels)
+
+      const arena = (r: DungeonResult) => r.files.find((f) => f.path === 'levels/boss0.xml')!.content
+      expect(arena(b), `seed ${seed}`).not.toBe(arena(a))
+    }
+  }, 60_000)
+})
+
+describe('boss arena — checkpoints', () => {
+  it('turning it off removes every node of the rig and nothing else', () => {
+    const on = buildBossArena(freshCtx(4242), arenaOptions(), 0).xml
+    const off = buildBossArena(
+      freshCtx(4242),
+      arenaOptions({ checkpoints: NO_CHECKPOINTS }),
+      0
+    ).xml
+
+    expect(nodesOfType(off, 'Checkpoint')).toHaveLength(0)
+    // the rig is the very last thing built, so everything before it —
+    // tilemap, doodads, actors, items, every other rig's nodes — is untouched
+    expect(off.slice(0, off.indexOf('<dictionary name="scripting">'))).toBe(
+      on.slice(0, on.indexOf('<dictionary name="scripting">'))
+    )
+    expect(badIntArray(on)).toBeNull()
+  })
+
+  it('moves no dungeon floor when it is switched on or off (invariant 6)', () => {
+    // It draws no random values from any stream, so only boss.xml may differ.
+    const on = plainParameters()
+    const off = plainParameters()
+    off.boss.fights[0].arena.checkpoints = NO_CHECKPOINTS
 
     for (const seed of [1, 4242]) {
       const a = generateOk(on, seed)

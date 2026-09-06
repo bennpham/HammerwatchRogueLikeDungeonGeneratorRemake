@@ -435,6 +435,23 @@ export interface BossArenaOptions {
     /** announce a ticking M:SS countdown for the length of each window */
     countdown: boolean
   }
+  /**
+   * Checkpoints: on a boss health milestone, move the party's respawn point
+   * and optionally save the game and/or pull downed players back in.
+   *
+   * Independent of `invulnerability` and `waves` — it listens to the same
+   * `Boss 75%`/`Boss 50%`/`Boss 25%`/`Boss Died` events but wires its own
+   * dedicated triggers, so turning it on or off never touches another rig's
+   * `connections`. Both `respawnPlayers` and `saveGame` off emits nothing at
+   * all for the chosen thresholds — no trigger, no Checkpoint node.
+   */
+  checkpoints: {
+    thresholds: BossCheckpointPreset
+    /** also pull dead/lagging players back into the arena at each checkpoint */
+    respawnPlayers: boolean
+    /** the Checkpoint node's bare bool: true writes a save, false only moves the spawn point */
+    saveGame: boolean
+  }
   /** scales each wave tier's monsterMax (except -1/endless, which stays endless) */
   monsterMultiplier: number
   /** scales the sparse health/mana pickup clusters scattered around the arena */
@@ -751,6 +768,13 @@ export function defaultBossFight(): BossFight {
         seconds: BOSS_INVULN_THRESHOLDS.map(() => DEFAULT_BOSS_INVULN_SECONDS),
         countdown: true
       },
+      // 75/50/25, both respawn-players and save-game on: a fight this long is
+      // costly to redo from the top after a wipe.
+      checkpoints: {
+        thresholds: '75-50-25',
+        respawnPlayers: true,
+        saveGame: true
+      },
       monsterMultiplier: 1.0,
       foodMultiplier: 1.2
     }
@@ -802,6 +826,19 @@ export const DEFAULT_BOSS_INVULN_SECONDS = 30
  * validation warns well below the cap.
  */
 export const MAX_BOSS_INVULN_SECONDS = 300
+
+/**
+ * Checkpoint threshold presets, as the engine event names each fires.
+ * `parameters.txt` stores the preset id directly, so these ids are also the
+ * on-disk vocabulary — never rename one without a configFile.ts migration.
+ */
+export const BOSS_CHECKPOINT_PRESETS = {
+  '75-50-25': ['Boss 75%', 'Boss 50%', 'Boss 25%'],
+  '75-50-25-dead': ['Boss 75%', 'Boss 50%', 'Boss 25%', 'Boss Died'],
+  '50': ['Boss 50%']
+} as const satisfies Record<string, readonly string[]>
+
+export type BossCheckpointPreset = keyof typeof BOSS_CHECKPOINT_PRESETS
 
 /**
  * Index of the boss-death tier — the last one. It is keyed to the engine's

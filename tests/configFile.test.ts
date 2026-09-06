@@ -583,6 +583,69 @@ describe('parameters.txt — boss invulnerability', () => {
   })
 })
 
+describe('parameters.txt — boss checkpoints', () => {
+  it('round-trips the stock defaults', () => {
+    const text = serializeParametersTxt(defaultParameters())
+    expect(text).toContain('boss0Checkpoints=75-50-25,1,1')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.params.boss.fights[0].arena.checkpoints).toEqual({
+      thresholds: '75-50-25',
+      respawnPlayers: true,
+      saveGame: true
+    })
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('reads every preset and both flags', () => {
+    const parsed = parseParametersTxt('boss0Checkpoints=75-50-25-dead,0,1')
+    expect(parsed.params.boss.fights[0].arena.checkpoints).toEqual({
+      thresholds: '75-50-25-dead',
+      respawnPlayers: false,
+      saveGame: true
+    })
+  })
+
+  it('reports an unknown preset and keeps the default', () => {
+    const parsed = parseParametersTxt('boss0Checkpoints=nope,1,1')
+    expect(parsed.params.boss.fights[0].arena.checkpoints.thresholds).toBe('75-50-25')
+    expect(parsed.unknownKeys).toEqual(['boss0Checkpoints value "nope"'])
+  })
+
+  it('reports a malformed flag segment and keeps that flag at its default', () => {
+    const parsed = parseParametersTxt('boss0Checkpoints=50,x,1')
+    expect(parsed.params.boss.fights[0].arena.checkpoints).toEqual({
+      thresholds: '50',
+      respawnPlayers: true, // default kept — "x" is not a valid 0/1
+      saveGame: true
+    })
+    expect(parsed.unknownKeys).toEqual(['boss0Checkpoints value "x"'])
+  })
+
+  it('handles a second fight independently', () => {
+    const parsed = parseParametersTxt('bossFights=2\nboss1Checkpoints=50,0,0')
+    expect(parsed.params.boss.fights[0].arena.checkpoints).toEqual({
+      thresholds: '75-50-25',
+      respawnPlayers: true,
+      saveGame: true
+    })
+    expect(parsed.params.boss.fights[1].arena.checkpoints).toEqual({
+      thresholds: '50',
+      respawnPlayers: false,
+      saveGame: false
+    })
+  })
+
+  it('leaves a legacy file with no checkpoint key on the stock defaults', () => {
+    const parsed = parseParametersTxt('boss=1\nbossGold=500')
+    expect(parsed.params.boss.fights[0].arena.checkpoints).toEqual({
+      thresholds: '75-50-25',
+      respawnPlayers: true,
+      saveGame: true
+    })
+  })
+})
+
 describe('bossWavePickupN — per-tier item drops', () => {
   it('writes no wave-pickup line at all while no tier drops anything', () => {
     // The stock defaults drop on three tiers, so this has to strip them first —

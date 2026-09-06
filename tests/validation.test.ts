@@ -1040,6 +1040,39 @@ describe('boss invulnerability validation', () => {
   })
 })
 
+describe('boss checkpoints validation', () => {
+  const withCheckpoints = (
+    patch: Partial<ReturnType<typeof defaultParameters>['boss']['fights'][number]['arena']['checkpoints']>
+  ) => {
+    const p = defaultParameters()
+    const fight = p.boss.fights[0]
+    const arena = fight.arena
+    p.boss = {
+      ...p.boss,
+      fights: [{ ...fight, arena: { ...arena, checkpoints: { ...arena.checkpoints, ...patch } } }]
+    }
+    return validateParameters(p)
+  }
+
+  it('accepts the stock 75/50/25 preset without comment', () => {
+    const result = withCheckpoints({})
+    expect(result.errors).toEqual([])
+    expect(fieldsOf(result.warnings).filter((f) => f.startsWith('boss.fights.0.arena.checkpoints'))).toEqual([])
+  })
+
+  it('rejects an unknown preset id — only reachable via a hand-edited file', () => {
+    const result = withCheckpoints({ thresholds: 'nope' as never })
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.checkpoints.thresholds')
+    expect(result.valid).toBe(false)
+  })
+
+  it('accepts both flags off — the feature simply emits nothing', () => {
+    const result = withCheckpoints({ respawnPlayers: false, saveGame: false })
+    expect(result.errors).toEqual([])
+    expect(result.valid).toBe(true)
+  })
+})
+
 describe('multiple boss fights (issue #43)', () => {
   const withFights = (count: number) => {
     const p = plainParameters()

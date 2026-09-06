@@ -1,4 +1,5 @@
 import {
+  BOSS_CHECKPOINT_PRESETS,
   BOSS_COVER_DENSITY_MAX,
   BOSS_COVER_PATTERNS,
   BOSS_DEATH_WAVE,
@@ -912,6 +913,16 @@ function validateBossFight(
         })
       }
     }
+  }
+
+  // an unknown preset id is only reachable via a hand-edited parameters.txt —
+  // the form only ever writes a known one — but a bad import should not silently
+  // fall back to a default without the user seeing why
+  if (!(arena.checkpoints.thresholds in BOSS_CHECKPOINT_PRESETS)) {
+    errors.push({
+      field: af('checkpoints.thresholds'),
+      message: `Unknown checkpoint preset "${arena.checkpoints.thresholds}".`
+    })
   }
 
   if (!boss.enabled || errors.length > before) return

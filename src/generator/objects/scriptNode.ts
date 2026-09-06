@@ -21,6 +21,7 @@ export type NodeTypeName =
   | 'PlaySound'
   | 'ChangeDoodadState'
   | 'ProjectileSpewer'
+  | 'Checkpoint'
 
 /**
  * Base scripting node (ported from ScriptNode.java). Most subclasses override
