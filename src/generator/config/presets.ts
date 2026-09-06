@@ -1,6 +1,7 @@
 import {
   bossDeathBuffs,
   defaultFloorBuffs,
+  defaultFloorTraps,
   defaultFloorTimer,
   defaultParameters,
   shippedOrder,
@@ -262,6 +263,7 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
       ...defaultParameters(),
       levels: 6,
       levelBuffs: Array.from({ length: 6 }, () => defaultFloorBuffs()),
+      levelTraps: Array.from({ length: 6 }, () => defaultFloorTraps()),
       levelTimers: escapeTimers(6),
       // the sixth is the escape floor, played after the boss — see levelOrder
       themes: ['h', 'h', 'i', 'i_symbols', 'i_mixed', 'i_mixed'],
@@ -348,6 +350,7 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
       ...defaultParameters(),
       levels: 6,
       levelBuffs: Array.from({ length: 6 }, () => defaultFloorBuffs()),
+      levelTraps: Array.from({ length: 6 }, () => defaultFloorTraps()),
       levelTimers: escapeTimers(6),
       // bonus5 twice: the escape floor after the boss stays on the last tileset
       themes: ['bonus1', 'bonus2', 'bonus3', 'bonus4', 'bonus5', 'bonus5'],

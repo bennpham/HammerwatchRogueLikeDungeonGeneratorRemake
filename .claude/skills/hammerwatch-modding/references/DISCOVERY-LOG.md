@@ -8,6 +8,49 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-06 — `ProjectileSpewer` on ordinary dungeon floors
+**Tag:** **[EMITTED]** — nothing here has been played yet. The node contract it
+rests on is `[VERIFIED]` (2026-09-02, from the boss arena); what is unverified
+is the *room wall* as a mounting place.
+**Context:** Extending traps from the boss arena to regular dungeon floors
+(`src/generator/traps/floor.ts`, `params.levelTraps`).
+**What we now emit:**
+1. `ProjectileSpewer` nodes in `levels/level*.xml`, not just `levels/boss*.xml`.
+   They ship `enabled: True` with **no trigger of any kind** — a floor has no
+   health tiers, so unlike every arena tier past the first there is nothing to
+   switch them on. Closest shipped precedent is the always-on `DangerArea` in
+   `buffs/field.ts`.
+2. Mounted on **room** walls. A room's interior is `[r.x, r.x + r.width] x
+   [r.y, r.y + r.height]` (`Room.contains` is inclusive) and its wall band the
+   ring outside that, so the four wall lines are `r.y + r.height` (`up`),
+   `r.y + overhangRows(theme)` (`down`), `r.x + r.width` (`left`) and `r.x`
+   (`right`). Tile centre (`+0.5`) on both axes, as the arena requires.
+
+**One correction worth recording, because it is not obvious and it silently
+produced nothing:** the passage-mouth test has to look at the room's own band
+ring, **not** at one tile step outward from the spewer. On a lettered theme a
+`down` spewer stands two tiles clear of its band (the art overhang), so the tile
+directly north of it is ordinary room floor and never wall. Testing that tile
+for "is this a doorway" rejected every `down` slot on every lettered theme, and
+the failure mode was zero traps rather than an error. The rule is: the band line
+(`r.y - 1` for `down`) must be wall, and every tile from the room edge in to the
+slot must be that room's floor.
+
+**Open questions a playtest must answer** before any of this is promoted:
+- Does the tile-centre + overhang rule hold on a *room* wall as it did on an
+  arena wall? The arena's walls are its map edge; a room's band is interior
+  geometry with corridors running past it.
+- Does a spewer two tiles from a passage mouth still shoot down the corridor,
+  or does the widened `TRAP_WALL_MARGIN` clearance make that impossible in
+  practice?
+- Is a projectile crossing a room stopped by the far wall band, or does it pass
+  through the two overhang rows and disappear under the art?
+
+**Unchanged and still `[VERIFIED]`:** the direction enum (0 up, 1 down, 2 left,
+3 right), `spread` 0..2, `spawn-rate` in ms with no engine floor, the inverted
+`ToggleElement` polarity, and the 45-entry projectile roster with the 22
+zero-damage assets and `sorcerer_ice_orb` cut.
+
 ### 2026-09-05 — the `PlayMusic` script node, and the two shipped music soundbanks
 **Tag:** [VERIFIED] the node shape and both soundbanks (read from the game
 install's `assetsExtract/sound/` and confirmed against stock campaign level

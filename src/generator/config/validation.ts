@@ -29,7 +29,7 @@ import {
   TRAP_SPREAD_MAX
 } from './parameters'
 import { MUSIC_DEFAULT, MUSIC_TRACKS, isKnownMusicId } from '../music/tracks'
-import type { BossTrapDirection } from './parameters'
+import type { BossTrapDirection, TrapDirection } from './parameters'
 import type { BossFight, BossOptions } from './parameters'
 import type { CampaignSlot } from '../campaign'
 import { getTheme } from './themes'
@@ -52,6 +52,7 @@ import { DIAMOND_VALUE, MAX_DIAMOND_COUNT, UPGRADE_KINDS } from '../levelTemplat
 import type { UpgradeCounts } from '../levelTemplate/surgery'
 import { ARENA_MIN_HEIGHT, ARENA_MIN_WIDTH, freeFloorArea } from '../boss/geometry'
 import { wallCapacity } from '../boss/traps'
+import { floorTrapCapacity } from '../traps/floor'
 import { scaledMax } from '../boss/waves'
 import { TWEAK_BASELINE } from '../tweak/baseline'
 import { SHOP_PRICE_MAX } from '../tweak/bulk'
@@ -261,6 +262,7 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
 
   validatePlayerTweaks(p, errors, warnings)
   validateLevelBuffs(p, errors, warnings)
+  validateLevelTraps(p, errors, warnings)
   validateLevelTimers(p, errors, warnings)
   validateFloorMusic(p, errors, warnings)
   validateLobbies(p, errors, warnings)
@@ -1691,4 +1693,109 @@ function validateLevelBuffs(p: DungeonParameters, errors: ValidationIssue[], war
       message: 'Buff auras only apply to generated dungeon floors — with 0 floors none of them run.'
     })
   }
+}
+
+/**
+ * The per-floor wall traps. Same five rules as a boss tier's — the two lists
+ * carry the same five fields — but phrased per floor, and with a capacity
+ * warning measured against rooms rather than an arena.
+ */
+function validateLevelTraps(p: DungeonParameters, errors: ValidationIssue[], warnings: ValidationIssue[]): void {
+  const levelTraps = p.levelTraps
+  if (levelTraps === undefined) return
+
+  const before = errors.length
+
+  levelTraps.slice(0, p.levels).forEach((rows, i) => {
+    rows.forEach((row, j) => {
+      if (projectileById(row.projectile) === undefined) {
+        errors.push({
+          field: `levelTraps.${i}.${j}.projectile`,
+          message: `Floor ${i + 1}: "${row.projectile}" is not a projectile the game ships.`
+        })
+      }
+      if (!BOSS_TRAP_DIRECTIONS.includes(row.direction)) {
+        errors.push({
+          field: `levelTraps.${i}.${j}.direction`,
+          message: `Floor ${i + 1}: "${row.direction}" is not a firing direction — use ${BOSS_TRAP_DIRECTIONS.join(', ')}.`
+        })
+      }
+      // Decimal on purpose: the reference axe rig fires at 0.5. The engine
+      // clamps outside 0..2 with no warning, so the bound is ours to enforce.
+      if (!Number.isFinite(row.spread) || row.spread < 0 || row.spread > TRAP_SPREAD_MAX) {
+        errors.push({
+          field: `levelTraps.${i}.${j}.spread`,
+          message: `Floor ${i + 1}: the "${row.projectile}" trap fans at ${row.spread} — spread must be between 0 and ${TRAP_SPREAD_MAX}.`
+        })
+      }
+      if (!Number.isInteger(row.spawnRateMs) || row.spawnRateMs < 1) {
+        errors.push({
+          field: `levelTraps.${i}.${j}.spawnRateMs`,
+          message: `Floor ${i + 1}: the "${row.projectile}" trap fires every ${row.spawnRateMs} ms — the rate must be a whole number of milliseconds, at least 1.`
+        })
+      }
+      // Every spewer is its own node on its own tile — see traps/floor.ts.
+      if (!Number.isInteger(row.count) || row.count < 1 || row.count > MAX_TRAP_COUNT) {
+        errors.push({
+          field: `levelTraps.${i}.${j}.count`,
+          message: `Floor ${i + 1} places ${row.count} × "${row.projectile}" — the count must be a whole number 1..${MAX_TRAP_COUNT}.`
+        })
+      }
+    })
+  })
+
+  if (errors.length > before) return
+
+  const inRange = levelTraps.slice(0, p.levels)
+  if (inRange.every((rows) => rows.length === 0)) return
+
+  if (levelTraps.length > p.levels) {
+    warnings.push({
+      field: 'levelTraps',
+      message: `Traps for ${levelTraps.length} floors but only ${p.levels} floor(s) — the extra entries are ignored.`
+    })
+  }
+
+  if (p.levels === 0) {
+    warnings.push({
+      field: 'levelTraps',
+      message: 'Wall traps only apply to generated dungeon floors — with 0 floors none of them run.'
+    })
+  }
+
+  inRange.forEach((rows, i) => {
+    // A warning, not an error: the engine imposes no bound and a very fast lane
+    // is a legitimate thing to build deliberately. It is worth saying out loud
+    // because nothing else will.
+    rows.forEach((row, j) => {
+      if (Number.isInteger(row.spawnRateMs) && row.spawnRateMs < TRAP_FAST_SPAWN_RATE_MS) {
+        warnings.push({
+          field: `levelTraps.${i}.${j}.spawnRateMs`,
+          message: `Floor ${i + 1}: the "${row.projectile}" trap fires every ${row.spawnRateMs} ms. Below ${TRAP_FAST_SPAWN_RATE_MS} ms the floor fills with projectiles faster than the party can cross it, and the framerate suffers.`
+        })
+      }
+    })
+
+    // Capacity is per direction, because each has its own slot pool. The
+    // estimate assumes the smallest floor this parameter set can roll and an
+    // empty one at that — doorways, prefabs and the skipped rooms only reduce
+    // it — so overshooting means "some of these will be skipped", not "this is
+    // invalid". traps/floor.ts stops placing gracefully either way.
+    const wanted = new Map<TrapDirection, number>()
+    for (const row of rows) {
+      if (!BOSS_TRAP_DIRECTIONS.includes(row.direction)) continue
+      wanted.set(row.direction, (wanted.get(row.direction) ?? 0) + row.count)
+    }
+    for (const direction of BOSS_TRAP_DIRECTIONS) {
+      const total = wanted.get(direction) ?? 0
+      if (total === 0) continue
+      const capacity = floorTrapCapacity(p, direction)
+      if (total > capacity) {
+        warnings.push({
+          field: `levelTraps.${i}`,
+          message: `Floor ${i + 1} asks for ${total} trap(s) firing ${direction}, but its smallest rooms hold about ${capacity} — the extra ones will be skipped.`
+        })
+      }
+    }
+  })
 }

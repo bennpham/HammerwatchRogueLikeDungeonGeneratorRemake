@@ -30,12 +30,14 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    All I/O lives in `src/main/**`.
 2. **Determinism.** Same params + same seed ⇒ byte-identical output. Never
    introduce `Math.random()`, `Date.now()`, or `Object` iteration order
-   dependence into the generator. Three streams, never mixed: layout randomness
+   dependence into the generator. Four streams, never mixed: layout randomness
    draws from `ctx.rand`, cosmetic (floor tiles, overlay and mixed palettes)
-   from `ctx.cosmeticRand`, and everything in the boss arena from
-   `ctx.bossRand`. Mixing them shifts the streams after and every existing seed
-   changes. A path with nothing to draw must return *before* touching a
-   stream.
+   from `ctx.cosmeticRand`, everything in the boss arena from `ctx.bossRand`,
+   and the per-floor wall traps from `ctx.trapRand` (`seed + 3`) — one `iRand`
+   per placed spewer, in numeric floor order, and only after the retry loop has
+   *accepted* a floor, so a discarded candidate never draws. Mixing them shifts
+   the streams after and every existing seed changes. A path with nothing to
+   draw must return *before* touching a stream.
 3. **No unbounded loops.** Every retry loop in the port is bounded
    (`MAX_LEVEL_ATTEMPTS = 60`, 1000/2000-attempt inner loops). The original
    retried forever; that is a bug we fixed, not a behaviour to restore.
@@ -48,7 +50,13 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    `src/generator/tweak/**` and `lobby/**` draw **no** random values and run
    after every level is built; `boss/**` draws only from `ctx.bossRand` — once
    per boss fight, in list order, so adding a second fight cannot move the
-   first. Adding, removing or reordering lobbies must leave every
+   first; `traps/**` draws only from `ctx.trapRand`, once per placed spewer,
+   after a floor has been built AND validated, so arming a floor's traps leaves
+   every floor's rooms, walls, doodads, actors, items and pre-existing ids
+   byte-identical — the one thing it moves is a *later* floor's own trap
+   positions. That is only safe because a script node carries no collision: a
+   trap cannot seal a route, so a floor `map/reachability.ts` has already
+   accepted stays finishable however it is trapped. Adding, removing or reordering lobbies must leave every
    `levels/level*.xml` byte-identical — only which extra files exist, and which
    level a floor's gateway names, may change; clearing every tweak emits no
    `tweak/` folder at all. The one thing that *does* move a floor is the KIND

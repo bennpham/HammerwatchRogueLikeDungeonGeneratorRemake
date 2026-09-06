@@ -23,6 +23,7 @@ export function plainParameters(): DungeonParameters {
   params.themes = params.themes.slice(0, floors)
   params.levelMonsters = params.levelMonsters.slice(0, floors)
   params.levelBuffs = params.levelBuffs?.slice(0, floors)
+  params.levelTraps = params.levelTraps?.slice(0, floors)
   params.levelTimers = params.levelTimers?.slice(0, floors)
   params.lobbies = []
   delete params.levelOrder

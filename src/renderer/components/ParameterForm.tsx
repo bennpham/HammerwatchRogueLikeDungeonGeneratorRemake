@@ -7,6 +7,7 @@ import { MonsterPoolsEditor } from './MonsterPoolsEditor'
 import { MonsterMaxTable } from './MonsterMaxTable'
 import { FloorTimerEditor } from './FloorTimerEditor'
 import { FloorBuffEditor } from './FloorBuffEditor'
+import { FloorTrapEditor } from './FloorTrapEditor'
 
 /** Themes bucketed by their registry group, in registry order. */
 const THEME_GROUPS = THEME_DEFS.reduce<[string, (typeof THEME_DEFS)[number][]][]>((groups, def) => {
@@ -43,6 +44,11 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
       while (levelBuffs.length < levels)
         levelBuffs.push((levelBuffs[levelBuffs.length - 1] ?? []).map((b) => ({ ...b })))
       next.levelBuffs = levelBuffs.slice(0, Math.max(levels, 1))
+
+      const levelTraps = (params.levelTraps ?? []).map((list) => list.map((t) => ({ ...t })))
+      while (levelTraps.length < levels)
+        levelTraps.push((levelTraps[levelTraps.length - 1] ?? []).map((t) => ({ ...t })))
+      next.levelTraps = levelTraps.slice(0, Math.max(levels, 1))
 
       const timers = (params.levelTimers ?? []).map((t) => ({ ...t }))
       while (timers.length < levels) timers.push({ ...(timers[timers.length - 1] ?? defaultFloorTimer()) })
@@ -202,6 +208,9 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
 
       <Section title="Buffs per floor" badge={(params.levelBuffs ?? []).slice(0, params.levels).some((b) => b.length > 0) ? 'on' : undefined}>
         <FloorBuffEditor params={params} issues={issues} onChange={onChange} />
+      </Section>
+      <Section title="Traps per floor" badge={(params.levelTraps ?? []).slice(0, params.levels).some((t) => t.length > 0) ? 'on' : undefined}>
+        <FloorTrapEditor params={params} issues={issues} onChange={onChange} />
       </Section>
 
       <Section title="Timer mode" badge={(params.levelTimers ?? []).slice(0, params.levels).some((t) => t.enabled) ? 'on' : undefined}>

@@ -33,6 +33,23 @@ export class GenerationContext {
    * dungeon the moment the boss feature is enabled.
    */
   readonly bossRand: Rand
+  /**
+   * drives the optional per-floor traps (`traps/floor.ts`). A fourth stream,
+   * for the same reason `bossRand` is a third: floor traps are placed onto a
+   * finished floor and must not move it. Drawing them from `rand` would work —
+   * the rig runs after every layout draw — but only until the NEXT floor,
+   * whose whole layout would shift the moment any earlier floor were trapped.
+   * A stream of its own makes the feature purely additive: arming traps
+   * anywhere leaves every floor's rooms, walls, doodads, actors, items and
+   * pre-existing ids byte-identical, on every existing seed.
+   *
+   * That is only safe because a trap is a script node, which carries no
+   * collision: it cannot seal a route, so a floor `map/reachability.ts` has
+   * already accepted stays valid however it is trapped. The one thing this
+   * stream does carry between floors is its own draws — arming floor 0 moves
+   * floor 1's TRAP POSITIONS, and nothing else about floor 1.
+   */
+  readonly trapRand: Rand
 
   currentLevel = 0
   idCounter = 0
@@ -75,6 +92,7 @@ export class GenerationContext {
     this.rand = new Rand(seed)
     this.cosmeticRand = new Rand(seed + 1)
     this.bossRand = new Rand(seed + 2)
+    this.trapRand = new Rand(seed + 3)
   }
 
   /** Equivalent of the Clear() calls between levels in HammerwatchGen.main */

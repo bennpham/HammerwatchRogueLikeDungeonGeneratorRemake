@@ -9,8 +9,9 @@ import { bossArenaId, bossArenaPath, campaignOrder, gatewayAfter, lobbyId, lobby
 import { buildFloorHazardRig } from './timer/hazard'
 import { buildFloorBuffRig } from './buffs/field'
 import { buildMusicRig } from './music/rig'
+import { buildFloorTrapRig } from './traps/floor'
 
-export type { DungeonParameters, LobbyOptions, BossOptions, BossFight, BossArenaOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FloorBuff, BuffTarget, WavePickup, BossTrap, BossTrapDirection, BossCheckpointPreset } from './config/parameters'
+export type { DungeonParameters, LobbyOptions, BossOptions, BossFight, BossArenaOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FloorBuff, FloorTrap, TrapDirection, BuffTarget, WavePickup, BossTrap, BossTrapDirection, BossCheckpointPreset } from './config/parameters'
 export {
   THEMES,
   BOSS_IDS,
@@ -34,6 +35,7 @@ export {
   bossFights,
   defaultFloorTimer,
   defaultFloorBuffs,
+  defaultFloorTraps,
   BUFF_TARGETS,
   BUFF_TARGET_TYPES,
   BUFF_REFRESH_MS,
@@ -56,6 +58,7 @@ export type { BuffDef } from './objects/buffTypes'
 export { PICKUP_DEFS, PICKUP_GROUPS, MAX_PICKUP_COUNT, pickupById } from './objects/pickupTypes'
 export type { ProjectileDef } from './objects/projectileTypes'
 export { PROJECTILE_DEFS, PROJECTILE_GROUPS, projectileById } from './objects/projectileTypes'
+export { floorTrapCapacity } from './traps/floor'
 export { MUSIC_TRACKS, MUSIC_DEFAULT, musicSound, isKnownMusicId } from './music/tracks'
 export type { MusicTrack } from './music/tracks'
 export type { PickupDef, PickupLane } from './objects/pickupTypes'
@@ -354,16 +357,24 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
       }
     }
 
-    // The three optional per-floor rigs, in the order the form lists them. All
+    // The four optional per-floor rigs, in the order the form lists them. All
     // are built AFTER the floor is complete, so every dungeon id is already
     // allocated and they can only append — a seed's walls, rooms, doodads,
-    // actors and items are identical whether any is on. None draws a random
-    // value (buffs/field.ts, timer/hazard.ts, music/rig.ts), and each emits
-    // nothing at all when its floor is unconfigured, so turning one on never
-    // moves another's ids.
+    // actors and items are identical whether any is on. Each emits nothing at
+    // all when its floor is unconfigured, so turning one on never moves
+    // another's ids. Three of them draw no random value at all
+    // (buffs/field.ts, timer/hazard.ts, music/rig.ts); traps/floor.ts draws,
+    // but only from ctx.trapRand, which no floor's layout has ever read.
     buildFloorBuffRig(ctx, params.levelBuffs?.[i], params.mapWidth, params.mapHeight)
     buildFloorHazardRig(ctx, params.levelTimers?.[i], params.mapWidth, params.mapHeight)
     buildMusicRig(ctx, params.floorMusic?.[i])
+    // Traps are the fourth, and the only one that DRAWS — one ctx.trapRand
+    // iRand per placed spewer. Last of the four so arming them cannot move a
+    // buff, timer or music node's id, and here rather than inside `new Level()`
+    // because the retry loop above discards candidates and nothing can rewind a
+    // Rand: drawing in the constructor would tie a floor's trap positions to
+    // how many times reachability happened to reject it. See traps/floor.ts.
+    buildFloorTrapRig(ctx, params.levelTraps?.[i], level)
 
     files.push({ path: `levels/level${i}.xml`, content: level.getXML() })
     floorPreviews.set(i, buildPreview(ctx, level))

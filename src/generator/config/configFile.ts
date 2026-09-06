@@ -10,6 +10,7 @@ import {
   DEFAULT_WAVE_MONSTER_MAX,
   DungeonParameters,
   defaultFloorBuffs,
+  defaultFloorTraps,
   defaultBossFight,
   defaultFloorTimer,
   defaultLobby,
@@ -87,6 +88,7 @@ export const PARAMETER_ORDER = [
   'lockFinalRoom',
   'monster', // placeholder: expanded to monsters0...monstersN
   'buff', // placeholder: expanded to buffN for each floor that carries a buff
+  'trap', // placeholder: expanded to trapN for each floor that runs wall traps
   'timer', // placeholder: expanded to timerN for each floor whose timer is on
   'music', // placeholder: expanded to musicN for each floor with a track set
   'monsterMax', // placeholder: expanded per MONSTER_TYPES order
@@ -171,6 +173,60 @@ function newBossFightParseState(): BossFightParseState {
  * like any other key this parser no longer recognizes (invariant #5: never
  * fatal). There is no alias to a lobby index; the break is deliberately loud.
  */
+/**
+ * Parses a `<projectile>:<direction>:<spread>:<rate>:<count>|…` value into trap
+ * rows. Shared verbatim by the arena's `boss<f>WaveTrapN` and the floor's
+ * `trapN`, which carry the same five fields in the same grammar — the two must
+ * not be allowed to drift on what a hand-written line means.
+ *
+ * Everything after the projectile id is optional and falls back to a sane
+ * default: a bare projectile is one linear spewer firing north every second.
+ * A malformed segment is reported through `unknownKeys` and skipped, never
+ * thrown on (invariant #5); the rest of the line still parses.
+ */
+function parseTrapRows(key: string, value: string, unknownKeys: string[]): BossTrap[] {
+  const rows: BossTrap[] = []
+
+  for (const segment of value.split('|')) {
+    const trimmed = segment.trim()
+    if (trimmed === '') continue
+    const parts = trimmed.split(':').map((p) => p.trim())
+    const id = parts[0] ?? ''
+
+    if (projectileById(id) === undefined) {
+      unknownKeys.push(`${key} projectile "${id}"`)
+      continue
+    }
+
+    const directionText = (parts[1] ?? 'up').toLowerCase()
+    if (!(BOSS_TRAP_DIRECTIONS as readonly string[]).includes(directionText)) {
+      unknownKeys.push(`${key} direction "${parts[1]}"`)
+      continue
+    }
+    const direction = directionText as BossTrapDirection
+
+    const spread = parts[2] === undefined || parts[2] === '' ? 0 : parseFloat(parts[2])
+    if (Number.isNaN(spread)) {
+      unknownKeys.push(`${key} spread "${parts[2]}"`)
+      continue
+    }
+    const spawnRateMs = parts[3] === undefined || parts[3] === '' ? 1000 : parseInt(parts[3], 10)
+    if (Number.isNaN(spawnRateMs)) {
+      unknownKeys.push(`${key} rate "${parts[3]}"`)
+      continue
+    }
+    const count = parts[4] === undefined || parts[4] === '' ? 1 : parseInt(parts[4], 10)
+    if (Number.isNaN(count)) {
+      unknownKeys.push(`${key} count "${parts[4]}"`)
+      continue
+    }
+
+    rows.push({ projectile: id, direction, spread, spawnRateMs, count })
+  }
+
+  return rows
+}
+
 function parseBossFightKey(
   suffix: string,
   key: string,
@@ -385,50 +441,7 @@ function parseBossFightKey(
       unknownKeys.push(key)
       return true
     }
-    const rows: BossTrap[] = []
-
-    for (const segment of value.split('|')) {
-      const trimmed = segment.trim()
-      if (trimmed === '') continue
-      const parts = trimmed.split(':').map((p) => p.trim())
-      const id = parts[0] ?? ''
-
-      if (projectileById(id) === undefined) {
-        unknownKeys.push(`${key} projectile "${id}"`)
-        continue
-      }
-
-      // Everything after the id is optional and falls back to a sane default —
-      // the friendliest reading of a hand-written line, and never fatal
-      // (invariant #5). A bare projectile is one linear spewer firing north
-      // every second.
-      const directionText = (parts[1] ?? 'up').toLowerCase()
-      if (!(BOSS_TRAP_DIRECTIONS as readonly string[]).includes(directionText)) {
-        unknownKeys.push(`${key} direction "${parts[1]}"`)
-        continue
-      }
-      const direction = directionText as BossTrapDirection
-
-      const spread = parts[2] === undefined || parts[2] === '' ? 0 : parseFloat(parts[2])
-      if (Number.isNaN(spread)) {
-        unknownKeys.push(`${key} spread "${parts[2]}"`)
-        continue
-      }
-      const spawnRateMs = parts[3] === undefined || parts[3] === '' ? 1000 : parseInt(parts[3], 10)
-      if (Number.isNaN(spawnRateMs)) {
-        unknownKeys.push(`${key} rate "${parts[3]}"`)
-        continue
-      }
-      const count = parts[4] === undefined || parts[4] === '' ? 1 : parseInt(parts[4], 10)
-      if (Number.isNaN(count)) {
-        unknownKeys.push(`${key} count "${parts[4]}"`)
-        continue
-      }
-
-      rows.push({ projectile: id, direction, spread, spawnRateMs, count })
-    }
-
-    arena.waves[idx].traps = rows
+    arena.waves[idx].traps = parseTrapRows(key, value, unknownKeys)
     state.sawTrapLine.add(idx)
     return true
   }
@@ -577,6 +590,7 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   let highestTimerIndex = -1
   // Highest `buffN=` seen, same purpose again.
   let highestBuffIndex = -1
+  let highestTrapIndex = -1
   // Highest `musicN=` seen, same purpose again.
   let highestMusicIndex = -1
   // Per-fight bookkeeping for the wave post-passes below. Boss keys carry a
@@ -817,6 +831,20 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       highestBuffIndex = Math.max(highestBuffIndex, levelIndex)
       continue
     }
+    // trapN=<projectile>:<direction>:<spread>:<rate>:<count>|… — one line per
+    // floor that runs wall traps. Absent floors keep the default (none), so a
+    // file written before floor traps existed parses exactly as it always did.
+    // Anchored and disjoint from every other floor key, and `boss0WaveTrap1`
+    // never reaches here — the `boss…` dispatcher above consumes it.
+    const trapMatch = keyLower.match(/^trap(\d+)$/)
+    if (trapMatch) {
+      const levelIndex = parseInt(trapMatch[1], 10)
+      const levelTraps = params.levelTraps ?? (params.levelTraps = [])
+      while (levelTraps.length <= levelIndex) levelTraps.push(defaultFloorTraps())
+      levelTraps[levelIndex] = parseTrapRows(key, value, result.unknownKeys)
+      highestTrapIndex = Math.max(highestTrapIndex, levelIndex)
+      continue
+    }
 
     // timerN=enabled|seconds|damage|freqMs|countdown — one line per floor whose
     // timer is on. Absent floors keep the default (off), so a file written
@@ -922,6 +950,14 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     const levelBuffs = params.levelBuffs ?? (params.levelBuffs = [])
     while (levelBuffs.length < params.levels) levelBuffs.push(defaultFloorBuffs())
     levelBuffs.length = params.levels
+  }
+
+  // Only floors running traps get a `trapN=` line — same padding rule as the
+  // buffs above.
+  if (highestTrapIndex >= 0 || params.levelTraps !== undefined) {
+    const levelTraps = params.levelTraps ?? (params.levelTraps = [])
+    while (levelTraps.length < params.levels) levelTraps.push(defaultFloorTraps())
+    levelTraps.length = params.levels
   }
 
   // Only enabled floors get a `timerN=` line, so an imported file is sparse by
@@ -1099,6 +1135,18 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
       ;(params.levelBuffs ?? []).forEach((buffs, i) => {
         if (buffs.length === 0) return
         lines.push(`buff${i}=${buffs.map((b) => `${b.buff}:${b.target}`).join('|')}`)
+      })
+    } else if (key === 'trap') {
+      // Only floors running at least one trap get a line. Keeps
+      // parameters.default.txt and every file exported before floor traps
+      // existed byte-identical.
+      ;(params.levelTraps ?? []).forEach((rows, i) => {
+        if (rows.length === 0) return
+        lines.push(
+          `trap${i}=${rows
+            .map((t) => `${t.projectile}:${t.direction}:${t.spread}:${t.spawnRateMs}:${t.count}`)
+            .join('|')}`
+        )
       })
     } else if (key === 'timer') {
       // Only floors with the timer ON get a line. Keeps parameters.default.txt

@@ -96,58 +96,23 @@ import { projectileById } from '../objects/projectileTypes'
 import { NodeGlobalEventTrigger, NodeProjectileSpewer, NodeToggleElement } from '../objects/nodes'
 import { OVERHANG_ROWS, overhangRows } from '../map/reachability'
 import { TIER_EVENT_NAMES } from './waves'
+import type { Slot } from '../traps/slots'
+import {
+  SPEWER_DIRECTION,
+  TILE_CENTRE,
+  TRAP_MIN_SPACING,
+  TRAP_WALL_MARGIN,
+  WALLS,
+  takeSlot,
+  wallCapacity
+} from '../traps/slots'
 
 /**
- * The engine's `direction` parameter. [VERIFIED] 2026-09-01 from
- * `campaign/levels/level_10.xml` ids 2579-2582 — four spewers ringing the point
- * (-31.5, -6), each offset one tile in the direction it fires: the one below
- * centre is 1, the one to the right 3, to the left 2, above 0. Confirmed
- * against the same level's second cluster and `level_temple_3.xml`, and then
- * [VERIFIED] in game 2026-09-02 by firing all four from a generated arena: the
- * file-derived mapping needed no correction.
+ * Re-exported so the arena stays the one place that talks about arena traps:
+ * `config/validation.ts` and `tests/bossTraps.test.ts` import them from here,
+ * and did before the primitives moved to `traps/slots.ts` for the floor rig.
  */
-const SPEWER_DIRECTION: Record<BossTrapDirection, number> = {
-  up: 0,
-  down: 1,
-  left: 2,
-  right: 3
-}
-
-/**
- * Tiles kept clear at each end of a wall. Two, because the wall band can itself
- * be two tiles thick (theme h) and a spewer in the corner would fire along the
- * adjacent band rather than across the arena.
- */
-export const TRAP_WALL_MARGIN = 2
-
-/** Minimum gap between two spewers on the same wall. */
-export const TRAP_MIN_SPACING = 2
-
-/**
- * Half a tile, added to both axes of every spewer's emitted position.
- *
- * An integer coordinate in this dialect is a tile CORNER, not a tile centre —
- * `objects/doodad.ts` says the same thing in the other direction, giving every
- * floor-anchored piece (Cover, TriggerButton, Torch) an `xOffset`/`yOffset` of
- * 0.5 to sit it in the middle of its tile, and the shipped campaign places its
- * actors on half coordinates (`level_boss_4.xml`'s dragon at `-5 -26.5`).
- *
- * A node in the middle of the arena does not care: the wave rig, the pickups
- * and the spawn points all emit raw integers and land visibly inside a tile.
- * A spewer is the first thing this generator puts *against* a wall, and there
- * the corner is the whole problem — at interior column 0 the point sits exactly
- * on the boundary with the wall band at column -1, so the projectile is born
- * inside collision and is eaten on the spot.
- *
- * [VERIFIED] 2026-09-02 in game: the traps on the two minimum-edge walls fired
- * but their projectiles were intercepted immediately; the maximum-edge walls
- * (whose corner point falls between two interior tiles) played correctly. With
- * the half-tile applied, all four walls fire cleanly.
- */
-const TILE_CENTRE = 0.5
-
-/** The four walls, named by the direction a trap on them fires. */
-const WALLS: readonly BossTrapDirection[] = ['up', 'down', 'left', 'right']
+export { TRAP_MIN_SPACING, TRAP_WALL_MARGIN, wallCapacity }
 
 /** The arena facts the rig needs. Read-only, all of it. */
 export interface TrapArena {
@@ -219,7 +184,7 @@ export function buildTrapRig(ctx: GenerationContext, waves: readonly BossWave[],
         // of spewers actually placed.
         if (pool.length === 0) break
 
-        const slot = takeSlot(ctx, pool)
+        const slot = takeSlot(ctx.bossRand, pool)
         const spewer = new NodeProjectileSpewer(
           ctx,
           slot.x + TILE_CENTRE,
@@ -267,26 +232,6 @@ export function buildTrapRig(ctx: GenerationContext, waves: readonly BossWave[],
 
     previous = spewers
   }
-}
-
-interface Slot {
-  x: number
-  y: number
-}
-
-/**
- * Takes one slot from `pool` at a seeded index, and removes every slot within
- * TRAP_MIN_SPACING of it so the next spewer on this wall cannot crowd it.
- * Exactly one `iRand` draw.
- */
-function takeSlot(ctx: GenerationContext, pool: Slot[]): Slot {
-  const index = ctx.bossRand.iRand(0, pool.length)
-  const chosen = pool[index]
-  for (let i = pool.length - 1; i >= 0; i--) {
-    const gap = Math.abs(pool[i].x - chosen.x) + Math.abs(pool[i].y - chosen.y)
-    if (gap < TRAP_MIN_SPACING) pool.splice(i, 1)
-  }
-  return chosen
 }
 
 /**
@@ -372,18 +317,4 @@ function isFreeFloor(arena: TrapArena, x: number, y: number): boolean {
   if (!walkable) return true
   if (x < 0 || y < 0 || x >= width || y >= height) return false
   return walkable[x + y * width] !== 0
-}
-
-/**
- * How many spewers a wall can hold in an arena this size — what
- * config/validation.ts checks a tier's trap counts against before generation.
- * Assumes an empty floor: pillars can only ever reduce it, which is why running
- * the pool dry is a warning's job and not an error's.
- */
-export function wallCapacity(width: number, height: number, direction: BossTrapDirection): number {
-  const vertical = direction === 'left' || direction === 'right'
-  const span = vertical ? height : width
-  const usable = span - 2 * TRAP_WALL_MARGIN
-  if (usable <= 0) return 0
-  return Math.max(1, Math.ceil(usable / TRAP_MIN_SPACING))
 }

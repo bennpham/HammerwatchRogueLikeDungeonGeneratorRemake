@@ -1464,3 +1464,82 @@ describe('bossWaveTrapN — per-tier wall traps', () => {
     expect(after).toEqual(before)
   })
 })
+
+describe('trapN — per-floor wall traps', () => {
+  it('writes no trap line at all while no floor runs one', () => {
+    // The stock defaults ship the array present and empty, so this needs no
+    // stripping — which is itself the point: adding the feature did not change
+    // what a stock export looks like.
+    const text = serializeParametersTxt(defaultParameters())
+    expect(text).not.toMatch(/^trap\d+=/m)
+  })
+
+  it('writes one line per trapped floor and round-trips it', () => {
+    const params = plainParameters()
+    params.levelTraps = Array.from({ length: params.levels }, () => [])
+    params.levelTraps[2] = [
+      { projectile: 'shooter_arrow', direction: 'up', spread: 0.5, spawnRateMs: 100, count: 3 },
+      { projectile: 'shooter_spike', direction: 'left', spread: 0, spawnRateMs: 1500, count: 2 }
+    ]
+
+    const text = serializeParametersTxt(params)
+    expect(text).toContain('trap2=shooter_arrow:up:0.5:100:3|shooter_spike:left:0:1500:2')
+    expect(text).not.toMatch(/^trap[01345]=/m)
+
+    const reparsed = parseParametersTxt(text)
+    expect(reparsed.unknownKeys).toEqual([])
+    expect(reparsed.params.levelTraps?.[2]).toEqual(params.levelTraps[2])
+    expect(reparsed.params.levelTraps?.[0]).toEqual([])
+  })
+
+  it('reads a bare projectile as one linear spewer firing north every second', () => {
+    const parsed = parseParametersTxt('trap0=shooter_spike')
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.levelTraps?.[0]).toEqual([
+      { projectile: 'shooter_spike', direction: 'up', spread: 0, spawnRateMs: 1000, count: 1 }
+    ])
+  })
+
+  it('reports a malformed segment without failing the import', () => {
+    const parsed = parseParametersTxt(
+      'trap1=not_a_projectile:up:0:100:1|shooter_arrow:sideways:0:100:1|shooter_arrow:down:0:100:2'
+    )
+    expect(parsed.unknownKeys).toHaveLength(2)
+    expect(parsed.params.levelTraps?.[1]).toEqual([
+      { projectile: 'shooter_arrow', direction: 'down', spread: 0, spawnRateMs: 100, count: 2 }
+    ])
+  })
+
+  it('keeps a floor trap and a wave trap in the same file apart', () => {
+    // `boss0WaveTrap1` is consumed by the `boss…` dispatcher long before the
+    // anchored `^trap(\d+)$` branch, so the two keys cannot collide.
+    const parsed = parseParametersTxt(
+      'trap0=shooter_arrow:up:0:500:2\r\nboss0WaveTrap1=shooter_spike:down:0:100:3'
+    )
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.levelTraps?.[0]).toEqual([
+      { projectile: 'shooter_arrow', direction: 'up', spread: 0, spawnRateMs: 500, count: 2 }
+    ])
+    expect(parsed.params.boss.fights[0].arena.waves[0].traps).toEqual([
+      { projectile: 'shooter_spike', direction: 'down', spread: 0, spawnRateMs: 100, count: 3 }
+    ])
+  })
+
+  it('serialize -> parse -> serialize is a fixed point', () => {
+    const params = plainParameters()
+    params.levelTraps = Array.from({ length: params.levels }, () => [])
+    params.levelTraps[0] = [{ projectile: 'shooter_fireball', direction: 'right', spread: 2, spawnRateMs: 250, count: 7 }]
+
+    const once = serializeParametersTxt(params)
+    const twice = serializeParametersTxt(parseParametersTxt(once).params)
+    expect(twice).toBe(once)
+  })
+
+  it('pads a sparse file up to the floor count and trims past it', () => {
+    const parsed = parseParametersTxt('levels=4\r\ntrap1=shooter_arrow')
+    expect(parsed.params.levelTraps).toHaveLength(4)
+    expect(parsed.params.levelTraps?.[0]).toEqual([])
+    expect(parsed.params.levelTraps?.[1]).toHaveLength(1)
+    expect(parsed.params.levelTraps?.[3]).toEqual([])
+  })
+})
