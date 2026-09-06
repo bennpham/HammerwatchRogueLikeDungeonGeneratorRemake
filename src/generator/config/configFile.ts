@@ -287,26 +287,26 @@ function parseBossFightKey(
     return true
   }
   if (suffix === 'checkpoints') {
-    // boss<f>Checkpoints=<preset>,<respawnPlayers 0|1>,<saveGame 0|1> — mirrors
-    // bosscover's per-field NaN/unknown-value guard: a bad preset id is
-    // reported and the field keeps its default rather than being cast into
-    // the union, and a malformed 0/1 segment is simply left at its default.
+    // boss<f>Checkpoints=<respawnPlayers preset>,<saveGame preset> — mirrors
+    // bosscover's per-field unknown-value guard: a bad preset id is reported
+    // and that field keeps its default rather than being cast into the
+    // union. A file written before the two presets split apart carried a
+    // third 0/1 field; it simply fails this same preset check and is
+    // reported, leaving saveGame at its default.
     const parts = value.split(',').map((s) => s.trim())
-    const preset = parts[0]
-    if (!(preset in BOSS_CHECKPOINT_PRESETS)) {
-      unknownKeys.push(`${key} value "${preset}"`)
+    const respawnPreset = parts[0]
+    if (!(respawnPreset in BOSS_CHECKPOINT_PRESETS)) {
+      unknownKeys.push(`${key} value "${respawnPreset}"`)
     } else {
-      arena.checkpoints.thresholds = preset as BossCheckpointPreset
+      arena.checkpoints.respawnPlayers = respawnPreset as BossCheckpointPreset
     }
-    if (parts.length >= 2 && (parts[1] === '0' || parts[1] === '1')) {
-      arena.checkpoints.respawnPlayers = parts[1] === '1'
-    } else if (parts.length >= 2) {
-      unknownKeys.push(`${key} value "${parts[1]}"`)
-    }
-    if (parts.length >= 3 && (parts[2] === '0' || parts[2] === '1')) {
-      arena.checkpoints.saveGame = parts[2] === '1'
-    } else if (parts.length >= 3) {
-      unknownKeys.push(`${key} value "${parts[2]}"`)
+    if (parts.length >= 2) {
+      const savePreset = parts[1]
+      if (!(savePreset in BOSS_CHECKPOINT_PRESETS)) {
+        unknownKeys.push(`${key} value "${savePreset}"`)
+      } else {
+        arena.checkpoints.saveGame = savePreset as BossCheckpointPreset
+      }
     }
     return true
   }
@@ -1156,9 +1156,7 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
       `boss${f}Invuln=${arena.invulnerability.enabled ? arena.invulnerability.seconds.join(',') : 'off'}`
     )
     lines.push(`boss${f}InvulnCountdown=${arena.invulnerability.countdown ? 1 : 0}`)
-    lines.push(
-      `boss${f}Checkpoints=${arena.checkpoints.thresholds},${arena.checkpoints.respawnPlayers ? 1 : 0},${arena.checkpoints.saveGame ? 1 : 0}`
-    )
+    lines.push(`boss${f}Checkpoints=${arena.checkpoints.respawnPlayers},${arena.checkpoints.saveGame}`)
     // six decimals, matching the global multipliers above
     lines.push(`boss${f}MonsterMultiplier=${arena.monsterMultiplier.toFixed(6)}`)
     lines.push(`boss${f}FoodMultiplier=${arena.foodMultiplier.toFixed(6)}`)

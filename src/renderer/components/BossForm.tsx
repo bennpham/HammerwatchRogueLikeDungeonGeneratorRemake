@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import {
   ARENA_PATTERN_LABELS,
-  BOSS_CHECKPOINT_PRESETS,
   BOSS_COVER_DENSITY_MAX,
   BOSS_COVER_PATTERNS,
   BOSS_DEF_LIST,
@@ -832,17 +831,31 @@ function InvulnerabilityEditor({ invuln, fieldPrefix, issues, onChange }: Invuln
 
 type Checkpoints = BossArenaOptions['checkpoints']
 
+/** Dropdown order for both fields — Never first, then presets in increasing scope. */
+const CHECKPOINT_PRESET_IDS: BossCheckpointPreset[] = ['never', '50', '75-50-25', '75-50-25-dead']
+
 const CHECKPOINT_PRESET_LABELS: Record<BossCheckpointPreset, string> = {
+  never: 'Never',
+  '50': '50% only',
   '75-50-25': '75%, 50%, 25%',
-  '75-50-25-dead': '75%, 50%, 25%, boss dead',
-  '50': '50% only'
+  '75-50-25-dead': '75%, 50%, 25%, boss dead'
 }
 
-/** Section-header summary: `off`, or the preset plus which flags are on. */
+/** Short form for the section badge — same ids, tighter text. */
+const CHECKPOINT_PRESET_SHORT: Record<BossCheckpointPreset, string> = {
+  never: 'never',
+  '50': '50%',
+  '75-50-25': '75/50/25',
+  '75-50-25-dead': '75/50/25/dead'
+}
+
+/** Section-header summary: `off`, or whichever of the two fields are on. */
 function checkpointBadge(checkpoints: Checkpoints): string {
-  if (!checkpoints.respawnPlayers && !checkpoints.saveGame) return 'off'
-  const flags = [checkpoints.respawnPlayers && 'respawn', checkpoints.saveGame && 'save'].filter(Boolean)
-  return `${CHECKPOINT_PRESET_LABELS[checkpoints.thresholds]} · ${flags.join(' + ')}`
+  const parts = [
+    checkpoints.respawnPlayers !== 'never' && `respawn ${CHECKPOINT_PRESET_SHORT[checkpoints.respawnPlayers]}`,
+    checkpoints.saveGame !== 'never' && `save ${CHECKPOINT_PRESET_SHORT[checkpoints.saveGame]}`
+  ].filter((s): s is string => s !== false)
+  return parts.length === 0 ? 'off' : parts.join(' · ')
 }
 
 interface CheckpointsEditorProps {
@@ -851,44 +864,44 @@ interface CheckpointsEditorProps {
 }
 
 /**
- * Which boss health milestones set the party's respawn point, and whether
- * doing so also pulls dead players back in and/or writes a save. Both
- * checkboxes off emits nothing at all — no trigger, no Checkpoint node.
+ * Two independent milestone presets: which ones pull dead/lagging players
+ * back into the fight, and which ones move the respawn point and write a
+ * save. A milestone picked by both gets one shared trigger. Both set to
+ * "Never" emits nothing at all — no trigger, no Checkpoint node.
  */
 function CheckpointsEditor({ checkpoints, onChange }: CheckpointsEditorProps) {
   return (
     <>
       <p className="hint">
-        On each selected health milestone, the party's respawn point moves to the arena. Unchecking
-        both boxes below turns the feature off entirely.
+        Reviving players is cheap and usually wanted often; writing a save is a bigger deal, so the
+        two are scheduled separately. A milestone picked by both still fires once.
       </p>
       <label className="field">
-        <span className="field-label">Fire at</span>
+        <span className="field-label">Respawn player</span>
         <select
-          value={checkpoints.thresholds}
-          onChange={(e) => onChange({ ...checkpoints, thresholds: e.target.value as BossCheckpointPreset })}
+          value={checkpoints.respawnPlayers}
+          onChange={(e) => onChange({ ...checkpoints, respawnPlayers: e.target.value as BossCheckpointPreset })}
         >
-          {(Object.keys(BOSS_CHECKPOINT_PRESETS) as BossCheckpointPreset[]).map((id) => (
+          {CHECKPOINT_PRESET_IDS.map((id) => (
             <option key={id} value={id}>
               {CHECKPOINT_PRESET_LABELS[id]}
             </option>
           ))}
         </select>
       </label>
-      <div style={{ marginTop: '8px' }}>
-        <BoolField
-          label="Respawn player"
-          checked={checkpoints.respawnPlayers}
-          onChange={(respawnPlayers) => onChange({ ...checkpoints, respawnPlayers })}
-          title="Also pull dead or lagging players back into the arena at each checkpoint"
-        />
-        <BoolField
-          label="Save game"
-          checked={checkpoints.saveGame}
-          onChange={(saveGame) => onChange({ ...checkpoints, saveGame })}
-          title="Write a save file at each checkpoint, not just move the respawn point"
-        />
-    </div>
+      <label className="field checkpoint-fields">
+        <span className="field-label">Save game</span>
+        <select
+          value={checkpoints.saveGame}
+          onChange={(e) => onChange({ ...checkpoints, saveGame: e.target.value as BossCheckpointPreset })}
+        >
+          {CHECKPOINT_PRESET_IDS.map((id) => (
+            <option key={id} value={id}>
+              {CHECKPOINT_PRESET_LABELS[id]}
+            </option>
+          ))}
+        </select>
+      </label>
     </>
   )
 }

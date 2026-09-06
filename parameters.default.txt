@@ -137,12 +137,12 @@ boss0Invuln=30,30,30
 # 0 keeps the immortality windows but drops the countdown announcements (one
 # script node per second, per window).
 boss0InvulnCountdown=1
-# Checkpoints: on the chosen boss health milestones, move the party's respawn
-# point and optionally save the game and/or pull downed players back in.
-# <preset>,<respawnPlayers 0|1>,<saveGame 0|1> — presets are 75-50-25,
-# 75-50-25-dead (adds Boss Died) and 50 (50% only). Both flags off emits
-# nothing at all for the chosen thresholds.
-boss0Checkpoints=75-50-25,1,1
+# Checkpoints: two independent milestone presets — one for pulling downed
+# players back into the fight, one for moving the respawn point and writing a
+# save. <respawnPlayers preset>,<saveGame preset>; each is never, 50,
+# 75-50-25 or 75-50-25-dead (adds Boss Died). A shared milestone gets one
+# trigger doing both; `never`/`never` emits nothing at all.
+boss0Checkpoints=75-50-25-dead,50
 # The arena's own multipliers, separate from the dungeon's monsterMultiplier /
 # foodMultiplier: boss0MonsterMultiplier scales every wave's max counts (an
 # endless -1 stays endless), boss0FoodMultiplier the arena's health/mana pickups.

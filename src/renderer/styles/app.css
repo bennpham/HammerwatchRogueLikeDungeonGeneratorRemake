@@ -1349,3 +1349,9 @@ button.primary:hover:not(:disabled) {
 .invuln-fields {
   margin-top: 10px;
 }
+
+/* Checkpoints: two stacked `.field` selects — the same 10px gap .invuln-fields
+   gives its grid, applied to the second field instead. */
+.checkpoint-fields {
+  margin-top: 10px;
+}

@@ -1054,20 +1054,26 @@ describe('boss checkpoints validation', () => {
     return validateParameters(p)
   }
 
-  it('accepts the stock 75/50/25 preset without comment', () => {
+  it('accepts the stock presets without comment', () => {
     const result = withCheckpoints({})
     expect(result.errors).toEqual([])
     expect(fieldsOf(result.warnings).filter((f) => f.startsWith('boss.fights.0.arena.checkpoints'))).toEqual([])
   })
 
-  it('rejects an unknown preset id — only reachable via a hand-edited file', () => {
-    const result = withCheckpoints({ thresholds: 'nope' as never })
-    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.checkpoints.thresholds')
+  it('rejects an unknown respawn preset id — only reachable via a hand-edited file', () => {
+    const result = withCheckpoints({ respawnPlayers: 'nope' as never })
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.checkpoints.respawnPlayers')
     expect(result.valid).toBe(false)
   })
 
-  it('accepts both flags off — the feature simply emits nothing', () => {
-    const result = withCheckpoints({ respawnPlayers: false, saveGame: false })
+  it('rejects an unknown save preset id — only reachable via a hand-edited file', () => {
+    const result = withCheckpoints({ saveGame: 'nope' as never })
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.checkpoints.saveGame')
+    expect(result.valid).toBe(false)
+  })
+
+  it('accepts both presets as "never" — the feature simply emits nothing', () => {
+    const result = withCheckpoints({ respawnPlayers: 'never', saveGame: 'never' })
     expect(result.errors).toEqual([])
     expect(result.valid).toBe(true)
   })

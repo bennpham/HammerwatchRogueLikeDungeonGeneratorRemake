@@ -31,9 +31,8 @@ function arenaOptions(overrides: Partial<BossArenaOptions> = {}): BossArenaOptio
  * triggers) aren't counting the checkpoint rig's nodes too.
  */
 const NO_CHECKPOINTS: BossArenaOptions['checkpoints'] = {
-  thresholds: '75-50-25',
-  respawnPlayers: false,
-  saveGame: false
+  respawnPlayers: 'never',
+  saveGame: 'never'
 }
 
 /**
@@ -1395,7 +1394,7 @@ describe('boss arena — the boss-death wave tier', () => {
     // items. The three rigs are built independently (waves.ts, waveBuffs.ts and
     // wavePickups.ts) and none shares another's nodes.
     for (const seed of [1, 4242, 999999]) {
-      const { xml } = buildBossArena(freshCtx(seed), arenaOptions(), 0)
+      const { xml } = buildBossArena(freshCtx(seed), arenaOptions({ checkpoints: NO_CHECKPOINTS }), 0)
       expect(bossDiedTriggers(xml)).toBe(4)
     }
   })
@@ -1403,7 +1402,7 @@ describe('boss arena — the boss-death wave tier', () => {
   it('clearing the death tier drops back to the win chain\'s trigger alone', () => {
     // An empty tier emits nothing at all, which is how a campaign gets the
     // quiet walk to the orb back.
-    const arena = arenaOptions()
+    const arena = arenaOptions({ checkpoints: NO_CHECKPOINTS })
     arena.waves = arena.waves.map((w, i) =>
       i === arena.waves.length - 1 ? { monsters: [], monsterMax: {}, defaultIntervalMs: 1000 } : w
     )
@@ -1414,13 +1413,13 @@ describe('boss arena — the boss-death wave tier', () => {
   })
 
   it('a filled death tier adds its own trigger alongside the win chain', () => {
-    const arena = arenaOptions()
+    const arena = arenaOptions({ checkpoints: NO_CHECKPOINTS })
     const waves = arena.waves.map((w, i) =>
       i === arena.waves.length - 1
         ? { monsters: ['eye'], monsterMax: { eye: 6 }, defaultIntervalMs: 2000 }
         : w
     )
-    const { xml } = buildBossArena(freshCtx(4242), arenaOptions({ waves }), 0)
+    const { xml } = buildBossArena(freshCtx(4242), arenaOptions({ waves, checkpoints: NO_CHECKPOINTS }), 0)
 
     expect(bossDiedTriggers(xml)).toBe(2)
     expect(allIds(xml).length).toBeGreaterThan(0)
@@ -1433,7 +1432,7 @@ describe('boss arena — the boss-death wave tier', () => {
     // food clusters — has to land in exactly the same place. Only the scripting
     // (and, on a mixed theme, the floor-pattern roll that follows the spawn
     // points) may move.
-    const arena = arenaOptions()
+    const arena = arenaOptions({ checkpoints: NO_CHECKPOINTS })
     const filled = arena.waves.map((w, i) =>
       i === arena.waves.length - 1
         ? {
@@ -1448,7 +1447,7 @@ describe('boss arena — the boss-death wave tier', () => {
     const doodads = (xml: string) => xml.slice(xml.indexOf('<array name="doodads">'), xml.indexOf('<array name="actors">'))
 
     const before = buildBossArena(freshCtx(4242), arena, 0).xml
-    const after = buildBossArena(freshCtx(4242), arenaOptions({ waves: filled }), 0).xml
+    const after = buildBossArena(freshCtx(4242), arenaOptions({ waves: filled, checkpoints: NO_CHECKPOINTS }), 0).xml
 
     expect(doodads(before).length).toBeGreaterThan(100) // the slice is real, not an empty match
     expect(doodads(after)).toBe(doodads(before))
