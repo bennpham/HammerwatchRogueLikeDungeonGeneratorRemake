@@ -323,25 +323,25 @@ export class Room {
   /**
    * Put locked doors across this room's single passage and a powerup inside.
    *
-   * With no options this is the chance-gated lock of the original: a random
-   * tier, and orb/stair rooms refuse outright. `lockFinalRoom` passes a fixed
-   * tier and `allowOrb` so the victory orb can be gated by a gold door — a
-   * fixed tier draws no random value, so the two paths are not interchangeable.
+   * The chance-gated lock of the original: a random tier, and entrance/exit/orb
+   * rooms refuse outright. The victory orb's own gate is a button-opened wall
+   * instead (see map/buttonSeal.ts), never a door, so nothing asks this to make
+   * an exception for it.
    */
-  lockRoom(opts?: { tier?: number; allowOrb?: boolean }): boolean {
+  lockRoom(): boolean {
     const ctx = this.ctx
     if (
       this.passages.length !== 1 ||
       this.locked ||
       this.type === 'Entrance' ||
       this.type === 'Exit' ||
-      (this.type === 'Orb' && opts?.allowOrb !== true)
+      this.type === 'Orb'
     ) {
       return false
     }
 
     this.locked = true
-    const lockTier = opts?.tier ?? ctx.rand.iRand(0, 3)
+    const lockTier = ctx.rand.iRand(0, 3)
     this.lockTier = lockTier
     const p = this.passages[0]
 
@@ -414,9 +414,9 @@ export class Room {
    * `lockRoom()` so the button seal grants the *same item off the same three
    * draws* rather than inventing its own consolation prize.
    *
-   * It does not keep the two gate modes' streams in lockstep, and is not meant
-   * to: button mode draws the button's room and position first (buttonSeal.ts),
-   * so the powerup lands somewhere else than the gold door's would. Only the
+   * It does not keep the two gates' streams in lockstep, and is not meant to:
+   * the button seal draws the button's room and position first (buttonSeal.ts),
+   * so its powerup lands somewhere else than a chance lock's would. Only the
    * item and its draw count are shared.
    */
   grantLockLoot(): void {

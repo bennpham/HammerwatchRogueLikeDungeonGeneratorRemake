@@ -163,20 +163,6 @@ export const MAX_TIMER_DAMAGE = 10_000
  */
 export const TIMER_COUNTDOWN_NODE_WARN = 200
 
-/**
- * How the final floor bars the way to the victory orb.
- *
- * `'key'` is the original: a gold door across the orb room's corridor and a
- * gold key hidden elsewhere on the floor. `'button'` bars it with a
- * destructible wall opened by a floor button, so no key is involved at all —
- * a party carrying gold keys from earlier floors (or one that spent this
- * floor's key on another gold door) cannot lock itself out of the campaign.
- */
-export type FinalLockMode = 'key' | 'button'
-
-/** Both final-lock modes, in the order the form lists them. */
-export const FINAL_LOCK_MODES: FinalLockMode[] = ['button', 'key']
-
 /** A fresh, disabled floor timer — the stock value for every floor. */
 export function defaultFloorTimer(): FloorTimer {
   return { enabled: false, seconds: 180, damage: 1, freqMs: 1000, countdown: true }
@@ -242,25 +228,14 @@ export interface DungeonParameters {
   lockChance: number
   keyChance: number
   /**
-   * Final floor only: force the victory Orb into a dead-end room, bar its
-   * corridor with a gold door and hide the matching gold key elsewhere on that
-   * floor. Off reproduces the pre-feature campaign exactly — same seeds.
+   * Final floor only: force the victory Orb into a dead-end room and bar its
+   * corridor with a destructible wall, opened by a floor button just outside
+   * it. No key is involved, so a party that hoarded gold keys on earlier floors
+   * (or spent this floor's key on a chance-rolled gold door) cannot lock itself
+   * out of finishing the campaign. Off reproduces the pre-feature campaign
+   * exactly — same seeds.
    */
   lockFinalRoom: boolean
-  /**
-   * How `lockFinalRoom` bars the orb's corridor.
-   *
-   * - `'button'` (default) — a destructible wall across the corridor plus a
-   *   floor button just outside it. Stepping on the button plays the hatch
-   *   sound and destroys the wall. No key is involved, so a party that hoarded
-   *   gold keys on earlier floors (or spent this floor's key on the wrong gold
-   *   door) cannot lock itself out of finishing the campaign.
-   * - `'key'` — the original gold door, with one gold key per gold door hidden
-   *   elsewhere on the floor.
-   *
-   * Ignored when `lockFinalRoom` is off.
-   */
-  finalLockMode: FinalLockMode
   /** monster pool (plain ids) per level */
   levelMonsters: string[][]
   /**
@@ -1131,11 +1106,6 @@ export function defaultParameters(): DungeonParameters {
     lockChance: 0.8,
     keyChance: 1.0,
     lockFinalRoom: true,
-    // A button, not a gold key: the orb is the last thing standing between the
-    // party and the end of the campaign, and a key-based gate there can be
-    // spent on the wrong gold door — or hoarded from an earlier floor and left
-    // behind — leaving a run that cannot be finished.
-    finalLockMode: 'button',
     levelMonsters: [
       ['bat1', 'tick1', 'maggot', 'tower_flower1_small'],
       ['maggot', 'slime', 'skeleton1', 'archer1'],

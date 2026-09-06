@@ -175,25 +175,15 @@ describe('parameters.txt parsing', () => {
     expect(bare.unknownKeys).toEqual([])
   })
 
-  it('round-trips finalLockMode, and reports an unknown mode', () => {
-    const original = defaultParameters()
-    expect(serializeParametersTxt(original)).toContain('finalLockMode=button')
+  it('no longer writes finalLockMode, and reports it in a legacy file', () => {
+    expect(serializeParametersTxt(defaultParameters())).not.toContain('finalLockMode')
 
-    original.finalLockMode = 'key'
-    const text = serializeParametersTxt(original)
-    expect(text).toContain('finalLockMode=key')
-
-    const parsed = parseParametersTxt(text)
-    expect(parsed.params.finalLockMode).toBe('key')
-    expect(parsed.unknownKeys).toEqual([])
-
-    expect(parseParametersTxt('finallockmode=button').params.finalLockMode).toBe('button')
-
-    // an unrecognized mode is reported, never fatal, and never silently
-    // becomes one of the two real ones
-    const bad = parseParametersTxt('finalLockMode=hatch')
-    expect(bad.params.finalLockMode).toBe(defaultParameters().finalLockMode)
-    expect(bad.unknownKeys).toEqual(['finalLockMode'])
+    // the gold-key gate is gone; a file that still asks for it imports fine
+    // and gets the button seal, with the dead key reported not fatal
+    const parsed = parseParametersTxt('levels=3\nfinalLockMode=key')
+    expect(parsed.params.levels).toBe(3)
+    expect(parsed.params.lockFinalRoom).toBe(defaultParameters().lockFinalRoom)
+    expect(parsed.unknownKeys).toEqual(['finalLockMode'])
   })
 
   it('round-trips the boss options', () => {
