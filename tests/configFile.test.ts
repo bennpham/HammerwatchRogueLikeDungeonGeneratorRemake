@@ -583,6 +583,77 @@ describe('parameters.txt — boss invulnerability', () => {
   })
 })
 
+describe('parameters.txt — boss checkpoints', () => {
+  it('round-trips the stock defaults', () => {
+    const text = serializeParametersTxt(defaultParameters())
+    expect(text).toContain('boss0Checkpoints=75-50-25-dead,50')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.params.boss.fights[0].arena.checkpoints).toEqual({
+      respawnPlayers: '75-50-25-dead',
+      saveGame: '50'
+    })
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('reads both presets independently', () => {
+    const parsed = parseParametersTxt('boss0Checkpoints=never,75-50-25')
+    expect(parsed.params.boss.fights[0].arena.checkpoints).toEqual({
+      respawnPlayers: 'never',
+      saveGame: '75-50-25'
+    })
+  })
+
+  it('reports an unknown respawn preset and keeps that field at its default', () => {
+    const parsed = parseParametersTxt('boss0Checkpoints=nope,50')
+    expect(parsed.params.boss.fights[0].arena.checkpoints).toEqual({
+      respawnPlayers: '75-50-25-dead',
+      saveGame: '50'
+    })
+    expect(parsed.unknownKeys).toEqual(['boss0Checkpoints value "nope"'])
+  })
+
+  it('reports an unknown save preset and keeps that field at its default', () => {
+    const parsed = parseParametersTxt('boss0Checkpoints=50,nope')
+    expect(parsed.params.boss.fights[0].arena.checkpoints).toEqual({
+      respawnPlayers: '50',
+      saveGame: '50' // default kept
+    })
+    expect(parsed.unknownKeys).toEqual(['boss0Checkpoints value "nope"'])
+  })
+
+  it('a legacy three-field line reports the stray third segment and keeps saveGame at its default', () => {
+    // boss0Checkpoints=75-50-25,1,1 is what the one-checkbox-pair build wrote —
+    // "1" is not a valid preset id, so it is reported and saveGame keeps its default
+    const parsed = parseParametersTxt('boss0Checkpoints=75-50-25,1,1')
+    expect(parsed.params.boss.fights[0].arena.checkpoints).toEqual({
+      respawnPlayers: '75-50-25',
+      saveGame: '50'
+    })
+    expect(parsed.unknownKeys).toEqual(['boss0Checkpoints value "1"'])
+  })
+
+  it('handles a second fight independently', () => {
+    const parsed = parseParametersTxt('bossFights=2\nboss1Checkpoints=50,never')
+    expect(parsed.params.boss.fights[0].arena.checkpoints).toEqual({
+      respawnPlayers: '75-50-25-dead',
+      saveGame: '50'
+    })
+    expect(parsed.params.boss.fights[1].arena.checkpoints).toEqual({
+      respawnPlayers: '50',
+      saveGame: 'never'
+    })
+  })
+
+  it('leaves a legacy file with no checkpoint key on the stock defaults', () => {
+    const parsed = parseParametersTxt('boss=1\nbossGold=500')
+    expect(parsed.params.boss.fights[0].arena.checkpoints).toEqual({
+      respawnPlayers: '75-50-25-dead',
+      saveGame: '50'
+    })
+  })
+})
+
 describe('bossWavePickupN — per-tier item drops', () => {
   it('writes no wave-pickup line at all while no tier drops anything', () => {
     // The stock defaults drop on three tiers, so this has to strip them first —

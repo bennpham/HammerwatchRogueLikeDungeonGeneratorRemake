@@ -1,4 +1,5 @@
 import {
+  BOSS_CHECKPOINT_PRESETS,
   BOSS_COVER_PATTERNS,
   BOSS_DEATH_WAVE,
   BOSS_FLOOR_PATTERNS,
@@ -23,6 +24,7 @@ import { UPGRADE_KINDS, noUpgrades } from '../levelTemplate/surgery'
 import type { UpgradeCounts } from '../levelTemplate/surgery'
 import type {
   BossArenaOptions,
+  BossCheckpointPreset,
   BossFight,
   BossFloorPattern,
   BossSpawnMode,
@@ -281,6 +283,30 @@ function parseBossFightKey(
       const clusters = parseInt(parts[3], 10)
       if (Number.isNaN(clusters)) unknownKeys.push(`${key} value "${parts[3]}"`)
       else arena.cover.clusters = clusters
+    }
+    return true
+  }
+  if (suffix === 'checkpoints') {
+    // boss<f>Checkpoints=<respawnPlayers preset>,<saveGame preset> — mirrors
+    // bosscover's per-field unknown-value guard: a bad preset id is reported
+    // and that field keeps its default rather than being cast into the
+    // union. A file written before the two presets split apart carried a
+    // third 0/1 field; it simply fails this same preset check and is
+    // reported, leaving saveGame at its default.
+    const parts = value.split(',').map((s) => s.trim())
+    const respawnPreset = parts[0]
+    if (!(respawnPreset in BOSS_CHECKPOINT_PRESETS)) {
+      unknownKeys.push(`${key} value "${respawnPreset}"`)
+    } else {
+      arena.checkpoints.respawnPlayers = respawnPreset as BossCheckpointPreset
+    }
+    if (parts.length >= 2) {
+      const savePreset = parts[1]
+      if (!(savePreset in BOSS_CHECKPOINT_PRESETS)) {
+        unknownKeys.push(`${key} value "${savePreset}"`)
+      } else {
+        arena.checkpoints.saveGame = savePreset as BossCheckpointPreset
+      }
     }
     return true
   }
@@ -1130,6 +1156,7 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
       `boss${f}Invuln=${arena.invulnerability.enabled ? arena.invulnerability.seconds.join(',') : 'off'}`
     )
     lines.push(`boss${f}InvulnCountdown=${arena.invulnerability.countdown ? 1 : 0}`)
+    lines.push(`boss${f}Checkpoints=${arena.checkpoints.respawnPlayers},${arena.checkpoints.saveGame}`)
     // six decimals, matching the global multipliers above
     lines.push(`boss${f}MonsterMultiplier=${arena.monsterMultiplier.toFixed(6)}`)
     lines.push(`boss${f}FoodMultiplier=${arena.foodMultiplier.toFixed(6)}`)

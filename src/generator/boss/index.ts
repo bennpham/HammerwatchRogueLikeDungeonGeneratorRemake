@@ -20,6 +20,8 @@ export { buildWaveRig, scatterRequests } from './waves'
 
 export { buildInvulnerabilityRig, formatCountdown } from './invulnerability'
 
+export { buildCheckpointRig } from './checkpoints'
+
 export { buildWaveBuffRig } from './waveBuffs'
 
 export type { TrapArena } from './traps'

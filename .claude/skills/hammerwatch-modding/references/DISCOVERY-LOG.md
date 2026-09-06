@@ -8,6 +8,43 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-05 — the `Checkpoint` script node: bare-bool `parameters`, not a dictionary
+**Tag:** [VERIFIED] — attested by shipped/community levels the game loads.
+**Context:** Wiring a boss-arena "Checkpoints / Save game" section: on chosen
+health milestones, move the party's respawn point and optionally save.
+**Evidence:**
+1. Type name is `Checkpoint` (not `SaveGame` — no such node type exists
+   anywhere in the game's assets). Its `<*  name="parameters">` element is a
+   **bare `<bool>`**, the same scalar-not-dictionary seam already used by
+   `SpawnObject`/`GlobalEventTrigger`/`TimerTrigger` (`ScriptNode.getParametersXML`).
+2. `d:\...\Hammerwatch\editor\starcraft_campaign\levels\lvl1.xml` id 702:
+   `<bool name="parameters">True</bool>`, a leaf node with no `connections`.
+3. `d:\...\Hammerwatch\editor\Starwatch\Level_4.xml` id 21735 is the only
+   `False` example on disk, and the only one with an outgoing connection —
+   it chains straight into a `RespawnPlayers` node (id 21734):
+   `<bool name="parameters">False</bool>` + `<int-arr name="connections">21734</int-arr>`.
+4. Conclusion from the two: `True` sets the respawn point **and** writes a
+   save; `False` sets the respawn point only. There is no separate
+   save-game attribute or node type. When respawn fires (either via `Checkpoint`
+   node with any parameter value, or a bare `RespawnPlayers` node), **all players
+   are teleported to the checkpoint marker's position with full health and mana**,
+   regardless of where they were on the map when the trigger fired.
+5. Health milestones are plain engine-wide events (`Boss 75%`, `Boss 50%`,
+   `Boss 25%`, `Boss Died`) listened to with `GlobalEventTrigger` — already
+   used by `boss/waves.ts` and `boss/invulnerability.ts`. Multiple triggers
+   may listen to the same event name.
+**Impact:** `src/generator/objects/nodes.ts` (`NodeCheckpoint`) and
+`src/generator/boss/checkpoints.ts` emit this node. The form exposes two
+independent milestone presets — one for reviving players, one for the save —
+each capable of its own subset of `Boss 75%`/`50%`/`25%`/`Died`; a milestone
+picked by both shares one `GlobalEventTrigger`. `Checkpoint` is therefore only
+ever emitted as `True` here (the save-game preset's whole purpose), and a
+respawn-only milestone gets a bare `RespawnPlayers` with no `Checkpoint` at
+all. `[EMITTED]` only — not yet loaded from our own output in game. Promote to
+fully `[VERIFIED]` in `ASSET-REGISTRY.md` once a packed run's checkpoint is
+confirmed in game (reload after the save-game milestone lands at the arena,
+not the campaign start).
+
 ### 2026-09-05 — `items/trigger_button_save.xml` is a plain checkpoint item, placed through the items section
 **Tag:** **[EMITTED]** — the generator now writes it; not yet loaded in game
 from our own output. Crackshell's shipped campaign is the source.

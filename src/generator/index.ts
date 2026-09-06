@@ -9,7 +9,7 @@ import { bossArenaId, bossArenaPath, campaignOrder, gatewayAfter, lobbyId, lobby
 import { buildFloorHazardRig } from './timer/hazard'
 import { buildFloorBuffRig } from './buffs/field'
 
-export type { DungeonParameters, LobbyOptions, BossOptions, BossFight, BossArenaOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FinalLockMode, FloorBuff, BuffTarget, WavePickup, BossTrap, BossTrapDirection } from './config/parameters'
+export type { DungeonParameters, LobbyOptions, BossOptions, BossFight, BossArenaOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FinalLockMode, FloorBuff, BuffTarget, WavePickup, BossTrap, BossTrapDirection, BossCheckpointPreset } from './config/parameters'
 export {
   THEMES,
   BOSS_IDS,
@@ -23,6 +23,8 @@ export {
   BOSS_INVULN_COUNT,
   DEFAULT_BOSS_INVULN_SECONDS,
   MAX_BOSS_INVULN_SECONDS,
+  BOSS_CHECKPOINT_EVENTS,
+  BOSS_CHECKPOINT_PRESETS,
   DEFAULT_WAVE_MONSTER_MAX,
   defaultBossOptions,
   defaultBossFight,

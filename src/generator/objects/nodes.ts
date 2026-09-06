@@ -303,6 +303,27 @@ export class NodeSpawnObject extends ScriptNode {
   }
 }
 
+/**
+ * Sets the party's respawn point and, when `saveGame` is true, writes a save.
+ * `parameters` is a bare bool — not a dictionary — verified against shipped
+ * campaign levels: `True` sets the spawn point AND saves; `False` sets the
+ * spawn point only. [VERIFIED] see DISCOVERY-LOG.md.
+ */
+export class NodeCheckpoint extends ScriptNode {
+  constructor(
+    ctx: GenerationContext,
+    x: number,
+    y: number,
+    public saveGame: boolean
+  ) {
+    super(ctx, x, y, 'Checkpoint')
+  }
+
+  protected getParametersXML(): string {
+    return new XMLBool('parameters', this.saveGame).getXML()
+  }
+}
+
 /** Listens for an engine-wide event, e.g. "Boss 50%" or "Boss Died". */
 export class NodeGlobalEventTrigger extends ScriptNode {
   constructor(

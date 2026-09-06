@@ -81,6 +81,7 @@ import { buildInvulnerabilityRig } from './invulnerability'
 import { buildWaveBuffRig } from './waveBuffs'
 import { buildWavePickupRig } from './wavePickups'
 import { buildTrapRig } from './traps'
+import { buildCheckpointRig } from './checkpoints'
 import { placeSpawnPoints } from './spawnPoints'
 
 /**
@@ -527,6 +528,12 @@ export function buildBossArena(
     midY,
     walkable
   })
+
+  // --- checkpoints: last of every optional rig, for the same append-only
+  // reason as the ones above. Draws no random values, so it cannot move the
+  // trap rig's bossRand draw or anything laid out before it. Both checkboxes
+  // off, or an empty preset, emits nothing. ---
+  buildCheckpointRig(ctx, arena.checkpoints, entranceShape.x, entranceShape.y)
 
   return {
     xml: getArenaXML(ctx, tileArray, gridWidth, gridHeight, themeDef, originX, originY, width, height, pattern),
