@@ -414,7 +414,10 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
 
     const next = order[position + 1]
     const exitTarget = next === undefined ? '0' : slotEntryId(next)
-    files.push({ path: lobbyPath(slot.index), content: buildLobby(preset, options, exitTarget) })
+    files.push({
+      path: lobbyPath(slot.index),
+      content: buildLobby(preset, options, exitTarget, params.lobbySaves)
+    })
   })
 
   // The union of every preset actually used, deduped by path — two

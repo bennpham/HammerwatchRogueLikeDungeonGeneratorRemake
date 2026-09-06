@@ -8,6 +8,33 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-05 — `items/trigger_button_save.xml` is a plain checkpoint item, placed through the items section
+**Tag:** **[EMITTED]** — the generator now writes it; not yet loaded in game
+from our own output. Crackshell's shipped campaign is the source.
+**Context:** Adding the campaign-wide "Allow save game in lobbies" toggle
+(`lobbySaves`), which drops a save checkpoint into every generated lobby.
+**Evidence:** In the installed game's example campaign
+(`editor/dungeon2015628872/levels/`):
+
+1. `assetsExtract/items/trigger_button_save.xml` is
+   `<item behavior="checkpoint" minimap="menus/minimap.xml:waypoint">` — a
+   stock item (also under `editor/Starwatch/items/`), sprite
+   `doodads/special/trigger_button.png`, sound `sound/misc.xml:info_save`. No
+   scripting node of any kind is needed to make it save.
+2. `lobby0.xml` places it as one entry in `<dictionary name="items">`:
+   `<array name="items/trigger_button_save.xml"><array><int>10020</int><vec2>7 -4</vec2></array></array>`,
+   beside that room's exit teleport at `7 0`.
+3. `lobby1.xml` — a lobby that leads straight into `boss0` — places the same
+   item at `vec2 0 -11`, in the corridor in front of the boss portal.
+
+**Impact:** `src/generator/lobby/build.ts` emits it via `saveButtonArray()` in
+`levelTemplate/surgery.ts`, one entry appended to the lobby's items body (after
+the diamond/upgrade payout), at `LobbyPresetDef.saveButtonSlot` with id
+`saveButtonId` (9500 — between the respawn rig at 9000-9003 and the diamond
+base at 10000). Purely additive: no scripting change, no dungeon floor moves.
+Promote to `[VERIFIED]` in `ASSET-REGISTRY.md` once a packed run with
+`lobbySaves` on loads and the button actually saves in game.
+
 ### 2026-09-05 — A crash-reload returns the party to LevelStart, and the entrance revive rig does not fire for them
 **Tag:** **[VERIFIED]** for where a reload puts the party and for the
 "dead **on connect**" scoping (owner, direct observation); **[OPEN]** for why

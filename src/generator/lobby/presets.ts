@@ -67,6 +67,19 @@ export interface LobbyPresetDef {
   upgradeIdBase: number
   /** first of the four ids the one-shot arrival-respawn rig allocates */
   respawnIdBase: number
+  /**
+   * Where the save checkpoint (`items/trigger_button_save.xml`) sits when
+   * `lobbySaves` is on — read off Crackshell's own example campaign, whose
+   * lobby rooms line up with these templates.
+   */
+  saveButtonSlot: readonly [number, number]
+  /**
+   * The id that save button takes. Sits in the free band between the respawn
+   * rig (`respawnIdBase`..+3, i.e. 9000-9003) and the diamond payout
+   * (`itemIdBase` = 10000), so it can never collide however much gold or how
+   * many free upgrades are asked for.
+   */
+  saveButtonId: number
   /** extra files the template references that the game does not already ship */
   assets: readonly GeneratedFile[]
 }
@@ -93,6 +106,10 @@ export const LOBBY_PRESETS: readonly LobbyPresetDef[] = [
     // neither the respawn rig nor the diamond/upgrade payout can collide with
     // the template or with each other
     respawnIdBase: 9000,
+    // beside the exit teleport at (7, 0) — as editor/dungeon2015628872/levels/
+    // lobby0.xml places items/trigger_button_save.xml
+    saveButtonSlot: [7, -4],
+    saveButtonId: 9500,
     assets: LOBBY_ASSETS
   },
   {
@@ -110,7 +127,12 @@ export const LOBBY_PRESETS: readonly LobbyPresetDef[] = [
     // same reasoning as the dungeon-prep room's; the two templates' own
     // authored ids never overlap, so both may start their respawn rig here
     respawnIdBase: 9000,
+    // in the corridor in front of the boss portal, clear of the knight statues
+    // at (±3, -10) — as editor/dungeon2015628872/levels/lobby1.xml places it
+    saveButtonSlot: [0, -11],
+    saveButtonId: 9500,
     // [VERIFIED] 2026-08-10 — stock assets only, unlike the dungeon-prep room
+    // (items/trigger_button_save.xml is a stock item too)
     assets: []
   }
 ]

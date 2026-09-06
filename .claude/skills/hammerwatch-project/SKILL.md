@@ -77,7 +77,7 @@ src/
 │   │   ├── template.ts   the dungeon-prep XML verbatim (generated+committed)
 │   │   ├── assets.ts     custom files it references, base64 when binary
 │   │   ├── shops.ts      the five vendor stalls and their shop columns
-│   │   └── build.ts      buildLobby(preset, options, exitTarget) — surgical
+│   │   └── build.ts      buildLobby(preset, options, exitTarget, saves) — surgical
 │   │                     edits only, no RNG, no per-preset branching
 │   ├── bossprep/         template.ts ONLY — the boss-prep room's committed
 │   │                     XML, imported by lobby/presets.ts. It stays here
@@ -721,7 +721,7 @@ placeable `CampaignSlot`, and `lobbies: []` is how the feature is switched off
 and the boss prep room were two features doing the same job: a name-normalised
 diff of their two `build.ts` files differed only in an import path and a default
 argument. `presets.ts` now holds one `LobbyPresetDef` per committed room and
-`buildLobby(preset, options, exitTarget)` reads every coordinate and id off it —
+`buildLobby(preset, options, exitTarget, saves)` reads every coordinate and id off it —
 template text, vendor ids, exit node, diamond slots, upgrade slots, the two id
 bases, the respawn id base, the extra asset files, and the label surgery's error
 messages use. There is **no per-preset branching** anywhere in the builder, and
@@ -912,6 +912,16 @@ authored range for the same reason: a light entry references nothing, so its id
 is never rewritten at build time, and the ids the source levels carried
 (10020/10021, 10047/10048) sat inside the span a deep diamond payout walks.
 The lights are unconditional and have no parameter.
+
+**Save checkpoint.** `params.lobbySaves` (campaign-wide, `defaultParameters()`
+ships it **on**) makes `buildLobby` append one `items/trigger_button_save.xml`
+entry to the items body, at `preset.saveButtonSlot` with id `preset.saveButtonId`
+(9500 — in the gap between the respawn rig at 9000–9003 and the diamond base at
+10000). It is a stock `behavior="checkpoint"` item, so this is items-only: no
+scripting node, and `levels/level*.xml` stay byte-identical whatever the toggle
+is (invariant 6). `saveButtonArray()` in `surgery.ts` returns `[]` when off.
+Slots are Crackshell's own: `[7, -4]` (dungeon prep, by the exit teleport),
+`[0, -11]` (boss prep, in front of the portal).
 
 **Arrival revive.** `respawnOnEntryNodes()` + `insertNodes()` (ids from 9000,
 `preset.respawnIdBase`)

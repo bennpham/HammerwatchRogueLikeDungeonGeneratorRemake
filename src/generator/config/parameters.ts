@@ -310,6 +310,16 @@ export interface DungeonParameters {
    */
   lobbies: LobbyOptions[]
   /**
+   * Whether every lobby carries a save checkpoint
+   * (`items/trigger_button_save.xml`), placed next to that room's exit.
+   *
+   * Global rather than per-lobby: a run where only some shop rooms can be saved
+   * at is a trap, not a choice. Off emits each lobby exactly as its template
+   * was authored. Draws no randomness and touches no `levels/level*.xml` — see
+   * invariant 6; only the lobby files gain (or lose) the one item entry.
+   */
+  lobbySaves: boolean
+  /**
    * The boss fight appended after the last dungeon floor. `enabled: false`
    * reproduces the pre-boss campaign exactly — the arena draws from its own
    * RNG stream, so every existing seed's dungeon is unchanged.
@@ -1118,6 +1128,9 @@ export function defaultParameters(): DungeonParameters {
     // the order, placed by `shippedOrder` right before the fight. Both sell
     // every column including power; see `defaultLobby`'s comment for why.
     lobbies: [defaultLobby('BETA-dungeon-prep'), defaultLobby('BETA-boss-prep')],
+    // On by default: a stock campaign's shop rooms each carry a save checkpoint
+    // by the exit, so quitting mid-run does not throw the whole campaign away.
+    lobbySaves: true,
     boss: defaultBossOptions()
   }
 }
