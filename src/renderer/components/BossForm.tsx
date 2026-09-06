@@ -873,8 +873,7 @@ function CheckpointsEditor({ checkpoints, onChange }: CheckpointsEditorProps) {
   return (
     <>
       <p className="hint">
-        Reviving players is cheap and usually wanted often; writing a save is a bigger deal, so the
-        two are scheduled separately. A milestone picked by both still fires once.
+        Respawn will teleport all players back to dungeon start point with full health and mana once the boss health reaches the designated threshold.<br/><br/>Save game may have a bug where if you previously die at the previous threshold, the host loading the game will load you dead instead of respawned (this is a game limitation). If you want to avoid this, set the save game to "Never" and only use respawn although you'll start the boss fight from the beginning of the fight instead of the threshold you set.
       </p>
       <label className="field">
         <span className="field-label">Respawn player</span>

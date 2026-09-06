@@ -25,7 +25,10 @@ health milestones, move the party's respawn point and optionally save.
    `<bool name="parameters">False</bool>` + `<int-arr name="connections">21734</int-arr>`.
 4. Conclusion from the two: `True` sets the respawn point **and** writes a
    save; `False` sets the respawn point only. There is no separate
-   save-game attribute or node type.
+   save-game attribute or node type. When respawn fires (either via `Checkpoint`
+   node with any parameter value, or a bare `RespawnPlayers` node), **all players
+   are teleported to the checkpoint marker's position with full health and mana**,
+   regardless of where they were on the map when the trigger fired.
 5. Health milestones are plain engine-wide events (`Boss 75%`, `Boss 50%`,
    `Boss 25%`, `Boss Died`) listened to with `GlobalEventTrigger` — already
    used by `boss/waves.ts` and `boss/invulnerability.ts`. Multiple triggers
