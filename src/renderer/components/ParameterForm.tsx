@@ -167,29 +167,20 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
         </p>
         <div className="theme-grid">
           {Array.from({ length: Math.max(params.levels, 0) || 0 }, (_, i) => (
-            <div key={i} className="theme-item">
-              <label>
-                <span>Level {i + 1}</span>
-                <select value={params.themes[i] ?? 'a'} onChange={(e) => setTheme(i, e.target.value)}>
-                  {THEME_GROUPS.map(([group, defs]) => (
-                    <optgroup key={group} label={group}>
-                      {defs.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </label>
-              <MusicPicker
-                label="Music"
-                field={`floorMusic.${i}`}
-                value={params.floorMusic?.[i]}
-                onChange={(v) => setFloorMusic(i, v)}
-                issues={issues}
-              />
-            </div>
+            <label key={i} className="theme-item">
+              <span>Level {i + 1}</span>
+              <select value={params.themes[i] ?? 'a'} onChange={(e) => setTheme(i, e.target.value)}>
+                {THEME_GROUPS.map(([group, defs]) => (
+                  <optgroup key={group} label={group}>
+                    {defs.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
           ))}
         </div>
         {issues
@@ -199,6 +190,25 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
               {issue.message}
             </p>
           ))}
+      </Section>
+
+      <Section title="Music per level">
+        <p className="hint">
+          Swaps a floor's own music track. Left on <strong>Default</strong>,
+          a floor plays whatever the game falls back to — nothing is emitted.
+        </p>
+        <div className="field-grid">
+          {Array.from({ length: Math.max(params.levels, 0) || 0 }, (_, i) => (
+            <MusicPicker
+              key={i}
+              label={`Level ${i + 1}`}
+              field={`floorMusic.${i}`}
+              value={params.floorMusic?.[i]}
+              onChange={(v) => setFloorMusic(i, v)}
+              issues={issues}
+            />
+          ))}
+        </div>
       </Section>
 
       <Section title="Monster pools per level">

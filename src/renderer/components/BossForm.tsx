@@ -364,13 +364,6 @@ function ArenaTab({ arena, fieldPrefix, issues, setArena, setWave }: ArenaTabPro
               {issue.message}
             </p>
           ))}
-        <MusicPicker
-          label="Music"
-          field={`${fieldPrefix}.music`}
-          value={arena.music}
-          onChange={(v) => setArena({ music: v })}
-          issues={issues}
-        />
         {/* only a mixed theme has a palette to arrange, so the choice is
             meaningless — and misleading — for every other theme */}
         {getTheme(arena.theme)?.mixed !== undefined && (
@@ -396,6 +389,20 @@ function ArenaTab({ arena, fieldPrefix, issues, setArena, setWave }: ArenaTabPro
               {issue.message}
             </p>
           ))}
+      </Section>
+
+      <Section title="Music">
+        <p className="hint">
+          Swaps this fight's own music. Left on <strong>Default</strong>, the
+          arena plays whatever the game falls back to — nothing is emitted.
+        </p>
+        <MusicPicker
+          label="Track"
+          field={`${fieldPrefix}.music`}
+          value={arena.music}
+          onChange={(v) => setArena({ music: v })}
+          issues={issues}
+        />
       </Section>
 
       <Section title="Boss" badge={`${arena.bossPool.length}/${BOSS_DEF_LIST.length}`}>

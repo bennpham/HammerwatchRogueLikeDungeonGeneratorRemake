@@ -182,8 +182,16 @@ export function LobbyForm({ params, issues, onChange }: LobbyFormProps) {
                   {issue.message}
                 </p>
               ))}
+          </Section>
+
+          <Section title="Music" defaultOpen>
+            <p className="hint">
+              Swaps this room's own music. Left on <strong>Default</strong>,
+              the lobby plays whatever it was authored with — nothing is
+              emitted.
+            </p>
             <MusicPicker
-              label="Music"
+              label="Track"
               field={`lobbies.${active}.music`}
               value={lobby.music}
               onChange={(v) => setLobby(active, { music: v })}

@@ -182,7 +182,7 @@ select:focus {
 
 .theme-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
   gap: 8px;
 }
 
@@ -192,10 +192,6 @@ select:focus {
   gap: 4px;
   font-size: 12px;
   color: var(--text-dim);
-}
-
-.theme-item select + span {
-  margin-top: 4px;
 }
 
 /* monster filter — shared by the pool editor and the max table */
