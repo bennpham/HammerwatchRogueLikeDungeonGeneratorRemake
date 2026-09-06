@@ -31,6 +31,7 @@
 import type { GenerationContext } from '../core/context'
 import type { FloorTimer } from '../config/parameters'
 import { COUNTDOWN_TEXT_TYPE, TICK_DISPLAY_MS, formatCountdown } from '../core/countdown'
+import { LEVEL_LOADED_EVENT } from '../core/events'
 import { COVER_MARGIN, coveringShape } from '../map/coverShape'
 import {
   NodeAnnounceText,
@@ -38,13 +39,6 @@ import {
   NodeGlobalEventTrigger,
   NodeToggleElement
 } from '../objects/nodes'
-
-/**
- * The engine event that fires once the floor is loaded, which is what starts the
- * countdown. [UNVERIFIED] — taken from the authored
- * test_damage_player_timer.xml; see DISCOVERY-LOG.md.
- */
-const LEVEL_LOADED_EVENT = 'LevelLoaded'
 
 /**
  * RectangleShape's entity-type bitmask, players only. The shipped

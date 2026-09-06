@@ -660,6 +660,7 @@ and the four `_v2` corners.
 | `ToggleImmortality` | makes an **actor** immortal, or takes it back | `state` (0 = immortal), `element` = actor id |
 | `DangerArea` | damage-over-time field bound to a shape; negative damage heals | `damage`, `shape`, `freq` (ms), `buff` (path or empty) |
 | `PlaySound` | plays one cue | `sound` (`sound/<bank>.xml:<cue>`), `loop`, `play3d`, `range3d` |
+| `PlayMusic` | swaps the level's music track | `sound` (`sound/<bank>.xml:<cue>`), `loop` — no `play3d`/`range3d`, music is not positional |
 | `ProjectileSpewer` | fires a projectile stream in one cardinal direction, forever | `direction` (0 up, 1 down, 2 left, 3 right), `projectile` (path), `spread` (float 0..2), `spawn-rate` (ms) |
 
 `ProjectileSpewer` is the boss arena’s wall traps (`src/generator/boss/traps.ts`).

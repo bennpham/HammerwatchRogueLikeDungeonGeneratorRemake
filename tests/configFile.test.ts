@@ -988,6 +988,52 @@ describe('timerN — per-floor timer mode', () => {
   })
 })
 
+describe('musicN — per-floor music', () => {
+  it('writes no music line at all while every floor is unset', () => {
+    const text = serializeParametersTxt(plainParameters())
+    expect(text).not.toMatch(/^music\d+=/m)
+  })
+
+  it('a stock export carries no music line either — nothing is set by default', () => {
+    const text = serializeParametersTxt(defaultParameters())
+    expect(text).not.toMatch(/^music\d+=/m)
+  })
+
+  it('writes one line per floor with a track set, and round-trips it', () => {
+    const params = defaultParameters()
+    params.floorMusic = params.themes.map(() => 'default')
+    params.floorMusic[0] = 'act1'
+    params.floorMusic[3] = 'boss_final'
+
+    const text = serializeParametersTxt(params)
+    expect(text).toContain('music0=act1')
+    expect(text).toContain('music3=boss_final')
+    expect(text).not.toContain('music1=')
+
+    const reparsed = parseParametersTxt(text)
+    expect(reparsed.unknownKeys).toEqual([])
+    expect(reparsed.params.floorMusic).toEqual(params.floorMusic)
+  })
+
+  it('leaves a file written before music existed entirely on the defaults', () => {
+    const parsed = parseParametersTxt('levels=7')
+    expect(parsed.params.floorMusic).toBeUndefined()
+    expect(parsed.unknownKeys).toEqual([])
+  })
+
+  it('reports an unknown track id and keeps the default', () => {
+    const parsed = parseParametersTxt('levels=2\nmusic0=not-a-track')
+    expect(parsed.params.floorMusic?.[0]).toBe('default')
+    expect(parsed.unknownKeys).toEqual(['music0 value "not-a-track"'])
+  })
+
+  it('pads unmentioned floors with the default sentinel', () => {
+    const parsed = parseParametersTxt('levels=4\nmusic2=act2')
+    expect(parsed.params.floorMusic).toHaveLength(4)
+    expect(parsed.params.floorMusic).toEqual(['default', 'default', 'act2', 'default'])
+  })
+})
+
 describe('parameters.txt — free upgrades', () => {
   it('round-trips both stock lobbies\' counts independently', () => {
     const original = defaultParameters()
@@ -1140,6 +1186,27 @@ describe('parameters.txt — lobbies (issue #48)', () => {
     expect(parsed.params.lobbies[0].shopCategories).toEqual(['misc1', 'power'])
     expect(parsed.unknownKeys).toEqual(['lobby0Shops value "nonsense"'])
   })
+
+  it('writes no lobby music line while unset, and round-trips one that is set', () => {
+    const original = defaultParameters()
+    let text = serializeParametersTxt(original)
+    expect(text).not.toMatch(/^lobby\d+Music=/m)
+
+    original.lobbies[1].music = 'boss_1'
+    text = serializeParametersTxt(original)
+    expect(text).toContain('lobby1Music=boss_1')
+    expect(text).not.toMatch(/^lobby0Music=/m)
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.lobbies).toEqual(original.lobbies)
+  })
+
+  it('reports an unknown lobby music id and keeps it unset', () => {
+    const parsed = parseParametersTxt('lobby0Music=nope')
+    expect(parsed.unknownKeys).toEqual(['lobby0Music value "nope"'])
+    expect(parsed.params.lobbies[0].music).toBeUndefined()
+  })
 })
 
 describe('parameters.txt — multiple boss fights (issue #43)', () => {
@@ -1215,6 +1282,26 @@ describe('parameters.txt — multiple boss fights (issue #43)', () => {
     // #48 — not aliased onto a lobby, so it is reported like any other key
     // this parser no longer recognizes (invariant #5: never fatal)
     expect(parsed.unknownKeys).toEqual(['bossGold'])
+  })
+
+  it('writes no boss music line while unset, and round-trips one that is set', () => {
+    const original = defaultParameters()
+    let text = serializeParametersTxt(original)
+    expect(text).not.toMatch(/^boss\d*Music=/m)
+
+    original.boss.fights[0].arena.music = 'boss_final'
+    text = serializeParametersTxt(original)
+    expect(text).toContain('boss0Music=boss_final')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.boss).toEqual(original.boss)
+  })
+
+  it('reports an unknown boss music id and keeps it unset', () => {
+    const parsed = parseParametersTxt('boss=1\nboss0Music=nope')
+    expect(parsed.unknownKeys).toEqual(['boss0Music value "nope"'])
+    expect(parsed.params.boss.fights[0].arena.music).toBeUndefined()
   })
 })
 

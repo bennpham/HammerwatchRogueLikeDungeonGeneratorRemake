@@ -21,6 +21,7 @@ import type {
   ValidationIssue
 } from '../../generator'
 import { BoolField, NumberField, Section } from './fields'
+import { MusicPicker } from './MusicPicker'
 import { UpgradeCountFields } from './UpgradeCountFields'
 
 interface LobbyFormProps {
@@ -181,6 +182,13 @@ export function LobbyForm({ params, issues, onChange }: LobbyFormProps) {
                   {issue.message}
                 </p>
               ))}
+            <MusicPicker
+              label="Music"
+              field={`lobbies.${active}.music`}
+              value={lobby.music}
+              onChange={(v) => setLobby(active, { music: v })}
+              issues={issues}
+            />
           </Section>
 
           <Section title="Starting gold" defaultOpen badge={`${lobby.startingGold}`}>

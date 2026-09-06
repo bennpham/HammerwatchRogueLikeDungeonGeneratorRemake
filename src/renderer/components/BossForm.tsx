@@ -44,6 +44,7 @@ import type {
   ValidationIssue
 } from '../../generator'
 import { BoolField, NumberField, Section, Subsection, ToggleGroup } from './fields'
+import { MusicPicker } from './MusicPicker'
 import { BuffListEditor } from './BuffListEditor'
 import { PickupListEditor } from './PickupListEditor'
 import { TrapListEditor } from './TrapListEditor'
@@ -363,6 +364,13 @@ function ArenaTab({ arena, fieldPrefix, issues, setArena, setWave }: ArenaTabPro
               {issue.message}
             </p>
           ))}
+        <MusicPicker
+          label="Music"
+          field={`${fieldPrefix}.music`}
+          value={arena.music}
+          onChange={(v) => setArena({ music: v })}
+          issues={issues}
+        />
         {/* only a mixed theme has a palette to arrange, so the choice is
             meaningless — and misleading — for every other theme */}
         {getTheme(arena.theme)?.mixed !== undefined && (

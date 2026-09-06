@@ -44,6 +44,7 @@ import { DEFAULT_LOBBY_PRESET_ID, LOBBY_PRESETS } from '../lobby/presets'
 import { campaignOrder, isDefaultOrder, normalizeOrder, parseSlotLabel, slotLabel } from '../campaign'
 import type { CampaignSlot } from '../campaign'
 import { TWEAK_FIELD_MAP, pruneTweaks } from '../tweak/overrides'
+import { MUSIC_DEFAULT, isKnownMusicId } from '../music/tracks'
 
 export interface ParsedConfig {
   params: DungeonParameters
@@ -88,6 +89,7 @@ export const PARAMETER_ORDER = [
   'monster', // placeholder: expanded to monsters0...monstersN
   'buff', // placeholder: expanded to buffN for each floor that carries a buff
   'timer', // placeholder: expanded to timerN for each floor whose timer is on
+  'music', // placeholder: expanded to musicN for each floor with a track set
   'monsterMax', // placeholder: expanded per MONSTER_TYPES order
   'playerTweaks', // placeholder: sorted by key
 ] as const
@@ -210,6 +212,11 @@ function parseBossFightKey(
   }
   if (suffix === 'theme') {
     arena.theme = value
+    return true
+  }
+  if (suffix === 'music') {
+    if (isKnownMusicId(value)) arena.music = value
+    else unknownKeys.push(`${key} value "${value}"`)
     return true
   }
   if (suffix === 'floorpattern') {
@@ -573,6 +580,8 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   let highestTimerIndex = -1
   // Highest `buffN=` seen, same purpose again.
   let highestBuffIndex = -1
+  // Highest `musicN=` seen, same purpose again.
+  let highestMusicIndex = -1
   // Per-fight bookkeeping for the wave post-passes below. Boss keys carry a
   // fight index (`boss0Wave1`), the count may be declared after them, and the
   // keys of one fight say nothing about another — so every fight gets its own
@@ -727,6 +736,11 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
         }
         continue
       }
+      if (suffix === 'music') {
+        if (isKnownMusicId(value)) lobby.music = value
+        else result.unknownKeys.push(`${key} value "${value}"`)
+        continue
+      }
 
       // an unrecognized lobby<i> suffix
       result.unknownKeys.push(key)
@@ -849,6 +863,20 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       continue
     }
 
+    // musicN=<track id> — one line per floor that swaps its music. Absent
+    // floors keep the default (unset, no PlayMusic node), so a file written
+    // before music existed parses exactly as it always did.
+    const musicMatch = keyLower.match(/^music(\d+)$/)
+    if (musicMatch) {
+      const levelIndex = parseInt(musicMatch[1], 10)
+      const floorMusic = params.floorMusic ?? (params.floorMusic = [])
+      while (floorMusic.length <= levelIndex) floorMusic.push(MUSIC_DEFAULT)
+      if (isKnownMusicId(value)) floorMusic[levelIndex] = value
+      else result.unknownKeys.push(`${key} value "${value}"`)
+      highestMusicIndex = Math.max(highestMusicIndex, levelIndex)
+      continue
+    }
+
     const monstersMatch = keyLower.match(/^monsters(\d+)$/)
     if (monstersMatch) {
       const levelIndex = parseInt(monstersMatch[1], 10)
@@ -921,6 +949,15 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     // otherwise stay attached, invisible until the user raised `levels`. Same
     // reasoning as the levelMonsters trim above.
     timers.length = params.levels
+  }
+
+  // Only floors that swap their music get a `musicN=` line, same sparse shape
+  // as the timers above: pad up to the floor count, trim to it, and leave the
+  // array absent entirely when neither the file nor the base mentioned one.
+  if (highestMusicIndex >= 0 || params.floorMusic !== undefined) {
+    const floorMusic = params.floorMusic ?? (params.floorMusic = [])
+    while (floorMusic.length < params.levels) floorMusic.push(MUSIC_DEFAULT)
+    floorMusic.length = params.levels
   }
 
   // How many fights the campaign ends up with. An explicit `bossFights` wins;
@@ -1088,6 +1125,14 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
           `timer${i}=1|${timer.seconds}|${timer.damage}|${timer.freqMs}|${timer.countdown ? 1 : 0}`
         )
       })
+    } else if (key === 'music') {
+      // Only floors with a track actually set get a line. Keeps
+      // parameters.default.txt and every file exported before music existed
+      // byte-identical.
+      ;(params.floorMusic ?? []).forEach((track, i) => {
+        if (track === undefined || track === MUSIC_DEFAULT) return
+        lines.push(`music${i}=${track}`)
+      })
     } else if (key === 'playerTweaks') {
       const tweaks = pruneTweaks(params.playerTweaks ?? {})
       for (const tweakKey of Object.keys(tweaks).sort()) {
@@ -1112,6 +1157,11 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
     lines.push(`lobby${i}Gold=${lobby.startingGold}`)
     lines.push(`lobby${i}Shops=${lobby.shopCategories.join(' ')}`)
     lines.push(`lobby${i}Upgrades=${upgradeCountsLine(lobby.upgrades)}`)
+    // Only when set and not the default sentinel, so a lobby that never chose
+    // a track round-trips byte-identical to before this option existed.
+    if (lobby.music !== undefined && lobby.music !== MUSIC_DEFAULT) {
+      lines.push(`lobby${i}Music=${lobby.music}`)
+    }
   })
 
   // Add boss params after the lobby params.
@@ -1139,6 +1189,11 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
   fights.forEach((fight, f) => {
     const arena = fight.arena
     lines.push(`boss${f}Theme=${arena.theme}`)
+    // Only when set and not the default sentinel, so a fight that never chose
+    // a track round-trips byte-identical to before this option existed.
+    if (arena.music !== undefined && arena.music !== MUSIC_DEFAULT) {
+      lines.push(`boss${f}Music=${arena.music}`)
+    }
     lines.push(`boss${f}FloorPattern=${arena.floorPattern}`)
     lines.push(`boss${f}Width=${arena.minWidth},${arena.maxWidth}`)
     lines.push(`boss${f}Height=${arena.minHeight},${arena.maxHeight}`)

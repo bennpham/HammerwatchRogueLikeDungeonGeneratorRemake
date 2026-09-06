@@ -82,6 +82,7 @@ import { buildWaveBuffRig } from './waveBuffs'
 import { buildWavePickupRig } from './wavePickups'
 import { buildTrapRig } from './traps'
 import { buildCheckpointRig } from './checkpoints'
+import { buildMusicRig } from '../music/rig'
 import { placeSpawnPoints } from './spawnPoints'
 
 /**
@@ -529,11 +530,16 @@ export function buildBossArena(
     walkable
   })
 
-  // --- checkpoints: last of every optional rig, for the same append-only
-  // reason as the ones above. Draws no random values, so it cannot move the
-  // trap rig's bossRand draw or anything laid out before it. Both checkboxes
-  // off, or an empty preset, emits nothing. ---
+  // --- checkpoints, for the same append-only reason as the ones above. Draws
+  // no random values, so it cannot move the trap rig's bossRand draw or
+  // anything laid out before it. Both checkboxes off, or an empty preset,
+  // emits nothing. ---
   buildCheckpointRig(ctx, arena.checkpoints, entranceShape.x, entranceShape.y)
+
+  // --- music: the last of every optional rig. Draws no random values either,
+  // and emits nothing at all when unset/default, so a fight without a chosen
+  // track is byte-identical to before this rig existed. ---
+  buildMusicRig(ctx, arena.music, entranceShape.x, entranceShape.y)
 
   return {
     xml: getArenaXML(ctx, tileArray, gridWidth, gridHeight, themeDef, originX, originY, width, height, pattern),

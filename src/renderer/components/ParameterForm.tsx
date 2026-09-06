@@ -1,7 +1,8 @@
 import React from 'react'
-import { THEME_DEFS, defaultFloorTimer, isDefaultOrder, normalizeOrder } from '../../generator'
+import { MUSIC_DEFAULT, THEME_DEFS, defaultFloorTimer, isDefaultOrder, normalizeOrder } from '../../generator'
 import type { CampaignCounts, DungeonParameters, FinalLockMode, ValidationIssue } from '../../generator'
 import { BoolField, NumberField, Section, ToggleGroup } from './fields'
+import { MusicPicker } from './MusicPicker'
 import { MonsterPoolsEditor } from './MonsterPoolsEditor'
 import { MonsterMaxTable } from './MonsterMaxTable'
 import { FloorTimerEditor } from './FloorTimerEditor'
@@ -47,6 +48,10 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
       while (timers.length < levels) timers.push({ ...(timers[timers.length - 1] ?? defaultFloorTimer()) })
       next.levelTimers = timers.slice(0, Math.max(levels, 1))
 
+      const floorMusic = [...(params.floorMusic ?? [])]
+      while (floorMusic.length < levels) floorMusic.push(MUSIC_DEFAULT)
+      next.floorMusic = floorMusic.slice(0, Math.max(levels, 1))
+
       // A stored order names floors that may no longer exist, or may now be
       // missing one. Repairing keeps the arrangement the dungeon master made
       // instead of throwing it away every time the count changes; an order that
@@ -69,6 +74,12 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
     const themes = [...params.themes]
     themes[index] = theme
     set('themes', themes)
+  }
+
+  const setFloorMusic = (index: number, track: string) => {
+    const floorMusic = [...(params.floorMusic ?? params.themes.map(() => MUSIC_DEFAULT))]
+    floorMusic[index] = track
+    set('floorMusic', floorMusic)
   }
 
   return (
@@ -156,20 +167,29 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
         </p>
         <div className="theme-grid">
           {Array.from({ length: Math.max(params.levels, 0) || 0 }, (_, i) => (
-            <label key={i} className="theme-item">
-              <span>Level {i + 1}</span>
-              <select value={params.themes[i] ?? 'a'} onChange={(e) => setTheme(i, e.target.value)}>
-                {THEME_GROUPS.map(([group, defs]) => (
-                  <optgroup key={group} label={group}>
-                    {defs.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </label>
+            <div key={i} className="theme-item">
+              <label>
+                <span>Level {i + 1}</span>
+                <select value={params.themes[i] ?? 'a'} onChange={(e) => setTheme(i, e.target.value)}>
+                  {THEME_GROUPS.map(([group, defs]) => (
+                    <optgroup key={group} label={group}>
+                      {defs.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
+              <MusicPicker
+                label="Music"
+                field={`floorMusic.${i}`}
+                value={params.floorMusic?.[i]}
+                onChange={(v) => setFloorMusic(i, v)}
+                issues={issues}
+              />
+            </div>
           ))}
         </div>
         {issues

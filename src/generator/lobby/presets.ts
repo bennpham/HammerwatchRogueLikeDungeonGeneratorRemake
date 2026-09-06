@@ -80,6 +80,12 @@ export interface LobbyPresetDef {
    * many free upgrades are asked for.
    */
   saveButtonId: number
+  /**
+   * The first of the two ids the optional music rig allocates (trigger, then
+   * PlayMusic) — in the free band between `saveButtonId` (9500) and
+   * `itemIdBase` (10000), so it can never collide with either.
+   */
+  musicIdBase: number
   /** extra files the template references that the game does not already ship */
   assets: readonly GeneratedFile[]
 }
@@ -110,6 +116,7 @@ export const LOBBY_PRESETS: readonly LobbyPresetDef[] = [
     // lobby0.xml places items/trigger_button_save.xml
     saveButtonSlot: [7, -4],
     saveButtonId: 9500,
+    musicIdBase: 9600,
     assets: LOBBY_ASSETS
   },
   {
@@ -131,6 +138,7 @@ export const LOBBY_PRESETS: readonly LobbyPresetDef[] = [
     // at (±3, -10) — as editor/dungeon2015628872/levels/lobby1.xml places it
     saveButtonSlot: [0, -11],
     saveButtonId: 9500,
+    musicIdBase: 9600,
     // [VERIFIED] 2026-08-10 — stock assets only, unlike the dungeon-prep room
     // (items/trigger_button_save.xml is a stock item too)
     assets: []
