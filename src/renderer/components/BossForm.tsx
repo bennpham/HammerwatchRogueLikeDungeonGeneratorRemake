@@ -44,6 +44,7 @@ import type {
   ValidationIssue
 } from '../../generator'
 import { BoolField, NumberField, Section, Subsection, ToggleGroup } from './fields'
+import { MusicPicker } from './MusicPicker'
 import { BuffListEditor } from './BuffListEditor'
 import { PickupListEditor } from './PickupListEditor'
 import { TrapListEditor } from './TrapListEditor'
@@ -388,6 +389,20 @@ function ArenaTab({ arena, fieldPrefix, issues, setArena, setWave }: ArenaTabPro
               {issue.message}
             </p>
           ))}
+      </Section>
+
+      <Section title="Music">
+        <p className="hint">
+          Swaps this fight's own music. Left on <strong>Default</strong>, the
+          arena plays whatever the game falls back to — nothing is emitted.
+        </p>
+        <MusicPicker
+          label="Track"
+          field={`${fieldPrefix}.music`}
+          value={arena.music}
+          onChange={(v) => setArena({ music: v })}
+          issues={issues}
+        />
       </Section>
 
       <Section title="Boss" badge={`${arena.bossPool.length}/${BOSS_DEF_LIST.length}`}>

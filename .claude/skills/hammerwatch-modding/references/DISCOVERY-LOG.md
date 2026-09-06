@@ -8,6 +8,40 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-05 — the `PlayMusic` script node, and the two shipped music soundbanks
+**Tag:** [VERIFIED] the node shape and both soundbanks (read from the game
+install's `assetsExtract/sound/` and confirmed against stock campaign level
+XML); **[EMITTED]** our own generator's use of it, not yet loaded in game.
+**Context:** Adding a per-floor/per-lobby/per-boss-fight music picker.
+**Evidence:**
+1. `PlayMusic`'s `parameters` is a normal dictionary (unlike `Checkpoint`/
+   `SpawnObject`/`GlobalEventTrigger`), with exactly two fields:
+   `<string name="sound">` and `<bool name="loop">`. No `play3d`/`range3d` —
+   music is not positional, unlike `PlaySound`. Confirmed against a user's own
+   hand-placed node (`editor/dungeon87362215/levels/level0.xml` id 3802,
+   `sound/music.xml:boss_final`, `loop: True`) and two occurrences in the
+   stock campaign (`editor/campaign/levels/level_1.xml` ids ~1730 and ~1731,
+   both `sound/music.xml:act1`, `loop: True`).
+2. `sound` is a `sound/<bank>.xml:<cue>` pair — same dialect as
+   `PlaySound.sound` — never an `.ogg` path. `main.ogg` is reached as
+   `sound/music.xml:main`.
+3. Two soundbanks ship on disk: `assetsExtract/sound/music.xml` — cues
+   `none`, `main`, `act1`, `act2`, `act3`, `act4`, `bonus_1`, `bonus_2`,
+   `boss_1`, `boss_killed`, `boss_final`, `custom_1`, `custom_2` — and
+   `assetsExtract/sound/music_desert.xml` — `desert_cavern`, `desert_temple`,
+   `desert_village`. `none` is a real cue (deliberate silence), distinct from
+   this feature's own `default` sentinel (emit no node at all).
+4. In the stock campaign a `PlayMusic` fires off a plain
+   `GlobalEventTrigger("LevelLoaded")` — the same event `timer/hazard.ts`
+   already uses to arm its countdown — rather than hanging off the entrance
+   `AreaTrigger`'s one-shot chain.
+**Impact:** `src/generator/objects/nodes.ts` (`NodePlayMusic`) and
+`src/generator/music/` (`tracks.ts`, `rig.ts`, `template.ts`) emit this node
+for dungeon floors, boss arenas, and (spliced into the hand-authored
+templates) lobbies. `[EMITTED]` only — promote to fully `[VERIFIED]` in
+`ASSET-REGISTRY.md` once a packed campaign's chosen track is confirmed
+playing in game.
+
 ### 2026-09-05 — the `Checkpoint` script node: bare-bool `parameters`, not a dictionary
 **Tag:** [VERIFIED] — attested by shipped/community levels the game loads.
 **Context:** Wiring a boss-arena "Checkpoints / Save game" section: on chosen

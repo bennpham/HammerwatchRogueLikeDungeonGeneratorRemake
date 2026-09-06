@@ -1,6 +1,8 @@
 import { LOBBY_VENDORS, categoriesFor } from './shops'
 import type { LobbyPresetDef } from './presets'
 import type { LobbyOptions } from '../config/parameters'
+import { musicSound } from '../music/tracks'
+import { musicRigNodes } from '../music/template'
 import {
   DIAMOND_VALUE,
   diamondArray,
@@ -98,6 +100,14 @@ export function buildLobby(
   // dead in a room whose whole point is shopping
   const [startX, startY] = levelStartPos(xml, preset.surgeryLabel)
   xml = insertNodes(xml, respawnOnEntryNodes(preset.respawnIdBase, startX, startY), preset.surgeryLabel)
+
+  // optional music swap, same append-only shape as the respawn net above —
+  // emits nothing at all (not even an id) when unset/default, leaving the
+  // template's own music untouched
+  const sound = musicSound(options.music)
+  if (sound !== null) {
+    xml = insertNodes(xml, musicRigNodes(preset.musicIdBase, startX, startY, sound), preset.surgeryLabel)
+  }
 
   // one items section, two independent populations: the gold payout, and the
   // free upgrades the dungeon master hands the party. Their id ranges cannot

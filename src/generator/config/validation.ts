@@ -28,6 +28,7 @@ import {
   TRAP_FAST_SPAWN_RATE_MS,
   TRAP_SPREAD_MAX
 } from './parameters'
+import { MUSIC_DEFAULT, MUSIC_TRACKS, isKnownMusicId } from '../music/tracks'
 import type { BossTrapDirection } from './parameters'
 import type { BossFight, BossOptions } from './parameters'
 import type { CampaignSlot } from '../campaign'
@@ -270,6 +271,7 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
   validatePlayerTweaks(p, errors, warnings)
   validateLevelBuffs(p, errors, warnings)
   validateLevelTimers(p, errors, warnings)
+  validateFloorMusic(p, errors, warnings)
   validateLobbies(p, errors, warnings)
   validateBoss(p, errors, warnings)
   validateLevelOrder(p, errors)
@@ -446,6 +448,14 @@ function validateLobby(
     errors.push({
       field: lf('preset'),
       message: `"${lobby.preset}" is not a lobby preset. Valid presets: ${LOBBY_PRESETS.map((preset) => preset.id).join(', ')}.`
+    })
+  }
+
+  // music: unset/default means "leave the template's own music alone"
+  if (!isKnownMusicId(lobby.music)) {
+    errors.push({
+      field: lf('music'),
+      message: `"${lobby.music}" is not a music track. Valid tracks: ${MUSIC_DEFAULT}, ${MUSIC_TRACKS.map((t) => t.id).join(', ')}.`
     })
   }
 
@@ -824,6 +834,14 @@ function validateBossFight(
   // theme valid
   if (!THEMES.includes(arena.theme)) {
     errors.push({ field: af('theme'), message: `"${arena.theme}" is not one of: ${THEMES.join(', ')}.` })
+  }
+
+  // music: unset/default means "no PlayMusic node", always valid
+  if (!isKnownMusicId(arena.music)) {
+    errors.push({
+      field: af('music'),
+      message: `"${arena.music}" is not a music track. Valid tracks: ${MUSIC_DEFAULT}, ${MUSIC_TRACKS.map((t) => t.id).join(', ')}.`
+    })
   }
 
   // floor pattern valid. Not an error to set one on a theme that ignores it —
@@ -1569,6 +1587,39 @@ function validateLevelTimers(p: DungeonParameters, errors: ValidationIssue[], wa
     warnings.push({
       field: 'levelTimers',
       message: 'Floor timers only apply to generated dungeon floors — with 0 floors none of them run.'
+    })
+  }
+}
+
+/**
+ * Per-floor music (music/rig.ts). Same shape as validateLevelTimers above it.
+ *
+ * An absent `floorMusic`, or every entry unset/`MUSIC_DEFAULT`, means "no
+ * floor swaps its music", which is the pre-feature default and never invalid.
+ * Entries past `levels` are ignored by the generator, so they are a warning
+ * rather than an error.
+ */
+function validateFloorMusic(p: DungeonParameters, errors: ValidationIssue[], warnings: ValidationIssue[]): void {
+  const floorMusic = p.floorMusic
+  if (floorMusic === undefined) return
+
+  const before = errors.length
+
+  floorMusic.slice(0, p.levels).forEach((track, i) => {
+    if (!isKnownMusicId(track)) {
+      errors.push({
+        field: `floorMusic.${i}`,
+        message: `Floor ${i + 1}: "${track}" is not a music track. Valid tracks: ${MUSIC_DEFAULT}, ${MUSIC_TRACKS.map((t) => t.id).join(', ')}.`
+      })
+    }
+  })
+
+  if (errors.length > before) return
+
+  if (floorMusic.length > p.levels) {
+    warnings.push({
+      field: 'floorMusic',
+      message: `${floorMusic.length} floor music entries for ${p.levels} floor(s) — the extra entries are ignored.`
     })
   }
 }

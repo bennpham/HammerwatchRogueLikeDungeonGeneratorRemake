@@ -276,6 +276,13 @@ export interface DungeonParameters {
    */
   levelTimers?: FloorTimer[]
   /**
+   * A `MUSIC_TRACKS` id per level, or the `MUSIC_DEFAULT` sentinel. Optional,
+   * and unset per floor by default: a params object without it, or with every
+   * floor unset/`default`, produces byte-identical output to the pre-feature
+   * generator for every seed — see `src/generator/music/`.
+   */
+  floorMusic?: string[]
+  /**
    * The order the campaign's lobbies, floors and boss fights are played in.
    *
    * Optional, and absent is the historical shape: every lobby, then every
@@ -348,6 +355,12 @@ export interface LobbyOptions {
    * bounded by the room's layout — it is the dungeon master's dial.
    */
   upgrades: UpgradeCounts
+  /**
+   * A `MUSIC_TRACKS` id, or the `MUSIC_DEFAULT` sentinel (the default —
+   * unset emits no `PlayMusic` node and leaves the template's own music
+   * untouched). See `src/generator/music/`.
+   */
+  music?: string
 }
 
 /** The generated-arena half of one boss fight. */
@@ -460,6 +473,11 @@ export interface BossArenaOptions {
   monsterMultiplier: number
   /** scales the sparse health/mana pickup clusters scattered around the arena */
   foodMultiplier: number
+  /**
+   * A `MUSIC_TRACKS` id, or the `MUSIC_DEFAULT` sentinel (the default — emits
+   * no `PlayMusic` node). See `src/generator/music/`.
+   */
+  music?: string
 }
 
 /**

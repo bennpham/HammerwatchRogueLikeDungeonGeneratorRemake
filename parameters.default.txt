@@ -75,6 +75,9 @@ lobby1Preset=BETA-boss-prep
 lobby1Gold=20000
 lobby1Shops=combo1 combo2 combo3 combo4 combo5 def1 def2 def3 def4 def5 misc1 misc2 misc3 misc4 misc5 off1 off2 off3 off4 off5 power
 lobby1Upgrades=0 0 0 0 0 0 0 0
+# lobby<i>Music swaps that lobby's own music, e.g. lobby1Music=boss_1 — same
+# track ids as music0..N below. Written only when set; the default leaves the
+# room's own music untouched, which is why neither lobby has one here.
 # levelOrder is the order the campaign is PLAYED in: dungeon floors by their
 # 1-based number, boss fights as B1, B2, ... and lobbies as L1, L2, ...
 # e.g. levelOrder=L1,1,2,B1,3,4,B2, or levelOrder=B1,1,2,3 to open on a boss
@@ -112,6 +115,9 @@ levelOrder=L1,1,2,3,4,5,6,7,L2,B1,8
 boss=1
 bossFights=1
 boss0Theme=g_mixed
+# boss<i>Music swaps that fight's own music, e.g. boss0Music=boss_final — same
+# track ids as music0..N below. Written only when set; the default leaves the
+# arena's music untouched, which is why the stock fight has none here.
 # How a "- mixed" boss0Theme arranges its floor palette; ignored by every other
 # theme. random | checker | bandsH | bandsV | bandsDiag | rings | diamond | cross | triangle
 boss0FloorPattern=random
@@ -204,6 +210,13 @@ boss0WavePickup5=powerup_health:2|mana_2:4
 # Written only for floors whose timer is on — here that is floor 8, the escape
 # floor, where 90 seconds after the boss arena spits the party out the whole
 # level starts taking 1 health every 100ms until they find the orb.
+#
+# music0..N swaps a dungeon floor's music, e.g. music2=act2. Valid tracks are
+# the base soundbank's none/main/act1..4/bonus_1/bonus_2/boss_1/boss_killed/
+# boss_final/custom_1/custom_2, plus the desert bank's desert_cavern/
+# desert_temple/desert_village. Written only for floors with a track actually
+# set — the default is `default`, which leaves the floor's music untouched.
+# lobby<i>Music and boss<i>Music (above) work the same way.
 
 monsters0=bat1,tick1,maggot,tower_flower1_small
 monsters1=maggot,slime,skeleton1,archer1

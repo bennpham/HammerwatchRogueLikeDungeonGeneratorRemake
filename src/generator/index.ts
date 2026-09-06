@@ -8,6 +8,7 @@ import { buildBossArena } from './boss'
 import { bossArenaId, bossArenaPath, campaignOrder, gatewayAfter, lobbyId, lobbyPath, slotEntryId, slotLabel } from './campaign'
 import { buildFloorHazardRig } from './timer/hazard'
 import { buildFloorBuffRig } from './buffs/field'
+import { buildMusicRig } from './music/rig'
 
 export type { DungeonParameters, LobbyOptions, BossOptions, BossFight, BossArenaOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FinalLockMode, FloorBuff, BuffTarget, WavePickup, BossTrap, BossTrapDirection, BossCheckpointPreset } from './config/parameters'
 export {
@@ -56,6 +57,8 @@ export type { BuffDef } from './objects/buffTypes'
 export { PICKUP_DEFS, PICKUP_GROUPS, MAX_PICKUP_COUNT, pickupById } from './objects/pickupTypes'
 export type { ProjectileDef } from './objects/projectileTypes'
 export { PROJECTILE_DEFS, PROJECTILE_GROUPS, projectileById } from './objects/projectileTypes'
+export { MUSIC_TRACKS, MUSIC_DEFAULT, musicSound, isKnownMusicId } from './music/tracks'
+export type { MusicTrack } from './music/tracks'
 export type { PickupDef, PickupLane } from './objects/pickupTypes'
 export { THEME_DEFS, getTheme } from './config/themes'
 export type { ThemeDef } from './config/themes'
@@ -352,15 +355,16 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
       }
     }
 
-    // The two optional per-floor field rigs, in the order the form lists them.
-    // Both are built AFTER the floor is complete, so every dungeon id is already
+    // The three optional per-floor rigs, in the order the form lists them. All
+    // are built AFTER the floor is complete, so every dungeon id is already
     // allocated and they can only append — a seed's walls, rooms, doodads,
-    // actors and items are identical whether either is on. Neither draws a
-    // random value (buffs/field.ts, timer/hazard.ts), and each emits nothing at
-    // all when its floor is unconfigured, so turning one on never moves the
-    // other's ids.
+    // actors and items are identical whether any is on. None draws a random
+    // value (buffs/field.ts, timer/hazard.ts, music/rig.ts), and each emits
+    // nothing at all when its floor is unconfigured, so turning one on never
+    // moves another's ids.
     buildFloorBuffRig(ctx, params.levelBuffs?.[i], params.mapWidth, params.mapHeight)
     buildFloorHazardRig(ctx, params.levelTimers?.[i], params.mapWidth, params.mapHeight)
+    buildMusicRig(ctx, params.floorMusic?.[i])
 
     files.push({ path: `levels/level${i}.xml`, content: level.getXML() })
     floorPreviews.set(i, buildPreview(ctx, level))

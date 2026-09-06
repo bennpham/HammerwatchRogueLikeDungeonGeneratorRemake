@@ -19,6 +19,7 @@ export type NodeTypeName =
   | 'ToggleImmortality'
   | 'DangerArea'
   | 'PlaySound'
+  | 'PlayMusic'
   | 'ChangeDoodadState'
   | 'ProjectileSpewer'
   | 'Checkpoint'

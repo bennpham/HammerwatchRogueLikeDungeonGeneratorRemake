@@ -418,6 +418,35 @@ export class NodePlaySound extends ScriptNode {
 }
 
 /**
+ * Swaps the level's music track. `sound` is a `sound/<bank>.xml:<cue>` pair,
+ * same dialect as `NodePlaySound.sound` — e.g. `sound/music.xml:act2`.
+ *
+ * Unlike `NodePlaySound` this carries no `play3d`/`range3d` — music is not
+ * positional. [EMITTED] 2026-09-05 — parameter shape copied from a
+ * hand-placed editor node (`PlayMusic`, `sound/music.xml:boss_final`, `loop:
+ * True`); see DISCOVERY-LOG.md.
+ */
+export class NodePlayMusic extends ScriptNode {
+  loop = true
+
+  constructor(
+    ctx: GenerationContext,
+    x: number,
+    y: number,
+    public sound: string
+  ) {
+    super(ctx, x, y, 'PlayMusic')
+  }
+
+  protected getParametersDict(): XMLDictionary {
+    const d = new XMLDictionary('parameters')
+    d.addData(new XMLString('sound', this.sound))
+    d.addData(new XMLBool('loop', this.loop))
+    return d
+  }
+}
+
+/**
  * A damage-over-time field bound to a shape. Ships **disabled** — the floor-timer
  * rig switches it on with a NodeToggleElement{state:0} once its countdown ends.
  *
