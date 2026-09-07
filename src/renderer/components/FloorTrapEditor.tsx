@@ -15,7 +15,12 @@ interface FloorTrapEditorProps {
  * One collapsible block per floor, the same shape as FloorBuffEditor above it,
  * and reusing the Boss tab's TrapListEditor for the rows — a floor's trap row
  * and a wave tier's carry the same five fields, so the two must not drift on
- * what they look like or how they are edited.
+ * what they look like or how they are edited. The one deliberate divergence is
+ * `maxCount={undefined}`: a wave tier's count is capped at MAX_TRAP_COUNT
+ * because it is spent on one fixed-size arena wall, but a floor's count is
+ * spread across every eligible room on the whole floor, which has no
+ * comparable ceiling — running the pool dry is a graceful, warned-about stop,
+ * not something validation needs to pre-empt.
  *
  * Every floor starts empty, so a campaign that ignores this section is
  * byte-for-byte the campaign you would get without the feature.
@@ -82,6 +87,7 @@ export function FloorTrapEditor({ params, issues, onChange }: FloorTrapEditorPro
                 value={rows}
                 onChange={(next) => setFloor(level, next)}
                 noun="floor"
+                maxCount={undefined}
                 issuePrefix={`levelTraps.${level}`}
                 issues={issues}
               />

@@ -281,7 +281,7 @@ reference/hammerwatch-tweak-stats.md
 | `levelMonsters[i]` | see defaults | non-empty; ids must exist in `MONSTER_TYPES`; repeat an id to weight it |
 | `monsterMax[id]` | per-type | integer ≥ 0; **0 disables the type entirely** |
 | `levelBuffs[i]` | absent / all empty | buff auras, one `FloorBuff[]` per floor: each `{buff, target}` where `buff` is a `BUFF_DEFS` id and `target` is `players`/`monsters`/`both`. No cap on how many a floor carries. Empty on every floor reproduces the pre-feature campaign exactly. See *Buff auras* below |
-| `levelTraps[i]` | present, empty on every floor | wall traps, one `FloorTrap[]` per floor: each `{projectile, direction, spread, spawnRateMs, count}`, the same five fields a boss tier's trap row carries. `count` is spewers on the **floor**, spread over every eligible room's wall of that direction — not per room. Always live, no tiers and no trigger. Empty on every floor reproduces the pre-feature campaign exactly. `trapN=<projectile>:<dir>:<spread>:<rate>:<count>|…` in `parameters.txt`. See *Traps per dungeon floor* below |
+| `levelTraps[i]` | present, empty on every floor | wall traps, one `FloorTrap[]` per floor: each `{projectile, direction, spread, spawnRateMs, count}`, the same five fields a boss tier's trap row carries. `count` is spewers on the **floor**, spread over every eligible room's wall of that direction — not per room — and unlike a wave tier's `count` it has **no upper bound** (`MAX_TRAP_COUNT` applies only to `arena.waves[i].traps`): a floor's pool spans every eligible room on it, not one fixed-size arena wall, so a very large count just runs the pool dry, which validation only warns about. Always live, no tiers and no trigger. Empty on every floor reproduces the pre-feature campaign exactly. `trapN=<projectile>:<dir>:<spread>:<rate>:<count>|…` in `parameters.txt`. See *Traps per dungeon floor* below |
 | `levelTimers[i]` | all off but the escape floor (90s, 1 dmg / 100ms) | timer mode, one `FloorTimer` per floor: `enabled`, `seconds` (1–3600), `damage` (−10000–10000, **negative heals**), `freqMs` (50–600000), `countdown`. Off on every floor reproduces the pre-feature campaign exactly. See *Timer mode* below |
 | `playerTweaks` | `{ 'player.shared.remove.life': 1 }` | sparse `Record<lowercase key, number>` of player-balance overrides; empty = no `tweak/` folder. See below |
 | `lobbies` | **two** — `BETA-dungeon-prep` at 10000g and `BETA-boss-prep` at 20000g, both selling all 21 columns, no free upgrades | the campaign's shop rooms, `LobbyOptions[]`. A lobby exists iff it is in this list: there is no `enabled` flag any more, and `lobbies: []` reproduces the pre-lobby campaign exactly — the same rule `boss.fights` already followed. Any number, each independently placed by `levelOrder`. `lobbies=N` in `parameters.txt`. See *Lobbies* below |
@@ -619,7 +619,7 @@ trapped tier, absent for the rest.
 Optional, per floor, empty by default. `ProjectileSpewer` nodes standing on room
 walls, firing across the room from the moment the floor loads. The arena's rig
 (`boss/traps.ts`) one level up, sharing every playtested constant through
-`traps/slots.ts`, and differing in exactly three ways:
+`traps/slots.ts`, and differing in exactly four ways:
 
 - **No tiers, no triggers.** An arena has health thresholds to switch hazard
   sets between; a floor has nothing to switch on, so every spewer ships
@@ -634,6 +634,12 @@ walls, firing across the room from the moment the floor loads. The arena's rig
 - **One flat pool per direction**, built by walking `level.rooms` in index
   order and carried across every row. Bigger rooms contribute more slots and so
   attract proportionally more traps.
+- **`count` has no upper bound.** `BossTrap.count` is capped at
+  `MAX_TRAP_COUNT` because it is spent on one fixed-size arena wall; a floor's
+  `count` is spread across every eligible room on the floor, which has no
+  comparable ceiling, so the cap would be arbitrary. Validation still rejects
+  non-integers and anything below 1; a count the floor's pools cannot satisfy
+  just runs dry gracefully (see `floorTrapCapacity`, a warning, not an error).
 
 **Geometry.** `Room.contains` is inclusive, so a room's interior is
 `[r.x, r.x + r.width] x [r.y, r.y + r.height]` and its wall band is the ring

@@ -1696,9 +1696,10 @@ function validateLevelBuffs(p: DungeonParameters, errors: ValidationIssue[], war
 }
 
 /**
- * The per-floor wall traps. Same five rules as a boss tier's — the two lists
- * carry the same five fields — but phrased per floor, and with a capacity
- * warning measured against rooms rather than an arena.
+ * The per-floor wall traps. Same five fields as a boss tier's, phrased per
+ * floor, with two deliberate differences: a capacity warning measured against
+ * rooms rather than an arena, and no upper bound on `count` — see
+ * FloorTrap.count's doc comment for why MAX_TRAP_COUNT does not apply here.
  */
 function validateLevelTraps(p: DungeonParameters, errors: ValidationIssue[], warnings: ValidationIssue[]): void {
   const levelTraps = p.levelTraps
@@ -1734,11 +1735,13 @@ function validateLevelTraps(p: DungeonParameters, errors: ValidationIssue[], war
           message: `Floor ${i + 1}: the "${row.projectile}" trap fires every ${row.spawnRateMs} ms — the rate must be a whole number of milliseconds, at least 1.`
         })
       }
-      // Every spewer is its own node on its own tile — see traps/floor.ts.
-      if (!Number.isInteger(row.count) || row.count < 1 || row.count > MAX_TRAP_COUNT) {
+      // Every spewer is its own node on its own tile — see traps/floor.ts. No
+      // upper bound: unlike a boss tier's wall, a floor's pool is the whole
+      // floor's rooms, and running it dry is a warning (below), not an error.
+      if (!Number.isInteger(row.count) || row.count < 1) {
         errors.push({
           field: `levelTraps.${i}.${j}.count`,
-          message: `Floor ${i + 1} places ${row.count} × "${row.projectile}" — the count must be a whole number 1..${MAX_TRAP_COUNT}.`
+          message: `Floor ${i + 1} places ${row.count} × "${row.projectile}" — the count must be a whole number of at least 1.`
         })
       }
     })

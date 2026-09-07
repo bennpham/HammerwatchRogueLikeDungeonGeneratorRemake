@@ -150,7 +150,14 @@ export interface FloorTrap {
   spread: number
   /** milliseconds between shots */
   spawnRateMs: number
-  /** how many spewers this row places; at least 1, at most MAX_TRAP_COUNT */
+  /**
+   * How many spewers this row places, at least 1. Unlike BossTrap.count it has
+   * no upper bound: a wave tier's count is spent on one fixed-size arena wall,
+   * but a floor's is spread across every eligible room on the whole floor, so
+   * MAX_TRAP_COUNT would be an arbitrary ceiling with no relationship to what
+   * the floor can actually hold. Running the pool dry is a graceful stop that
+   * validation warns about (see floorTrapCapacity), not an error.
+   */
   count: number
 }
 
@@ -640,7 +647,11 @@ export type TrapDirection = BossTrapDirection
 /** Widest fan the engine's `spread` parameter accepts. 0 is a single stream. */
 export const TRAP_SPREAD_MAX = 2
 
-/** Most spewers one trap row may place. */
+/**
+ * Most spewers one boss wave tier's trap row may place on its arena wall. Only
+ * BossTrap.count is bounded by this — FloorTrap.count has no such ceiling; see
+ * its own doc comment for why.
+ */
 export const MAX_TRAP_COUNT = 24
 
 /**

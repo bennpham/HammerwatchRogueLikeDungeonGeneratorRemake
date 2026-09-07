@@ -9,6 +9,7 @@ import {
   DEFAULT_BOSS_INVULN_SECONDS,
   DEFAULT_WAVE_MONSTER_MAX,
   MAX_BOSS_INVULN_SECONDS,
+  MAX_TRAP_COUNT,
   MONSTER_VARIANT_GROUPS,
   THEME_DEFS,
   buffById,
@@ -589,6 +590,7 @@ function ArenaTab({ arena, fieldPrefix, issues, setArena, setWave }: ArenaTabPro
                 value={traps}
                 onChange={(next) => setWave(i, { traps: next })}
                 noun="tier"
+                maxCount={MAX_TRAP_COUNT}
                 issuePrefix={`${fieldPrefix}.waves.${i}.traps`}
                 issues={issues}
               />

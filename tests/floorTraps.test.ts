@@ -686,11 +686,15 @@ describe('floor traps — validation', () => {
     }
   })
 
-  it('rejects a count outside 1..MAX_TRAP_COUNT', () => {
-    for (const count of [0, -1, 2.5, MAX_TRAP_COUNT + 1]) {
+  it('rejects a count below 1, but never for being too large', () => {
+    for (const count of [0, -1, 2.5]) {
       const r = issues((p) => ((p.levelTraps as FloorTrap[][])[0] = [trapRow({ count })]))
       expect(r.errors.some((e) => e.field === 'levelTraps.0.0.count')).toBe(true)
     }
+    // Unlike a boss tier's wall, a floor's pool spans the whole floor and has
+    // no comparable ceiling — a very large count just runs the pool dry.
+    const r = issues((p) => ((p.levelTraps as FloorTrap[][])[0] = [trapRow({ count: MAX_TRAP_COUNT * 10 })]))
+    expect(r.errors.some((e) => e.field === 'levelTraps.0.0.count')).toBe(false)
   })
 
   it('warns, without blocking, below the fast spawn rate', () => {
