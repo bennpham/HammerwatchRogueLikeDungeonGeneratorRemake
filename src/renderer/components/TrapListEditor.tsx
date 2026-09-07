@@ -14,6 +14,13 @@ interface TrapListEditorProps {
   onChange: (next: BossTrap[]) => void
   /** What the list hangs off, for the row tooltips: 'tier' today. */
   noun: string
+  /**
+   * Upper bound on each row's `count`, or `undefined` for none — see
+   * TrapPicker. The boss tab passes MAX_TRAP_COUNT (a wall is a fixed
+   * rectangle); the floor tab passes `undefined` (a floor's pool is every
+   * eligible room on it).
+   */
+  maxCount: number | undefined
   /** Issue-field prefix, e.g. `boss.fights.0.arena.waves.0.traps`. */
   issuePrefix: string
   issues: ValidationIssue[]
@@ -25,12 +32,12 @@ interface TrapListEditorProps {
  * The third of the Boss tab's list editors, kept structurally identical to
  * BuffListEditor and PickupListEditor on purpose — "no traps" is an empty list,
  * never a row with nothing selected, and the list itself has no upper bound
- * (each row's *count* is bounded instead; see MAX_TRAP_COUNT).
+ * (each row's *count* is bounded instead, by `maxCount`).
  *
  * Several rows may share a direction, which is how one wall mixes ammunition:
  * three axes and two fireballs firing north is two rows, both `up`.
  */
-export function TrapListEditor({ value, onChange, noun, issuePrefix, issues }: TrapListEditorProps) {
+export function TrapListEditor({ value, onChange, noun, maxCount, issuePrefix, issues }: TrapListEditorProps) {
   const patch = (index: number, change: Partial<BossTrap>) => {
     onChange(value.map((row, i) => (i === index ? { ...row, ...change } : { ...row })))
   }
@@ -50,7 +57,7 @@ export function TrapListEditor({ value, onChange, noun, issuePrefix, issues }: T
     <div className="buff-list">
       {value.map((row, index) => (
         <React.Fragment key={index}>
-          <TrapPicker trap={row} onChange={(change) => patch(index, change)}>
+          <TrapPicker trap={row} onChange={(change) => patch(index, change)} maxCount={maxCount}>
             <button
               type="button"
               className="buff-remove"

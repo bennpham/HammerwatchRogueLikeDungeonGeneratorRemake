@@ -89,6 +89,15 @@ src/
 │   ├── timer/            hazard.ts — timer mode, the optional per-floor timed
 │   │                     damage field. Appends nodes after a floor is built;
 │   │                     no RNG, no files of its own
+│   ├── traps/            per-floor wall traps — the ONLY per-floor layer that
+│   │   │                 draws, and it draws from ctx.trapRand alone
+│   │   ├── slots.ts      spewer primitives shared with boss/traps.ts —
+│   │   │                 SPEWER_DIRECTION, TILE_CENTRE, the margin/spacing
+│   │   │                 constants, takeSlot(rand, pool), wallCapacity.
+│   │   │                 boss/traps.ts imports these and re-exports the three
+│   │   │                 that validation.ts and its suite already named
+│   │   └── floor.ts      buildFloorTrapRig() — spewers on room walls, live
+│   │                     from load, no tiers and no triggers
 │   ├── boss/             the GENERATED arena — the only new geometry since the
 │   │   │                 port, and the only consumer of ctx.bossRand
 │   │   ├── arena.ts      buildBossArena() — the assembler
@@ -128,13 +137,14 @@ src/
 │                         LevelPreview, LoadoutSheet, MonsterPoolsEditor,
 │                         PoolGroup, PoolTextField, MonsterFilterBar,
 │                         MonsterMaxTable, FloorTimerEditor, FloorBuffEditor,
+                         FloorTrapEditor,
 │                         BuffPicker, BuffListEditor, PickupListEditor,
 │                         PickupPicker, TrapListEditor, TrapPicker,
 │                         UpgradeCountFields, InfoTip,
 │                         OutputPanel, fields},
 │                         styles/app.css
 └── shared/ipc.ts         types shared across the bridge
-tests/                    vitest, 36 suites / 1439 tests: rand, context,
+tests/                    vitest, 39 suites / 1548 tests: rand, context,
                           configFile, validation, generation, reachability,
                           sealIntegrity, themes (+ a
                           snapshot), presets, monsters, monsterVariants,
@@ -143,6 +153,7 @@ tests/                    vitest, 36 suites / 1439 tests: rand, context,
                           bossWaves, bossCover, bossInvulnerability,
                           bossWaveBuffs, bossWavePickups, bossTraps,
                           campaignOrder, rearrange, floorTimer, floorBuffs,
+                          floorTraps,
                           bossGeometry, bossSpawnPoints, bosses, anchors,
                           arenaPattern, packer, tweak, tweakChains, tweakBulk.
                           Helpers (not suites): params.ts — plainParameters(),
@@ -164,15 +175,19 @@ reference/hammerwatch-tweak-stats.md
 2. **Determinism.** `(params, seed)` ⇒ byte-identical files. Forbidden inside
    the generator: `Math.random()`, `Date`, `crypto`, iteration over an object
    whose key order isn't fixed, `Array.sort` without a total comparator.
-3. **Three RNG streams, never mixed.** `ctx.rand` (seed) drives layout and
+3. **Four RNG streams, never mixed.** `ctx.rand` (seed) drives layout and
    population — the stream that must match the Java original.
    `ctx.cosmeticRand` (seed + 1) drives floor-tile variants, overlay tilesets
    and mixed-palette slots. `ctx.bossRand` (seed + 2) drives everything in the
    boss arena, which is generated after the floors precisely so it can draw as
-   much as it likes. Drawing from the wrong stream shifts the ones after it and
-   silently changes every saved seed. A module with nothing to draw must return
-   **before** touching a stream, not draw and discard (`overlayDataset`,
-   `mixedDatasets`).
+   much as it likes. `ctx.trapRand` (seed + 3) drives the per-floor wall traps,
+   one `iRand` per placed spewer, for the same reason: they are placed onto a
+   finished floor, and drawing them from `rand` would shift every *later*
+   floor's whole layout the moment any earlier floor were trapped. Drawing from
+   the wrong stream shifts the ones after it and silently changes every saved
+   seed. A module with nothing to draw must return **before** touching a
+   stream, not draw and discard (`overlayDataset`, `mixedDatasets`,
+   `buildFloorTrapRig`).
 4. **Bounded loops.** `MAX_LEVEL_ATTEMPTS = 60` in `generator/index.ts`; 1000
    attempts for room placement and passage connection, 2000 for special-room
    assignment in `level.ts`; `PLACEMENT_ATTEMPTS = 40` per arena rect. Never
@@ -205,13 +220,17 @@ reference/hammerwatch-tweak-stats.md
    `src/generator/boss/**` is the exception that proves the rule — it
    *does* draw, but only from `ctx.bossRand`, so turning the boss on or off
    still leaves every dungeon floor byte-identical.
-   `src/generator/timer/**` and `src/generator/buffs/**` are the two optional
+   `src/generator/timer/**`, `src/generator/buffs/**` and
+   `src/generator/traps/**` are the optional
    layers that deliberately *do* change a floor's XML — that is the whole
    feature — but only by appending script nodes after the floor is complete:
    its tilemap, doodads, actors, items and every pre-existing id must come out
    byte-identical, and a floor with neither configured must emit nothing at
    all. They share the floor loop, so each emitting **nothing** when its floor
-   is unconfigured is also what keeps the other's ids from shifting.
+   is unconfigured is also what keeps the others' ids from shifting. Traps are
+   the one of the three that draws, and it draws from `ctx.trapRand` alone —
+   never from `rand` — which is what keeps arming a floor from moving any
+   floor's dungeon, its own included.
    Both lobby templates' **free upgrade pickups** and their two extra
    lights are on the RNG-free side of this line too: however many upgrades a
    room hands out, every `levels/level*.xml` stays byte-identical, and a kind
@@ -262,6 +281,7 @@ reference/hammerwatch-tweak-stats.md
 | `levelMonsters[i]` | see defaults | non-empty; ids must exist in `MONSTER_TYPES`; repeat an id to weight it |
 | `monsterMax[id]` | per-type | integer ≥ 0; **0 disables the type entirely** |
 | `levelBuffs[i]` | absent / all empty | buff auras, one `FloorBuff[]` per floor: each `{buff, target}` where `buff` is a `BUFF_DEFS` id and `target` is `players`/`monsters`/`both`. No cap on how many a floor carries. Empty on every floor reproduces the pre-feature campaign exactly. See *Buff auras* below |
+| `levelTraps[i]` | present, empty on every floor | wall traps, one `FloorTrap[]` per floor: each `{projectile, direction, spread, spawnRateMs, count}`, the same five fields a boss tier's trap row carries. `count` is spewers on the **floor**, spread over every eligible room's wall of that direction — not per room — and unlike a wave tier's `count` it has **no upper bound** (`MAX_TRAP_COUNT` applies only to `arena.waves[i].traps`): a floor's pool spans every eligible room on it, not one fixed-size arena wall, so a very large count just runs the pool dry, which validation only warns about. Always live, no tiers and no trigger. Empty on every floor reproduces the pre-feature campaign exactly. `trapN=<projectile>:<dir>:<spread>:<rate>:<count>|…` in `parameters.txt`. See *Traps per dungeon floor* below |
 | `levelTimers[i]` | all off but the escape floor (90s, 1 dmg / 100ms) | timer mode, one `FloorTimer` per floor: `enabled`, `seconds` (1–3600), `damage` (−10000–10000, **negative heals**), `freqMs` (50–600000), `countdown`. Off on every floor reproduces the pre-feature campaign exactly. See *Timer mode* below |
 | `playerTweaks` | `{ 'player.shared.remove.life': 1 }` | sparse `Record<lowercase key, number>` of player-balance overrides; empty = no `tweak/` folder. See below |
 | `lobbies` | **two** — `BETA-dungeon-prep` at 10000g and `BETA-boss-prep` at 20000g, both selling all 21 columns, no free upgrades | the campaign's shop rooms, `LobbyOptions[]`. A lobby exists iff it is in this list: there is no `enabled` flag any more, and `lobbies: []` reproduces the pre-lobby campaign exactly — the same rule `boss.fights` already followed. Any number, each independently placed by `levelOrder`. `lobbies=N` in `parameters.txt`. See *Lobbies* below |
@@ -593,6 +613,79 @@ firing north" is two `up` rows).
 `TRAP_FAST_SPAWN_RATE_MS` (50) rather than rejecting, because a deliberate
 barrage is legitimate. `boss<i>WaveTrapN` in `parameters.txt`, one line per
 trapped tier, absent for the rest.
+
+## Traps per dungeon floor (`src/generator/traps/`)
+
+Optional, per floor, empty by default. `ProjectileSpewer` nodes standing on room
+walls, firing across the room from the moment the floor loads. The arena's rig
+(`boss/traps.ts`) one level up, sharing every playtested constant through
+`traps/slots.ts`, and differing in exactly four ways:
+
+- **No tiers, no triggers.** An arena has health thresholds to switch hazard
+  sets between; a floor has nothing to switch on, so every spewer ships
+  `enabled: True`, exactly as `buffs/field.ts`'s aura does. A floor's rig is N
+  spewer nodes and *nothing else* — no `GlobalEventTrigger`, no
+  `ToggleElement`. A copy-paste of the arena's tier wiring here would be a bug,
+  and the suite asserts its absence.
+- **`count` is counted over the FLOOR.** A tier's row places `count` spewers
+  along one arena wall; a floor's row places `count` over every eligible room's
+  wall of that direction. A dungeon master asking for six arrow traps wants
+  six, not six per room on a floor whose room count is itself a roll.
+- **One flat pool per direction**, built by walking `level.rooms` in index
+  order and carried across every row. Bigger rooms contribute more slots and so
+  attract proportionally more traps.
+- **`count` has no upper bound.** `BossTrap.count` is capped at
+  `MAX_TRAP_COUNT` because it is spent on one fixed-size arena wall; a floor's
+  `count` is spread across every eligible room on the floor, which has no
+  comparable ceiling, so the cap would be arbitrary. Validation still rejects
+  non-integers and anything below 1; a count the floor's pools cannot satisfy
+  just runs dry gracefully (see `floorTrapCapacity`, a warning, not an error).
+
+**Geometry.** `Room.contains` is inclusive, so a room's interior is
+`[r.x, r.x + r.width] x [r.y, r.y + r.height]` and its wall band is the ring
+outside that. A spewer sits on the innermost interior floor tile of the wall it
+fires away from: `up` at `r.y + r.height`, `down` at `r.y + overhangRows(theme)`,
+`left` at `r.x + r.width`, `right` at `r.x` — always emitted on the tile CENTRE.
+Both corrections are the arena's, re-anchored on the room.
+
+**The band is the room's edge ring, not one step out from the slot.** This is
+the trap the first implementation fell into: a `down` spewer stands
+`overhangRows` tiles clear of its band, with ordinary room floor in between, so
+stepping one tile north from it lands on floor and never on wall. Reading that
+as "a doorway is here" silently rejected every `down` slot on every lettered
+theme. `bandLine()` returns `r.y - 1` for `down`, and `slotClear` walks from the
+band inward to the slot: the band must be wall (that is the passage-mouth test,
+one grid read instead of a walk over `room.passages`), and every tile from the
+room's edge in to the slot must be this room's floor, unclaimed by a prefab.
+Everything is checked over a window widened by `TRAP_WALL_MARGIN`, because a
+spewer two tiles from a doorway still fires down it.
+
+**Rooms skipped whole:** `Entrance` (the party materialises there, blind),
+`Shop` (a fixed stand-still target) and `sealed` (the button-gated victory
+room). A `locked` vault is deliberately **kept** — a trapped reward room is the
+point, and a spewer never blocks a door.
+
+**Why it is a post-pass in `index.ts` and not in the `Level` constructor.** The
+retry loop builds up to `MAX_LEVEL_ATTEMPTS` candidates and `ctx.clearLevel()`s
+the rejects, but nothing can rewind a `Rand`. A rig drawing in the constructor
+would burn draws on discarded candidates, tying a floor's trap positions to how
+many times reachability happened to reject it — and any layout parameter that
+changed the *attempt count* would silently move every later floor's traps.
+Drawing only after acceptance makes the draw count a function of the trap config
+alone. It is called last of the four per-floor rigs, so arming traps cannot move
+a buff, timer or music node's id.
+
+**RNG.** One `ctx.trapRand.iRand` per *placed* spewer — a copy the pool cannot
+place draws nothing. It returns before touching the stream when the floor
+carries no usable row. Because the stream is its own, arming any floor moves no
+floor's dungeon; the one thing it carries between floors is its own draws, so
+arming floor 0 moves floor 1's **trap positions** and nothing else about floor 1.
+
+`floorTrapCapacity(params, direction)` is what validation warns against: the
+smallest rollable floor, `minRoomCount` rooms whose walls span `minRoomSize + 1`
+by `minRoomSize + 3`. Deliberately optimistic — the exclusions can only reduce
+it — so overshooting is a warning, not an error; the rig stops placing
+gracefully either way.
 
 ## Timer mode (`src/generator/timer/`)
 
@@ -1079,7 +1172,10 @@ same `GeneratedFile[]` the levels produce.
 
 Reject or fix a diff that: imports Node APIs into `src/generator`; adds
 unseeded randomness; changes RNG draw order without flagging it; draws arena
-randomness from `ctx.rand`/`ctx.cosmeticRand` instead of `ctx.bossRand`; draws
+randomness from `ctx.rand`/`ctx.cosmeticRand` instead of `ctx.bossRand`, or
+floor-trap randomness from anything but `ctx.trapRand`; draws trap randomness
+from inside the `Level` constructor, where the retry loop's discarded
+candidates would spend it; draws
 before the early return in a no-op theme path; adds a parameter without a
 validation rule; adds an unbounded loop; sends file contents through IPC;
 weakens `reachability.ts` instead of letting a bad floor re-roll; generates

@@ -1,5 +1,5 @@
 import React from 'react'
-import { BOSS_TRAP_DIRECTIONS, MAX_TRAP_COUNT, PROJECTILE_DEFS, PROJECTILE_GROUPS, TRAP_SPREAD_MAX, projectileById } from '../../generator'
+import { BOSS_TRAP_DIRECTIONS, PROJECTILE_DEFS, PROJECTILE_GROUPS, TRAP_SPREAD_MAX, projectileById } from '../../generator'
 import type { BossTrap, BossTrapDirection } from '../../generator'
 import { InfoTip } from './InfoTip'
 
@@ -14,6 +14,13 @@ const WALL_OF: Record<BossTrapDirection, string> = {
 interface TrapPickerProps {
   trap: BossTrap
   onChange: (change: Partial<BossTrap>) => void
+  /**
+   * Upper bound on `count`, or `undefined` for none. Required rather than
+   * defaulted so every caller states its own bound on purpose: a boss tier's
+   * wall is a fixed rectangle (MAX_TRAP_COUNT), a floor's pool is every
+   * eligible room on it and has no comparable ceiling.
+   */
+  maxCount: number | undefined
   /** Rendered in the header, right of the projectile — e.g. a remove button. */
   children?: React.ReactNode
 }
@@ -31,7 +38,7 @@ interface TrapPickerProps {
  * There is no "no projectile" option: an empty list is how a tier says it runs
  * no traps, so every row here always names one.
  */
-export function TrapPicker({ trap, onChange, children }: TrapPickerProps) {
+export function TrapPicker({ trap, onChange, maxCount, children }: TrapPickerProps) {
   const selected = projectileById(trap.projectile)
 
   return (
@@ -105,11 +112,15 @@ export function TrapPicker({ trap, onChange, children }: TrapPickerProps) {
           <input
             type="number"
             min={1}
-            max={MAX_TRAP_COUNT}
+            max={maxCount}
             step={1}
             value={trap.count}
             onChange={(e) => onChange({ count: e.target.value === '' ? 1 : parseInt(e.target.value, 10) })}
-            title={`How many spewers of this row to place, 1..${MAX_TRAP_COUNT}. Each gets its own seeded position along the ${WALL_OF[trap.direction]} wall.`}
+            title={
+              maxCount === undefined
+                ? `How many spewers of this row to place, at least 1. Each gets its own seeded position along the ${WALL_OF[trap.direction]} wall.`
+                : `How many spewers of this row to place, 1..${maxCount}. Each gets its own seeded position along the ${WALL_OF[trap.direction]} wall.`
+            }
           />
         </label>
       </div>

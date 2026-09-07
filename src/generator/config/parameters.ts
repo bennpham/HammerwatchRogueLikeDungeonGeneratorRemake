@@ -125,6 +125,48 @@ export function defaultFloorBuffs(): FloorBuff[] {
 }
 
 /**
+ * One row of a floor's trap list: a projectile, the wall it fires from, how
+ * wide it fans, how often it fires, and how many spewers of it to place across
+ * the floor.
+ *
+ * The same five fields as `BossTrap`, and deliberately its own interface rather
+ * than an alias: an arena wall and a room wall are different enough places that
+ * the two are likely to diverge (a floor has no health tiers to switch between,
+ * for one), and a shared type would make that divergence a breaking change for
+ * both.
+ *
+ * What differs from the arena is what `count` is counted over. A tier's row
+ * places `count` spewers along ONE arena wall; a floor's row places `count`
+ * spewers spread over every eligible room's wall of that direction — the floor
+ * is the unit, not the room, so "six arrows firing north" is six spewers on the
+ * floor however many rooms it has. See traps/floor.ts.
+ */
+export interface FloorTrap {
+  /** a projectile id from PROJECTILE_DEFS (objects/projectileTypes.ts) */
+  projectile: string
+  /** which way it fires; the room wall it sits on is the opposite one */
+  direction: TrapDirection
+  /** fan width, 0..TRAP_SPREAD_MAX. Decimal — 0.5 is the reference axe rig. */
+  spread: number
+  /** milliseconds between shots */
+  spawnRateMs: number
+  /**
+   * How many spewers this row places, at least 1. Unlike BossTrap.count it has
+   * no upper bound: a wave tier's count is spent on one fixed-size arena wall,
+   * but a floor's is spread across every eligible room on the whole floor, so
+   * MAX_TRAP_COUNT would be an arbitrary ceiling with no relationship to what
+   * the floor can actually hold. Running the pool dry is a graceful stop that
+   * validation warns about (see floorTrapCapacity), not an error.
+   */
+  count: number
+}
+
+/** A fresh, empty trap list — the stock value for every floor. */
+export function defaultFloorTraps(): FloorTrap[] {
+  return []
+}
+
+/**
  * One floor's timed hazard ("timer mode").
  *
  * After `seconds` of play the whole floor turns into a damage field: a
@@ -244,6 +286,18 @@ export interface DungeonParameters {
    * byte-identical output to the pre-feature generator for every seed.
    */
   levelBuffs?: FloorBuff[][]
+  /**
+   * Wall traps per level, one list per floor. Optional, and empty per floor by
+   * default: a params object without it, or with every list empty, produces
+   * byte-identical output to the pre-feature generator for every seed.
+   *
+   * This is the first per-floor layer that draws a random value — one
+   * `ctx.trapRand.iRand` per placed spewer. It is the fourth stream precisely
+   * so that arming a floor still cannot move that floor's rooms, walls,
+   * doodads, actors, items or existing ids, nor any other floor's. See
+   * `traps/floor.ts`.
+   */
+  levelTraps?: FloorTrap[][]
   /**
    * Timed hazard per level, one entry per floor. Optional: a params object
    * without it, or with every floor disabled, produces byte-identical output to
@@ -581,10 +635,23 @@ export interface WavePickup {
 export const BOSS_TRAP_DIRECTIONS = ['up', 'down', 'left', 'right'] as const
 export type BossTrapDirection = (typeof BOSS_TRAP_DIRECTIONS)[number]
 
+/**
+ * The same four directions, under the name a dungeon floor's traps use. An
+ * alias rather than a rename: `BossTrapDirection` is on the public export list,
+ * in the skill's parameter table and in every `boss<i>WaveTrapN` line already
+ * written, so it stays exactly as it is. Nothing about a direction is
+ * arena-specific — a wall is a wall.
+ */
+export type TrapDirection = BossTrapDirection
+
 /** Widest fan the engine's `spread` parameter accepts. 0 is a single stream. */
 export const TRAP_SPREAD_MAX = 2
 
-/** Most spewers one trap row may place. */
+/**
+ * Most spewers one boss wave tier's trap row may place on its arena wall. Only
+ * BossTrap.count is bounded by this — FloorTrap.count has no such ceiling; see
+ * its own doc comment for why.
+ */
 export const MAX_TRAP_COUNT = 24
 
 /**
@@ -1094,6 +1161,12 @@ export function defaultParameters(): DungeonParameters {
     // played AFTER the boss (see levelOrder below), back on f - mixed
     themes: ['a_mixed', 'b_mixed', 'c_mixed', 'd_mixed', 'e_mixed', 'f_mixed', 'g_mixed', 'f_mixed'],
     levelBuffs: Array.from({ length: 8 }, () => defaultFloorBuffs()),
+    // Present and empty, exactly like levelBuffs. The shipped campaign's
+    // pressure comes from the escape floor's clock and the boss rig; arming
+    // traps by default would rewrite every stock levels/level*.xml, spend
+    // trapRand draws in the shipped campaign, and leave "stock output is
+    // unchanged" with nothing to assert.
+    levelTraps: Array.from({ length: 8 }, () => defaultFloorTraps()),
     // every floor but the escape floor is untimed; that one is the whole point
     // of the timer feature — 90 seconds to find the way out, then 1 damage
     // every 100ms until the party leaves
