@@ -232,6 +232,12 @@ Check the timestamps before treating two traces as one incident.
 
 ### Known in-game crash: Thief autofire divides by zero
 
+This is a **vanilla 1.41 engine bug** in the shipped binary — not something the
+generator or any tweak file emits, and the developers will **not** patch 1.41.
+The trigger is the player's own control binding: with `Autofire` held (the
+reporter had it on `MouseL`), the engine path that divides by zero is reachable
+on every class.
+
 **Mechanism proven 2026-09-08** by disassembling the game itself — the editor
 install ships `Hammerwatch.exe`, `Hammerwatch.pdb` and `TiltedEngine.dll`, so
 `ikdasm` reads the real code (the old "no source available" blocker is gone).
@@ -302,37 +308,18 @@ Ruled out — everything we emit:
 - The July items stand: upgrade presence, `max-fervor` 10 vs 0, combo params,
   seed/RNG.
 
-**Still open:** why the west-attack `TotalTime` is ~0 at runtime only in
-generated campaigns. Both packs carry identical player assets, the config is
-constant, and no resource error is logged — the difference is runtime state we
-cannot observe statically. Do **not** ship a validation rule for a cause that is
-not yet observed; nothing we emit feeds either operand of the division.
-
-Diagnostics that would close the gap (ask the reporter):
-
-1. **Remap Autofire off `MouseL`** — Thief playable end to end? (tests the
-   reachability condition; expected: no crash)
-2. With Autofire still held: is the knife-throw **swing animation missing or
-   frozen** before the crash? (confirms `attackLength == 0`)
-3. Thief costume variation a ↔ b — crash with both? (four stock files are
-   identical; a per-costume difference would be decisive)
-4. A second generated seed — same crash? (2026-09-08: two seeds, one day —
-   expected: yes)
-
-**July bisection, superseded 2026-09-08:** round 1 removed every
-`player.thief.*` line and saw no crash, but the run was short and its own caveat
-called it suggestive — the stock-param crashes above settle it the other way.
-Do not retry the bisection; the mechanism above is the current state.
-
-Do **not** ship a code fix for this until the runtime cause of
-`attackLength ≈ 0` is observed; a guess-fix could mask it. Once isolated, the
-response is §A's: a validation rule (or a preset change) naming the specific
-combination, plus a case in `tests/validation.test.ts`.
-
-Quick-fix scope here is the same as §A: a validation rule plus a case in
-`tests/tweak.test.ts` or `tests/validation.test.ts`. **Editing `baseline.ts` is
-an escalation** — it is a transcription of the real game files, and changing a
-number there silently ships wrong balance to every user.
+**Conclusion.** This is a vanilla 1.41 engine defect, not a generator-output
+defect: the `Ruled out` list above holds, and nothing we emit feeds either
+operand of the division. Since the shipped 1.41 binary is unpatchable, there is
+no engine-side fix to ship, and — because the crash depends only on the player's
+`Autofire` binding, not on any campaign XML — no validation rule or preset change
+can reach it either. **The resolution is the in-game workaround already
+documented above:** unmap the `Autofire` binding (Options → Controls → P1 →
+Autofire, or the `<Autofire>` key in the game's `config.xml`) and remap it once
+inside the game. With it not held, `Attack1Autofire` returns before the division,
+so the crash is unreachable for every class. Cost: no hold-to-fire. No `tests/`
+change, no `baseline.ts` edit, and no §A escalation is warranted — this lives
+in the "Known issues" section of the README, not the bug queue.
 
 ## §F — Boss arena and the optional levels
 

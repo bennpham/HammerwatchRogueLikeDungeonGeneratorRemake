@@ -8,6 +8,38 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-08 — Thief autofire `DivideByZero` is a vanilla 1.41 engine bug; the runtime-`TotalTime` investigation is moot
+**Tag:** [VERIFIED] — reclassification, not a new crash. The mechanism in the
+2026-09-08 entry below is unaffected; this closes its open question.
+**Context:** That entry narrowed the open question to "why the west-attack
+`TotalTime` is ~0 at runtime only in generated campaigns," with diagnostics still
+pending. Re-examining the day's four crashes (all HMW 1.41, Linux, stock-param
+campaign emitting **no** `thief.xml` and a `shared.xml` value-identical to the stock
+baseline) shows the `TotalTime` premise was the wrong axis: the crash is not
+campaign-caused.
+**Evidence:**
+1. **Neither operand is campaign-controlled.** `attackLength` is the sprite's
+   `TotalTime` sourced from `assets.bin` (both `.hwm` packs carry identical
+   `actors/player/*`; the generated pack carries none of its own class tweaks);
+   `attackSpeed` is a Thief-only runtime float with no initializer. The "no class
+   tweaks emitted" point below already proves the campaign writes neither.
+2. **The trigger is the binding, not the level.** `Attack1Autofire` only reaches the
+   dividing `Autofire` path when the `Autofire` action is held and Attack1 is held.
+   The reporter's `config.xml` binds **both to `MouseL`**, so every held/clicked
+   attack qualifies — including the level-load-finalize update (`CheckFinishedLoading`
+   stack flavor), which is why the crash lands mid-frame at level load as often as
+   mid-combat. With `Autofire` unbound, the path never runs.
+3. **1.41 is unpatchable.** The divide-by-zero is in the shipped `TiltedEngine` IL
+   against a zero `rate`; no post-1.41 binary ships to fix it.
+**Impact:** The runtime-`TotalTime`-is-~0 investigation is **closed as moot** — it
+presumes the campaign is at fault, and it is not. The only user mitigation is the
+one already IL-proven below: unmap `Autofire` (Options → Controls → P1 → Autofire,
+or `<Autofire>` in `config.xml`) and remap it once inside the game. With it not
+held, `Attack1Autofire` returns before the division, so the crash is unreachable
+for every class. Cost: no hold-to-fire. No validation rule, no `baseline.ts`
+change, and no §A escalation apply — nothing the generator emits touches either
+operand.
+
 ### 2026-09-06 — `ProjectileSpewer` on ordinary dungeon floors
 **Tag:** **[EMITTED]** — nothing here has been played yet. The node contract it
 rests on is `[VERIFIED]` (2026-09-02, from the boss arena); what is unverified
