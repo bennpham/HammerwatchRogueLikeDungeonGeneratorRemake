@@ -72,8 +72,10 @@ lobby1Gold=20000
 lobby1Shops=combo1 combo2 combo3 combo4 combo5 def1 def2 def3 def4 def5 misc1 misc2 misc3 misc4 misc5 off1 off2 off3 off4 off5 power
 lobby1Upgrades=0 0 0 0 0 0 0 0
 # lobby<i>Music swaps that lobby's own music, e.g. lobby1Music=boss_1 — same
-# track ids as music0..N below. Written only when set; the default leaves the
-# room's own music untouched, which is why neither lobby has one here.
+# track ids as music0..N below. Written only when set; the stock boss-prep
+# lobby plays the boss track, the dungeon-prep lobby leaves the room's own
+# music untouched.
+lobby1Music=boss_1
 # levelOrder is the order the campaign is PLAYED in: dungeon floors by their
 # 1-based number, boss fights as B1, B2, ... and lobbies as L1, L2, ...
 # e.g. levelOrder=L1,1,2,B1,3,4,B2, or levelOrder=B1,1,2,3 to open on a boss
@@ -112,8 +114,9 @@ boss=1
 bossFights=1
 boss0Theme=g_mixed
 # boss<i>Music swaps that fight's own music, e.g. boss0Music=boss_final — same
-# track ids as music0..N below. Written only when set; the default leaves the
-# arena's music untouched, which is why the stock fight has none here.
+# track ids as music0..N below. Written only when set; the stock fight plays
+# the final-boss cue.
+boss0Music=boss_final
 # How a "- mixed" boss0Theme arranges its floor palette; ignored by every other
 # theme. random | checker | bandsH | bandsV | bandsDiag | rings | diamond | cross | triangle
 boss0FloorPattern=random
@@ -168,7 +171,7 @@ boss0Wave1=bat1,bat2,maggot,maggot#2,maggot#3,tick1,tick1#2,tick1#0,tower_flower
 boss0Wave2=archer1,archer2,skeleton1,skeleton1#2,slime,tower_archer1,mb_tick,mb_maggot,skeleton1#0,archer1#0,slime#0|3000|archer1:14,archer2:7,skeleton1:24,skeleton1#2:28,slime:44,tower_archer1:6,mb_tick:3,mb_maggot:1,skeleton1#0:2,archer1#0:2,slime#0:6||archer1:random,archer1#0:random,archer2:random,mb_maggot:random,mb_tick:random,skeleton1:random,skeleton1#0:random,skeleton1#2:random,slime:random,slime#0:random,tower_archer1:random
 boss0Wave3=eye,eye#2,wisp1,wisp1#2,wisp2,lich#3,tower_flower1,tower_flower2,tower_flower3,mb_skeleton,mb_eye|2000|eye:44,eye#2:30,wisp1:12,wisp1#2:4,wisp2:8,lich#3:8,tower_flower1:3,tower_flower2:2,tower_flower3:1,mb_skeleton:4,mb_eye:1||eye:random,eye#2:random,lich#3:random,mb_eye:random,mb_skeleton:random,tower_flower1:random,tower_flower2:random,tower_flower3:random,wisp1:random,wisp1#2:random,wisp2:random
 boss0Wave4=lich,lich#0,lich#2,mb_eye,mb_lich,tower_archer3,eye#0,archer2#0,skeleton2#0,tower_nova1|1000|lich:4,lich#0:4,lich#2:6,mb_eye:2,mb_lich:1,tower_archer3:5,eye#0:5,archer2#0:4,skeleton2#0:4,tower_nova1:3||archer2#0:random,eye#0:random,lich:random,lich#0:random,lich#2:random,mb_eye:random,mb_lich:random,skeleton2#0:random,tower_archer3:random
-boss0Wave5=lich#2,lich,lich#0,mb_lich,mb_doomspawn,tower_static_frost|1000|lich#2:8,lich:3,lich#0:4,mb_lich:1,mb_doomspawn:2,tower_static_frost:3||lich:random,lich#0:random,lich#2:random,mb_doomspawn:random,mb_lich:random
+boss0Wave5=lich#2,lich,lich#0,mb_lich,mb_doomspawn,tower_static_frost|1000|lich#2:6,lich:2,lich#0:2,mb_lich:1,mb_doomspawn:2,tower_static_frost:2||lich:random,lich#0:random,lich#2:random,mb_doomspawn:random,mb_lich:random
 # boss0WaveBuff1..5 hangs an arena-wide buff on that tier: <id>:<target> entries
 # separated by |, e.g. boss0WaveBuff3=frost:players|bloodlust:monsters. Targets
 # are players, monsters or both; an omitted target means players. Unlike the
@@ -191,8 +194,17 @@ boss0WaveBuff5=bloodlust:monsters
 # 50%, hands out one rejuvenation potion at 25%, and doubles the resupply once
 # the boss is down. powerup_health is a flat 250 HP heal, the biggest in game.
 boss0WavePickup3=powerup_health:1|mana_2:2
+# boss0WaveTrap1..5 runs projectile spewers along that tier's arena walls for
+# the length of the tier: <projectile>:<direction>:<spread>:<spawnRateMs>:
+# <count> entries separated by |, e.g.
+# boss0WaveTrap4=shooter_arrow:up:0:1000:4. `direction` is the way it fires —
+# the wall it sits on is the opposite one. Like the buffs above, tiers REPLACE
+# one another. Written only for tiers that carry one; the stock defaults run a
+# shooter_arrow rig on the last two tiers (25% and boss death).
+boss0WaveTrap4=shooter_arrow:up:0:1000:4|shooter_arrow:down:0:1000:4|shooter_arrow:left:0:1000:6|shooter_arrow:right:0:1000:6
 boss0WavePickup4=potion_2:1
 boss0WavePickup5=powerup_health:2|mana_2:4
+boss0WaveTrap5=shooter_arrow:up:0:1000:4|shooter_arrow:down:0:1000:4|shooter_arrow:left:0:1000:6|shooter_arrow:right:0:1000:6
 #
 # buff0..N hangs buff auras on a dungeon floor, same <id>:<target>|<id>:<target>
 # form, e.g. buff2=frost:players|bloodlust:monsters. A floor's aura covers the
@@ -207,22 +219,40 @@ boss0WavePickup5=powerup_health:2|mana_2:4
 # floor, where 90 seconds after the boss arena spits the party out the whole
 # level starts taking 1 health every 100ms until they find the orb.
 #
+# trap0..N runs projectile spewers along a dungeon floor's room walls, same
+# grammar as boss0WaveTrap above: <projectile>:<direction>:<spread>:
+# <spawnRateMs>:<count> entries separated by |. Unlike a boss tier's `count`,
+# a floor's is spread across every eligible room on the WHOLE floor rather than
+# one arena wall, and has no upper bound. Written only for floors that carry
+# one — here that is floor 8, the escape floor, which runs a fireball spewer
+# on all four walls.
+#
 # music0..N swaps a dungeon floor's music, e.g. music2=act2. Valid tracks are
 # the base soundbank's none/main/act1..4/bonus_1/bonus_2/boss_1/boss_killed/
 # boss_final/custom_1/custom_2, plus the desert bank's desert_cavern/
 # desert_temple/desert_village. Written only for floors with a track actually
 # set — the default is `default`, which leaves the floor's music untouched.
-# lobby<i>Music and boss<i>Music (above) work the same way.
+# lobby<i>Music and boss<i>Music (above) work the same way. The stock campaign
+# swaps every floor: act1 through act4, tracking the theme letters above.
 
 monsters0=bat1,tick1,maggot,tower_flower1_small
-monsters1=maggot,slime,skeleton1,archer1
+monsters1=maggot,maggot,slime,slime,skeleton1,archer1
 monsters2=eye,wisp1,lich,tower_nova1
 monsters3=skeleton2,archer2,archer3,lich,wisp2
 monsters4=mb_tick,mb_maggot,bat2,tick2,maggot
 monsters5=mb_skeleton,mb_eye,archer2,skeleton2,tower_nova1
 monsters6=mb_lich,mb_doomspawn,lich,wisp2,tower_nova2
 monsters7=tower_empty,tower_empty,tower_empty,tower_empty,tower_empty,tower_empty,tower_empty,tower_empty,skeleton3,bat2,wisp2,lich,mb_eye,wisp1,tower_nova1,tower_nova2,tower_static_frost,mb_lich
+trap7=shooter_fireball:up:0:1000:8|shooter_fireball:down:0:1000:8|shooter_fireball:left:0:1000:8|shooter_fireball:right:0:1000:8
 timer7=1|90|1|100|1
+music0=act1
+music1=act2
+music2=act2
+music3=act3
+music4=act3
+music5=act4
+music6=act4
+music7=act4
 maxArchers1=40
 maxArchers2=30
 maxArchers3=20

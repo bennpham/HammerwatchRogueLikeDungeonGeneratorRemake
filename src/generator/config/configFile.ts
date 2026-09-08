@@ -588,6 +588,11 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   let highestPoolIndex = -1
   // Highest `timerN=` seen, same purpose as highestPoolIndex above.
   let highestTimerIndex = -1
+  // musicN= lines seen, keyed by floor index — collected separately from
+  // `params.floorMusic` so a base object's own per-floor tracks (e.g. the
+  // built-in default's) never bleed into an index this file leaves unmentioned.
+  // See the highestMusicIndex post-pass below.
+  const explicitMusic = new Map<number, string>()
   // Highest `buffN=` seen, same purpose again.
   let highestBuffIndex = -1
   let highestTrapIndex = -1
@@ -883,9 +888,7 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     const musicMatch = keyLower.match(/^music(\d+)$/)
     if (musicMatch) {
       const levelIndex = parseInt(musicMatch[1], 10)
-      const floorMusic = params.floorMusic ?? (params.floorMusic = [])
-      while (floorMusic.length <= levelIndex) floorMusic.push(MUSIC_DEFAULT)
-      if (isKnownMusicId(value)) floorMusic[levelIndex] = value
+      if (isKnownMusicId(value)) explicitMusic.set(levelIndex, value)
       else result.unknownKeys.push(`${key} value "${value}"`)
       highestMusicIndex = Math.max(highestMusicIndex, levelIndex)
       continue
@@ -973,11 +976,20 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     timers.length = params.levels
   }
 
-  // Only floors that swap their music get a `musicN=` line, same sparse shape
-  // as the timers above: pad up to the floor count, trim to it, and leave the
-  // array absent entirely when neither the file nor the base mentioned one.
-  if (highestMusicIndex >= 0 || params.floorMusic !== undefined) {
-    const floorMusic = params.floorMusic ?? (params.floorMusic = [])
+  // A file with at least one `musicN=` line declares the whole array: rebuild
+  // it from scratch rather than mutating the inherited one in place, so a
+  // base object's own per-floor tracks (e.g. the built-in default's) never
+  // bleed into an index THIS FILE leaves unmentioned but that still falls
+  // inside its own declared range. A file with none at all is the legacy
+  // case — leave the base's `floorMusic` (if any) entirely untouched, same
+  // padding rule as the timers above otherwise.
+  if (highestMusicIndex >= 0) {
+    params.floorMusic = Array.from(
+      { length: params.levels },
+      (_, i) => explicitMusic.get(i) ?? MUSIC_DEFAULT
+    )
+  } else if (params.floorMusic !== undefined) {
+    const floorMusic = params.floorMusic
     while (floorMusic.length < params.levels) floorMusic.push(MUSIC_DEFAULT)
     floorMusic.length = params.levels
   }

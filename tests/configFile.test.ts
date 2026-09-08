@@ -984,9 +984,9 @@ describe('musicN — per-floor music', () => {
     expect(text).not.toMatch(/^music\d+=/m)
   })
 
-  it('a stock export carries no music line either — nothing is set by default', () => {
+  it('a stock export carries one music line per floor — the 070 parameter set', () => {
     const text = serializeParametersTxt(defaultParameters())
-    expect(text).not.toMatch(/^music\d+=/m)
+    expect(text.match(/^music\d+=/gm)).toHaveLength(8)
   })
 
   it('writes one line per floor with a track set, and round-trips it', () => {
@@ -1006,8 +1006,13 @@ describe('musicN — per-floor music', () => {
   })
 
   it('leaves a file written before music existed entirely on the defaults', () => {
+    // No base is passed, so parsing starts from defaultParameters() — the
+    // 070 parameter set, which carries its own floorMusic. With no musicN
+    // line in the file at all, that inherited array is left as-is (padded/
+    // trimmed to the declared floor count), same as the legacy buff/trap/
+    // timer arrays above.
     const parsed = parseParametersTxt('levels=7')
-    expect(parsed.params.floorMusic).toBeUndefined()
+    expect(parsed.params.floorMusic).toEqual(defaultParameters().floorMusic?.slice(0, 7))
     expect(parsed.unknownKeys).toEqual([])
   })
 
@@ -1179,6 +1184,9 @@ describe('parameters.txt — lobbies (issue #48)', () => {
 
   it('writes no lobby music line while unset, and round-trips one that is set', () => {
     const original = defaultParameters()
+    // the stock boss-prep lobby now carries its own music (070 parameter
+    // set) — clear it to exercise the "unset" side of the round trip
+    original.lobbies[1].music = undefined
     let text = serializeParametersTxt(original)
     expect(text).not.toMatch(/^lobby\d+Music=/m)
 
@@ -1276,6 +1284,9 @@ describe('parameters.txt — multiple boss fights (issue #43)', () => {
 
   it('writes no boss music line while unset, and round-trips one that is set', () => {
     const original = defaultParameters()
+    // the stock default now carries its own arena music (070 parameter set) —
+    // clear it to exercise the "unset" side of the round trip
+    original.boss.fights[0].arena.music = undefined
     let text = serializeParametersTxt(original)
     expect(text).not.toMatch(/^boss\d*Music=/m)
 
@@ -1288,10 +1299,13 @@ describe('parameters.txt — multiple boss fights (issue #43)', () => {
     expect(parsed.params.boss).toEqual(original.boss)
   })
 
-  it('reports an unknown boss music id and keeps it unset', () => {
+  it('reports an unknown boss music id and leaves the stock default in place', () => {
+    // parsing with no explicit base starts from defaultParameters(), whose
+    // stock fight already carries 'boss_final' — an unknown id is reported
+    // but does not clear it, same as every other music field's parsing.
     const parsed = parseParametersTxt('boss=1\nboss0Music=nope')
     expect(parsed.unknownKeys).toEqual(['boss0Music value "nope"'])
-    expect(parsed.params.boss.fights[0].arena.music).toBeUndefined()
+    expect(parsed.params.boss.fights[0].arena.music).toBe('boss_final')
   })
 })
 
@@ -1375,12 +1389,11 @@ describe('parameters.txt — levelOrder (issue #43)', () => {
 })
 
 describe('bossWaveTrapN — per-tier wall traps', () => {
-  it('writes no wave-trap line at all while no tier runs a trap', () => {
-    // The stock defaults carry no traps, so this needs no stripping — which is
-    // itself the point: adding the feature did not change what a stock export
-    // looks like.
+  it('the stock default arms only the 25% and boss-death tiers', () => {
+    // The 070 parameter set runs a shooter_arrow rig on the castle boss's
+    // last two tiers; the other three carry no traps.
     const text = serializeParametersTxt(defaultParameters())
-    expect(text).not.toMatch(/^boss0WaveTrap\d=/m)
+    expect(text.match(/^boss0WaveTrap\d=/gm)).toEqual(['boss0WaveTrap4=', 'boss0WaveTrap5='])
   })
 
   it('writes one line per trapped tier and round-trips it', () => {
@@ -1408,7 +1421,8 @@ describe('bossWaveTrapN — per-tier wall traps', () => {
     expect(text).toContain(
       'boss0WaveTrap3=enemy_axe:up:0.5:100:3|enemy_boss_anubis_fireball:left:0:1500:2'
     )
-    expect(text).not.toMatch(/^boss0WaveTrap[1245]=/m)
+    // tiers 4/5 keep the stock default's own shooter_arrow rig; only 1, 2 stay bare
+    expect(text).not.toMatch(/^boss0WaveTrap[12]=/m)
 
     const reparsed = parseParametersTxt(text)
     expect(reparsed.unknownKeys).toEqual([])
@@ -1466,12 +1480,11 @@ describe('bossWaveTrapN — per-tier wall traps', () => {
 })
 
 describe('trapN — per-floor wall traps', () => {
-  it('writes no trap line at all while no floor runs one', () => {
-    // The stock defaults ship the array present and empty, so this needs no
-    // stripping — which is itself the point: adding the feature did not change
-    // what a stock export looks like.
+  it('the stock default ships exactly one armed floor — the escape floor', () => {
+    // The 070 parameter set arms the escape floor (the last one) with a
+    // fireball spewer on all four walls; every other floor stays unarmed.
     const text = serializeParametersTxt(defaultParameters())
-    expect(text).not.toMatch(/^trap\d+=/m)
+    expect(text.match(/^trap\d+=/gm)).toEqual(['trap7='])
   })
 
   it('writes one line per trapped floor and round-trips it', () => {
@@ -1531,7 +1544,13 @@ describe('trapN — per-floor wall traps', () => {
     params.levelTraps[0] = [{ projectile: 'shooter_fireball', direction: 'right', spread: 2, spawnRateMs: 250, count: 7 }]
 
     const once = serializeParametersTxt(params)
-    const twice = serializeParametersTxt(parseParametersTxt(once).params)
+    // Re-parse against the same neutral base `once` was built from — the
+    // 070 parameter set means `defaultParameters()` (parseParametersTxt's own
+    // fallback base) carries its own real floorMusic, which is exactly the
+    // ambiguity a base exists to resolve: a file with no musicN line at all
+    // cannot tell "never had the feature" from "explicitly all default"
+    // without one.
+    const twice = serializeParametersTxt(parseParametersTxt(once, params).params)
     expect(twice).toBe(once)
   })
 
