@@ -232,8 +232,10 @@ Check the timestamps before treating two traces as one incident.
 
 ### Known in-game crash: Thief autofire divides by zero
 
-**Unresolved — do not claim a cause.** Reported 2026-07-30 with a fully-upgraded
-roster (Damage ×2, Defense ×5):
+**Mechanism proven 2026-09-08** by disassembling the game itself — the editor
+install ships `Hammerwatch.exe`, `Hammerwatch.pdb` and `TiltedEngine.dll`, so
+`ikdasm` reads the real code (the old "no source available" blocker is gone).
+Trace, first reported 2026-07-30, reproduced 2026-09-08 on four stock-param runs:
 
 ```
 System.DivideByZeroException: Division by zero
@@ -242,84 +244,90 @@ System.DivideByZeroException: Division by zero
   at ARPGGame.Behaviors.Players.Thief.PlayerThiefActorBehavior.DoUpdate (Int32 ms)
 ```
 
-`rate` is the Thief's attack interval and something zeroed it. What the audit
-rules **out**: no Thief param in the report was 0, and the two stats that plausibly
-feed an attack rate were both at values a stock maxed Thief also reaches —
-`knives-speed-mod` −0.2 (stock ladder ends there, `aspeed4`) and `max-fervor` 10
-(stock ladder ends there, `fervor3`). The only values beyond stock reach were
-`knives-dmg`, `kfan-dmg`, `dmg-reduction` and `dodge-chance`, none of which
-plausibly divides an interval.
+The chain, bottom-up:
 
-Also ruled out since (2026-07-30, two crashing runs compared):
+1. `GameControls.Autofire(autofire, rate)` scales then divides:
+   `rate = (int)(rate * 1.25f)` (IL_0000–0009), then
+   `!((autofire % rate) > lastMs)` (IL_000d `rem`). Throws **iff `rate == 0`**.
+2. `PlayerThiefActorBehavior.DoUpdate` is the **only class that computes the
+   rate** (IL_04f3–0502): `Attack1Autofire((int)((float)attackLength /
+   attackSpeed))` — a float division truncated to int. The other six classes
+   pass `attackLength` raw (Priest IL_02de, Knight IL_046e, Ranger IL_026c,
+   Sorcerer IL_005a, Warlock IL_009e, Wizard IL_022e) — hence Thief-only.
+3. `attackLength` (base `Initialize` IL_002c–003d) is
+   `sprites["west-attack"].Length`; `Sprite.Length` = `SpriteFrames.TotalTime` =
+   the sum of the animation's per-frame `time` attributes (missing → 100).
+   Stock `thief_a..d.xml`: west-attack = 3 × 67 = **201 ms**, all four costumes.
+4. `attackSpeed` (Thief-only float) is **0.0f until the first `Attack()`** — its
+   only assignment is in `Attack()` (IL_0014–0028): `1 + 0.033f * fervorCount`.
+   `fervorCount ≤ fervorMax` (`Math.Min` in `ProcKill`, guarded `fervorMax > 0`),
+   `fervorMax = GetInteger("max-fervor", 1)`, stock 0 ⇒ a stock Thief's
+   `attackSpeed` is exactly **1** after the first attack.
+5. Reachability: `Attack1Autofire` returns early unless the **Autofire binding is
+   held** (per-frame state of the action-14 key, `Update` IL_0290–02a9) **and**
+   Attack1 is held. The reporter's `config.xml` binds **both to MouseL** — every
+   held/clicked attack qualifies, including the level-load-finalize update (the
+   `CheckFinishedLoading` stack flavor).
 
-- **Not the upgrade removal.** One run had all 46 Thief upgrades present, the other
-  an empty `<upgrades>`; identical trace, byte-identical Thief `<params>`.
-- **Not a stat we write.** A sweep of every stat group × factor
-  (0.1 … 10, with and without the fully-upgraded preset) found no Thief param that
-  lands on 0 apart from `chain-money-cost` and `smoke-money-cost`, which the stock
-  `chain` and `smoke` upgrades also zero. So the divisor is runtime state.
-- **Not shared code.** The trace is `PlayerThiefActorBehavior`, and no other class
-  has reproduced it, so the quantity is Thief-specific.
+Crash condition: `(int)(attackLength / attackSpeed) == 0`. Mono, measured on
+this machine: `(int)(201f/0f) = -2147483648` and `(int)NaN = -2147483648` —
+÷0 and NaN produce int.MinValue, **never 0** — so the crash needs a finite
+`0 ≤ attackLength < |attackSpeed|`: with stock values **`attackLength` is 0**
+(a 1 ms animation would crash only once `fervorCount ≥ 1`). In words: *in a
+crashing session the Thief's west-attack animation is ≤1 ms long*, versus 201 ms
+in the stock files.
 
-**`max-fervor` is FALSIFIED (2026-07-30).** It was the leading suspect; the user
-removed it (back to stock 0) and the Thief still crashed, same trace. Do not chase
-it again.
+**Workaround for reporters (IL-proven, zero risk): remap or clear the game's
+Autofire binding** (Options → Controls → P1 → Autofire, or `<Autofire>` in the
+game's `config.xml` — the reporter had it on `MouseL`). With it not held,
+`Attack1Autofire` returns before the division; the crash is unreachable for
+every class. Cost: no hold-to-fire.
 
-What the crashing runs have in common, and what is now known:
+Ruled out — everything we emit:
 
-- **It crashes at both `max-fervor` 10 and `max-fervor` 0 (stock).** So the fervor
-  value is not the divisor.
-- **Every Thief starting value in the crashing file is individually stock-safe.**
-  `knives-speed-mod` −0.2 is the *fastest* value a stock maxed Thief reaches
-  (`aspeed4`), and a stock maxed Thief does not crash. The only values beyond
-  stock reach are `dodge-chance` 250 and `dmg-reduction` 30 — both defensive, and
-  neither feeds an attack interval. So no single Thief stat at a dangerous value
-  explains it.
-- **It is Thief-specific.** The Sorcerer was played to completion on the *same*
-  `shared.xml` (combo on, `dmg-mul` 2, `move-speed` 1.2) — the user's complaint
-  there was taking damage, i.e. alive and playing. So the shared/combo tweaks do
-  not cause it; the `Autofire` path is the Thief's auto-repeating knife throw.
-- **Upgrade presence is irrelevant** (full shop and empty shop both crash).
+- **Thief params.** The 2026-09-08 campaign crashed 4× as Thief with **no
+  `thief.xml` emitted at all** (stock params). This also refutes the bisection
+  round 1 below, whose short-run caveat has now bitten.
+- **`shared.xml`.** Value-identical to the stock baseline; the Sorcerer played
+  the same file to completion (2026-07-30).
+- **The `.hwm` contents.** Both packs' resource tables were decompressed (HWRP:
+  magic, u32 ver 100, u32 len + info.xml, u32 len + icon, one gzip stream with a
+  name-keyed table) and enumerated: the generated pack carries
+  `tweak/shared.xml` plus referenced `actors/`/`doodads/`/`sound/` keys and **no
+  `actors/player/*`**; the stock `campaign.hwm` also ships `tweak/shared.xml`
+  only. Player sprites come from `assets.bin` either way.
+- **The stock actor data.** Zero-frame sprites are dropped by `ActorLoader`
+  (absent key ⇒ KeyNotFoundException — a different crash), a missing `time`
+  defaults to 100, and no stock file expresses `TotalTime == 0`.
+- The July items stand: upgrade presence, `max-fervor` 10 vs 0, combo params,
+  seed/RNG.
 
-That combination — Thief-specific, every value individually safe, constant across
-otherwise-different runs — points at an *interaction* or a value the engine treats
-differently as a starting param than as a bought upgrade, not a single bad number.
-Reasoning cannot pin it further without the game's `Autofire`/`Attack1Autofire`
-source, which we do not have.
+**Still open:** why the west-attack `TotalTime` is ~0 at runtime only in
+generated campaigns. Both packs carry identical player assets, the config is
+constant, and no resource error is logged — the difference is runtime state we
+cannot observe statically. Do **not** ship a validation rule for a cause that is
+not yet observed; nothing we emit feeds either operand of the division.
 
-**Bisection, round 1 (done 2026-07-30):** every `player.thief.*` line removed ⇒
-**no crash**. So it is a Thief tweak, not `shared.xml` and not vanilla. That is
-consistent with the Sorcerer having played the same `shared.xml` to completion.
+Diagnostics that would close the gap (ask the reporter):
 
-⚠️ **Caveat on that result:** a stock Thief is squishy and dies fast, so the run
-was short — and this crash needs *sustained* autofire. Treat "no crash" as
-suggestive, not conclusive, until a run survives long enough to attack heavily.
+1. **Remap Autofire off `MouseL`** — Thief playable end to end? (tests the
+   reachability condition; expected: no crash)
+2. With Autofire still held: is the knife-throw **swing animation missing or
+   frozen** before the crash? (confirms `attackLength == 0`)
+3. Thief costume variation a ↔ b — crash with both? (four stock files are
+   identical; a per-costume difference would be decisive)
+4. A second generated seed — same crash? (2026-09-08: two seeds, one day —
+   expected: yes)
 
-**Bisection, round 2 — use a survivable control.** Add back only the defensive
-and resource params, which cannot plausibly feed an attack interval:
+**July bisection, superseded 2026-09-08:** round 1 removed every
+`player.thief.*` line and saw no crash, but the run was short and its own caveat
+called it suggestive — the stock-param crashes above settle it the other way.
+Do not retry the bisection; the mechanism above is the current state.
 
-```
-player.thief.param.max-health=120
-player.thief.param.dmg-reduction=30
-player.thief.param.dodge-chance=250
-player.thief.param.max-mana=165
-player.thief.param.mana-regen=500
-```
-
-`dodge-chance` ≥ 100 makes the Thief unhittable, so the run can hold the attack
-button indefinitely — the strongest possible conditions to provoke it — while
-every attack stat stays stock. This removes the short-run confound above.
-
-- **Crash** ⇒ a defensive stat, and `dodge-chance` 250 is the standout (5× beyond
-  the stock ladder's 50). Odd for an attack-rate divisor, so also suspect an
-  engine interaction with an out-of-range evasion roll.
-- **No crash after a long burst** ⇒ an attack stat. Add back one line:
-  `player.thief.param.knives-speed-mod=-0.200000` — the attack-speed stat and the
-  prime suspect. Then `knives-dmg` / `kfan-dmg` / `kfan-projs` / `kfan-arc`.
-
-Do **not** ship a code fix until one test isolates the cause; a guess-fix could
-mask it. Once isolated, the response is §A's: a validation rule (or a preset
-change) naming the specific combination, plus a case in `tests/validation.test.ts`.
+Do **not** ship a code fix for this until the runtime cause of
+`attackLength ≈ 0` is observed; a guess-fix could mask it. Once isolated, the
+response is §A's: a validation rule (or a preset change) naming the specific
+combination, plus a case in `tests/validation.test.ts`.
 
 Quick-fix scope here is the same as §A: a validation rule plus a case in
 `tests/tweak.test.ts` or `tests/validation.test.ts`. **Editing `baseline.ts` is

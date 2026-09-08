@@ -3705,3 +3705,74 @@ sources for the asset paths currently documented; the port was diffed against
 the Java tool's output, never against the game.
 **Impact:** Everything in `ASSET-REGISTRY.md` starts at `[EMITTED]`. The seven
 open questions above are the backlog.
+
+### 2026-09-08 — the Thief autofire DivideByZero divides by `(int)(attackLength / attackSpeed)`; read out of the game's own IL
+**Tag:** [VERIFIED] — from the binaries on the reporter's Linux install, HMW 1.41
+(`~/Applications/hammerwatch`: `Hammerwatch.exe` + `TiltedEngine.dll` disassembled
+with `ikdasm`), plus a Mono float→int probe (`mcs` + `mono`, same machine). The
+runtime value of `attackLength` inside a crashing session stays [UNVERIFIED].
+
+**Context:** the Thief `DivideByZeroException` in `GameControls.Autofire` carried
+as unresolved in the crash-triage skill since 2026-07-30. The editor install
+ships the game's own binaries (and PDBs), which retired the "no source
+available" blocker.
+
+**Evidence:**
+
+1. **The faulting instruction.** `GameControls.Autofire(int32 autofire, int32
+   rate)` is `rate = (int)(rate * 1.25f)` (IL_0000–0009) then
+   `!((autofire % rate) > lastMs)` (IL_000d `rem`). It throws iff `rate == 0`.
+2. **Only the Thief computes the rate.** `PlayerThiefActorBehavior.DoUpdate`
+   IL_04f3–0502 calls `Attack1Autofire((int)((float)attackLength /
+   attackSpeed))` — a float division truncated to int. The other six classes
+   pass `attackLength` raw (Priest IL_02de, Knight IL_046e, Ranger IL_026c,
+   Sorcerer IL_005a, Warlock IL_009e, Wizard IL_022e). That is the whole
+   Thief-only story.
+3. **`attackLength`** is `sprites["west-attack"].Length` (base
+   `PlayerActorBehavior.Initialize` IL_002c–003d); `TiltedEngine.Sprite.Length`
+   is `SpriteFrames.TotalTime`, the sum of per-frame `time` attributes (missing
+   → 100). All four stock `actors/player/thief_*.xml` define west-attack as
+   3 × 67 = 201 ms. A zero-frame sprite is dropped by `ActorLoader` (absent dict
+   key ⇒ KeyNotFoundException, a different crash), so `TotalTime == 0` is not
+   expressible from the stock files.
+4. **`attackSpeed`** (float, Thief-only field) has no initializer — 0.0f until
+   the first `Attack()`, which sets `1 + 0.033f * fervorCount` (IL_0014–0028).
+   `fervorCount` only ever `Math.Min(fervorMax, fervorCount + 1)` in `ProcKill`
+   (guarded by `fervorMax > 0`, window `0x5dc` = 1500 ms), and `fervorMax =
+   GetInteger("max-fervor", 1)` — stock 0, so a stock Thief's `attackSpeed` is
+   exactly 1 after the first attack.
+5. **Reachability.** `PlayerKeyboardControls.autofire` is the per-frame state of
+   the action-14 binding (`Update` IL_0290–02a9, flipped by `InvertAutofire`);
+   `Attack1Autofire` returns before `Autofire` unless it is held and Attack1 is
+   held. The reporter's `config.xml` has `<Attack1>MouseL</Attack1>` and
+   `<Autofire>MouseL</Autofire>` — every held click qualifies, including the
+   level-load-finalize update, which is the `CheckFinishedLoading` stack flavor
+   among the day's four crashes.
+6. **Mono probe** (`mcs`/`mono`, same machine): `(int)(201f/0f) = -2147483648`;
+   `(int)NaN = -2147483648`; scaling int.MinValue by 1.25f truncates back to
+   int.MinValue. ÷0 and NaN rate paths therefore never produce the 0 that
+   crashes — the crash needs a finite `0 ≤ attackLength < |attackSpeed|`, i.e.
+   **`attackLength` ∈ {0}** for a stock Thief (a 1 ms animation crashes only
+   with `fervorCount ≥ 1`).
+7. **The packs are clean.** Both `.hwm` resource tables were decompressed (HWRP:
+   magic, u32 version 100, u32 len + `info.xml`, u32 len + icon PNG, one gzip
+   stream holding a name-keyed table) and enumerated: the generated pack carries
+   `tweak/shared.xml` plus referenced `actors/`/`doodads/`/`sound/` keys and **no
+   `actors/player/*`**; the stock `campaign.hwm` also ships `tweak/shared.xml`
+   only. Player sprites load from `assets.bin` in both cases.
+8. **The emitted files are clean.** The 2026-09-08 campaign emitted no
+   `thief.xml` (stock Thief params) and a `shared.xml` value-identical to the
+   stock baseline; the Thief still crashed 4× (10:42, 10:43, 10:45, 10:52, two
+   stack flavors: `CheckFinishedLoading`/`ClearLevel` and plain `Update`). This
+   refutes the 2026-07-30 bisection round 1 ("every `player.thief.*` removed ⇒
+   no crash") whose own caveat had flagged the short run.
+
+**Impact:** the crash input is fully known — `(int)(attackLength / attackSpeed)
+== 0` — and the open question narrows to why the west-attack `TotalTime` is ~0
+at runtime only in generated campaigns. Nothing the generator emits feeds either
+operand (no class tweaks were emitted at all in the crashing campaign), so still
+no validation rule. User mitigation, IL-proven: remap or clear the game's
+**Autofire** key binding — `Attack1Autofire` then returns before the division.
+Diagnostics that would close the gap: check whether the knife-throw swing
+animation is missing/frozen before the crash; try a second Thief costume
+variation; confirm the second same-day seed crashes identically.
