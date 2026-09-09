@@ -142,6 +142,7 @@ describe('parameter validation', () => {
   it('accepts a lobby with 0 floors — it leads straight into the fight', () => {
     const p = plainParameters()
     p.levels = 0
+    p.floorMusic = []
     p.lobbies = [defaultLobby(DEFAULT_LOBBY_PRESET_ID)]
     const result = validateParameters(p)
     expect(result.valid).toBe(true)

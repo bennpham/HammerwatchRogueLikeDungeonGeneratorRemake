@@ -33,6 +33,8 @@ function bareParams(): DungeonParameters {
   params.levels = 3
   params.themes = params.themes.slice(0, 3)
   params.levelMonsters = params.levelMonsters.slice(0, 3)
+  // "bare" means no music at all, not defaultParameters()'s own act1/act2 cues
+  delete params.floorMusic
   params.lobbies = []
   params.boss = { ...params.boss, enabled: false }
   params.playerTweaks = {}

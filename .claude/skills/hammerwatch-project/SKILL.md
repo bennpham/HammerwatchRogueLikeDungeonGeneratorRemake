@@ -89,6 +89,12 @@ src/
 │   ├── timer/            hazard.ts — timer mode, the optional per-floor timed
 │   │                     damage field. Appends nodes after a floor is built;
 │   │                     no RNG, no files of its own
+│   ├── music/            tracks.ts (MUSIC_TRACKS + MUSIC_DEFAULT — the two
+│   │                     stock soundbanks' cues), template.ts, rig.ts — the
+│   │                     optional per-floor / per-lobby / per-arena music
+│   │                     swap. One PlayMusic node appended after a level is
+│   │                     built; no RNG, no files of its own. `default` emits
+│   │                     nothing and leaves the template's own music alone
 │   ├── traps/            per-floor wall traps — the ONLY per-floor layer that
 │   │   │                 draws, and it draws from ctx.trapRand alone
 │   │   ├── slots.ts      spewer primitives shared with boss/traps.ts —
@@ -140,11 +146,13 @@ src/
                          FloorTrapEditor,
 │                         BuffPicker, BuffListEditor, PickupListEditor,
 │                         PickupPicker, TrapListEditor, TrapPicker,
+│                         MusicPicker (Settings/Lobby/Boss music dropdowns),
 │                         UpgradeCountFields, InfoTip,
 │                         OutputPanel, fields},
 │                         styles/app.css
 └── shared/ipc.ts         types shared across the bridge
 tests/                    vitest, 39 suites / 1548 tests: rand, context,
+                          music, bossCheckpoints,
                           configFile, validation, generation, reachability,
                           sealIntegrity, themes (+ a
                           snapshot), presets, monsters, monsterVariants,
@@ -283,6 +291,8 @@ reference/hammerwatch-tweak-stats.md
 | `levelBuffs[i]` | absent / all empty | buff auras, one `FloorBuff[]` per floor: each `{buff, target}` where `buff` is a `BUFF_DEFS` id and `target` is `players`/`monsters`/`both`. No cap on how many a floor carries. Empty on every floor reproduces the pre-feature campaign exactly. See *Buff auras* below |
 | `levelTraps[i]` | present, empty on every floor | wall traps, one `FloorTrap[]` per floor: each `{projectile, direction, spread, spawnRateMs, count}`, the same five fields a boss tier's trap row carries. `count` is spewers on the **floor**, spread over every eligible room's wall of that direction — not per room — and unlike a wave tier's `count` it has **no upper bound** (`MAX_TRAP_COUNT` applies only to `arena.waves[i].traps`): a floor's pool spans every eligible room on it, not one fixed-size arena wall, so a very large count just runs the pool dry, which validation only warns about. Always live, no tiers and no trigger. Empty on every floor reproduces the pre-feature campaign exactly. `trapN=<projectile>:<dir>:<spread>:<rate>:<count>|…` in `parameters.txt`. See *Traps per dungeon floor* below |
 | `levelTimers[i]` | all off but the escape floor (90s, 1 dmg / 100ms) | timer mode, one `FloorTimer` per floor: `enabled`, `seconds` (1–3600), `damage` (−10000–10000, **negative heals**), `freqMs` (50–600000), `countdown`. Off on every floor reproduces the pre-feature campaign exactly. See *Timer mode* below |
+| `floorMusic[i]` | castle: `act1,act2,act2,act3,act3,act4,act4,act4`; absent otherwise | music mode, one track id per floor (`MUSIC_TRACKS` in `music/tracks.ts` — the base `music.xml` cues plus the desert bank). `default` (`MUSIC_DEFAULT`) emits no `PlayMusic` node and leaves the template's music untouched. `musicN=<track>` in `parameters.txt`, written only for floors that swapped — **but** a file carrying any `musicN=` line rebuilds the whole array from scratch (`explicitMusic` map, `configFile.ts`), so a base object's own per-floor tracks never bleed into an index a shorter import leaves unmentioned. `lobbies[i].music` / `fights[i].arena.music` are the same knob per lobby / per arena (`lobby<i>Music`, `boss<i>Music`). See *Music* below |
+| `lobbySaves` | **`true`** | campaign-wide: every generated lobby gets one `items/trigger_button_save.xml` by its exit. Items-only, no RNG, `levels/level*.xml` byte-identical either way. `lobbySaves=1` in `parameters.txt`. See *Free upgrades and the arrival revive* |
 | `playerTweaks` | `{ 'player.shared.remove.life': 1 }` | sparse `Record<lowercase key, number>` of player-balance overrides; empty = no `tweak/` folder. See below |
 | `lobbies` | **two** — `BETA-dungeon-prep` at 10000g and `BETA-boss-prep` at 20000g, both selling all 21 columns, no free upgrades | the campaign's shop rooms, `LobbyOptions[]`. A lobby exists iff it is in this list: there is no `enabled` flag any more, and `lobbies: []` reproduces the pre-lobby campaign exactly — the same rule `boss.fights` already followed. Any number, each independently placed by `levelOrder`. `lobbies=N` in `parameters.txt`. See *Lobbies* below |
 | `lobbies[i].preset` | `BETA-dungeon-prep` for a freshly added lobby (`DEFAULT_LOBBY_PRESET_ID`) | which committed room this slot edits — an id from `LOBBY_PRESETS`. `BETA-dungeon-prep` is the campaign's original starting lobby, `BETA-boss-prep` the larger room that used to be welded to every fight. `lobby<i>Preset` in `parameters.txt`; an id that is not in the registry is an error, not a fallback |
@@ -316,8 +326,10 @@ enabled, **no upper bound** (mirrors `levels`), written as `bossFights` in
 | `arena.cover` | `symmetric`, 0.08, 4, 3 | `boss<i>Cover=symmetric,0.08,4,3` in `parameters.txt`. `density` is the fraction of free floor filled and is capped at `BOSS_COVER_DENSITY_MAX` (0.25). Playtest preference, 2026-08-28; every preset inherits it |
 | `arena.spawn` | spacing 2, ring 4, clusters 3, batchSize 8, batchIntervalMs 1500 | `boss<i>Spawn=2,4,3,8,1500` — five comma fields, `spacing,ringSpacing,clusters,batchSize,batchIntervalMs`; the older three-field form still parses. Tuning for the scatter modes only; deliberately separate from `cover`. `batchSize` caps how many of one monster may appear at once, the rest trickling in every `batchIntervalMs` — see *Boss finale* |
 | `arena.waves[i].pickups` | 50%: 1× `powerup_health` + 2× `mana_2`; 25%: 1× `potion_2`; boss dead: double the 50% table | item drops per health tier, each `{item, count}` with `item` in `PICKUP_DEFS` and `count` 1..`MAX_PICKUP_COUNT` (64). Unlike the buffs the tiers do **not** replace one another — drops accumulate on the entrance drop pad (`boss/pickupPad.ts`). `boss<i>WavePickupN=<item>:<count>|…` in `parameters.txt`, on its own key so older files round-trip unchanged; a tier a file describes without a pickup line drops nothing. See *Item drops per boss wave tier* |
-| `arena.waves[i].traps` | absent everywhere | wall traps per health tier, each `{projectile, direction, spread, spawnRateMs, count}` with `projectile` in `PROJECTILE_DEFS` (45 assets; the 22 zero-damage ones and the crashing `sorcerer_ice_orb` are cut), `direction` one of `up`/`down`/`left`/`right`, `spread` a decimal 0..2 and `count` 1..`MAX_TRAP_COUNT` (24). A trap stands on the wall it fires *away* from. Like the buffs and unlike the drops, tiers **replace** one another. `boss<i>WaveTrapN=<projectile>:<dir>:<spread>:<rate>:<count>|…` in `parameters.txt`, on its own key so older files round-trip unchanged. The only optional boss rig that draws from `ctx.bossRand`. See *Wall traps per boss wave tier* |
+| `arena.waves[i].traps` | castle/desert: arrow rig on 25% + death; bonus: magicball rig on death; empty for a hand-built arena | wall traps per health tier, each `{projectile, direction, spread, spawnRateMs, count}` with `projectile` in `PROJECTILE_DEFS` (45 assets; the 22 zero-damage ones and the crashing `sorcerer_ice_orb` are cut), `direction` one of `up`/`down`/`left`/`right`, `spread` a decimal 0..2 and `count` 1..`MAX_TRAP_COUNT` (24). A trap stands on the wall it fires *away* from. Like the buffs and unlike the drops, tiers **replace** one another. `boss<i>WaveTrapN=<projectile>:<dir>:<spread>:<rate>:<count>|…` in `parameters.txt`, on its own key so older files round-trip unchanged. The only optional boss rig that draws from `ctx.bossRand`. See *Wall traps per boss wave tier* |
 | `arena.invulnerability` | on, `[30, 30, 30]`, countdown on | seconds of boss immortality per health threshold (`BOSS_INVULN_THRESHOLDS`: 75/50/25%); 0 disables one threshold, `boss<i>Invuln` / `boss<i>InvulnCountdown` in `parameters.txt`. Independent of `waves` — see *Boss finale* |
+| `arena.checkpoints` | `{ respawnPlayers: '75-50-25-dead', saveGame: '50' }` | two independent milestone presets keyed to the same `Boss 75/50/25%` / `Boss Died` events. **Respawn player** pulls dead/lagging players into the arena; **Save game** moves the respawn point and writes a save (the `Checkpoint` node). Presets: `never`, `50`, `75-50-25`, `75-50-25-dead` (`BOSS_CHECKPOINT_PRESETS`). A milestone both pick shares one `GlobalEventTrigger`; both `never` emits nothing at all. Independent of `invulnerability` and the wave rig — own triggers, no `connections` touched. Draws no RNG. `boss<i>Checkpoints=<respawnPreset>,<saveGamePreset>`. See *Boss finale* |
+| `arena.music` | preset: `boss_final`; else absent | per-arena music swap, same knob as `floorMusic`. `boss<i>Music=<track>`. `defaultBossFight()` ships `boss_final`; `withBoss()` spreads the arena before overriding theme/pool/waves, so all three presets inherit it |
 | `arena.monsterMultiplier` | 1.0 | scales each tier's `monsterMax`; `-1`/endless stays endless. `boss<i>MonsterMultiplier` in `parameters.txt`, separate from the dungeon's |
 | `arena.foodMultiplier` | 1.2 | scales the arena's health/mana pickup clusters; `boss<i>FoodMultiplier` in `parameters.txt` |
 
@@ -325,15 +337,31 @@ enabled, **no upper bound** (mirrors `levels`), written as `bossFights` in
 
 `config/presets.ts` holds `CAMPAIGN_PRESETS` — `castle` (8 floors,
 `a_mixed`–`g_mixed` then `f_mixed`; identical to `defaultParameters()`),
-`desert` (6 floors, `h,h,i,i_symbols,i_mixed,i_mixed`) and `bonus` (6 floors,
-`bonus1`–`bonus5` then `bonus5`). A preset overrides `levels`, `themes`,
-`levelMonsters`, `levelTimers`, `levelOrder` and — via the `withBoss` helper —
-the **first fight's** arena `theme`, `bossPool` and `waves`. It does **not**
-override `lobbies`: all three inherit `defaultParameters()`'s two stock rooms,
-which is why `shippedOrder(levels)` names `L1` and `L2`. `monsterMax` is
-otherwise left at the global defaults so the caps keep bounding horde sizes; the
-one exception is `tower_empty`, raised to 150 in `defaultParameters()` for the
-escape floor and pooled on no other floor of any preset.
+`desert` (**7 floors** since the 070 parameter set —
+`g_mixed,h,i,i_symbols,i_mixed,g_mixed,i_mixed`; an outdoor bug floor now
+opens it and a tick/tower breather sits before the mummy rush) and `bonus`
+(6 floors, `bonus1`–`bonus5` then `bonus5`). A preset overrides `levels`,
+`themes`, `levelMonsters`, `levelTimers`, `levelTraps`, `floorMusic`,
+`levelOrder`, `lobbies` (`defaultLobby(...)` plus a `music` cue per room) and
+— via the `withBoss` helper — the **first fight's** arena `theme`, `bossPool`
+and `waves` (`withBoss` leaves `arena.music` at `defaultBossFight()`'s
+`boss_final`). `shippedOrder(levels)` still names `L1` and `L2`. `monsterMax`
+is otherwise left at the global defaults so the caps keep bounding horde
+sizes; the exceptions are `tower_empty`, raised to 150 in
+`defaultParameters()` for the escape floor, and — in the desert preset —
+`tower_flower1` raised to 6 because floor 0 is the first floor of any preset
+to pool it.
+
+**The 070 preset content (`944e81d`).** All three presets now arm their
+**escape floor** with a four-wall spewer rig (`shooter_fireball` ×8/wall on
+castle and bonus, `shooter_fireball_2`/`shooter_fireball` on desert's last
+two floors) and carry per-floor / per-lobby / per-arena `floorMusic`.
+Castle's and desert's arenas run `SHOOTER_ARROW_TRAPS` (`parameters.ts`) on
+the **25% and boss-death** tiers; bonus runs its own `MAGICBALL_TRAPS`
+(`presets.ts`) on the death tier only. So a stock arena is **not** trapless
+any more. A few castle/bonus wave counts and the castle floor-1 pool were
+retuned in the same change. All of it is content, not an RNG-order change,
+but it does move what the *default* and the presets produce for a seed.
 
 **The escape floor** is that last floor, and all three presets ship it: one
 extra dungeon floor played **after** the boss arena (`shippedOrder`, which also
@@ -341,9 +369,11 @@ opens the campaign on `L1` and puts `L2` between the last ordinary floor and
 the fight), on a
 90-second hazard timer (`escapeFloorTimer` — 1 damage every 100ms, countdown
 on), with `tower_empty` four times over in a nine-entry pool so a couple of
-hundred breakable 450-HP battlements wall its routes off. It is built entirely
-from shipped features — the campaign order, timer mode and pool weighting — so
-nothing in the generator knows it exists. Two consequences worth remembering:
+hundred breakable 450-HP battlements wall its routes off, plus (since the 070
+set) a four-wall projectile-spewer rig and its own music track. It is built
+entirely from shipped features — the campaign order, timer mode, pool
+weighting, `levelTraps` and `floorMusic` — so nothing in the generator knows
+it exists. Two consequences worth remembering:
 the arena's alcove holds a portal to it instead of the victory orb (verified in
 game) — the **red** one, because an arena has no stairs prefab of its own, so
 `gatewayAfter`'s `exit` still renders `BossPortal` there — and because the
@@ -387,9 +417,14 @@ Plus two app settings that are *not* generator parameters:
    themes (`h`, every `bonus<n>`) overhang nothing and the player walks around a
    short seal. The button is hidden **like a key**: a random unlocked room, same
    draws as `Room.spawnKey()`, so it can be anywhere on the floor and
-   `ctx.reachTargets` is what proves the player can get to it. Both modes grant
-   the same consolation powerup (`Room.grantLockLoot`), but the two streams
-   diverge — button mode draws the button's room and position first.
+   `ctx.reachTargets` is what proves the player can get to it. The room grants
+   a consolation powerup (`Room.grantLockLoot`). PR #54 removed the old
+   `finalLockMode` "Opened by" choice — a chance-rolled gold door as the
+   alternative — because a party could hoard or misspend gold keys and lock
+   itself out of that gate, the wall-and-button it cannot. A file still
+   carrying `finalLockMode` imports fine, key reported as unknown; `button`
+   was already the default, so no seed moved. Chance-rolled gold doors
+   elsewhere on a floor are untouched and still get their keys.
 4. **Population** — per lair: a monster type from that floor's pool, a horde
    of `trunc(fRand(max/5, max) * monsterMultiplier)`, `iRand(0, max/20)`
    spawners, treasure/breakables scaled by `goldMultiplier`, food by
@@ -571,7 +606,10 @@ The hazard half of the same five tiers. Each `BossWave` may carry
 `PROJECTILE_DEFS` (`objects/projectileTypes.ts`, 45 of the 68 the game ships —
 the 22 with `damage: 0` are decoration from a spewer, and `sorcerer_ice_orb`
 crashes the game from a spewer; all 23 are cut). Read a
-tier through `waveTraps(wave)`. No preset ships any — a stock arena is trapless.
+tier through `waveTraps(wave)`. Since the 070 parameter set castle and desert
+ship `SHOOTER_ARROW_TRAPS` on the 25% and boss-death tiers and bonus ships
+`MAGICBALL_TRAPS` on the death tier (both constants live next to the wave
+builders); a hand-built arena still starts trapless.
 
 Each row places `count` `ProjectileSpewer` nodes; several rows may share a
 direction, which is how one wall mixes ammunition ("3 axes and 2 fireballs
@@ -717,6 +755,33 @@ warning at `TIMER_COUNTDOWN_NODE_WARN` is about.
 `parameters.txt` carries `timerN=enabled|seconds|damage|freqMs|countdown`, and
 **only for floors whose timer is on** — a stock export has no `timer` line at
 all.
+
+## Music (`src/generator/music/`)
+
+Optional per-floor / per-lobby / per-arena music swap (PR #53). One
+`PlayMusic` script node appended after a level is built — no RNG, no files of
+its own, on the same RNG-free side of the line as tweaks, buffs and timer
+mode (invariant 8). `tracks.ts` is the registry: `MUSIC_TRACKS` (the base
+`sound/music.xml` cues — `none/main/act1`–`act4/bonus_1/bonus_2/boss_1/boss_final/`
+`boss_killed/custom_1/custom_2` — plus the `sound/music_desert.xml` bank:
+`desert_cavern/desert_temple/desert_village`), and `MUSIC_DEFAULT = 'default'`,
+the sentinel that emits **nothing** and leaves the hand-authored template's
+own music untouched — so every level built before the feature round-trips
+byte-for-byte. `musicSound(id)` maps an id to `sound/<bank>.xml:<cue>`,
+`isKnownMusicId` gates the parser.
+
+- `rig.ts` `buildMusicRig(ctx, trackId, x, y)` returns before allocating an id
+  when the track is `default`/unknown, same as every other optional rig.
+- Wired from the floor loop in `index.ts` (after traps, so arming music
+  cannot move a trap node's id), from `lobby/build.ts` for a lobby's
+  `music`, and from `boss/arena.ts` for the arena's.
+- `parameters.txt`: `musicN=<track>` (floors), `lobby<i>Music`, `boss<i>Music`,
+  each written only when the level swapped. **The one gotcha:** a file with
+  *any* `musicN=` line rebuilds `params.floorMusic` from scratch
+  (`explicitMusic` map + the `highestMusicIndex` post-pass in `configFile.ts`),
+  because the stock default now ships real per-floor tracks that would
+  otherwise bleed into an index a shorter import leaves unmentioned. A file
+  with no `musicN=` at all leaves the base's `floorMusic` untouched.
 
 ## Campaign order (`campaign.ts`)
 
@@ -923,6 +988,21 @@ countdown, and a `ToggleImmortality{state: 1}` at the end of the window —
 `state: 0` is immortal, the same inverted polarity `ToggleElement` uses, and
 `element` is the boss's **actor** id. Default 30s on every threshold; 0 disables
 one; the whole feature can be switched off. Draws no RNG.
+
+**Checkpoints / save game** (`boss/checkpoints.ts`, PR #52). Two independent
+milestone presets on `arena.checkpoints` — `respawnPlayers` and `saveGame`,
+each one of `BOSS_CHECKPOINT_PRESETS` (`never` / `50` / `75-50-25` /
+`75-50-25-dead`). **Respawn player** pulls dead or lagging players into the
+arena; **Save game** moves the respawn point and writes the save (`Checkpoint`
+node). A milestone both presets name gets **one shared** `GlobalEventTrigger`,
+never two; a respawn-only milestone emits a bare `RespawnPlayers` with no
+`Checkpoint`; both at `never` emits nothing at all — no trigger, no node.
+Listens to the same `Boss 75/50/25%` / `Boss Died` events as the invuln and
+wave rigs but wires its **own** triggers, so neither of their `connections`
+arrays is touched. Draws no RNG. Defaults: respawn `75-50-25-dead`, save `50`.
+`boss<i>Checkpoints=<respawnPreset>,<saveGamePreset>` in `parameters.txt`.
+`Checkpoint`'s `parameters` is a bare bool, not a dictionary — see the
+modding skill's DISCOVERY-LOG (2026-09-05).
 
 This is the only rig in the repo that needs **real per-connection delays**:
 `ScriptNode.connectTo(node, delayMs)` opts a node into writing true

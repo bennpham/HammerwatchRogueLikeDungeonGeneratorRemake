@@ -1,5 +1,6 @@
 import { defaultParameters } from '../src/generator'
 import type { DungeonParameters } from '../src/generator'
+import { MUSIC_DEFAULT } from '../src/generator/music/tracks'
 
 /**
  * `defaultParameters()` with the escape floor taken back off: seven floors,
@@ -25,6 +26,28 @@ export function plainParameters(): DungeonParameters {
   params.levelBuffs = params.levelBuffs?.slice(0, floors)
   params.levelTraps = params.levelTraps?.slice(0, floors)
   params.levelTimers = params.levelTimers?.slice(0, floors)
+  // Reset rather than slice: unlike traps/timers, the default's own act1..act4
+  // cues are real values at every one of these indices, so slicing alone would
+  // leave a "neutral" campaign quietly carrying music.
+  params.floorMusic = params.floorMusic && Array.from({ length: floors }, () => MUSIC_DEFAULT)
+  // Same reasoning again: the stock castle boss's last two tiers now run a
+  // shooter_arrow rig (070 parameter set), which would leave a "neutral"
+  // arena quietly trapped and its arena.music also playing boss_final.
+  params.boss = {
+    ...params.boss,
+    fights: params.boss.fights.map((f) => ({
+      ...f,
+      arena: {
+        ...f.arena,
+        music: undefined,
+        waves: f.arena.waves.map((w) => {
+          const next = { ...w }
+          delete next.traps
+          return next
+        })
+      }
+    }))
+  }
   params.lobbies = []
   delete params.levelOrder
   return params

@@ -171,6 +171,13 @@ When hosting a generated campaign in Hammerwatch 1.41:
   the later tiers (see the **Boss** tab).
 - **Dead players who reconnect after a crash stay dead for one floor.** They will
   revive at the next stairs. This is a rare edge case specific to crash-reconnects.
+- **Thief `DivideByZero` crash on held Autofire (1.41, unpatched engine bug).** A
+  divide-by-zero in Hammerwatch's own `Autofire` fires when the `Autofire` control
+  is held while attacking as the Thief — including on level load. It is a stock 1.41
+  defect; the reporter hit it in a singleplayer and co-op session. In-game fix only: *Options → Controls → P1 →
+  Autofire* → clear it, then rebind it once (or delete the `<Autofire>` key from the
+  game's `config.xml`) once you're loaded in game. Cost: no hold-to-fire. No generator change reaches this —
+  nothing we emit touches either operand of the divide. See the crash-triage skill.
 
 ## Using the app
 

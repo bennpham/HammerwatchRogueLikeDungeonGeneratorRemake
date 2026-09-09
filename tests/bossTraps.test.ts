@@ -164,8 +164,15 @@ describe('boss traps — none means none', () => {
     }
     expect(buildBossArena(freshCtx(4242), explicit, 0).xml).toBe(absent.xml)
 
-    // and the stock arena itself carries no traps, so nothing shipped changed
-    expect(base.waves.every((w) => (w.traps ?? []).length === 0)).toBe(true)
+    // the stock arena runs a shooter_arrow rig on its last two tiers (070
+    // parameter set) and none on the other three
+    expect(base.waves.map((w) => (w.traps ?? []).length > 0)).toEqual([
+      false,
+      false,
+      false,
+      true,
+      true
+    ])
   })
 })
 

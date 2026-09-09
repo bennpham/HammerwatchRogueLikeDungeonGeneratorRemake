@@ -255,11 +255,14 @@ describe('skeleton3 and tower_empty', () => {
       const params = defaultParameters()
       params.lockFinalRoom = false
       params.boss.enabled = false
-      // and the escape floor's 90-second hazard, which the shipped preset now
-      // arms on its last floor — it appends nodes to that floor's XML, which
+      // and the escape floor's 90-second hazard, its wall traps, and the
+      // per-floor music cues — all three the shipped preset now arms on top of
+      // c494670's layout, and all three append nodes to a floor's XML, which
       // this digest covers. Same reasoning as the two resets above: the
-      // baseline predates it, so hash the campaign it was measured over.
+      // baseline predates them, so hash the campaign it was measured over.
       params.levelTimers = undefined
+      params.levelTraps = undefined
+      params.floorMusic = undefined
       delete params.levelOrder
       params.levels = 8
       params.themes = ['a', 'a', 'b', 'b', 'c', 'c', 'd', 'd']

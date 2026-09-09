@@ -3,13 +3,16 @@ import {
   defaultFloorBuffs,
   defaultFloorTraps,
   defaultFloorTimer,
+  defaultLobby,
   defaultParameters,
   shippedOrder,
   escapeFloorTimer,
   scatterWave,
-  stockWavePickups
+  stockWavePickups,
+  SHOOTER_ARROW_TRAPS
 } from './parameters'
-import type { BossWave, DungeonParameters } from './parameters'
+import type { BossTrap, BossWave, DungeonParameters, FloorTrap } from './parameters'
+import { MUSIC_DEFAULT } from '../music/tracks'
 
 /**
  * A named starting point for a campaign: length, themes and per-floor monster
@@ -121,7 +124,8 @@ function desertWaves(): BossWave[] {
       [],
       1000,
       [],
-      drops.quarter
+      drops.quarter,
+      SHOOTER_ARROW_TRAPS
     ),
     // boss death — the fire pillars and floaters wait for the kill, see
     // BOSS_DEATH_WAVE, and the whole send-off is bloodlusted, see bossDeathBuffs()
@@ -138,7 +142,8 @@ function desertWaves(): BossWave[] {
       [],
       1000,
       bossDeathBuffs(),
-      drops.death
+      drops.death,
+      SHOOTER_ARROW_TRAPS
     )
   ]
 }
@@ -149,6 +154,17 @@ function desertWaves(): BossWave[] {
  * wrecks keep their collision and so cannot be scattered. The boss-death tier
  * replays the 25% line-up with wisps on top — see BOSS_DEATH_WAVE.
  */
+/**
+ * Bonus's own boss-death trap rig: purple magicballs on all four walls, wider
+ * spread and slower than the shooter-arrow rig castle/desert share.
+ */
+const MAGICBALL_TRAPS: BossTrap[] = [
+  { projectile: 'enemy_magicball_purple', direction: 'up', spread: 1, spawnRateMs: 1500, count: 4 },
+  { projectile: 'enemy_magicball_purple', direction: 'down', spread: 1, spawnRateMs: 1500, count: 4 },
+  { projectile: 'enemy_magicball_purple', direction: 'left', spread: 1, spawnRateMs: 1500, count: 4 },
+  { projectile: 'enemy_magicball_purple', direction: 'right', spread: 1, spawnRateMs: 1500, count: 4 }
+]
+
 function bonusWaves(): BossWave[] {
   const drops = stockWavePickups()
   return [
@@ -217,23 +233,24 @@ function bonusWaves(): BossWave[] {
     // bloodlusted like every preset's send-off, see bossDeathBuffs()
     scatterWave(
       [
-        ['lich', 4],
-        ['lich#0', 12],
-        ['lich#2', 8],
-        ['mb_eye', 4],
-        ['mb_lich', 2],
-        ['mb_doomspawn', 4],
+        ['lich', 3],
+        ['lich#0', 9],
+        ['lich#2', 6],
+        ['mb_eye', 3],
+        ['mb_lich', 1],
+        ['mb_doomspawn', 2],
         ['tower_banner1', 8],
         ['wisp1', 30],
         ['wisp1#2', 10]
       ],
       [
-        ['tower_static_frost', 1],
-        ['tower_tracking1', 4]
+        ['tower_static_frost', 2],
+        ['tower_tracking1', 2]
       ],
       1000,
       bossDeathBuffs(),
-      drops.death
+      drops.death,
+      MAGICBALL_TRAPS
     )
   ]
 }
@@ -254,23 +271,66 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
     id: 'desert',
     label: 'Desert',
     description:
-      '5 floors of Temple of the Sun mobs, a mummy mini-boss rush, then Anubis or the worm.',
-    // The two outdoor floors are guards only: they mob the party in numbers but
-    // barely scratch it, so the opening reads as busy rather than dangerous. The
-    // mummies arrive with the indoor themes on floor 3, which is where the
-    // preset starts actually hurting.
+      '7 floors from the outdoor bug swarms through Temple of the Sun mobs and a mummy mini-boss rush, then Anubis or the worm.',
+    // Floor 0 is an outdoor bug/beast floor ahead of the desert proper. The
+    // two guard floors mob the party in numbers but barely scratch it, so the
+    // opening reads as busy rather than dangerous. The mummies arrive with
+    // the indoor themes on floor 3, which is where the preset starts
+    // actually hurting; floor 5 (tick2/tracking towers) is a second breather
+    // before the mummy mini-boss rush on floor 6.
     build: () => ({
       ...defaultParameters(),
-      levels: 6,
-      levelBuffs: Array.from({ length: 6 }, () => defaultFloorBuffs()),
-      levelTraps: Array.from({ length: 6 }, () => defaultFloorTraps()),
-      levelTimers: escapeTimers(6),
-      // the sixth is the escape floor, played after the boss — see levelOrder
-      themes: ['h', 'h', 'i', 'i_symbols', 'i_mixed', 'i_mixed'],
-      levelOrder: shippedOrder(6),
+      levels: 7,
+      levelBuffs: Array.from({ length: 7 }, () => defaultFloorBuffs()),
+      levelTraps: [
+        defaultFloorTraps(),
+        defaultFloorTraps(),
+        defaultFloorTraps(),
+        defaultFloorTraps(),
+        defaultFloorTraps(),
+        [
+          { projectile: 'shooter_fireball_2', direction: 'down', spread: 0, spawnRateMs: 1000, count: 3 },
+          { projectile: 'shooter_fireball_2', direction: 'up', spread: 0, spawnRateMs: 1000, count: 3 },
+          { projectile: 'shooter_fireball_2', direction: 'left', spread: 0, spawnRateMs: 1000, count: 3 },
+          { projectile: 'shooter_fireball_2', direction: 'right', spread: 0, spawnRateMs: 1000, count: 3 }
+        ],
+        [
+          { projectile: 'shooter_fireball', direction: 'down', spread: 0, spawnRateMs: 1000, count: 8 },
+          { projectile: 'shooter_fireball', direction: 'up', spread: 0, spawnRateMs: 1000, count: 8 },
+          { projectile: 'shooter_fireball', direction: 'left', spread: 0, spawnRateMs: 1000, count: 8 },
+          { projectile: 'shooter_fireball', direction: 'right', spread: 0, spawnRateMs: 1000, count: 8 }
+        ]
+      ] satisfies FloorTrap[][],
+      levelTimers: escapeTimers(7),
+      // floors 5-6 have no musicN line in the 070 parameter set, so 6 (the
+      // escape floor) is left on the MUSIC_DEFAULT sentinel
+      floorMusic: [
+        'desert_temple',
+        'desert_temple',
+        'desert_cavern',
+        'desert_cavern',
+        'desert_cavern',
+        'desert_cavern',
+        MUSIC_DEFAULT
+      ],
+      // the seventh is the escape floor, played after the boss — see levelOrder
+      themes: ['g_mixed', 'h', 'i', 'i_symbols', 'i_mixed', 'g_mixed', 'i_mixed'],
+      levelOrder: shippedOrder(7),
       boss: withBoss('i_mixed', ['boss_anubis', 'boss_worm'], desertWaves()),
+      lobbies: [
+        { ...defaultLobby('BETA-dungeon-prep'), music: 'desert_village' },
+        { ...defaultLobby('BETA-boss-prep'), music: 'boss_1' }
+      ],
+      monsterMax: {
+        ...defaultParameters().monsterMax,
+        // tower_flower1's roster defaultMax is 0 (see the TODO on the escape
+        // floor's pool below) — this preset is the first to actually pool it
+        // (floor 0), so it needs a real cap or it can never spawn.
+        tower_flower1: 6
+      },
       levelMonsters: [
-        ['guard_desert', 'guard_desert_range'],
+        // the outdoor bug floor ahead of the desert proper
+        ['tick1', 'maggot', 'tower_flower1_small', 'tower_flower1', 'bat1', 'mb_tick', 'mb_maggot'],
         ['guard_desert', 'guard_desert_range', 'tower_archer1', 'tower_archer3'],
         [
           'mummy_desert',
@@ -301,8 +361,13 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
           'special_beheaded_kamikaze',
           'mummy_desert',
           'mummy_ranged',
-          'lich_desert'
+          'lich_desert',
+          'tower_tracking1',
+          'tower_tracking2',
+          'tower_tracking3'
         ],
+        // a second breather floor before the mummy mini-boss rush
+        ['tick2', 'mb_tick', 'tower_tracking3', 'tower_tracking2', 'tower_tracking1', 'spider', 'tower_flower3'],
         // the escape floor — battlements to wall the route off, and the
         // quickest things in the desert roster to chase the party out. The
         // battlement count holds them at ~4 lairs in 9 against a roster this
@@ -350,16 +415,33 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
       ...defaultParameters(),
       levels: 6,
       levelBuffs: Array.from({ length: 6 }, () => defaultFloorBuffs()),
-      levelTraps: Array.from({ length: 6 }, () => defaultFloorTraps()),
+      levelTraps: [
+        defaultFloorTraps(),
+        defaultFloorTraps(),
+        defaultFloorTraps(),
+        defaultFloorTraps(),
+        defaultFloorTraps(),
+        [
+          { projectile: 'shooter_fireball', direction: 'up', spread: 0, spawnRateMs: 1000, count: 8 },
+          { projectile: 'shooter_fireball', direction: 'down', spread: 0, spawnRateMs: 1000, count: 8 },
+          { projectile: 'shooter_fireball', direction: 'left', spread: 0, spawnRateMs: 1000, count: 8 },
+          { projectile: 'shooter_fireball', direction: 'right', spread: 0, spawnRateMs: 1000, count: 8 }
+        ]
+      ] satisfies FloorTrap[][],
       levelTimers: escapeTimers(6),
+      floorMusic: ['bonus_1', 'bonus_1', 'bonus_1', 'bonus_2', 'bonus_2', 'bonus_2'],
       // bonus5 twice: the escape floor after the boss stays on the last tileset
       themes: ['bonus1', 'bonus2', 'bonus3', 'bonus4', 'bonus5', 'bonus5'],
       levelOrder: shippedOrder(6),
       boss: withBoss(
-        'g_mixed',
+        'bonus5',
         ['boss_knight', 'boss_lich', 'boss_krilith', 'boss_dragon'],
         bonusWaves()
       ),
+      lobbies: [
+        { ...defaultLobby('BETA-dungeon-prep'), music: 'custom_1' },
+        { ...defaultLobby('BETA-boss-prep'), music: 'custom_2' }
+      ],
       levelMonsters: [
         ['bonus_archer1', 'bonus_skeleton1'],
         ['archer1', 'archer2', 'skeleton1', 'skeleton2'],

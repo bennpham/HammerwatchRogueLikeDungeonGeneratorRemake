@@ -841,7 +841,11 @@ export function defaultBossFight(): BossFight {
         saveGame: '50'
       },
       monsterMultiplier: 1.0,
-      foodMultiplier: 1.2
+      foodMultiplier: 1.2,
+      // All three stock presets play the same final-boss cue; `withBoss()`
+      // spreads this arena before overriding theme/bossPool/waves, so desert
+      // and bonus inherit it for free.
+      music: 'boss_final'
     }
   }
 }
@@ -964,7 +968,8 @@ export function scatterWave(
   timed: readonly WaveEntry[],
   defaultIntervalMs: number,
   buffs: readonly FloorBuff[] = [],
-  pickups: readonly WavePickup[] = []
+  pickups: readonly WavePickup[] = [],
+  traps: readonly BossTrap[] = []
 ): BossWave {
   const all = [...scattered, ...timed]
   const wave: BossWave = {
@@ -982,6 +987,9 @@ export function scatterWave(
   // `buffs` above.
   if (pickups.length > 0) {
     wave.pickups = pickups.map((entry) => ({ ...entry }))
+  }
+  if (traps.length > 0) {
+    wave.traps = traps.map((entry) => ({ ...entry }))
   }
   return wave
 }
@@ -1025,6 +1033,19 @@ export function stockWavePickups(): { half: WavePickup[]; quarter: WavePickup[];
     ]
   }
 }
+
+/**
+ * The stock 25%/boss-death trap rig castle and desert both run: arrow
+ * spewers on all four walls, narrower spread on the side walls (6 spewers)
+ * than the top/bottom (4). Its own constant rather than inlined twice so the
+ * two presets can't drift apart by a typo.
+ */
+export const SHOOTER_ARROW_TRAPS: BossTrap[] = [
+  { projectile: 'shooter_arrow', direction: 'up', spread: 0, spawnRateMs: 1000, count: 4 },
+  { projectile: 'shooter_arrow', direction: 'down', spread: 0, spawnRateMs: 1000, count: 4 },
+  { projectile: 'shooter_arrow', direction: 'left', spread: 0, spawnRateMs: 1000, count: 6 },
+  { projectile: 'shooter_arrow', direction: 'right', spread: 0, spawnRateMs: 1000, count: 6 }
+]
 
 /**
  * The stock Castle wave line-up, one entry per tier (100 / 75 / 50 / 25, then
@@ -1113,23 +1134,25 @@ function castleWaves(): BossWave[] {
       [['tower_nova1', 3]],
       1000,
       [],
-      drops.quarter
+      drops.quarter,
+      SHOOTER_ARROW_TRAPS
     ),
     // boss death — the arena keeps fighting after the kill, see BOSS_DEATH_WAVE.
     // tower_static_frost is anchored because its wreck blocks, and the horde
     // arrives bloodlusted — see bossDeathBuffs().
     scatterWave(
       [
-        ['lich#2', 8],
-        ['lich', 3],
-        ['lich#0', 4],
+        ['lich#2', 6],
+        ['lich', 2],
+        ['lich#0', 2],
         ['mb_lich', 1],
         ['mb_doomspawn', 2]
       ],
-      [['tower_static_frost', 3]],
+      [['tower_static_frost', 2]],
       1000,
       bossDeathBuffs(),
-      drops.death
+      drops.death,
+      SHOOTER_ARROW_TRAPS
     )
   ]
 }
@@ -1161,16 +1184,24 @@ export function defaultParameters(): DungeonParameters {
     // played AFTER the boss (see levelOrder below), back on f - mixed
     themes: ['a_mixed', 'b_mixed', 'c_mixed', 'd_mixed', 'e_mixed', 'f_mixed', 'g_mixed', 'f_mixed'],
     levelBuffs: Array.from({ length: 8 }, () => defaultFloorBuffs()),
-    // Present and empty, exactly like levelBuffs. The shipped campaign's
-    // pressure comes from the escape floor's clock and the boss rig; arming
-    // traps by default would rewrite every stock levels/level*.xml, spend
-    // trapRand draws in the shipped campaign, and leave "stock output is
-    // unchanged" with nothing to assert.
-    levelTraps: Array.from({ length: 8 }, () => defaultFloorTraps()),
+    // Every floor but the escape floor stays unarmed; the escape floor (the
+    // last one, played after the boss) gets a fireball spewer on all four
+    // walls, matching the shipped 070 parameter set.
+    levelTraps: [
+      ...Array.from({ length: 7 }, () => defaultFloorTraps()),
+      [
+        { projectile: 'shooter_fireball', direction: 'up', spread: 0, spawnRateMs: 1000, count: 8 },
+        { projectile: 'shooter_fireball', direction: 'down', spread: 0, spawnRateMs: 1000, count: 8 },
+        { projectile: 'shooter_fireball', direction: 'left', spread: 0, spawnRateMs: 1000, count: 8 },
+        { projectile: 'shooter_fireball', direction: 'right', spread: 0, spawnRateMs: 1000, count: 8 }
+      ]
+    ],
     // every floor but the escape floor is untimed; that one is the whole point
     // of the timer feature — 90 seconds to find the way out, then 1 damage
     // every 100ms until the party leaves
     levelTimers: [...Array.from({ length: 7 }, () => defaultFloorTimer()), escapeFloorTimer()],
+    // One music cue per act, the escape floor staying on act4 — 070 parameter set.
+    floorMusic: ['act1', 'act2', 'act2', 'act3', 'act3', 'act4', 'act4', 'act4'],
     monsterMultiplier: 1.0,
     goldMultiplier: 1.1,
     foodMultiplier: 1.2,
@@ -1181,7 +1212,7 @@ export function defaultParameters(): DungeonParameters {
     lockFinalRoom: true,
     levelMonsters: [
       ['bat1', 'tick1', 'maggot', 'tower_flower1_small'],
-      ['maggot', 'slime', 'skeleton1', 'archer1'],
+      ['maggot', 'maggot', 'slime', 'slime', 'skeleton1', 'archer1'],
       ['eye', 'wisp1', 'lich', 'tower_nova1'],
       ['skeleton2', 'archer2', 'archer3', 'lich', 'wisp2'],
       ['mb_tick', 'mb_maggot', 'bat2', 'tick2', 'maggot'],
@@ -1240,7 +1271,10 @@ export function defaultParameters(): DungeonParameters {
     // fight's welded-on prep room (20000 gold) — now just the second lobby in
     // the order, placed by `shippedOrder` right before the fight. Both sell
     // every column including power; see `defaultLobby`'s comment for why.
-    lobbies: [defaultLobby('BETA-dungeon-prep'), defaultLobby('BETA-boss-prep')],
+    lobbies: [
+      defaultLobby('BETA-dungeon-prep'),
+      { ...defaultLobby('BETA-boss-prep'), music: 'boss_1' }
+    ],
     // On by default: a stock campaign's shop rooms each carry a save checkpoint
     // by the exit, so quitting mid-run does not throw the whole campaign away.
     lobbySaves: true,
