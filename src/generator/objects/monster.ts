@@ -1,5 +1,5 @@
 import { XMLDictionary, XMLFloat, XMLInt, XMLObject, XMLString } from '../xml'
-import { monsterTypeById, MonsterTypeDef } from './monsterTypes'
+import { floorPoolTier, monsterTypeById, parseMonsterKey, MonsterTypeDef } from './monsterTypes'
 import type { GenerationContext } from '../core/context'
 
 /** An actor placed on the level (ported from the modified Monster.java). */
@@ -17,9 +17,26 @@ export class Monster extends XMLObject {
     this.id = ctx.idCounter++
   }
 
-  static chooseMonsterForLevel(ctx: GenerationContext, level: number): MonsterTypeDef {
+  /**
+   * The pool key this room's monsters come from. Returns the KEY rather than the
+   * resolved type because a floor pool entry may pin a tier (`skeleton1#1`), and
+   * the type alone cannot carry that. Exactly one `iRand` either way, so the
+   * draw is unchanged from the type-only version.
+   */
+  static chooseMonsterForLevel(ctx: GenerationContext, level: number): string {
     const pool = ctx.params.levelMonsters[level]
-    return monsterTypeById(pool[ctx.rand.iRand(0, pool.length)])
+    return pool[ctx.rand.iRand(0, pool.length)]
+  }
+
+  /**
+   * Split a floor pool key into the type (which owns the `monsterMax` cap and
+   * the tier-0 spawner) and the pinned tier, if any. `tier: undefined` means
+   * roll the ladder — see createRolled.
+   */
+  static resolveFloorPoolEntry(key: string): { type: MonsterTypeDef; tier?: number } {
+    // Strip the `#tier` suffix first: monsterTypeById keys off the bare id, so
+    // handing it `skeleton1#1` would miss the map and fall back to bat1.
+    return { type: monsterTypeById(parseMonsterKey(key).id), tier: floorPoolTier(key) }
   }
 
   /** Create with an explicit tier (0 = spawner variant for most types). */

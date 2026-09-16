@@ -115,12 +115,19 @@ export class Room {
       }
 
       case 'Lair': {
-        const monsterType = (this.monsterType = Monster.chooseMonsterForLevel(ctx, this.level))
+        // A pool entry may pin one actor (`skeleton1#1`) or name the type and let
+        // the horde roll its ladder (`skeleton1`). The cap and the tier-0 spawner
+        // below belong to the TYPE either way, which is what keeps monsterMax —
+        // and its `maxSkeletons1` config key — one number per type.
+        const poolKey = Monster.chooseMonsterForLevel(ctx, this.level)
+        const { type: monsterType, tier: pinnedTier } = Monster.resolveFloorPoolEntry(poolKey)
+        this.monsterType = monsterType
         const maxCount = params.monsterMax[monsterType.id] ?? 0
 
         this.createHorde(
           monsterType,
-          Math.trunc(rand.fRand(Math.trunc(maxCount / 5), maxCount) * params.monsterMultiplier)
+          Math.trunc(rand.fRand(Math.trunc(maxCount / 5), maxCount) * params.monsterMultiplier),
+          pinnedTier
         )
         this.type = type
 
@@ -149,7 +156,11 @@ export class Room {
       }
 
       case 'Storage': {
-        this.monsterType = Monster.chooseMonsterForLevel(ctx, this.level)
+        // Storage places only tier-0 spawners, so a pinned tier has nothing to
+        // pin here — the type is all this room needs.
+        this.monsterType = Monster.resolveFloorPoolEntry(
+          Monster.chooseMonsterForLevel(ctx, this.level)
+        ).type
         this.type = type
 
         const spawners = rand.iRand(0, 3)
@@ -244,8 +255,15 @@ export class Room {
     }
   }
 
-  /** Scatter `count` monsters around a drifting circle (ported verbatim). */
-  private createHorde(type: MonsterTypeDef, count: number): void {
+  /**
+   * Scatter `count` monsters around a drifting circle (ported verbatim).
+   *
+   * `pinnedTier` is the one addition: undefined rolls the ladder as the original
+   * did, a number places that exact actor and draws NOTHING for the tier. That
+   * asymmetry is deliberate — a pin is a statement about what spawns, so it must
+   * not depend on the stream.
+   */
+  private createHorde(type: MonsterTypeDef, count: number, pinnedTier?: number): void {
     const rand = this.ctx.rand
     let originX = rand.fRand(this.x + 2, this.x + this.width - 2)
     let originY = rand.fRand(this.y + 4, this.y + this.height - 2)
@@ -263,7 +281,11 @@ export class Room {
       // out-of-room points are skipped entirely (the original's `continue`
       // also skips the drift update)
       if (mx > this.x + this.width || mx < this.x || my > this.y + this.height || my < this.y + 2) continue
-      Monster.createRolled(this.ctx, mx, my, type)
+      if (pinnedTier === undefined) {
+        Monster.createRolled(this.ctx, mx, my, type)
+      } else {
+        Monster.create(this.ctx, mx, my, type, pinnedTier)
+      }
 
       originX += drift * Math.cos(driftAngle)
       originY += drift * Math.sin(driftAngle)

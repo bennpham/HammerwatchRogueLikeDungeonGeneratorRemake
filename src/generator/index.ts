@@ -119,6 +119,8 @@ export {
   MONSTER_TYPES,
   MONSTER_VARIANT_GROUPS,
   defaultTier,
+  floorPoolTier,
+  isKnownFloorPoolKey,
   isKnownMonsterKey,
   monsterCategories,
   monsterNote,

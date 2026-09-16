@@ -35,6 +35,7 @@ import type { CampaignSlot } from '../campaign'
 import { getTheme } from './themes'
 import {
   defaultTier,
+  isKnownFloorPoolKey,
   isKnownMonsterId,
   isKnownMonsterKey,
   monsterTypeById,
@@ -202,10 +203,37 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
     if (pool.length === 0) {
       errors.push({ field: 'levelMonsters', message: `Level ${i + 1} has an empty monster pool.` })
     }
-    for (const id of pool) {
+    for (const key of pool) {
+      // A floor pool entry is either a bare id (roll the type's ladder) or
+      // `id#tier` pinning one actor. isKnownFloorPoolKey, NOT the arena's
+      // isKnownMonsterKey — see its comment for why the two grammars differ.
+      if (isKnownFloorPoolKey(key)) continue
+      const { id, tier } = parseMonsterKey(key)
       if (!isKnownMonsterId(id)) {
-        errors.push({ field: 'levelMonsters', message: `Level ${i + 1} pool contains unknown monster "${id}".` })
+        errors.push({ field: 'levelMonsters', message: `Level ${i + 1} pool contains unknown monster "${key}".` })
+      } else {
+        // Say what the legal range is: the tier suffix is the one part of the
+        // grammar a user has to discover, and "unknown monster" would be a lie.
+        const last = monsterTypeById(id).tiers.length - 1
+        const what = Number.isInteger(tier) ? `tier ${tier}` : 'a non-numeric tier'
+        errors.push({
+          field: 'levelMonsters',
+          message: `Level ${i + 1} pool entry "${key}" names ${what}; "${id}" has tiers 0-${last}.`
+        })
       }
+    }
+    // A pooled type capped at 0 spawns an empty horde, which reads in game as a
+    // lair that is simply missing its monsters. Advisory, not fatal: 0 is the
+    // documented way to disable a type, so a stale pool entry is a mistake worth
+    // pointing at rather than a reason to refuse to generate.
+    const silent = [...new Set(pool.map((key) => parseMonsterKey(key).id))].filter(
+      (id) => isKnownMonsterId(id) && (p.monsterMax[id] ?? 0) === 0
+    )
+    if (silent.length > 0) {
+      warnings.push({
+        field: 'levelMonsters',
+        message: `Level ${i + 1} pools ${silent.join(', ')} but its max count is 0, so those lairs spawn nothing.`
+      })
     }
   })
 
