@@ -548,7 +548,7 @@ describe('scatterRequests', () => {
     // validation forbids scattering
     expect(requests.every((r) => r.mode === 'random')).toBe(true)
     expect(requests.map((r) => r.key)).not.toContain('tower_nova1')
-    expect(requests.map((r) => r.key)).not.toContain('tower_static_frost')
+    expect(requests.map((r) => r.key)).not.toContain('tower_nova2')
     const anchored = waves.reduce(
       (n, w) => n + w.monsters.filter((key) => waveSpawnMode(w, key) === 'anchors').length,
       0
@@ -676,7 +676,7 @@ describe('boss wave rig — the boss-death tier', () => {
     // tier cannot shift the draws the earlier tiers make
     expect(requests.slice(deathAt).every((r) => r.tier === last)).toBe(true)
     // the anchored tower stays out of the scatter list
-    expect(requests.some((r) => r.key === 'tower_static_frost')).toBe(false)
+    expect(requests.some((r) => r.key === 'tower_nova2')).toBe(false)
   })
 })
 
