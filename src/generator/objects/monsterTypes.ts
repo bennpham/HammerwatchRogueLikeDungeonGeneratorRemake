@@ -321,6 +321,99 @@ export function isKnownMonsterKey(key: string): boolean {
 }
 
 //==============================================
+// Families
+//==============================================
+
+/**
+ * A group of SEPARATE monster types a dungeon floor can pool as one entry: a
+ * `tower_banner` pool key spawns a mix of `tower_banner1`, `tower_banner2` and
+ * `tower_banner3`.
+ *
+ * Deliberately its own registry rather than a `MONSTER_TYPES` row whose `tiers`
+ * are the member actors. Three reasons, each on its own decisive:
+ *
+ * 1. `Monster.createRolled` starts at tier 1 and only climbs, so index 0 is
+ *    unreachable by rolling. A two-member family expressed as tiers would emit
+ *    its SECOND member every time and its first never — the issue #58 bug from
+ *    the other direction.
+ * 2. `monsterVariantsInGroup` flat-maps every MONSTER_TYPES row over every tier
+ *    to build the ARENA wave picker, so a family in that list would offer
+ *    `tower_banner#0..#2` beside `tower_banner1..3` — six checkboxes spawning
+ *    three actors, exactly what MonsterVariant.key's contract forbids. Living
+ *    outside MONSTER_TYPES keeps families off the arena with no new flag.
+ * 3. A family's members are whole types with their own caps and actor paths;
+ *    `tiers` means "one type's actors", which is a different relationship.
+ *
+ * Members keep working as ordinary pool keys, in the arena, and in an existing
+ * `parameters.txt` — a family is an ADDITIONAL way to name them, never a
+ * replacement.
+ */
+export interface MonsterFamilyDef {
+  /** Pool key AND `monsterMax` key, e.g. `tower_banner`. */
+  id: string
+  /** parameters.txt key for its cap, e.g. `maxTowers_Banner`. */
+  configKey: string
+  /** Member type ids, in the order the picker lists them. */
+  members: string[]
+  defaultMax: number
+  group: MonsterGroup
+}
+
+/**
+ * The shipped families. Towers only for now: they are the group where the
+ * roster splits one concept across many ids, so picking "some banners" meant
+ * finding three separate checkboxes.
+ *
+ * `tower_empty` and `tower_static_frost` are deliberately absent — each is a
+ * lone inert barrier rather than one of a set (see MONSTER_NOTES). So is
+ * `tower_archer2`, the deprecated phantom that now points at the same actor
+ * `tower_empty` owns.
+ *
+ * Caps are a tuning call, set in line with the members' own: a family's cap is
+ * the one that governs when the family is pooled (see Monster.capId), so a
+ * member's own cap is NOT consulted on that path. One consequence worth
+ * knowing: `tower_flower1` ships capped at 0, but pooling `tower_flower` still
+ * spawns it.
+ */
+export const MONSTER_FAMILIES: MonsterFamilyDef[] = [
+  { id: 'tower_archer', configKey: 'maxTowers_Archer', defaultMax: 6, group: 'Towers', members: ['tower_archer1', 'tower_archer3'] },
+  { id: 'tower_banner', configKey: 'maxTowers_Banner', defaultMax: 4, group: 'Towers', members: ['tower_banner1', 'tower_banner2', 'tower_banner3'] },
+  { id: 'tower_flower', configKey: 'maxTowers_Flower', defaultMax: 6, group: 'Towers', members: ['tower_flower1', 'tower_flower1_small', 'tower_flower2', 'tower_flower3'] },
+  { id: 'tower_nova', configKey: 'maxTowers_Nova', defaultMax: 4, group: 'Towers', members: ['tower_nova1', 'tower_nova2'] },
+  { id: 'tower_tracking', configKey: 'maxTowers_Tracking', defaultMax: 2, group: 'Towers', members: ['tower_tracking1', 'tower_tracking2', 'tower_tracking3'] }
+]
+
+const familyById = new Map(MONSTER_FAMILIES.map((f) => [f.id, f]))
+
+/** Which family a member type belongs to, if any. Built once, from `members`. */
+const familyByMember = new Map(
+  MONSTER_FAMILIES.flatMap((f) => f.members.map((m) => [m, f] as const))
+)
+
+/** The family `id` names, or undefined when it is not a family id. */
+export function monsterFamilyById(id: string): MonsterFamilyDef | undefined {
+  return familyById.get(id)
+}
+
+export function isKnownFamilyId(id: string): boolean {
+  return familyById.has(id)
+}
+
+/** The family `typeId` is a member of, or undefined for a standalone type. */
+export function familyOfMember(typeId: string): MonsterFamilyDef | undefined {
+  return familyByMember.get(typeId)
+}
+
+/**
+ * A family's member types, in `members` order. Unknown ids are dropped rather
+ * than thrown on — a family naming a type that does not exist is a registry bug
+ * a test catches, not a reason to crash generation (invariant 4).
+ */
+export function familyMembers(family: MonsterFamilyDef): MonsterTypeDef[] {
+  return family.members.map((id) => byId.get(id)).filter((t): t is MonsterTypeDef => t !== undefined)
+}
+
+//==============================================
 // Floor pool keys
 //==============================================
 
@@ -341,6 +434,10 @@ export function isKnownMonsterKey(key: string): boolean {
  */
 export function isKnownFloorPoolKey(key: string): boolean {
   const { id, tier } = parseMonsterKey(key)
+  // A family is a bare id only. `tower_banner#1` is rejected on purpose: a
+  // family has no tiers to index, and its members already have their own ids —
+  // `tower_banner1` is how you name one. validation.ts says so in words.
+  if (isKnownFamilyId(id)) return tier === undefined
   if (!isKnownMonsterId(id)) return false
   if (tier === undefined) return true
   const type = byId.get(id)!
@@ -371,16 +468,51 @@ export function floorPoolTier(key: string): number | undefined {
  * list has no way to spell the small skeleton. These keys do.
  */
 export interface FloorPoolEntry {
-  /** What goes in `levelMonsters`: the bare id, or `id#tier`. */
+  /** What goes in `levelMonsters`: a family id, a bare type id, or `id#tier`. */
   key: string
+  /**
+   * The type this entry spawns. For a FAMILY entry this is its first member —
+   * the picker needs a real type for the act/category filter and the search,
+   * and a family's members share `group` and `acts`, so any of them answers
+   * those questions identically. Read `family` to tell the two apart, never
+   * `type`.
+   */
   type: MonsterTypeDef
-  /** The pinned tier; undefined for the rolled entry. */
+  /** Set only on a family entry, which spans several whole types. */
+  family?: MonsterFamilyDef
+  /** The pinned tier; undefined for a rolled or family entry. */
   tier?: number
-  /** The exact actor a pin spawns; undefined for the rolled entry, which spans several. */
+  /** The exact actor a pin spawns; undefined for rolled and family entries, which span several. */
   actorPath?: string
-  /** `rolled` is the "any tier" entry; the rest follow MonsterVariant.role. */
-  role: 'spawner' | 'creature' | 'rolled'
+  /** `rolled` is the "any tier" entry and `family` the "any member" one; the rest follow MonsterVariant.role. */
+  role: 'spawner' | 'creature' | 'rolled' | 'family'
   corpse?: CorpseCollision
+}
+
+/**
+ * What a floor pool picker offers for `family`: one entry, keyed by the family
+ * id. Its members are listed separately (they are ordinary types) and the
+ * picker nests them under this entry — see floorPoolBucketId.
+ */
+export function floorPoolFamilyEntry(family: MonsterFamilyDef): FloorPoolEntry | undefined {
+  const members = familyMembers(family)
+  if (members.length === 0) return undefined
+  return { key: family.id, type: members[0], family, role: 'family' }
+}
+
+/**
+ * Which row group an entry belongs to in the picker — a family id for a family
+ * entry and for every member of that family, otherwise the type's own id.
+ *
+ * Explicit rather than inferred from sort order: `floorPoolEntriesInGroup`
+ * sorts by key and a family id happens to sort immediately before its members
+ * (`tower_banner` < `tower_banner1` < … < `tower_empty`), but the picker should
+ * not silently depend on that holding for a future family whose members are not
+ * named after it.
+ */
+export function floorPoolBucketId(entry: FloorPoolEntry): string {
+  if (entry.family) return entry.family.id
+  return familyOfMember(entry.type.id)?.id ?? entry.type.id
 }
 
 /**
@@ -416,13 +548,23 @@ export function floorPoolEntries(type: MonsterTypeDef): FloorPoolEntry[] {
  * because a roll can land on a spawner tier or a creature tier.
  */
 export function floorPoolGroup(entry: FloorPoolEntry): MonsterVariantGroup {
+  if (entry.family) return entry.family.group
   return entry.role === 'spawner' ? 'Spawners' : entry.type.group
 }
 
-/** The members of `group` a floor pool picker should list, deprecated types dropped. */
+/**
+ * The members of `group` a floor pool picker should list, deprecated types
+ * dropped and family entries folded in.
+ *
+ * A family's member types are still here — they are ordinary types with their
+ * own keys and caps — but they share a bucket id with their family, so the
+ * picker nests them under it instead of listing them at top level.
+ */
 export function floorPoolEntriesInGroup(group: MonsterVariantGroup): FloorPoolEntry[] {
-  return MONSTER_TYPES.filter((t) => !t.deprecated)
-    .flatMap(floorPoolEntries)
+  const families = MONSTER_FAMILIES.map(floorPoolFamilyEntry).filter(
+    (e): e is FloorPoolEntry => e !== undefined
+  )
+  return [...MONSTER_TYPES.filter((t) => !t.deprecated).flatMap(floorPoolEntries), ...families]
     .filter((e) => floorPoolGroup(e) === group)
     .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
 }
@@ -447,7 +589,14 @@ export const MONSTER_NOTES: Record<string, string> = {
   lich_desert: 'lich_desert_2 — fire and daze; the daze inverts your controls, the worst of the three',
   'lich_desert#0': 'lich_desert_1 — ice spammer',
   'lich_desert#2': 'lich_desert_3 — healer',
-  tick2: 'golden tick — drops a lot of gold'
+  tick2: 'golden tick — drops a lot of gold',
+  // Both are obstacles rather than attackers, but they differ on what they
+  // leave behind, and the arena's scatter rules turn on exactly that: the
+  // battlement's rubble is walkable, the frost tower's wreck is not
+  // (actorCollision.ts — tower_battlement_empty 'passable',
+  // tower_static_frost 'blocking', circle r=10).
+  tower_empty: '450 HP battlement — blocks your way, never attacks',
+  tower_static_frost: 'inert barrier — blocks your way and does nothing else, like tower_empty, except its wreck stays solid'
 }
 
 /**

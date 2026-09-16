@@ -35,9 +35,11 @@ import type { CampaignSlot } from '../campaign'
 import { getTheme } from './themes'
 import {
   defaultTier,
+  isKnownFamilyId,
   isKnownFloorPoolKey,
   isKnownMonsterId,
   isKnownMonsterKey,
+  monsterFamilyById,
   monsterTypeById,
   parseMonsterKey,
   resolveActorPath
@@ -209,7 +211,16 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
       // isKnownMonsterKey — see its comment for why the two grammars differ.
       if (isKnownFloorPoolKey(key)) continue
       const { id, tier } = parseMonsterKey(key)
-      if (!isKnownMonsterId(id)) {
+      const family = monsterFamilyById(id)
+      if (family) {
+        // The only way to fail with a known family id is a `#tier` suffix.
+        // Name the members rather than a tier range — a family has no tiers,
+        // and "pick tower_banner2" is the answer the user actually needs.
+        errors.push({
+          field: 'levelMonsters',
+          message: `Level ${i + 1} pool entry "${key}" adds a tier to the family "${id}", which has none. Use the family on its own, or name a member: ${family.members.join(', ')}.`
+        })
+      } else if (!isKnownMonsterId(id)) {
         errors.push({ field: 'levelMonsters', message: `Level ${i + 1} pool contains unknown monster "${key}".` })
       } else {
         // Say what the legal range is: the tier suffix is the one part of the
@@ -226,8 +237,11 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
     // lair that is simply missing its monsters. Advisory, not fatal: 0 is the
     // documented way to disable a type, so a stale pool entry is a mistake worth
     // pointing at rather than a reason to refuse to generate.
+    // A family is capped in its own right, so it is checked by its own id and
+    // never by its members' — pooling `tower_flower` with a cap of 6 is not
+    // silent just because `tower_flower1` ships at 0.
     const silent = [...new Set(pool.map((key) => parseMonsterKey(key).id))].filter(
-      (id) => isKnownMonsterId(id) && (p.monsterMax[id] ?? 0) === 0
+      (id) => (isKnownMonsterId(id) || isKnownFamilyId(id)) && (p.monsterMax[id] ?? 0) === 0
     )
     if (silent.length > 0) {
       warnings.push({

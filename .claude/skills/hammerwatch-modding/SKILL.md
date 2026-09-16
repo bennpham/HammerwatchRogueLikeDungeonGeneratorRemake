@@ -341,7 +341,10 @@ The full inventory of paths this generator emits is in
   and it is the wire format for `#N` pool keys: never reorder one.
   Every path in that file must also appear in
   `tests/fixtures/actor-paths.txt` — the roster once shipped an actor the game
-  never had (see the 2026-07-31 discovery-log entry).
+  never had (see the 2026-07-31 discovery-log entry). A second registry,
+  `MONSTER_FAMILIES`, groups several whole types under one dungeon-floor pool
+  key (`tower_banner` → `tower_banner1/2/3`); it lives outside `MONSTER_TYPES`
+  on purpose, which is what keeps it out of the arena picker.
 - **Doodads** — `doodads/generic/*` (torches, markers), `doodads/special/*`
   (vendors, colour covers, the shared bonus entrance/exit), `doodads/theme_<t>/<t>_*.xml`
   (wall pieces; the theme's token is substituted **twice** into the path — it is

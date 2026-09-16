@@ -1,4 +1,4 @@
-import { MONSTER_TYPES } from '../objects/monsterTypes'
+import { MONSTER_FAMILIES, MONSTER_TYPES } from '../objects/monsterTypes'
 import { THEME_DEFS } from './themes'
 import { ALL_LOBBY_CATEGORIES } from '../lobby/shops'
 import type { PlayerTweaks } from '../tweak/types'
@@ -1254,6 +1254,10 @@ export function defaultParameters(): DungeonParameters {
     levelOrder: shippedOrder(8),
     monsterMax: {
       ...Object.fromEntries(MONSTER_TYPES.map((t) => [t.id, t.defaultMax])),
+      // Families are pooled entries in their own right, so each carries its own
+      // cap beside the types'. They are in no default pool, so these keys reach
+      // no seed until someone opts in.
+      ...Object.fromEntries(MONSTER_FAMILIES.map((f) => [f.id, f.defaultMax])),
       // A horde is trunc(fRand(cap/5, cap)) per lair, so this is what makes the
       // escape floor a maze of 450-HP battlements rather than a handful of
       // them. Campaign-wide, but tower_empty is pooled on no other floor of any

@@ -1,6 +1,7 @@
 import React from 'react'
 import {
   MONSTER_VARIANT_GROUPS,
+  floorPoolBucketId,
   floorPoolEntriesInGroup,
   monsterNote
 } from '../../generator'
@@ -36,6 +37,10 @@ function noteSuffix(key: string): string {
 }
 
 function tooltip(entry: FloorPoolEntry): string {
+  if (entry.family) {
+    // Members, not tiers: no ordering is implied and none should be read in.
+    return `Rolls evenly between ${entry.family.members.length} towers per monster — ${entry.family.members.join(', ')}`
+  }
   if (entry.role === 'rolled') {
     const n = entry.type.tiers.length
     return n < 2
@@ -48,22 +53,29 @@ function tooltip(entry: FloorPoolEntry): string {
 }
 
 interface FloorPoolBucket {
+  id: string
   type: MonsterTypeDef
-  /** The "any tier" entry, if this group's filtered view still carries it. */
+  /** The head entry: a type's "any tier" roll, or a family's "any member" one. */
   rolled?: FloorPoolEntry
-  /** Pinned tiers, in tier order (guaranteed by floorPoolEntriesInGroup's sort). */
+  /** The collapsible children — a type's pinned tiers, or a family's member types. */
   tiers: FloorPoolEntry[]
 }
 
 /**
- * Groups an already-filtered entry list by monster type, splitting each
- * type's rolled ("any tier") entry from its pinned per-tier entries, so the
- * picker can collapse the tiers behind the rolled row (issue #58 follow-up).
+ * Groups an already-filtered entry list into collapsible buckets, so the picker
+ * shows one row per thing rather than one per actor (issue #58 follow-ups).
  *
- * Relies on floorPoolEntriesInGroup's key-ascending sort: `type.id` sorts
- * before `type.id#N`, which sorts before the next type's id, so one type's
- * entries stay contiguous even after filtering — filtering only removes
- * entries, it never reorders them.
+ * Two shapes share the mechanism:
+ *
+ * - a TYPE bucket — its "any tier" roll as the head, its pinned tiers as the
+ *   collapsible children;
+ * - a FAMILY bucket — the family's "any member" roll as the head, its member
+ *   TYPES as the children (each an ordinary pool key in its own right).
+ *
+ * Bucket identity comes from floorPoolBucketId, not from `type.id`: a family's
+ * members have different type ids and must still land in one bucket.
+ * floorPoolEntriesInGroup's key-ascending sort keeps each bucket's entries
+ * contiguous, and filtering only removes entries, never reorders them.
  *
  * `rolled` can be absent: a pinned SPAWNER tier lives in the `Spawners` group
  * with no rolled sibling there (floorPoolGroup redirects it, the rolled entry
@@ -75,11 +87,16 @@ function bucketFloorPoolEntries(members: FloorPoolEntry[]): FloorPoolBucket[] {
   const buckets: FloorPoolBucket[] = []
   let current: FloorPoolBucket | null = null
   for (const e of members) {
-    if (!current || current.type.id !== e.type.id) {
-      current = { type: e.type, tiers: [] }
+    const id = floorPoolBucketId(e)
+    if (!current || current.id !== id) {
+      current = { id, type: e.type, tiers: [] }
       buckets.push(current)
     }
-    if (e.role === 'rolled') current.rolled = e
+    // A family's head is its family entry; a plain type's is its rolled one. A
+    // family MEMBER's own rolled entry is a child here, not a head — which is
+    // what nests `tower_banner1` under `tower_banner` instead of listing it
+    // alongside.
+    if (e.family || (e.role === 'rolled' && !current.rolled && id === e.type.id)) current.rolled = e
     else current.tiers.push(e)
   }
   return buckets
@@ -133,10 +150,11 @@ export function MonsterPoolsEditor({ params, issues, onChange }: MonsterPoolsEdi
       </p>
       <p className="hint pool-variant-hint">
         A bare name rolls between that monster's tiers; a “#” suffix pins one exact actor, so
-        “skeleton1#1” is always the small skeleton and “skeleton1#3” always the elite.
+        “skeleton1#1” is always the small skeleton and “skeleton1#3” always the elite. A tower
+        family like “tower_banner” rolls evenly between separate towers.
         <InfoTip
           text={
-            'Each monster type ships one actor per tier — #0 is usually the spawner building, then the small, ordinary and elite versions. The bare name rolls among them the way the original tool did, which is the varied option; pin a tier when a floor needs one specific monster. Hover an entry to see the exact actor file it spawns.'
+            'Each monster type ships one actor per tier — #0 is usually the spawner building, then the small, ordinary and elite versions. The bare name rolls among them the way the original tool did, which is the varied option; pin a tier when a floor needs one specific monster. A tower family is the same idea one level up: it rolls evenly between several separate towers, and expanding it lets you pick one of them instead. Hover an entry to see the exact actor file it spawns.'
           }
         />
       </p>
@@ -174,10 +192,17 @@ export function MonsterPoolsEditor({ params, issues, onChange }: MonsterPoolsEdi
                 onChange={() => setWeight(level, e.key, weight > 0 ? 0 : 1)}
               />
               {e.key}
-              {e.role === 'rolled' && e.type.tiers.length > 1 && (
+              {e.family ? (
                 <span className="pool-badge" title={tooltip(e)}>
-                  any tier
+                  any of {e.family.members.length}
                 </span>
+              ) : (
+                e.role === 'rolled' &&
+                e.type.tiers.length > 1 && (
+                  <span className="pool-badge" title={tooltip(e)}>
+                    any tier
+                  </span>
+                )
               )}
               {extra}
               {weight > 0 && (

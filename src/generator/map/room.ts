@@ -1,4 +1,5 @@
 import { Monster } from '../objects/monster'
+import type { HordeSource } from '../objects/monster'
 import { Item, ItemType } from '../objects/item'
 import { ObjectSet } from '../objects/objectSet'
 import { getTheme } from '../config/themes'
@@ -115,19 +116,19 @@ export class Room {
       }
 
       case 'Lair': {
-        // A pool entry may pin one actor (`skeleton1#1`) or name the type and let
-        // the horde roll its ladder (`skeleton1`). The cap and the tier-0 spawner
-        // below belong to the TYPE either way, which is what keeps monsterMax —
-        // and its `maxSkeletons1` config key — one number per type.
+        // A pool entry may pin one actor (`skeleton1#1`), name a type and let
+        // the horde roll its ladder (`skeleton1`), or name a family and let it
+        // roll between whole types (`tower_banner`). The cap belongs to the
+        // POOLED ENTRY — a type's own id, or the family's — which is what keeps
+        // monsterMax one number per thing you can put in a pool.
         const poolKey = Monster.chooseMonsterForLevel(ctx, this.level)
-        const { type: monsterType, tier: pinnedTier } = Monster.resolveFloorPoolEntry(poolKey)
-        this.monsterType = monsterType
-        const maxCount = params.monsterMax[monsterType.id] ?? 0
+        const source = Monster.resolveFloorPoolEntry(poolKey)
+        this.monsterType = source.kind === 'family' ? source.members[0] : source.type
+        const maxCount = params.monsterMax[Monster.capId(source)] ?? 0
 
         this.createHorde(
-          monsterType,
-          Math.trunc(rand.fRand(Math.trunc(maxCount / 5), maxCount) * params.monsterMultiplier),
-          pinnedTier
+          source,
+          Math.trunc(rand.fRand(Math.trunc(maxCount / 5), maxCount) * params.monsterMultiplier)
         )
         this.type = type
 
@@ -137,7 +138,7 @@ export class Room {
             ctx,
             rand.fRand(this.x + 2, this.x + this.width - 2),
             rand.fRand(this.y + 4, this.y + this.height - 2),
-            monsterType,
+            Monster.spawnerType(ctx, source),
             0
           )
         }
@@ -157,10 +158,13 @@ export class Room {
 
       case 'Storage': {
         // Storage places only tier-0 spawners, so a pinned tier has nothing to
-        // pin here — the type is all this room needs.
-        this.monsterType = Monster.resolveFloorPoolEntry(
+        // pin here — the source's type is all this room needs. A family draws a
+        // member per prop, so a storage room is mixed like a lair is.
+        const storageSource = Monster.resolveFloorPoolEntry(
           Monster.chooseMonsterForLevel(ctx, this.level)
-        ).type
+        )
+        this.monsterType =
+          storageSource.kind === 'family' ? storageSource.members[0] : storageSource.type
         this.type = type
 
         const spawners = rand.iRand(0, 3)
@@ -169,7 +173,7 @@ export class Room {
             ctx,
             rand.fRand(this.x + 1, this.x + this.width - 1),
             rand.fRand(this.y + 3, this.y + this.height - 1),
-            this.monsterType,
+            Monster.spawnerType(ctx, storageSource),
             0
           )
         }
@@ -258,12 +262,14 @@ export class Room {
   /**
    * Scatter `count` monsters around a drifting circle (ported verbatim).
    *
-   * `pinnedTier` is the one addition: undefined rolls the ladder as the original
-   * did, a number places that exact actor and draws NOTHING for the tier. That
-   * asymmetry is deliberate — a pin is a statement about what spawns, so it must
-   * not depend on the stream.
+   * `source` is the one addition: `rolled` rolls the ladder as the original did,
+   * `pinned` places that exact actor and draws NOTHING for the tier, and
+   * `family` draws a member per monster and then rolls that member's own ladder.
+   * The pinned asymmetry is deliberate — a pin is a statement about what spawns,
+   * so it must not depend on the stream, which is also why the family draw lives
+   * in its own branch rather than being folded in above it.
    */
-  private createHorde(type: MonsterTypeDef, count: number, pinnedTier?: number): void {
+  private createHorde(source: HordeSource, count: number): void {
     const rand = this.ctx.rand
     let originX = rand.fRand(this.x + 2, this.x + this.width - 2)
     let originY = rand.fRand(this.y + 4, this.y + this.height - 2)
@@ -281,10 +287,17 @@ export class Room {
       // out-of-room points are skipped entirely (the original's `continue`
       // also skips the drift update)
       if (mx > this.x + this.width || mx < this.x || my > this.y + this.height || my < this.y + 2) continue
-      if (pinnedTier === undefined) {
-        Monster.createRolled(this.ctx, mx, my, type)
+      if (source.kind === 'pinned') {
+        Monster.create(this.ctx, mx, my, source.type, source.tier)
+      } else if (source.kind === 'family') {
+        // Uniform: a tiers array's weak-to-strong slant is an artefact of
+        // authoring order (issue #58), and a family's members have no ordering
+        // at all — banner1/2/3 are variations, not rungs. The member then rolls
+        // its OWN ladder, which for a single-tier tower clamps to its one actor.
+        const member = source.members[rand.iRand(0, source.members.length)]
+        Monster.createRolled(this.ctx, mx, my, member)
       } else {
-        Monster.create(this.ctx, mx, my, type, pinnedTier)
+        Monster.createRolled(this.ctx, mx, my, source.type)
       }
 
       originX += drift * Math.cos(driftAngle)

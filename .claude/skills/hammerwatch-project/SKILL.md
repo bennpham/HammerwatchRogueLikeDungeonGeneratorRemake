@@ -286,7 +286,7 @@ reference/hammerwatch-tweak-stats.md
 | `lockFinalRoom` | `true` | the room carrying a gateway prefab (`gateway.kind !== 'exit'` — orb, boss portal or lobby portal) sits in a dead-end behind a destructible wall, with a floor button hidden elsewhere on the floor, placed like a key (`map/buttonSeal.ts`). No key exists, so one cannot be hoarded from an earlier floor or spent on the wrong door. Under the default order that is one room on the last floor; a rearranged campaign can have several. Off leaves the room open |
 | `shopChance` / `vaultChance` / `lockChance` / `keyChance` | 1.0 / 0.3 / 0.8 / 1.0 | 0–1 inclusive |
 | `monsterMultiplier` / `goldMultiplier` / `foodMultiplier` | 1.0 / 1.1 / 1.2 | ≥ 0 |
-| `levelMonsters[i]` | see defaults | non-empty; each entry is a **floor pool key** — a bare id rolls the type's tiers, `id#tier` pins one actor (`isKnownFloorPoolKey`, a deliberate sibling of the arena's stricter `isKnownMonsterKey`); repeat an entry to weight it, which is all the form's weight spinner does |
+| `levelMonsters[i]` | see defaults | non-empty; each entry is a **floor pool key** — a bare id rolls the type's tiers, `id#tier` pins one actor, a `MONSTER_FAMILIES` id rolls evenly between several whole types (`isKnownFloorPoolKey`, a deliberate sibling of the arena's stricter `isKnownMonsterKey`); repeat an entry to weight it, which is all the form's weight spinner does |
 | `monsterMax[id]` | per-type | integer ≥ 0; **0 disables the type entirely** |
 | `levelBuffs[i]` | absent / all empty | buff auras, one `FloorBuff[]` per floor: each `{buff, target}` where `buff` is a `BUFF_DEFS` id and `target` is `players`/`monsters`/`both`. No cap on how many a floor carries. Empty on every floor reproduces the pre-feature campaign exactly. See *Buff auras* below |
 | `levelTraps[i]` | present, empty on every floor | wall traps, one `FloorTrap[]` per floor: each `{projectile, direction, spread, spawnRateMs, count}`, the same five fields a boss tier's trap row carries. `count` is spewers on the **floor**, spread over every eligible room's wall of that direction — not per room — and unlike a wave tier's `count` it has **no upper bound** (`MAX_TRAP_COUNT` applies only to `arena.waves[i].traps`): a floor's pool spans every eligible room on it, not one fixed-size arena wall, so a very large count just runs the pool dry, which validation only warns about. Always live, no tiers and no trigger. Empty on every floor reproduces the pre-feature campaign exactly. `trapN=<projectile>:<dir>:<spread>:<rate>:<count>|…` in `parameters.txt`. See *Traps per dungeon floor* below |
@@ -481,6 +481,30 @@ every pre-variant `parameters.txt`, preset and saved config parsing unchanged �
 writing both. `monsterVariants()` / `monsterVariantsInGroup()` drive the pool
 pickers; `MONSTER_VARIANT_GROUPS` adds a `Spawners` group on top of
 `MONSTER_GROUPS`, membership by `MonsterVariant.role` rather than actor folder.
+
+**Families (`MONSTER_FAMILIES`).** A floor pool key may also name a *family* —
+one entry spanning several whole TYPES, e.g. `tower_banner` rolling evenly
+between `tower_banner1/2/3`. Five ship, all towers; `tower_empty` and
+`tower_static_frost` are standalone barriers and deliberately in none.
+
+They live in their **own registry, outside `MONSTER_TYPES`**, and that placement
+is load-bearing: `monsterVariantsInGroup` builds the arena picker off
+`MONSTER_TYPES`, so a family in that list would offer a second checkbox for
+actors its members already own. There is no "hide from the arena" flag, so
+staying out of the list *is* the mechanism. They are dungeon-floor only.
+
+A family is NOT a `tiers` array. `createRolled` starts at tier 1 and only climbs,
+so index 0 is unreachable by rolling — a two-member family expressed as tiers
+would emit its second member every time and its first never (issue #58's bug
+from the other direction). Instead `Monster.resolveFloorPoolEntry` returns a
+`HordeSource` (`rolled` | `pinned` | `family`) and `createHorde` draws a member
+uniformly per monster, then rolls that member's own ladder.
+
+A family carries its **own cap** (`Monster.capId`), so a member's cap is not
+consulted on that path — pooling `tower_flower` spawns `tower_flower1` even
+though it ships at 0. Families are in no default or preset pool, so they add no
+draw to an existing seed; `monsters.test.ts`'s digests are the proof and must
+keep passing unchanged.
 
 **Two key grammars, deliberately different.** An arena wave speaks the canonical
 variant key above, where a bare id IS a pin at `defaultTier` — so
