@@ -237,6 +237,15 @@ describe('skeleton3 and tower_empty', () => {
     // population and every later floor's layout moved. That was the accepted,
     // stated cost of fixing the always-elite bug.
     //
+    // REBASELINED AGAIN by the post-#58 monster-pool/cap playtest pass
+    // (parameters.ts/presets.ts). This test inherits `monsterMax` from
+    // `defaultParameters()` rather than freezing it — deliberately, so a
+    // registry-level cap change is exactly the kind of thing it should catch —
+    // and that pass raised `skeleton2` (80→100) and lowered `lich` (30→20),
+    // both pooled in the literal floors below. A cap change moves a lair's
+    // horde-size draw, which shifts every later floor's stream, same mechanism
+    // as the #58 rebaseline above, different cause.
+    //
     // Its ORIGINAL purpose still holds and is still tested: the two opt-in types
     // this describe block covers are absent from every pool below, so if adding
     // a type to the roster ever reaches the RNG, these hashes move again.
@@ -254,8 +263,8 @@ describe('skeleton3 and tower_empty', () => {
     // happens to be. Everything the RNG consumes is spelled out below; the rest
     // (monsterMax ceilings, lobby, tweaks) does not reach the layout stream.
     const expected: Record<number, string> = {
-      1234: 'a0697b6c5ccc70d5acfcfbdc4e93aef853204d325707f772b4ff4a0f793888b7',
-      987654: 'e158567d0f4b7a015d2fa2263d6122c44cca91963e844a09e17bff826b826f9b'
+      1234: '599f0bd3773f09b546987259862a1eb380de74aed05738c7e89ada59e1c09647',
+      987654: '88023710004c21b45b12fe9a71587b22e246f9d4f1f45b84c5ad9f5ae062bfad'
     }
     for (const [seed, hash] of Object.entries(expected)) {
       // the baseline predates lockFinalRoom, which now defaults on and reshapes

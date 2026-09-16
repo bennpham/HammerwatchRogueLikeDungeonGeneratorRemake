@@ -326,32 +326,29 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
         // tower_flower1's roster defaultMax is 0 (see the TODO on the escape
         // floor's pool below) — this preset is the first to actually pool it
         // (floor 0), so it needs a real cap or it can never spawn.
-        tower_flower1: 6
+        tower_flower1: 6,
+        // Re-tuned in the same post-#58 playtest pass as parameters.ts's
+        // defaultParameters() — this preset's own value where it differs from
+        // castle's (102).
+        tower_static_frost: 99
       },
+      // Re-tuned in the app after the tier-roll and tower-family fixes
+      // (issue #58) — see the comment on defaultParameters().levelMonsters in
+      // parameters.ts. Applied verbatim from that pass; no adjustment needed
+      // here, unlike castle's and bonus's escape floors.
       levelMonsters: [
         // the outdoor bug floor ahead of the desert proper
         ['tick1', 'maggot', 'tower_flower1_small', 'tower_flower1', 'bat1', 'mb_tick', 'mb_maggot'],
-        ['guard_desert', 'guard_desert_range', 'tower_archer1', 'tower_archer3'],
+        ['guard_desert', 'guard_desert_range', 'tower_archer'],
+        ['mummy_desert', 'mummy_ranged', 'guard_desert', 'guard_desert_range', 'tower_banner'],
         [
           'mummy_desert',
           'mummy_ranged',
           'guard_desert',
           'guard_desert_range',
-          'tower_banner1',
-          'tower_banner2',
-          'tower_banner3'
-        ],
-        [
-          'mummy_desert',
-          'mummy_ranged',
-          'guard_desert',
-          'guard_desert_range',
-          'tower_banner1',
-          'tower_banner2',
-          'tower_banner3',
-          'tower_tracking1',
-          'tower_static_frost',
-          'lich_desert'
+          'lich_desert',
+          'tower_banner',
+          'tower_tracking'
         ],
         [
           'mb_mummy',
@@ -362,17 +359,16 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
           'mummy_desert',
           'mummy_ranged',
           'lich_desert',
-          'tower_tracking1',
-          'tower_tracking2',
-          'tower_tracking3'
+          'tower_tracking'
         ],
         // a second breather floor before the mummy mini-boss rush
-        ['tick2', 'mb_tick', 'tower_tracking3', 'tower_tracking2', 'tower_tracking1', 'spider', 'tower_flower3'],
+        ['tick2', 'mb_tick', 'spider', 'tower_flower3', 'tower_tracking'],
         // the escape floor — battlements to wall the route off, and the
         // quickest things in the desert roster to chase the party out. The
         // battlement count holds them at ~4 lairs in 9 against a roster this
         // long; see the castle escape pool in parameters.ts for why.
         [
+          'tower_empty',
           'tower_empty',
           'tower_empty',
           'tower_empty',
@@ -401,7 +397,11 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
           'tower_flower3',
           'tower_flower1_small',
           'mb_tick',
-          'mb_maggot'
+          'mb_maggot',
+          'tower_static_frost',
+          'tower_static_frost',
+          'tower_static_frost',
+          'tower_static_frost'
         ]
       ]
     })
@@ -442,29 +442,25 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
         { ...defaultLobby('BETA-dungeon-prep'), music: 'custom_1' },
         { ...defaultLobby('BETA-boss-prep'), music: 'custom_2' }
       ],
+      // Re-tuned in the same post-#58 playtest pass as parameters.ts's
+      // defaultParameters() — this preset had no monsterMax override at all
+      // before; it needs one now for the two values that differ from
+      // castle's (102/4).
+      monsterMax: {
+        ...defaultParameters().monsterMax,
+        tower_static_frost: 100,
+        // bonus never pools tower_flower1 — this only exists so the shipped
+        // cap matches the tuned export exactly; it is inert either way.
+        tower_flower1: 0
+      },
+      // Re-tuned in the app after the tier-roll and tower-family fixes
+      // (issue #58) — see the comment on defaultParameters().levelMonsters in
+      // parameters.ts.
       levelMonsters: [
         ['bonus_archer1', 'bonus_skeleton1'],
         ['archer1', 'archer2', 'skeleton1', 'skeleton2'],
-        [
-          'tower_archer1',
-          'tower_archer3',
-          'archer1',
-          'archer2',
-          'skeleton1',
-          'skeleton2',
-          'skeleton3',
-          'mb_skeleton'
-        ],
-        [
-          'lich',
-          'wisp1',
-          'wisp2',
-          'tower_nova1',
-          'tower_nova2',
-          'tower_banner1',
-          'tower_banner2',
-          'tower_banner3'
-        ],
+        ['archer1', 'archer2', 'skeleton1', 'skeleton2', 'skeleton3', 'mb_skeleton', 'tower_archer'],
+        ['wisp1', 'wisp2', 'lich#3', 'tower_banner', 'tower_nova'],
         [
           'mb_lich',
           'mb_doomspawn',
@@ -474,11 +470,18 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
           'floater_fire',
           'pillar_fire',
           'special_beheaded_kamikaze',
-          'wisp2'
+          'wisp2',
+          'wisp1'
         ],
         // the escape floor — battlements plus the bonus roster's chasers. The
         // battlement count holds them at ~4 lairs in 9 against a roster this
         // long; see the castle escape pool in parameters.ts for why.
+        //
+        // tower_static_frost is 5 copies here, not the 6 the playtest export
+        // had — at 6 the tower_empty share lands at exactly 12/30 = 0.4,
+        // which fails the strict lower bound below (tests/monsters.test.ts,
+        // tests/presets.test.ts); 5 copies clears it at 12/29 ≈ 0.414 while
+        // keeping every other count from the export untouched.
         [
           'tower_empty',
           'tower_empty',
@@ -497,17 +500,18 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
           'wisp2',
           'pillar_fire',
           'mb_doomspawn',
-          // the tracking turrets, the kamikazes and the skeleton line on top
           'wisp1',
-          'tower_tracking1',
-          'tower_tracking2',
-          'tower_tracking3',
           'special_beheaded_kamikaze',
           'mb_skeleton',
           'skeleton2',
           'skeleton3',
-          'tower_archer1',
-          'tower_archer3'
+          'tower_archer',
+          'tower_tracking',
+          'tower_static_frost',
+          'tower_static_frost',
+          'tower_static_frost',
+          'tower_static_frost',
+          'tower_static_frost'
         ]
       ]
     })

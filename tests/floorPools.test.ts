@@ -218,8 +218,12 @@ describe('validation of floor pools', () => {
   })
 
   it('warns, without blocking, when a pooled type is capped at 0', () => {
+    // Force the cap explicitly rather than relying on a type that happens to
+    // ship at 0 by default — tower_flower1 no longer does (the castle preset
+    // now arms it), and this test's point is the warning mechanism, not any
+    // particular type's shipped cap.
     const params = withPool(['tower_flower1'])
-    expect(params.monsterMax.tower_flower1).toBe(0)
+    params.monsterMax = { ...params.monsterMax, tower_flower1: 0 }
     const result = validateParameters(params)
     expect(result.errors.filter((e) => e.field === 'levelMonsters')).toHaveLength(0)
     const warning = result.warnings.find(

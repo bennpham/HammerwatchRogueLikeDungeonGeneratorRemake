@@ -299,9 +299,17 @@ describe('generateDungeon', () => {
         // seeds 1-40 gap on theme 'a' and 4 gap on 'h' as well. It is why this
         // list is a handful of hand-checked seeds rather than a range. Do not add
         // a seed here without checking it on all three themes first.
+        //
+        // Seed 1 replaces seed 3, moved by the post-#58 monster-pool/cap
+        // playtest pass (parameters.ts/presets.ts): any change to how many
+        // values a lair's horde draws — here, raising/lowering several
+        // monsterMax caps — shifts every later floor's layout (invariant 2),
+        // which re-rolls which seeds land on the seal's pre-existing gaps.
+        // Seed 3 moved onto theme 'a's lettered-theme overshoot; seed 1 is
+        // clean on all three.
         for (const theme of ['a', 'h', 'bonus1']) {
           const flat = theme !== 'a'
-          for (const seed of flat ? [3, 6, 90210, ...FLAT_ONLY_SEEDS] : [3, 6, 90210]) {
+          for (const seed of flat ? [1, 6, 90210, ...FLAT_ONLY_SEEDS] : [1, 6, 90210]) {
             const params = defaultParameters()
             params.themes = params.themes.map(() => theme)
             const result = generateDungeon(params, seed)

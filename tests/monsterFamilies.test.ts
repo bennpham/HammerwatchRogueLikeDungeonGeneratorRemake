@@ -17,7 +17,6 @@ import {
   parseParametersTxt,
   serializeParametersTxt
 } from '../src/generator'
-import { CAMPAIGN_PRESETS } from '../src/generator/config/presets'
 import { validateParameters } from '../src/generator/config/validation'
 import type { DungeonParameters, DungeonResult } from '../src/generator'
 import { plainParameters } from './params'
@@ -142,11 +141,19 @@ describe('a family rolls between whole types', () => {
       )
     expect(total(fat)).toBeGreaterThan(total(lean))
 
-    // A member's own cap is not consulted on the family path: tower_flower1
-    // ships at 0 and still spawns through the family.
+    // A member's own cap is not consulted on the family path — force
+    // tower_flower1's cap to 0 explicitly (rather than relying on whatever
+    // the shipped default happens to ship, which moved when the castle
+    // preset armed tower_flower1 in its own pool) and confirm it still
+    // spawns through the family.
     const params = plainParameters()
-    expect(params.monsterMax.tower_flower1).toBe(0)
-    const xml = levelXML(floorWith(['tower_flower'], 77, 40))
+    params.levels = 1
+    params.themes = ['a']
+    params.levelMonsters = [['tower_flower']]
+    params.monsterMax = { ...params.monsterMax, tower_flower: 40, tower_flower1: 0 }
+    const result = generateDungeon(params, 77)
+    expect(result.ok).toBe(true)
+    const xml = levelXML(result as DungeonResult)
     expect(actorCount(xml, actorOf('tower_flower1'))).toBeGreaterThan(0)
   })
 
@@ -230,9 +237,11 @@ describe('validation of family keys', () => {
     )
     expect(warning).toBeDefined()
 
-    // and does NOT warn just because a member ships at 0
+    // and does NOT warn just because a member ships at 0 — force it
+    // explicitly, rather than relying on whatever the shipped default
+    // happens to give tower_flower1 today.
     const flower = withPool(['tower_flower'])
-    expect(flower.monsterMax.tower_flower1).toBe(0)
+    flower.monsterMax = { ...flower.monsterMax, tower_flower1: 0 }
     expect(flower.monsterMax.tower_flower).toBeGreaterThan(0)
     expect(
       validateParameters(flower).warnings.filter(
@@ -243,18 +252,15 @@ describe('validation of family keys', () => {
 })
 
 describe('families are opt-in', () => {
-  it('appear in no default or preset pool, so no saved seed moves', () => {
-    const ids = MONSTER_FAMILIES.map((f) => f.id)
-    const sets: DungeonParameters[] = [
-      defaultParameters(),
-      ...CAMPAIGN_PRESETS.map((p) => p.build())
-    ]
-    for (const params of sets) {
-      for (const pool of params.levelMonsters) {
-        for (const id of ids) expect(pool).not.toContain(id)
-      }
-    }
-  })
+  // Families started in no default or preset pool (7f50111), which was the
+  // proof that adding a family costs no draw until something actually pools
+  // it — the safety property this describe block is about. The maintainer's
+  // post-#58 playtest pass then deliberately DID pool several families in all
+  // three presets (see parameters.ts/presets.ts), so that no-longer-holds
+  // assertion is gone; the underlying property is unaffected and still
+  // guarded elsewhere: monsters.test.ts's seed-digest test builds its own
+  // literal pool rather than reading defaultParameters(), so it still proves
+  // a family costs nothing when absent, regardless of what ships today.
 
   it('ship a cap that round-trips through parameters.txt', () => {
     const params = defaultParameters()

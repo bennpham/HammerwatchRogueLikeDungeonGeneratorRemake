@@ -1210,13 +1210,19 @@ export function defaultParameters(): DungeonParameters {
     lockChance: 0.8,
     keyChance: 1.0,
     lockFinalRoom: true,
+    // Re-tuned in the app after the tier-roll and tower-family fixes (issue
+    // #58): several types that were previously unreachable (plain/small
+    // skeletons, tower_archer1, tower_banner1, …) are now genuinely in play,
+    // and the felt difficulty shifted enough to warrant a playtest pass.
+    // Exported and applied verbatim from that pass, except the escape floor's
+    // tower_static_frost count — see the comment there.
     levelMonsters: [
-      ['bat1', 'tick1', 'maggot', 'tower_flower1_small'],
-      ['maggot', 'maggot', 'slime', 'slime', 'skeleton1', 'archer1'],
-      ['eye', 'wisp1', 'lich', 'tower_nova1'],
-      ['skeleton2', 'archer2', 'archer3', 'lich', 'wisp2'],
-      ['mb_tick', 'mb_maggot', 'bat2', 'tick2', 'maggot'],
-      ['mb_skeleton', 'mb_eye', 'archer2', 'skeleton2', 'tower_nova1'],
+      ['bat1', 'tick1', 'maggot', 'tower_flower1_small', 'tower_flower1'],
+      ['maggot', 'slime', 'skeleton1', 'archer1'],
+      ['eye', 'wisp1', 'lich#3', 'wisp2', 'tower_nova'],
+      ['skeleton2', 'archer2', 'archer3', 'lich', 'wisp2', 'wisp1'],
+      ['mb_tick', 'mb_maggot', 'bat2', 'tick2', 'maggot', 'tower_flower'],
+      ['mb_skeleton', 'mb_eye', 'archer2', 'skeleton2', 'tower_nova'],
       ['mb_lich', 'mb_doomspawn', 'lich', 'wisp2', 'tower_nova2'],
       // The escape floor. Repetition is the only weighting the pool has
       // (chooseMonsterForLevel picks uniformly), so the battlements are
@@ -1224,6 +1230,12 @@ export function defaultParameters(): DungeonParameters {
       // campaigns to give a median of 213 towers and never fewer than 84. The
       // count tracks the pool's length: lengthen the roster below and the
       // battlements have to grow with it or the maze thins out.
+      //
+      // tower_static_frost is 3 copies here, not the 4 the playtest export
+      // had: at 4 the tower_empty share lands at exactly 8/20 = 0.4, which
+      // fails the strict lower bound below (tests/monsters.test.ts,
+      // tests/presets.test.ts) — 3 copies clears it at 8/19 ≈ 0.421 while
+      // keeping every other count from the export untouched.
       [
         'tower_empty',
         'tower_empty',
@@ -1241,10 +1253,11 @@ export function defaultParameters(): DungeonParameters {
         'mb_eye',
         // the castle's turret line and a mini-boss lich on top of them
         'wisp1',
-        'tower_nova1',
-        'tower_nova2',
         'tower_static_frost',
-        'mb_lich'
+        'tower_static_frost',
+        'tower_static_frost',
+        'mb_lich',
+        'tower_nova'
       ]
     ],
     // The dungeon-prep lobby, floors 1-7 in order, the boss-prep lobby, the
@@ -1262,7 +1275,22 @@ export function defaultParameters(): DungeonParameters {
       // escape floor a maze of 450-HP battlements rather than a handful of
       // them. Campaign-wide, but tower_empty is pooled on no other floor of any
       // preset, so nothing else sees it. The roster's own defaultMax stays 24.
-      tower_empty: 150
+      tower_empty: 150,
+      // The rest of this block: the same post-#58 playtest pass as
+      // levelMonsters above. lich/tick2/wisp2/skeleton2 are identical across
+      // all three exports, so they land here rather than as three separate
+      // per-preset overrides — desert and bonus both inherit them for free by
+      // spreading this object. tower_static_frost and tower_flower1 differ
+      // PER preset (desert wants 99/6, bonus wants 100/0): this is castle's
+      // own value, and desert/bonus each carry an explicit override for
+      // theirs (presets.ts) — the same "campaign default sits here, roster
+      // default stays put" split tower_empty above already uses.
+      lich: 20,
+      tick2: 25,
+      wisp2: 25,
+      skeleton2: 100,
+      tower_static_frost: 102,
+      tower_flower1: 4
     },
     // Extra lives are repeatable, so a party can farm them by leaving a level
     // and coming back — off by default since that trivialises the campaign.
