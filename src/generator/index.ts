@@ -119,6 +119,9 @@ export {
   MONSTER_TYPES,
   MONSTER_VARIANT_GROUPS,
   defaultTier,
+  floorPoolEntries,
+  floorPoolEntriesInGroup,
+  floorPoolGroup,
   floorPoolTier,
   isKnownFloorPoolKey,
   isKnownMonsterKey,
@@ -134,6 +137,7 @@ export {
   variantKey
 } from './objects/monsterTypes'
 export type {
+  FloorPoolEntry,
   MonsterAct,
   MonsterCategory,
   MonsterGroup,

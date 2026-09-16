@@ -8,6 +8,57 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-16 — the dungeon only ever spawned a monster's TOP tier, and a tier array is not a difficulty ladder
+**Tag:** [VERIFIED] for the code mechanism and the actor paths it suppressed;
+[UNVERIFIED] in game for the difficulty ordering claim, which comes from the
+maintainer's playtesting rather than from measured stats.
+**Context:** Issue #58 — "picking `skeleton1` gives an army of
+`skeleton_1_elite`". Investigated as an RNG-fairness question; it was not one.
+**Evidence:**
+1. **It was never a roll.** `Monster.createRolled` climbs while
+   `ctx.rand.fRand(0, 1) < type.upgradeChance`, and every entry in
+   `MONSTER_TYPES` carried `upgradeChance: 1.0`. `Rand.fRand(0, 1)` returns
+   **[0, 1)**, so that test is a tautology and the loop could only ever exit on
+   `tier < tiers.length - 1` failing. Every rolled monster landed on its top
+   tier, on every seed, for the life of the port.
+2. **Actors that had never been emitted.** For any 3+ tier type the middle tiers
+   were unreachable: `actors/skeleton_1_small.xml`, `actors/skeleton_1.xml`,
+   `actors/maggot_1_small.xml`, `actors/maggot_1.xml`,
+   `actors/tick_1_small.xml`, `actors/tick_1.xml`, `actors/eye_1_small.xml`,
+   `actors/mummy_1.xml`, `actors/mummy_1_small.xml`, `actors/lich_1.xml`,
+   `actors/lich_1_elite.xml`, `actors/lich_2.xml` and the rest. They are in the
+   roster and in `tests/fixtures/actor-paths.txt`, but no generated campaign had
+   ever contained one. Measured after the fix, a `skeleton1` floor at seed 4242
+   reads 266 small / 60 plain / 28 elite.
+3. **The values were lost upstream, not in this port.**
+   `reference/original-java/modified-monsters/Monster.java:235-282` has the
+   original per-type chances **commented out** and a blanket `1.0f` on every
+   live entry; the port transcribed the live block faithfully.
+   `git log -S"upgradeChance: 0."` over `monsterTypes.ts` returns nothing. The
+   pristine values (0.2-0.5) also survive in
+   `reference/original-java/src/hammerwatchgen/Monster.java:81-93`.
+4. **A `tiers` array is authoring order, not a threat ladder.** `lich`'s top
+   tier is `lich_3`, the necromancer, which the maintainer reports plays as one
+   of the *easiest* of the four because its summons are free combo fodder. So on
+   the castle preset's floor 3 this bug made the floor EASIER than intended,
+   while on `skeleton1` it made floors harder — opposite directions from one
+   cause. `upgradeChance` is therefore a variety control, not a difficulty one.
+5. **Short types were never affected.** The loop evaluates `fRand` before
+   testing `tier < tiers.length - 1`, so a 1- or 2-tier type burns exactly one
+   draw and lands on the same tier whatever its chance is. Only 3+ tier types
+   moved when the chances were restored.
+
+**Impact:** chances restored from the commented block; floor pools can now pin
+one exact actor with the `id#tier` key the arena waves already used. Changing
+the draw count per monster moves every pre-#58 seed — stated in the PR, and the
+`tests/monsters.test.ts` digests were rebaselined in the same commit. Do **not**
+reorder a `tiers` array to make it read as a difficulty ladder: order is the
+wire format for `#N` keys and for `defaultTier`, so reordering silently repoints
+every saved pool entry and every arena wave. Difficulty hints belong in
+`MONSTER_NOTES`. Still open: the necromancer claim wants a measured confirmation
+in game, and the presets' `monsterMax` caps were tuned against an always-elite
+horde and need a playtest pass.
+
 ### 2026-09-08 — Thief autofire `DivideByZero` is a vanilla 1.41 engine bug; the runtime-`TotalTime` investigation is moot
 **Tag:** [VERIFIED] — reclassification, not a new crash. The mechanism in the
 2026-09-08 entry below is unaffected; this closes its open question.

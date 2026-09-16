@@ -334,8 +334,12 @@ The full inventory of paths this generator emits is in
 
 - **Actors** — `actors/*.xml` and `actors/spawners/*.xml`. 51 monster types in
   `src/generator/objects/monsterTypes.ts`, each with a **tier list**: index 0
-  is usually the spawner variant, higher indices are stronger variants,
-  rolled upward by `upgradeChance`. Every path in that file must also appear in
+  is usually the spawner variant, higher indices are *usually* stronger
+  variants, rolled upward by `upgradeChance` (0.2-0.5 per type, from the original
+  tool — a blanket `1.0` is the issue #58 bug that pinned every monster to its
+  top tier). The order is authoring order, not a guaranteed difficulty ladder,
+  and it is the wire format for `#N` pool keys: never reorder one.
+  Every path in that file must also appear in
   `tests/fixtures/actor-paths.txt` — the roster once shipped an actor the game
   never had (see the 2026-07-31 discovery-log entry).
 - **Doodads** — `doodads/generic/*` (torches, markers), `doodads/special/*`
@@ -365,7 +369,9 @@ Pure data — append to `MONSTER_TYPES` in
 ```ts
 { id: 'my_monster',            // id used in monstersN pools
   configKey: 'maxMy_Monsters', // parameters.txt key
-  upgradeChance: 1.0,
+  upgradeChance: 0.3,          // chance the tier roll climbs another rung;
+                               // inert for a 1- or 2-tier type. NOT 1.0 —
+                               // fRand(0, 1) is [0, 1), so 1.0 always tops out
   defaultMax: 0,               // 0 = disabled by default; safe for new types
   group: 'Special',            // must be a member of MONSTER_GROUPS
   tiers: ['actors/spawners/my_monster.xml', 'actors/my_monster.xml'] }

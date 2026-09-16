@@ -449,15 +449,32 @@ select:focus {
   overflow: hidden;
 }
 
-/* The boss-wave picker lists variant keys (`mummy_ranged#0`) with a passability
-   badge after them, so its rows are much wider than the dungeon pool editor's
-   bare ids — 150px columns make the badge overlap the next column. */
-.boss-wave .pool-checkboxes {
+/* Both variant pickers list keys (`mummy_ranged#0`) with a badge after them,
+   and the dungeon one adds a weight spinner — 150px columns make those overlap
+   the next column. The dungeon pool editor used to list bare ids and fit. */
+.boss-wave .pool-checkboxes,
+.monster-pools .pool-checkboxes {
   grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
 }
 
-/* Corpse passability, on the boss-wave variant picker only: what a tower or
-   spawner leaves on the floor after it dies. Green reads "safe to place". */
+/* How many slots an entry takes in its level's pool. Sits inside the label, so
+   it steals the click that would otherwise toggle the checkbox — hence the
+   preventDefault on it in MonsterPoolsEditor. */
+/* `input.pool-weight`, not `.pool-weight`: the base `input[type='number']` rule
+   above is an element+attribute selector and outranks a bare class, so a plain
+   class leaves the box stretched to width:100%. flex:none stops the label's
+   flex row stretching it back. */
+input.pool-weight {
+  flex: none;
+  width: 46px;
+  margin-left: auto;
+  padding: 2px 4px;
+  font-size: 11px;
+}
+
+/* Badges after a pool entry: corpse passability on the boss-wave picker (what a
+   tower or spawner leaves behind — green reads "safe to place"), and "any tier"
+   on the dungeon picker's rolled entries. */
 .pool-badge {
   font-size: 9px;
   text-transform: uppercase;

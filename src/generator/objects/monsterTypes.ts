@@ -365,6 +365,69 @@ export function floorPoolTier(key: string): number | undefined {
 }
 
 /**
+ * One entry a dungeon floor's pool picker can offer. Deliberately NOT
+ * MonsterVariant: `variantKey(skeleton1, 1)` is the bare `skeleton1`, and on a
+ * floor the bare id means "roll the ladder", not "pin tier 1" — so a variant
+ * list has no way to spell the small skeleton. These keys do.
+ */
+export interface FloorPoolEntry {
+  /** What goes in `levelMonsters`: the bare id, or `id#tier`. */
+  key: string
+  type: MonsterTypeDef
+  /** The pinned tier; undefined for the rolled entry. */
+  tier?: number
+  /** The exact actor a pin spawns; undefined for the rolled entry, which spans several. */
+  actorPath?: string
+  /** `rolled` is the "any tier" entry; the rest follow MonsterVariant.role. */
+  role: 'spawner' | 'creature' | 'rolled'
+  corpse?: CorpseCollision
+}
+
+/**
+ * What a floor pool picker offers for `type`: the rolled entry first, then one
+ * pinned entry per tier.
+ *
+ * A single-tier type gets ONLY the rolled entry. `spider#0` would be legal (see
+ * isKnownFloorPoolKey) but it names the same actor the bare id does, and two
+ * checkboxes that spawn the same thing is the confusion the arena's canonical
+ * key rule exists to prevent.
+ */
+export function floorPoolEntries(type: MonsterTypeDef): FloorPoolEntry[] {
+  const rolled: FloorPoolEntry = { key: type.id, type, role: 'rolled' }
+  if (type.tiers.length < 2) return [rolled]
+  return [
+    rolled,
+    ...monsterVariants(type).map((v) => ({
+      // Always `id#tier`, never variantKey — the bare spelling is taken by the
+      // rolled entry above.
+      key: `${type.id}${VARIANT_SEPARATOR}${v.tier}`,
+      type,
+      tier: v.tier,
+      actorPath: v.actorPath,
+      role: v.role,
+      corpse: v.corpse
+    }))
+  ]
+}
+
+/**
+ * Which picker group a floor pool entry belongs in. Pinned spawners go to
+ * `Spawners` exactly as the arena's do; the rolled entry stays with its type,
+ * because a roll can land on a spawner tier or a creature tier.
+ */
+export function floorPoolGroup(entry: FloorPoolEntry): MonsterVariantGroup {
+  return entry.role === 'spawner' ? 'Spawners' : entry.type.group
+}
+
+/** The members of `group` a floor pool picker should list, deprecated types dropped. */
+export function floorPoolEntriesInGroup(group: MonsterVariantGroup): FloorPoolEntry[] {
+  return MONSTER_TYPES.filter((t) => !t.deprecated)
+    .flatMap(floorPoolEntries)
+    .filter((e) => floorPoolGroup(e) === group)
+    .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+}
+
+/**
  * What a variant actually does in game, for the pool pickers' tooltips. Keyed
  * by canonical variant key; `monsterNote` falls back to the bare id, so a note
  * written once on `tick2` covers `tick2#0` as well.

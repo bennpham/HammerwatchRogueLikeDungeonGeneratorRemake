@@ -23,7 +23,8 @@ export function MonsterMaxTable({ params, onChange }: MonsterMaxTableProps) {
     <div className="monster-max">
       <p className="hint">
         Horde size cap per monster type. A lair spawns roughly max/5 to max of its type, scaled by the
-        monster multiplier. Types set to 0 spawn nothing — avoid them in pools.
+        monster multiplier. One cap covers every tier of its type, pinned or rolled. Types set to 0
+        spawn nothing — avoid them in pools.
       </p>
       <MonsterFilterBar filter={filter} label="monster types" />
       {MONSTER_GROUPS.map((group) => {
