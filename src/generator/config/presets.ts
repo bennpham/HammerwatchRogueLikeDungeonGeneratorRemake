@@ -11,6 +11,7 @@ import {
   stockWavePickups,
   SHOOTER_ARROW_TRAPS
 } from './parameters'
+import { oneOfEachUpgrade } from '../levelTemplate/surgery'
 import type { BossTrap, BossWave, DungeonParameters, FloorTrap } from './parameters'
 import { MUSIC_DEFAULT } from '../music/tracks'
 
@@ -213,39 +214,40 @@ function bonusWaves(): BossWave[] {
     scatterWave(
       [
         ['special_beheaded_kamikaze', 4],
-        ['lich', 4],
-        ['lich#0', 8],
-        ['lich#2', 12],
+        ['lich', 2],
+        ['lich#0', 6],
+        ['lich#2', 2],
         ['mb_eye', 4],
         ['mb_lich', 1],
         ['mb_doomspawn', 2],
         ['tower_banner1', 8]
       ],
       [
-        ['tower_static_frost', 1],
-        ['tower_tracking1', 4]
+        ['tower_tracking2', 1],
+        ['tower_tracking3', 1]
       ],
       1000,
       [],
-      drops.quarter
+      drops.quarter,
+      SHOOTER_ARROW_TRAPS
     ),
     // boss death — the same line-up plus wisps, see BOSS_DEATH_WAVE, and
     // bloodlusted like every preset's send-off, see bossDeathBuffs()
     scatterWave(
       [
-        ['lich', 3],
-        ['lich#0', 9],
-        ['lich#2', 6],
-        ['mb_eye', 3],
+        ['lich', 1],
+        ['lich#0', 8],
+        ['lich#2', 4],
+        ['mb_eye', 2],
         ['mb_lich', 1],
         ['mb_doomspawn', 2],
         ['tower_banner1', 8],
-        ['wisp1', 30],
+        ['wisp1', 19],
         ['wisp1#2', 10]
       ],
       [
-        ['tower_static_frost', 2],
-        ['tower_tracking1', 2]
+        ['tower_tracking2', 1],
+        ['tower_tracking1', 1]
       ],
       1000,
       bossDeathBuffs(),
@@ -440,7 +442,12 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
       ),
       lobbies: [
         { ...defaultLobby('BETA-dungeon-prep'), music: 'custom_1' },
-        { ...defaultLobby('BETA-boss-prep'), music: 'custom_2' }
+        {
+          ...defaultLobby('BETA-boss-prep'),
+          music: 'custom_2',
+          startingGold: 25000,
+          upgrades: oneOfEachUpgrade()
+        }
       ],
       // Re-tuned in the same post-#58 playtest pass as parameters.ts's
       // defaultParameters() — this preset had no monsterMax override at all

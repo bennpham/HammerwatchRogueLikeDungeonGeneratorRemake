@@ -1138,7 +1138,7 @@ function castleWaves(): BossWave[] {
       SHOOTER_ARROW_TRAPS
     ),
     // boss death — the arena keeps fighting after the kill, see BOSS_DEATH_WAVE.
-    // tower_static_frost is anchored because its wreck blocks, and the horde
+    // tower_nova2 is anchored because its wreck blocks, and the horde
     // arrives bloodlusted — see bossDeathBuffs().
     scatterWave(
       [
@@ -1148,7 +1148,7 @@ function castleWaves(): BossWave[] {
         ['mb_lich', 1],
         ['mb_doomspawn', 2]
       ],
-      [['tower_static_frost', 2]],
+      [['tower_nova2', 2]],
       1000,
       bossDeathBuffs(),
       drops.death,
