@@ -4,9 +4,10 @@ import {
   floorPoolEntriesInGroup,
   monsterNote
 } from '../../generator'
-import type { DungeonParameters, FloorPoolEntry, ValidationIssue } from '../../generator'
+import type { DungeonParameters, FloorPoolEntry, MonsterTypeDef, ValidationIssue } from '../../generator'
 import { InfoTip } from './InfoTip'
 import { MonsterFilterBar, useMonsterFilter } from './MonsterFilterBar'
+import { MonsterPoolBucket } from './MonsterPoolBucket'
 import { PoolGroup } from './PoolGroup'
 import { PoolTextField } from './PoolTextField'
 
@@ -44,6 +45,44 @@ function tooltip(entry: FloorPoolEntry): string {
   return `${entry.actorPath} — tier ${entry.tier} of ${entry.type.id}, ${
     entry.role === 'spawner' ? 'a spawner building' : 'a creature'
   }${noteSuffix(entry.key)}`
+}
+
+interface FloorPoolBucket {
+  type: MonsterTypeDef
+  /** The "any tier" entry, if this group's filtered view still carries it. */
+  rolled?: FloorPoolEntry
+  /** Pinned tiers, in tier order (guaranteed by floorPoolEntriesInGroup's sort). */
+  tiers: FloorPoolEntry[]
+}
+
+/**
+ * Groups an already-filtered entry list by monster type, splitting each
+ * type's rolled ("any tier") entry from its pinned per-tier entries, so the
+ * picker can collapse the tiers behind the rolled row (issue #58 follow-up).
+ *
+ * Relies on floorPoolEntriesInGroup's key-ascending sort: `type.id` sorts
+ * before `type.id#N`, which sorts before the next type's id, so one type's
+ * entries stay contiguous even after filtering — filtering only removes
+ * entries, it never reorders them.
+ *
+ * `rolled` can be absent: a pinned SPAWNER tier lives in the `Spawners` group
+ * with no rolled sibling there (floorPoolGroup redirects it, the rolled entry
+ * stays in the type's natural group), and a search can in principle filter
+ * the rolled entry out while a pinned tier — always kept visible once picked
+ * — survives. Both render flat, with no toggle; never assume `rolled` exists.
+ */
+function bucketFloorPoolEntries(members: FloorPoolEntry[]): FloorPoolBucket[] {
+  const buckets: FloorPoolBucket[] = []
+  let current: FloorPoolBucket | null = null
+  for (const e of members) {
+    if (!current || current.type.id !== e.type.id) {
+      current = { type: e.type, tiers: [] }
+      buckets.push(current)
+    }
+    if (e.role === 'rolled') current.rolled = e
+    else current.tiers.push(e)
+  }
+  return buckets
 }
 
 /**
@@ -114,6 +153,49 @@ export function MonsterPoolsEditor({ params, issues, onChange }: MonsterPoolsEdi
         // Distinct entries, in pool order, for the summary line — a weighted
         // pool would otherwise read "maggot, maggot, maggot".
         const picked = [...new Set(pool)]
+
+        // The one row renderer for every entry: the rolled row, a pinned-tier
+        // row inside an expanded bucket, a single-tier type's lone row, and a
+        // lone Spawners-group pinned entry. `extra` is the per-type disclosure
+        // toggle, injected after the badge and before the weight input — never
+        // populated for a plain row.
+        const renderRow = (e: FloorPoolEntry, extra?: React.ReactNode) => {
+          const off = filter.offFilter(e.type, e.key)
+          const weight = weightOf(pool, e.key)
+          return (
+            <label
+              key={e.key}
+              className={off ? 'pool-checkbox off-filter' : 'pool-checkbox'}
+              title={off ? 'In this pool, but hidden by the current filter' : tooltip(e)}
+            >
+              <input
+                type="checkbox"
+                checked={weight > 0}
+                onChange={() => setWeight(level, e.key, weight > 0 ? 0 : 1)}
+              />
+              {e.key}
+              {e.role === 'rolled' && e.type.tiers.length > 1 && (
+                <span className="pool-badge" title={tooltip(e)}>
+                  any tier
+                </span>
+              )}
+              {extra}
+              {weight > 0 && (
+                <input
+                  type="number"
+                  className="pool-weight"
+                  min={1}
+                  max={MAX_WEIGHT}
+                  value={weight}
+                  title="Weight — how many slots this entry takes in the pool"
+                  onClick={(ev) => ev.preventDefault()}
+                  onChange={(ev) => setWeight(level, e.key, Number(ev.target.value) || 1)}
+                />
+              )}
+            </label>
+          )
+        }
+
         return (
           <details key={level} className="pool-level">
             <summary>
@@ -144,43 +226,28 @@ export function MonsterPoolsEditor({ params, issues, onChange }: MonsterPoolsEdi
                     forceOpen={!filter.isDefault}
                   >
                     <div className="pool-checkboxes">
-                      {members.map((e) => {
-                        const off = filter.offFilter(e.type, e.key)
-                        const weight = weightOf(pool, e.key)
+                      {bucketFloorPoolEntries(members).map((b) => {
+                        if (!b.rolled) {
+                          // No rolled sibling in THIS group's view — a Spawners-
+                          // group pinned entry with no rolled row anywhere, or
+                          // (rare) the rolled entry got filtered off while a
+                          // pinned tier stayed pinned-visible. Flat, unchanged.
+                          return b.tiers.map((e) => renderRow(e))
+                        }
+                        if (b.tiers.length === 0) {
+                          // Single-tier type (spider, tower_*, …) — exactly
+                          // today's one row, nothing to collapse.
+                          return renderRow(b.rolled)
+                        }
                         return (
-                          <label
-                            key={e.key}
-                            className={off ? 'pool-checkbox off-filter' : 'pool-checkbox'}
-                            title={
-                              off ? 'In this pool, but hidden by the current filter' : tooltip(e)
-                            }
-                          >
-                            <input
-                              type="checkbox"
-                              checked={weight > 0}
-                              onChange={() => setWeight(level, e.key, weight > 0 ? 0 : 1)}
-                            />
-                            {e.key}
-                            {e.role === 'rolled' && e.type.tiers.length > 1 && (
-                              <span className="pool-badge" title={tooltip(e)}>
-                                any tier
-                              </span>
-                            )}
-                            {weight > 0 && (
-                              <input
-                                type="number"
-                                className="pool-weight"
-                                min={1}
-                                max={MAX_WEIGHT}
-                                value={weight}
-                                title="Weight — how many slots this entry takes in the pool"
-                                onClick={(ev) => ev.preventDefault()}
-                                onChange={(ev) =>
-                                  setWeight(level, e.key, Number(ev.target.value) || 1)
-                                }
-                              />
-                            )}
-                          </label>
+                          <MonsterPoolBucket
+                            key={b.rolled.key}
+                            rolled={b.rolled}
+                            tiers={b.tiers}
+                            forceOpen={!filter.isDefault}
+                            anyPinned={b.tiers.some((t) => pool.includes(t.key))}
+                            renderEntry={renderRow}
+                          />
                         )
                       })}
                     </div>

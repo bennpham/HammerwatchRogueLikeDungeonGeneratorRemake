@@ -491,6 +491,49 @@ input.pool-weight {
   color: var(--error);
 }
 
+/* The per-type tier disclosure (issue #58 follow-up): sits inside the rolled
+   row's label, between the "any tier" badge and the weight spinner. Same
+   caret idiom as .pool-group-title::before, but a real button since it's
+   nested in a label rather than a <summary> — MonsterPoolBucket guards its
+   click so it never also flips that row's checkbox. */
+.pool-tier-toggle {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 100ms;
+}
+
+.pool-tier-toggle[aria-expanded='true'] {
+  transform: rotate(90deg);
+}
+
+/* A bucket's expanded pinned-tier rows. grid-column: 1 / -1 forces this onto
+   its own full-width row directly under the type's rolled entry — without it,
+   .pool-checkboxes' auto-fill columns would interleave an unrelated type's row
+   between this type's own tiers. */
+.pool-tier-group {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  padding-left: 20px;
+  margin: 2px 0 4px;
+}
+
+.pool-tier-group .pool-checkbox {
+  flex: 1 1 195px;
+}
+
 .pool-passable-toggle {
   display: flex;
   align-items: center;
