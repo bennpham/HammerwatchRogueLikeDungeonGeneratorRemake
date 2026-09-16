@@ -8,6 +8,119 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-16 — `tower_static_frost` is an inert barrier, and its wreck blocks where `tower_empty`'s does not
+**Tag:** [UNVERIFIED] for the "does nothing" behaviour, which is the maintainer's
+playtest report, not a measured stat. [VERIFIED] for the collision half, read
+from the shipped razed files via `objects/actorCollision.ts`.
+**Context:** Raised while grouping the towers into families (issue #58
+follow-up). `tower_static_frost` was left standalone by decision — it is not one
+of a set — and the maintainer noted it "does nothing but block your way like
+tower_empty".
+**Evidence:**
+1. **Alike while alive.** Both are obstacles rather than attackers: the roster
+   already records `tower_empty` as "450 HP, no skills, full 32x32 blocking
+   collision. An obstacle, not an attacker", and the maintainer reports
+   `tower_static_frost` plays the same way — it blocks and does nothing else.
+2. **NOT alike once dead.** `actorCollision.ts` has
+   `actors/tower_static_frost.xml` as **`blocking`** (circle r=10) and
+   `actors/tower_battlement_empty.xml` as **`passable`** — the battlement's
+   rubble is walkable, the frost tower's wreck is a permanent obstacle. So
+   "like tower_empty" holds for the live actor and breaks for the corpse.
+3. **The codebase already depends on the difference.** The castle preset anchors
+   `tower_static_frost` on the boss-death wave specifically because its wreck
+   blocks (a scattered blocking wreck can wall the arena off, which
+   `validation.ts` rejects and the arena picker's "Passable only" toggle hides).
+
+**Impact:** both types gained a `MONSTER_NOTES` entry so the picker says this at
+the point of selection, `tower_static_frost`'s spelling out that the wreck stays
+solid. No cap, group or behaviour change to either — `tower_static_frost` stays
+standalone and out of every family, as does `tower_empty`. Still open: whether
+`tower_static_frost` has any aura or on-death effect at all, which would want a
+real in-game measurement rather than a play impression.
+
+### 2026-09-16 — a pool key can name several whole types, and the tier ladder cannot express it
+**Tag:** [VERIFIED] — code mechanism, proven by the generated output.
+**Context:** The Towers group lists 16 types that are really 5 sets plus 2 lone
+barriers. Adding "family" pool entries (`tower_banner` rolling between
+`tower_banner1/2/3`) looked like it could reuse `MonsterTypeDef.tiers`.
+**Evidence:** it cannot, for three independent reasons.
+1. **`createRolled` starts at tier 1 and only climbs**, so index 0 is
+   unreachable by rolling. A two-member family expressed as tiers emits its
+   SECOND member every time and its first never — `tower_archer` would be
+   `tower_battlement_archer_3.xml` on every seed. This is issue #58's bug
+   arriving from the opposite direction, and the family suite now guards it
+   explicitly by asserting `tower_archer1` is reachable.
+2. **It would duplicate actors into the arena picker.**
+   `monsterVariantsInGroup` flat-maps every non-deprecated `MONSTER_TYPES` row
+   over every tier, so a family in that list offers `tower_banner#0..#2` beside
+   `tower_banner1..3` — six checkboxes spawning three actors, which
+   `MonsterVariant.key`'s contract forbids. There is no per-type "hide from the
+   arena" flag; `deprecated` is the only exclusion and it hides everywhere.
+3. **The Lair tier-0 spawner loop is dead at tower caps anyway.** It is
+   `iRand(0, trunc(cap / 20))` and `iRand` returns `min` when `max <= min`, so a
+   cap below 40 places no tier-0 props at all. Every tower cap is 1–24. (Storage
+   rooms still reach tier 0 — they use a flat `iRand(0, 3)` and ignore the cap.)
+
+**Impact:** families live in their own `MONSTER_FAMILIES` registry, outside
+`MONSTER_TYPES` — which is precisely what keeps them off the arena with no new
+flag — and roll uniformly per monster. Measured over 8 seeds per family the
+split is even (e.g. banner 279/275/276). Because they are in no default or preset
+pool, they add no draw to any existing seed, and `monsters.test.ts`'s digests
+passed unchanged across the change. A family carries its own cap, so a member's
+own cap is not consulted on that path: pooling `tower_flower` spawns
+`tower_flower1` even though it ships at 0.
+
+### 2026-09-16 — the dungeon only ever spawned a monster's TOP tier, and a tier array is not a difficulty ladder
+**Tag:** [VERIFIED] for the code mechanism and the actor paths it suppressed;
+[UNVERIFIED] in game for the difficulty ordering claim, which comes from the
+maintainer's playtesting rather than from measured stats.
+**Context:** Issue #58 — "picking `skeleton1` gives an army of
+`skeleton_1_elite`". Investigated as an RNG-fairness question; it was not one.
+**Evidence:**
+1. **It was never a roll.** `Monster.createRolled` climbs while
+   `ctx.rand.fRand(0, 1) < type.upgradeChance`, and every entry in
+   `MONSTER_TYPES` carried `upgradeChance: 1.0`. `Rand.fRand(0, 1)` returns
+   **[0, 1)**, so that test is a tautology and the loop could only ever exit on
+   `tier < tiers.length - 1` failing. Every rolled monster landed on its top
+   tier, on every seed, for the life of the port.
+2. **Actors that had never been emitted.** For any 3+ tier type the middle tiers
+   were unreachable: `actors/skeleton_1_small.xml`, `actors/skeleton_1.xml`,
+   `actors/maggot_1_small.xml`, `actors/maggot_1.xml`,
+   `actors/tick_1_small.xml`, `actors/tick_1.xml`, `actors/eye_1_small.xml`,
+   `actors/mummy_1.xml`, `actors/mummy_1_small.xml`, `actors/lich_1.xml`,
+   `actors/lich_1_elite.xml`, `actors/lich_2.xml` and the rest. They are in the
+   roster and in `tests/fixtures/actor-paths.txt`, but no generated campaign had
+   ever contained one. Measured after the fix, a `skeleton1` floor at seed 4242
+   reads 266 small / 60 plain / 28 elite.
+3. **The values were lost upstream, not in this port.**
+   `reference/original-java/modified-monsters/Monster.java:235-282` has the
+   original per-type chances **commented out** and a blanket `1.0f` on every
+   live entry; the port transcribed the live block faithfully.
+   `git log -S"upgradeChance: 0."` over `monsterTypes.ts` returns nothing. The
+   pristine values (0.2-0.5) also survive in
+   `reference/original-java/src/hammerwatchgen/Monster.java:81-93`.
+4. **A `tiers` array is authoring order, not a threat ladder.** `lich`'s top
+   tier is `lich_3`, the necromancer, which the maintainer reports plays as one
+   of the *easiest* of the four because its summons are free combo fodder. So on
+   the castle preset's floor 3 this bug made the floor EASIER than intended,
+   while on `skeleton1` it made floors harder — opposite directions from one
+   cause. `upgradeChance` is therefore a variety control, not a difficulty one.
+5. **Short types were never affected.** The loop evaluates `fRand` before
+   testing `tier < tiers.length - 1`, so a 1- or 2-tier type burns exactly one
+   draw and lands on the same tier whatever its chance is. Only 3+ tier types
+   moved when the chances were restored.
+
+**Impact:** chances restored from the commented block; floor pools can now pin
+one exact actor with the `id#tier` key the arena waves already used. Changing
+the draw count per monster moves every pre-#58 seed — stated in the PR, and the
+`tests/monsters.test.ts` digests were rebaselined in the same commit. Do **not**
+reorder a `tiers` array to make it read as a difficulty ladder: order is the
+wire format for `#N` keys and for `defaultTier`, so reordering silently repoints
+every saved pool entry and every arena wave. Difficulty hints belong in
+`MONSTER_NOTES`. Still open: the necromancer claim wants a measured confirmation
+in game, and the presets' `monsterMax` caps were tuned against an always-elite
+horde and need a playtest pass.
+
 ### 2026-09-08 — Thief autofire `DivideByZero` is a vanilla 1.41 engine bug; the runtime-`TotalTime` investigation is moot
 **Tag:** [VERIFIED] — reclassification, not a new crash. The mechanism in the
 2026-09-08 entry below is unaffected; this closes its open question.

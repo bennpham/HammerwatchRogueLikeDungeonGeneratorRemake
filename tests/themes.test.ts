@@ -819,13 +819,24 @@ describe('theme h — desert outdoors', () => {
   })
 
   it('places the same wall pieces as any other theme, minus the covers', () => {
-    // same seed => identical layout, so every difference in the doodad list is
+    // same seed => same layout, so every difference in the doodad list is
     // accounted for: h drops every Cover and adds 2 backing pieces per stair set
+    //
+    // Doodads ONLY. `<string name="type">` is also how an actor and an item
+    // declare themselves, and the two themes do not populate identically at a
+    // shared seed: theme h overhangs nothing, so reachability.ts accepts and
+    // rejects different candidate floors, the retry count differs, and the draws
+    // downstream land elsewhere. At this seed that is one extra chance-rolled
+    // silver door in h (7 vs 6) — a population difference, nothing to do with
+    // wall art. Counting every `type` string used to balance out by luck and
+    // stopped when issue #58 changed the monster roll's draw count.
     const doodads = (theme: string): string[] => {
       const level = generateWithTheme(theme, 777).files.find(
         (f) => f.path === 'levels/level3.xml'
       )!.content
-      return [...level.matchAll(/<string name="type">([^<]+)<\/string>/g)].map((m) => m[1])
+      return [...level.matchAll(/<string name="type">([^<]+)<\/string>/g)]
+        .map((m) => m[1])
+        .filter((path) => path.startsWith('doodads/'))
     }
     const a = doodads('a')
     const h = doodads('h')

@@ -14,9 +14,11 @@ import {
   THEMES
 } from '../src/generator'
 import {
-  isKnownMonsterId,
+  isKnownFamilyId,
+  isKnownFloorPoolKey,
   isKnownMonsterKey,
   monsterTypeById,
+  parseMonsterKey,
   resolveActorPath
 } from '../src/generator/objects/monsterTypes'
 import { corpseCollision } from '../src/generator/objects/actorCollision'
@@ -191,17 +193,32 @@ describe('campaign presets', () => {
         for (const theme of params.themes) expect(THEMES).toContain(theme)
         for (const pool of params.levelMonsters) {
           expect(pool.length).toBeGreaterThan(0)
-          for (const id of pool) {
-            expect(isKnownMonsterId(id), `unknown monster id "${id}"`).toBe(true)
-            expect(monsterTypeById(id).deprecated, `deprecated monster id "${id}"`).toBeFalsy()
+          for (const key of pool) {
+            // A dungeon pool entry is a floor pool key — a bare type id, a
+            // pinned `id#tier`, or a family id — not the arena's canonical
+            // MonsterVariant key, hence isKnownFloorPoolKey rather than
+            // isKnownMonsterId (see its own comment in monsterTypes.ts).
+            expect(isKnownFloorPoolKey(key), `unknown pool key "${key}"`).toBe(true)
+            const { id } = parseMonsterKey(key)
+            // A family has no `deprecated` field — deprecation is a TYPE
+            // concept, and no family may name a deprecated member
+            // (monsterFamilies.test.ts asserts that directly).
+            if (isKnownFamilyId(id)) continue
+            expect(monsterTypeById(id).deprecated, `deprecated monster id "${key}"`).toBeFalsy()
           }
         }
       })
 
       it('leaves every pooled monster with a non-zero cap, or it would never spawn', () => {
         for (const pool of params.levelMonsters) {
-          for (const id of pool) {
-            expect(params.monsterMax[id], `${id} is pooled but capped at 0`).toBeGreaterThan(0)
+          for (const key of pool) {
+            // The cap that governs a pooled entry lives under its TYPE id for
+            // a bare or pinned key, or the family's OWN id for a family key —
+            // parseMonsterKey(key).id already resolves to whichever is
+            // correct (it strips only the #tier suffix, and a family key
+            // carries none), matching Monster.capId's lookup exactly.
+            const { id } = parseMonsterKey(key)
+            expect(params.monsterMax[id], `${key} is pooled but capped at 0`).toBeGreaterThan(0)
           }
         }
       })

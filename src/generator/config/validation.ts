@@ -35,8 +35,11 @@ import type { CampaignSlot } from '../campaign'
 import { getTheme } from './themes'
 import {
   defaultTier,
+  isKnownFamilyId,
+  isKnownFloorPoolKey,
   isKnownMonsterId,
   isKnownMonsterKey,
+  monsterFamilyById,
   monsterTypeById,
   parseMonsterKey,
   resolveActorPath
@@ -202,10 +205,49 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
     if (pool.length === 0) {
       errors.push({ field: 'levelMonsters', message: `Level ${i + 1} has an empty monster pool.` })
     }
-    for (const id of pool) {
-      if (!isKnownMonsterId(id)) {
-        errors.push({ field: 'levelMonsters', message: `Level ${i + 1} pool contains unknown monster "${id}".` })
+    for (const key of pool) {
+      // A floor pool entry is either a bare id (roll the type's ladder) or
+      // `id#tier` pinning one actor. isKnownFloorPoolKey, NOT the arena's
+      // isKnownMonsterKey — see its comment for why the two grammars differ.
+      if (isKnownFloorPoolKey(key)) continue
+      const { id, tier } = parseMonsterKey(key)
+      const family = monsterFamilyById(id)
+      if (family) {
+        // The only way to fail with a known family id is a `#tier` suffix.
+        // Name the members rather than a tier range — a family has no tiers,
+        // and "pick tower_banner2" is the answer the user actually needs.
+        errors.push({
+          field: 'levelMonsters',
+          message: `Level ${i + 1} pool entry "${key}" adds a tier to the family "${id}", which has none. Use the family on its own, or name a member: ${family.members.join(', ')}.`
+        })
+      } else if (!isKnownMonsterId(id)) {
+        errors.push({ field: 'levelMonsters', message: `Level ${i + 1} pool contains unknown monster "${key}".` })
+      } else {
+        // Say what the legal range is: the tier suffix is the one part of the
+        // grammar a user has to discover, and "unknown monster" would be a lie.
+        const last = monsterTypeById(id).tiers.length - 1
+        const what = Number.isInteger(tier) ? `tier ${tier}` : 'a non-numeric tier'
+        errors.push({
+          field: 'levelMonsters',
+          message: `Level ${i + 1} pool entry "${key}" names ${what}; "${id}" has tiers 0-${last}.`
+        })
       }
+    }
+    // A pooled type capped at 0 spawns an empty horde, which reads in game as a
+    // lair that is simply missing its monsters. Advisory, not fatal: 0 is the
+    // documented way to disable a type, so a stale pool entry is a mistake worth
+    // pointing at rather than a reason to refuse to generate.
+    // A family is capped in its own right, so it is checked by its own id and
+    // never by its members' — pooling `tower_flower` with a cap of 6 is not
+    // silent just because `tower_flower1` ships at 0.
+    const silent = [...new Set(pool.map((key) => parseMonsterKey(key).id))].filter(
+      (id) => (isKnownMonsterId(id) || isKnownFamilyId(id)) && (p.monsterMax[id] ?? 0) === 0
+    )
+    if (silent.length > 0) {
+      warnings.push({
+        field: 'levelMonsters',
+        message: `Level ${i + 1} pools ${silent.join(', ')} but its max count is 0, so those lairs spawn nothing.`
+      })
     }
   })
 

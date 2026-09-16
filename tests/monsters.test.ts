@@ -224,17 +224,37 @@ describe('skeleton3 and tower_empty', () => {
     expect(params.monsterMax.tower_empty).toBe(150)
   })
 
-  it('leaves every existing seed byte-identical', () => {
-    // Hashes measured on c494670, the commit before the roster grew. The two
-    // new types are opt-in and defaultMax is only a ceiling, so adding them
-    // must not move a single tile. If this fails, something reached the RNG.
+  it('pins the layout RNG stream for a seed', () => {
+    // WHAT THIS GUARDS: that nothing reaches `ctx.rand` by accident. A failure
+    // here means some change moved the layout stream, and that is only ever
+    // acceptable deliberately — re-baseline it in the same commit that causes
+    // it, say so in the PR body, and never just to make the suite green.
+    //
+    // REBASELINED BY ISSUE #58. The hashes below are NOT c494670's any more.
+    // Restoring the per-type `upgradeChance` changed how many values the tier
+    // roll draws per monster (a 1.0 chance always climbed to the top tier and
+    // burned tiers.length - 1 draws; a real chance stops early), so every seed's
+    // population and every later floor's layout moved. That was the accepted,
+    // stated cost of fixing the always-elite bug.
+    //
+    // REBASELINED AGAIN by the post-#58 monster-pool/cap playtest pass
+    // (parameters.ts/presets.ts). This test inherits `monsterMax` from
+    // `defaultParameters()` rather than freezing it — deliberately, so a
+    // registry-level cap change is exactly the kind of thing it should catch —
+    // and that pass raised `skeleton2` (80→100) and lowered `lich` (30→20),
+    // both pooled in the literal floors below. A cap change moves a lair's
+    // horde-size draw, which shifts every later floor's stream, same mechanism
+    // as the #58 rebaseline above, different cause.
+    //
+    // Its ORIGINAL purpose still holds and is still tested: the two opt-in types
+    // this describe block covers are absent from every pool below, so if adding
+    // a type to the roster ever reaches the RNG, these hashes move again.
     //
     // Only `levels/level*.xml` is hashed — those are the RNG's output, and the
     // rest of the campaign is not. The original digest covered every file, so
     // it broke the moment the Lobby tab added `levels/lobby.xml` and a line to
-    // `levels.xml`, neither of which draws a random value. These hashes are the
-    // same ones c494670 produces over the same subset, re-measured against that
-    // commit rather than re-baselined against current output.
+    // `levels.xml`, neither of which draws a random value. The subset is
+    // unchanged from c494670's; only the expected digests moved (see above).
     //
     // The floor plan is c494670's defaultParameters() frozen as a literal, not
     // today's default. `defaultParameters()` is now the Castle preset (7 floors,
@@ -243,8 +263,8 @@ describe('skeleton3 and tower_empty', () => {
     // happens to be. Everything the RNG consumes is spelled out below; the rest
     // (monsterMax ceilings, lobby, tweaks) does not reach the layout stream.
     const expected: Record<number, string> = {
-      1234: 'c445b4fb607fd0da97765021e313f15289dcb34545a5bb0dc4975a7b92ba3d38',
-      987654: '4c17825da8a43a2dc8de7fee67cd01de62a95ac3bf0e074df383956d59bc1949'
+      1234: '599f0bd3773f09b546987259862a1eb380de74aed05738c7e89ada59e1c09647',
+      987654: '88023710004c21b45b12fe9a71587b22e246f9d4f1f45b84c5ad9f5ae062bfad'
     }
     for (const [seed, hash] of Object.entries(expected)) {
       // the baseline predates lockFinalRoom, which now defaults on and reshapes

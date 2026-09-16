@@ -449,15 +449,32 @@ select:focus {
   overflow: hidden;
 }
 
-/* The boss-wave picker lists variant keys (`mummy_ranged#0`) with a passability
-   badge after them, so its rows are much wider than the dungeon pool editor's
-   bare ids — 150px columns make the badge overlap the next column. */
-.boss-wave .pool-checkboxes {
+/* Both variant pickers list keys (`mummy_ranged#0`) with a badge after them,
+   and the dungeon one adds a weight spinner — 150px columns make those overlap
+   the next column. The dungeon pool editor used to list bare ids and fit. */
+.boss-wave .pool-checkboxes,
+.monster-pools .pool-checkboxes {
   grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
 }
 
-/* Corpse passability, on the boss-wave variant picker only: what a tower or
-   spawner leaves on the floor after it dies. Green reads "safe to place". */
+/* How many slots an entry takes in its level's pool. Sits inside the label, so
+   it steals the click that would otherwise toggle the checkbox — hence the
+   preventDefault on it in MonsterPoolsEditor. */
+/* `input.pool-weight`, not `.pool-weight`: the base `input[type='number']` rule
+   above is an element+attribute selector and outranks a bare class, so a plain
+   class leaves the box stretched to width:100%. flex:none stops the label's
+   flex row stretching it back. */
+input.pool-weight {
+  flex: none;
+  width: 46px;
+  margin-left: auto;
+  padding: 2px 4px;
+  font-size: 11px;
+}
+
+/* Badges after a pool entry: corpse passability on the boss-wave picker (what a
+   tower or spawner leaves behind — green reads "safe to place"), and "any tier"
+   on the dungeon picker's rolled entries. */
 .pool-badge {
   font-size: 9px;
   text-transform: uppercase;
@@ -472,6 +489,49 @@ select:focus {
 .pool-badge.blocks {
   border-color: var(--error);
   color: var(--error);
+}
+
+/* The per-type tier disclosure (issue #58 follow-up): sits inside the rolled
+   row's label, between the "any tier" badge and the weight spinner. Same
+   caret idiom as .pool-group-title::before, but a real button since it's
+   nested in a label rather than a <summary> — MonsterPoolBucket guards its
+   click so it never also flips that row's checkbox. */
+.pool-tier-toggle {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 100ms;
+}
+
+.pool-tier-toggle[aria-expanded='true'] {
+  transform: rotate(90deg);
+}
+
+/* A bucket's expanded pinned-tier rows. grid-column: 1 / -1 forces this onto
+   its own full-width row directly under the type's rolled entry — without it,
+   .pool-checkboxes' auto-fill columns would interleave an unrelated type's row
+   between this type's own tiers. */
+.pool-tier-group {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  padding-left: 20px;
+  margin: 2px 0 4px;
+}
+
+.pool-tier-group .pool-checkbox {
+  flex: 1 1 195px;
 }
 
 .pool-passable-toggle {

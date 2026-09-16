@@ -36,7 +36,7 @@ import type {
   BossTrap,
   BossTrapDirection
 } from './parameters'
-import { MONSTER_TYPES } from '../objects/monsterTypes'
+import { MONSTER_FAMILIES, MONSTER_TYPES } from '../objects/monsterTypes'
 import { buffById } from '../objects/buffTypes'
 import { pickupById } from '../objects/pickupTypes'
 import { projectileById } from '../objects/projectileTypes'
@@ -95,7 +95,12 @@ export const PARAMETER_ORDER = [
   'playerTweaks', // placeholder: sorted by key
 ] as const
 
-const configKeyToMonsterId = new Map(MONSTER_TYPES.map((t) => [t.configKey.toLowerCase(), t.id]))
+// Families carry their own cap, so they round-trip through the same `max*=`
+// grammar the types do — one entry per thing a pool can name. A test asserts
+// the two registries' configKeys never collide.
+const configKeyToMonsterId = new Map(
+  [...MONSTER_TYPES, ...MONSTER_FAMILIES].map((t) => [t.configKey.toLowerCase(), t.id])
+)
 
 /**
  * Parse the original tool's parameters.txt format (key=value per line).
@@ -1137,7 +1142,9 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
         lines.push(`monsters${i}=${pool.join(',')}`)
       })
     } else if (key === 'monsterMax') {
-      for (const t of MONSTER_TYPES) {
+      // Families after the types, so an existing file's line order is
+      // untouched and the new keys simply append.
+      for (const t of [...MONSTER_TYPES, ...MONSTER_FAMILIES]) {
         lines.push(`${t.configKey}=${params.monsterMax[t.id] ?? 0}`)
       }
     } else if (key === 'buff') {
