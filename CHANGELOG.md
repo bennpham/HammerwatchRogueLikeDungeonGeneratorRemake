@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0]
+
+### Fixed
+
+- **Tier roll now respects per-type `upgradeChance`.** Every monster type had `upgradeChance: 1.0`, so the tier check was always true and every monster always upgraded to the top tier. Restored per-type values from the original Java source; only types with 3+ tiers are affected. This also ships **per-actor variant pinning** (e.g., `skeleton1#1` spawns the small skeleton without rolling the tier ladder), reusing the syntax already supported in boss arena waves.
+- **Castle boss-death wave now drops `tower_nova2` instead of `tower_static_frost`.**
+- **Bonus Gauntlet boss presets rebalanced.** Wave 4 and 5 lich counts drop sharply; anchored towers swap from stacks to singles; wave 4 gains arrow traps and a potion drop; boss-prep lobby grants one of every free upgrade and raises starting gold to 25,000.
+
+### Notes
+
+- **Dependency audit.** `npm audit fix` bumps `fast-uri` (3.1.5→3.1.7).
+
 ## [0.7.0]
 
 ### Added
