@@ -46,7 +46,24 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    `tests/validation.test.ts`. New parameters need new rules and new tests.
 5. **`parameters.txt` compatibility.** The original file format keeps working
    as an import/override. Unknown keys are reported, never fatal.
-6. **The optional layers never move a seed's dungeon.**
+6. **An arena is a boss fight OR a survival round.** `BossFight.mode` —
+   **absent means `'boss'`**, read it through `arenaMode(fight)`. The engine
+   fires `Boss 75%/50%/25%/Died` only for an actor in the `actors/boss_*`
+   folders, so an arena with no boss actor gets none of them and every
+   tier-keyed rig would be dead wiring; `src/generator/survival/` re-keys the
+   same jobs to one `GlobalEventTrigger("LevelLoaded")` with a per-connection
+   millisecond delay each, and the alcove comes down on the clock instead of on
+   `Boss Died`. Both modes share `arena: BossArenaOptions` — the room, not the
+   fight — and the boss-only fields stay on the object unread, so **flipping a
+   mode is lossless both ways**; `validation.ts` gates the boss-only rules on
+   the mode for the same reason. A survival arena draws a different NUMBER of
+   `ctx.bossRand` values (no boss pick, no scatter points), so a mode flip moves
+   every arena AFTER it, exactly as adding a fight does — never a dungeon floor,
+   never an earlier arena. Arena slots label as `AB{n}`/`AS{n}`: prefix is the
+   mode, number is the index in `fights`, which is what keeps `normalizeOrder`
+   untouched; `parseSlotLabel` still accepts the old `B{n}`.
+
+7. **The optional layers never move a seed's dungeon.**
    `src/generator/tweak/**` and `lobby/**` draw **no** random values and run
    after every level is built; `boss/**` draws only from `ctx.bossRand` — once
    per boss fight, in list order, so adding a second fight cannot move the
@@ -60,13 +77,13 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    `levels/level*.xml` byte-identical — only which extra files exist, and which
    level a floor's gateway names, may change; clearing every tweak emits no
    `tweak/` folder at all. The one thing that *does* move a floor is the KIND
-   of gateway it gets (see invariant 7), because `map/level.ts` picks a
+   of gateway it gets (see invariant 8), because `map/level.ts` picks a
    different room for stairs than for a portal or orb. The stock defaults are
    not empty any more: `defaultParameters()` ships two lobbies, the boss on,
    `player.shared.remove.life`, and the escape floor's timer, so a stock run
    emits two lobbies, an arena, exactly one tweak file, and one floor carrying
    a hazard rig.
-7. **The campaign order changes links, never generation.** `levelOrder`
+8. **The campaign order changes links, never generation.** `levelOrder`
    (`campaign.ts`) decides where each level leads, what `levels.xml` lists and
    in what order, and which slot carries the victory orb — via `ctx.gateway`,
    which `map/level.ts`, `map/room.ts`, `objects/objectSet.ts` and
@@ -84,7 +101,7 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    a list — but the presets' order is not the default one (a lobby sits before
    the fight and their last floor is played after it), so they store it
    explicitly and must.
-8. **A floor the player cannot finish is invalid.** `map/reachability.ts`
+9. **A floor the player cannot finish is invalid.** `map/reachability.ts`
    flood-fills with the wall art's two-row overhang modelled (`OVERHANG_ROWS`)
    and rejects a floor unless the entrance reaches the exit/orb/portal and
    every key; the bounded retry loop re-rolls it. Never relax the check, or

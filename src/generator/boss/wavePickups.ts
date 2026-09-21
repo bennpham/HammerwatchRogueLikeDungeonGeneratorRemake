@@ -60,25 +60,16 @@ import { wavePickups } from '../config/parameters'
 import type { PickupLane } from '../objects/pickupTypes'
 import { pickupById } from '../objects/pickupTypes'
 import { NodeAreaTrigger, NodeGlobalEventTrigger, NodeRectangleShape, NodeSpawnObject } from '../objects/nodes'
-import type { PadSlot } from './pickupPad'
+import type { PadSlot, PickupArena } from './pickupPad'
 import { pickupPad } from './pickupPad'
 import { TIER_EVENT_NAMES } from './waves'
 
-/** The arena facts the rig needs to place a drop. Read-only, all of it. */
-export interface PickupArena {
-  width: number
-  height: number
-  /** The entrance mouth's centre column — `entranceRect` in arena.ts. */
-  entranceCx: number
-  /** The entrance mouth's northernmost row. */
-  entranceTop: number
-  /**
-   * Post-prune walkable floor, indexed `x + y * width`, from cover.ts's
-   * `reachableMask`. A pad slot outside it has a pillar on it. Optional so a
-   * test can build the rig without a map; every slot counts as free then.
-   */
-  walkable?: Uint8Array
-}
+/**
+ * Re-exported so the boss arena stays the one place that talks about its own
+ * drops: `arena.ts` and `tests/bossWavePickups.test.ts` import it from here,
+ * and did before the shape moved next to the pad for the survival rig.
+ */
+export type { PickupArena }
 
 /**
  * Builds the arena's per-tier drop rig. Emits nothing at all — not one node,

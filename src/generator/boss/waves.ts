@@ -108,7 +108,7 @@ export const DEFAULT_BATCH_INTERVAL_MS = 1500
  * `-1` (endless) is never passed here — see buildWaveRig, which handles it as
  * a separate "every anchor, unchanged" case instead of a value to divide.
  */
-function splitRoundRobin(total: number, anchorCount: number): number[] {
+export function splitRoundRobin(total: number, anchorCount: number): number[] {
   const base = Math.trunc(total / anchorCount)
   const remainder = total % anchorCount
   return Array.from({ length: anchorCount }, (_, i) => base + (i < remainder ? 1 : 0))

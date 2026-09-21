@@ -77,10 +77,17 @@ lobby1Upgrades=0 0 0 0 0 0 0 0
 # music untouched.
 lobby1Music=boss_1
 # levelOrder is the order the campaign is PLAYED in: dungeon floors by their
-# 1-based number, boss fights as B1, B2, ... and lobbies as L1, L2, ...
-# e.g. levelOrder=L1,1,2,B1,3,4,B2, or levelOrder=B1,1,2,3 to open on a boss
+# 1-based number, arenas as AB1, AB2, ... (a boss fight) or AS1, AS2, ... (a
+# survival round), and lobbies as L1, L2, ...
+# e.g. levelOrder=L1,1,AB1,3,4,AS2, or levelOrder=AB1,1,2,3 to open on a boss
 # fight. Unlike before issue #48, a fight is only ever ONE level (its arena) —
 # a shop in front of it is a separate lobby entry, placed next to it here.
+#
+# An arena's NUMBER is its position in the fight list, so one boss arena and
+# one survival arena read AB1, AS2 — the prefix says which mode it is, and
+# flipping a mode changes one letter and renumbers nothing. The prefix is
+# informational: B1 (the old spelling), AB1 and AS1 all name the same slot, and
+# boss<i>Mode below is what actually decides the mode.
 #
 # Floors keep their own order, and so do fights, and so do lobbies (2 can
 # never come before 1 within its own kind); only how the three interleave is
@@ -93,7 +100,7 @@ lobby1Music=boss_1
 # lobbies ahead of every floor): floor 8 is the escape floor, played after the
 # boss arena, and the boss-prep lobby sits right before the fight rather than
 # at the very front, so it is written out below.
-levelOrder=L1,1,2,3,4,5,6,7,L2,B1,8
+levelOrder=L1,1,2,3,4,5,6,7,L2,AB1,8
 #
 # Boss fight after the last dungeon floor: 1 = a generated arena with a boss,
 # 0 = campaign ends on the final floor. A fight carries no prep room of its

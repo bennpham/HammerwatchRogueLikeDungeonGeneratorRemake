@@ -4,7 +4,7 @@ import { defaultParameters } from '../src/generator/config/parameters'
 import { anchors, ENTRANCE_DEPTH, ENTRANCE_WIDTH } from '../src/generator/boss/anchors'
 import { pillarFootprint } from '../src/generator/boss/geometry'
 import { placeCoverPillars } from '../src/generator/boss/cover'
-import type { CoverArena, CoverOptions, Rect } from '../src/generator/boss/cover'
+import type { CoverArena, CoverBoss, CoverOptions, Rect } from '../src/generator/boss/cover'
 import { BOSS_COVER_PATTERNS } from '../src/generator/config/parameters'
 
 /**
@@ -54,10 +54,10 @@ describe('boss cover pillar placement', () => {
       const { rects } = placeCoverPillars(ctx, arena, coverOptions({ pattern }))
 
       const bossRect: Rect = {
-        x: arena.boss.x - arena.boss.footprintWidth / 2,
-        y: arena.boss.y - arena.boss.footprintHeight / 2,
-        width: arena.boss.footprintWidth,
-        height: arena.boss.footprintHeight
+        x: bossOf(arena).x - bossOf(arena).footprintWidth / 2,
+        y: bossOf(arena).y - bossOf(arena).footprintHeight / 2,
+        width: bossOf(arena).footprintWidth,
+        height: bossOf(arena).footprintHeight
       }
 
       for (const rect of rects) {
@@ -211,10 +211,10 @@ describe('boss cover pillar placement — connectivity guarantee', () => {
     const { width, height } = arena
     const blocked = new Array<boolean>(width * height).fill(false)
     const bossRect: Rect = {
-      x: arena.boss.x - arena.boss.footprintWidth / 2,
-      y: arena.boss.y - arena.boss.footprintHeight / 2,
-      width: arena.boss.footprintWidth,
-      height: arena.boss.footprintHeight
+      x: bossOf(arena).x - bossOf(arena).footprintWidth / 2,
+      y: bossOf(arena).y - bossOf(arena).footprintHeight / 2,
+      width: bossOf(arena).footprintWidth,
+      height: bossOf(arena).footprintHeight
     }
     rasterize(bossRect, width, height, blocked)
     for (const r of pillarRects) rasterize(r, width, height, blocked)
@@ -236,10 +236,10 @@ describe('boss cover pillar placement — connectivity guarantee', () => {
     const by0 = Math.floor(bossRect.y)
     const by1 = Math.ceil(bossRect.y + bossRect.height) - 1
     const bossProbes = [
-      { x: arena.boss.x, y: by0 - 1 },
-      { x: arena.boss.x, y: by1 + 1 },
-      { x: bx0 - 1, y: arena.boss.y },
-      { x: bx1 + 1, y: arena.boss.y }
+      { x: bossOf(arena).x, y: by0 - 1 },
+      { x: bossOf(arena).x, y: by1 + 1 },
+      { x: bx0 - 1, y: bossOf(arena).y },
+      { x: bx1 + 1, y: bossOf(arena).y }
     ].filter((p) => p.x >= 0 && p.y >= 0 && p.x < width && p.y < height)
     expect(bossProbes.length, 'no in-bounds side of the boss to check').toBeGreaterThan(0)
     for (const p of bossProbes) expect(reachable(p.x, p.y), `boss side (${p.x},${p.y})`).toBe(true)
@@ -288,3 +288,12 @@ describe('boss cover pillar placement — connectivity guarantee', () => {
     }
   }
 })
+
+/**
+ * The arena's boss. `CoverArena.boss` became optional when the survival arena
+ * arrived (it has none); every arena this suite builds still has one.
+ */
+function bossOf(arena: CoverArena): CoverBoss {
+  if (arena.boss === undefined) throw new Error('test arena has no boss')
+  return arena.boss
+}

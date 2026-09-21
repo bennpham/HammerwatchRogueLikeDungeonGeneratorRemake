@@ -8,7 +8,8 @@ import type { UpgradeCounts } from '../levelTemplate/surgery'
 // the key QuickSetup's checkbox writes. tweak/ imports nothing from config/,
 // so this direction adds no cycle
 import { removeKey } from '../tweak/chains'
-import type { CampaignSlot } from '../campaign'
+import type { ArenaMode, CampaignSlot } from '../campaign'
+import { ARENA_MODES } from '../campaign'
 
 /** Ids of every theme the generator can emit — see themes.ts for the registry. */
 export const THEMES: readonly string[] = THEME_DEFS.map((t) => t.id)
@@ -520,7 +521,204 @@ export interface BossArenaOptions {
  * before one fight or put two in front of another.
  */
 export interface BossFight {
+  /**
+   * Which kind of arena this slot is.
+   *
+   * Absent means `'boss'`, which is what keeps every parameter object and every
+   * `parameters.txt` written before survival mode existed byte-identical — the
+   * same "absent is the historical default" contract `levelOrder`, `levelBuffs`
+   * and `levelTimers` carry.
+   */
+  mode?: ArenaMode
+  /**
+   * The arena itself. Shared by BOTH modes: its size, theme, floor pattern,
+   * cover, music and multipliers mean the same thing whether a boss is standing
+   * in it or a clock is running. The boss-only fields (`bossPool`, `waves`,
+   * `invulnerability`, `checkpoints`, `spawn`) stay on the object in survival
+   * mode, simply unread, so flipping a fight to Survival and back loses nothing.
+   */
   arena: BossArenaOptions
+  /** Read only when `mode === 'survival'`. See `src/generator/survival/`. */
+  survival?: SurvivalOptions
+}
+
+/**
+ * Which kind of arena a fight is. `'boss'` is the historical, and absent, one.
+ *
+ * Defined in `campaign.ts` and re-exported here: the label vocabulary
+ * (`AB1`/`AS2`) needs it and parameters.ts imports campaign.ts, not the other
+ * way round. This is the name the rest of the app reads it by.
+ */
+export type { ArenaMode }
+export { ARENA_MODES }
+
+/** A fight's mode, with the absent-means-boss default applied. */
+export function arenaMode(fight: BossFight): ArenaMode {
+  return fight.mode === 'survival' ? 'survival' : 'boss'
+}
+
+/**
+ * How a survival arena shows its clock.
+ *
+ * `off` emits no announcement at all. `seconds` is timer mode's own shape —
+ * one AnnounceText per second, which is fine for a 60-second round and
+ * ruinous for a 20-minute one (validation warns past
+ * SURVIVAL_COUNTDOWN_NODE_WARN). `milestones` is the default: every minute,
+ * then every ten seconds under a minute, then every second in the last ten,
+ * which is a fixed handful of nodes however long the round runs.
+ *
+ * Stored verbatim in `parameters.txt`, so these ids are on-disk vocabulary —
+ * never rename one without a configFile.ts migration.
+ */
+export const SURVIVAL_COUNTDOWN_STYLES = ['off', 'milestones', 'seconds'] as const
+export type SurvivalCountdown = (typeof SURVIVAL_COUNTDOWN_STYLES)[number]
+
+/** Longest a survival round may run. Same ceiling as a floor's timer. */
+export const SURVIVAL_SECONDS_MAX = MAX_TIMER_SECONDS
+
+/** Stock survival round length. */
+export const DEFAULT_SURVIVAL_SECONDS = 180
+
+/** Stock trickle interval for a fresh survival wave row, in milliseconds. */
+export const DEFAULT_SURVIVAL_INTERVAL_MS = 1500
+
+/**
+ * Node budget past which a `seconds` countdown is worth warning about. Same
+ * threshold and reasoning as TIMER_COUNTDOWN_NODE_WARN — one AnnounceText per
+ * second, all on one level.
+ */
+export const SURVIVAL_COUNTDOWN_NODE_WARN = TIMER_COUNTDOWN_NODE_WARN
+
+/**
+ * An arena cleared by outlasting a clock instead of by killing something.
+ *
+ * Everything in it is keyed to elapsed time rather than to a boss's health,
+ * because there is no boss: the engine fires `Boss 75%`/`Boss Died` for any
+ * actor in the `actors/boss_*` folders and for nothing else, so with no boss actor none
+ * of the tier events ever fire. A survival arena therefore runs its own clock —
+ * one `LevelLoaded` trigger with a per-connection millisecond delay per event
+ * (see `src/generator/survival/clock.ts`).
+ *
+ * The four lists are independent and none of them replaces another: a buff
+ * window, a trap window, a wave row and a pickup drop each own their own
+ * timestamps. That is the one real difference from the boss arena's five tiers,
+ * where buffs and traps deliberately switch each other off.
+ */
+export interface SurvivalOptions {
+  /** how long the party must last, in seconds; 1..SURVIVAL_SECONDS_MAX */
+  seconds: number
+  /** how the clock is announced */
+  countdown: SurvivalCountdown
+  /** timed spawn rows; the same monster may appear in several */
+  waves: SurvivalWave[]
+  /** timed buff windows over the whole arena */
+  buffs: SurvivalBuff[]
+  /** timed item drops onto the entrance pickup pad */
+  pickups: SurvivalPickup[]
+  /** timed wall-trap windows */
+  traps: SurvivalTrap[]
+}
+
+/**
+ * One timed spawn row: `count` of `monster` starting at `atSeconds`, trickling
+ * in every `intervalMs` from the nine anchors.
+ *
+ * A row is not a tier. "50 bat3 at the start and 200 more two minutes in" is
+ * two rows naming the same monster, and they are wired independently — neither
+ * cancels or replaces the other.
+ *
+ * `monster` is a canonical monster VARIANT key (`isKnownMonsterKey`), the
+ * arena's grammar where a bare id IS a pin — not the dungeon floor's looser
+ * pool-key grammar where a bare id means "roll the ladder".
+ */
+export interface SurvivalWave {
+  /** a monster variant key, e.g. `bat1`, `bat1#0`, `archer1#2` */
+  monster: string
+  /** how many to spawn in total; at least 1 */
+  count: number
+  /** seconds into the round when this row starts spawning */
+  atSeconds: number
+  /** milliseconds between spawns once it starts */
+  intervalMs: number
+}
+
+/**
+ * One timed buff window: `buff` aimed at `target`, live from `startSeconds`
+ * until `endSeconds`. Windows may overlap — each owns its own field and its own
+ * on/off pair, so two buffs running at once both apply.
+ */
+export interface SurvivalBuff {
+  /** a BUFF_DEFS id */
+  buff: string
+  /** who it applies to */
+  target: BuffTarget
+  /** seconds into the round when it switches on */
+  startSeconds: number
+  /** seconds into the round when it switches off; must be after startSeconds */
+  endSeconds: number
+}
+
+/** One timed item drop: `count` copies of `item` onto the pickup pad at `atSeconds`. */
+export interface SurvivalPickup {
+  /** a PICKUP_DEFS id */
+  item: string
+  /** how many copies drop; at least 1, at most MAX_PICKUP_COUNT */
+  count: number
+  /** seconds into the round when they drop */
+  atSeconds: number
+}
+
+/**
+ * One timed wall-trap window: a `BossTrap` row that fires only between
+ * `startSeconds` and `endSeconds`. Unlike a boss tier's traps these do not
+ * replace one another; two overlapping windows both fire.
+ */
+export interface SurvivalTrap extends BossTrap {
+  /** seconds into the round when the spewers switch on */
+  startSeconds: number
+  /** seconds into the round when they switch off; must be after startSeconds */
+  endSeconds: number
+}
+
+/**
+ * A fresh survival config, used when a fight is flipped to Survival in the form
+ * or by `parameters.txt` naming a survival key on a fight that has none.
+ *
+ * Deliberately NOT called by `defaultBossFight()`: the stock campaign ships
+ * every arena in boss mode, and a stock export must keep writing not one
+ * survival key (invariant 8's byte-identity contract).
+ *
+ * A fresh object every call — the lists are edited in place by the form.
+ */
+export function defaultSurvivalOptions(): SurvivalOptions {
+  return {
+    seconds: DEFAULT_SURVIVAL_SECONDS,
+    countdown: 'milestones',
+    waves: [],
+    buffs: [],
+    pickups: [],
+    traps: []
+  }
+}
+
+/** The wave rows `fight` runs. Empty when it is not a survival arena. */
+export function survivalWaves(survival: SurvivalOptions | undefined): SurvivalWave[] {
+  return survival?.waves ?? []
+}
+
+/** The buff windows `survival` runs. */
+export function survivalBuffs(survival: SurvivalOptions | undefined): SurvivalBuff[] {
+  return survival?.buffs ?? []
+}
+
+/** The item drops `survival` makes. */
+export function survivalPickups(survival: SurvivalOptions | undefined): SurvivalPickup[] {
+  return survival?.pickups ?? []
+}
+
+/** The trap windows `survival` runs. */
+export function survivalTraps(survival: SurvivalOptions | undefined): SurvivalTrap[] {
+  return survival?.traps ?? []
 }
 
 /**
@@ -861,6 +1059,15 @@ export function defaultBossFight(): BossFight {
 export function bossFights(boss: BossOptions | undefined): BossFight[] {
   if (boss === undefined || !boss.enabled) return []
   return boss.fights ?? []
+}
+
+/**
+ * Every fight's mode, in list order — what `slotLabeller` needs to label a
+ * campaign's arena chips. Empty for a disabled or absent boss, matching
+ * `bossFights`.
+ */
+export function arenaModes(boss: BossOptions | undefined): ArenaMode[] {
+  return bossFights(boss).map(arenaMode)
 }
 
 /**

@@ -368,6 +368,21 @@ select:focus {
   width: 100%;
 }
 
+/* The two seconds marks a survival buff/pickup row bolts onto BuffPicker's and
+   PickupPicker's row — small and fixed-width, like .buff-target, so Remove
+   still lands at the right edge instead of stretching to fill the row. */
+.survival-window-field {
+  flex: 0 0 70px;
+  width: 70px;
+}
+
+/* A survival trap window's start/end pair sits under TrapPicker's own card
+   rather than inside it, so it gets its own thin strip of the trap-fields
+   grid instead of a full-width row. */
+.survival-trap-window {
+  margin-top: -4px;
+}
+
 .pool-groups {
   padding: 4px 10px 10px;
   display: flex;

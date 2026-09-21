@@ -77,7 +77,7 @@ describe('campaign order — the default is unchanged', () => {
   it('lists the campaign in play order and labels the preview tabs to match', () => {
     const result = generateOk(campaign(undefined), SEED)
     expect(listedIds(result)).toEqual(['0', '1', '2', 'boss0', 'boss1'])
-    expect(result.levels.map((l) => l.label)).toEqual(['1', '2', '3', 'B1', 'B2'])
+    expect(result.levels.map((l) => l.label)).toEqual(['1', '2', '3', 'AB1', 'AB2'])
   })
 })
 
@@ -132,7 +132,7 @@ describe('campaign order — rearranged', () => {
 
   it('labels the preview tabs in play order', () => {
     const result = generateOk(campaign(SPEC), SEED)
-    expect(result.levels.map((l) => l.label)).toEqual(['B1', '1', '2', 'B2', '3'])
+    expect(result.levels.map((l) => l.label)).toEqual(['AB1', '1', '2', 'AB2', '3'])
   })
 
   it('numbers the in-game floor label by position, never repeating one', () => {
@@ -375,7 +375,9 @@ describe('campaign order — reachability still holds', () => {
   it('emits only floors with an entrance and a gateway, on every seed', () => {
     for (const seed of [1, SEED, 20260828]) {
       const result = generateOk(campaign('B1,1,2,3', 1), seed)
-      const floors = result.levels.filter((l) => !l.label.startsWith('B'))
+      // A floor's label is a bare number; an arena's is AB1/AS2 and a lobby has
+      // no preview at all. See campaign.ts's slotLabel.
+      const floors = result.levels.filter((l) => /^\d+$/.test(l.label))
       expect(floors, `seed ${seed}`).toHaveLength(3)
 
       for (const preview of floors) {

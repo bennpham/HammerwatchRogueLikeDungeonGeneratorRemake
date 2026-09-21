@@ -8,6 +8,52 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-21 — a survival arena: no boss actor means no `Boss …` events, and the alcove opens on a delayed `LevelLoaded`
+**Tag:** [EMITTED]. The rig is emitted and asserted by `tests/survival.test.ts`;
+nothing here has been confirmed in a running game yet. Promote to `[VERIFIED]`
+in `ASSET-REGISTRY.md` once a packed survival arena is played through.
+**Context:** Issue #61's Arena → Survival mode — an arena cleared by outlasting
+a clock instead of by killing a boss (`src/generator/survival/`).
+**Evidence / reasoning:**
+1. **The `Boss …` events belong to the actor, not to us.** Nothing in this repo
+   SENDS `Boss 75%`, `Boss 50%`, `Boss 25%` or `Boss Died`; the game fires them
+   for any actor in the `actors/boss_*` folders (2026-08-19 entry, and the
+   comment at `boss/arena.ts`'s boss-actor placement). So an arena that places
+   no boss actor gets none of them, and every rig keyed to
+   `TIER_EVENT_NAMES` — wave tiers 1-4, the per-tier buff/trap switch-overs,
+   the per-tier drops, the checkpoints, the invulnerability windows **and the
+   alcove-opening chain** — would emit a trigger nothing ever pulls. That is
+   why survival mode is a separate rig rather than a flag on the boss one.
+2. **One clock drives everything.** `GlobalEventTrigger("LevelLoaded")` plus
+   `ScriptNode.connectTo(node, delayMs)` — the true-millisecond
+   `connection-delays` path `timer/hazard.ts` and `boss/checkpoints.ts`
+   already use. Each survival event hangs off that one trigger at its own
+   offset, so a round needs exactly one trigger however many timed events it
+   carries.
+3. **The alcove opener is the same DestroyObject, on a delay.** Boss mode wires
+   `GlobalEventTrigger("Boss Died") -> DestroyObject(the three need-sync mouth
+   seals)`. Survival wires the identical `DestroyObject` over the identical
+   three seals, reached from the clock at `seconds * 1000`. Nothing else about
+   the room changes — the mouth tiles are already floored, and the fence-theme
+   flank pieces stay out of the destroy list in both modes.
+4. **A per-second countdown is expensive, so it is not the default.** One
+   `AnnounceText` per second on one level: a 20-minute round would be 1201
+   nodes. The shipped default is `milestones` — every minute, then every ten
+   seconds under a minute, then every second in the last ten — which is a flat
+   handful at any length. Validation warns past
+   `SURVIVAL_COUNTDOWN_NODE_WARN` (200), the same threshold timer mode uses.
+**Open question / risk:** `LEVEL_LOADED_EVENT` is still **`[UNVERIFIED]`**
+(`src/generator/core/events.ts`) — it comes from the hand-authored
+`test_damage_player_timer.xml` and the stock campaign's `PlayMusic` usage
+(2026-08-23 and the music entry above), never from a first-party document. The
+whole survival feature rests on it: if `LevelLoaded` does not fire, or fires
+before the level is interactive, the clock never starts and **the alcove never
+opens**, which makes the arena unfinishable rather than merely wrong. That is
+the single thing to check first in a play-test, and the result belongs here.
+**Impact:** `src/generator/survival/` (7 modules), the mode branch in
+`boss/arena.ts`, and the `boss<i>Mode`/`boss<i>Survival*` keys in
+`config/configFile.ts`.
+
 ### 2026-09-16 — `tower_static_frost` is an inert barrier, and its wreck blocks where `tower_empty`'s does not
 **Tag:** [UNVERIFIED] for the "does nothing" behaviour, which is the maintainer's
 playtest report, not a measured stat. [VERIFIED] for the collision half, read

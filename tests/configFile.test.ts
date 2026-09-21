@@ -1333,7 +1333,7 @@ describe('parameters.txt — levelOrder (issue #43)', () => {
   it('writes a rearranged order and reads it back', () => {
     const original = rearranged()
     const text = serializeParametersTxt(original)
-    expect(text).toContain('levelOrder=B1,1,2,3')
+    expect(text).toContain('levelOrder=AB1,1,2,3')
 
     const parsed = parseParametersTxt(text)
     expect(parsed.unknownKeys).toEqual([])
@@ -1352,7 +1352,7 @@ describe('parameters.txt — levelOrder (issue #43)', () => {
   // key: the dungeon-prep lobby opens the campaign, the boss-prep lobby sits
   // right before the fight, and the escape floor is played after it.
   it('writes the shipped order, escape floor last', () => {
-    expect(serializeParametersTxt(defaultParameters())).toMatch(/^levelOrder=L1,1,2,3,4,5,6,7,L2,B1,8$/m)
+    expect(serializeParametersTxt(defaultParameters())).toMatch(/^levelOrder=L1,1,2,3,4,5,6,7,L2,AB1,8$/m)
   })
 
   // Every case below parses with no `base`, so it starts from

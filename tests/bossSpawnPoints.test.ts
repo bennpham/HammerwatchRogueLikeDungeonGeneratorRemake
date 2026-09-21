@@ -6,7 +6,7 @@ import { anchors, ENTRANCE_DEPTH, ENTRANCE_WIDTH, NORTH_ANCHOR_INSET } from '../
 import { placeSpawnPoints, spawnPointKey } from '../src/generator/boss/spawnPoints'
 import type { SpawnPointOptions, SpawnRequest } from '../src/generator/boss/spawnPoints'
 import { reachableMask } from '../src/generator/boss/cover'
-import type { CoverArena, Rect } from '../src/generator/boss/cover'
+import type { CoverArena, CoverBoss, Rect } from '../src/generator/boss/cover'
 
 /** The same self-contained fixture boss0Cover.test.ts uses — cover.ts's unit shape, not arena.ts's real geometry. */
 function buildArena(width: number, height: number, theme = 'g'): CoverArena {
@@ -96,10 +96,10 @@ describe('boss scatter spawn points', () => {
       const { arena, map } = place([req({ tier: 0, key: 'bat1', mode, count: 20 })])
       const spacing = options().spacing
       const bossRect: Rect = {
-        x: arena.boss.x - arena.boss.footprintWidth / 2,
-        y: arena.boss.y - arena.boss.footprintHeight / 2,
-        width: arena.boss.footprintWidth,
-        height: arena.boss.footprintHeight
+        x: bossOf(arena).x - bossOf(arena).footprintWidth / 2,
+        y: bossOf(arena).y - bossOf(arena).footprintHeight / 2,
+        width: bossOf(arena).footprintWidth,
+        height: bossOf(arena).footprintHeight
       }
 
       // A padded duplicate sits on an already-valid point, so dedupe before
@@ -286,3 +286,12 @@ describe('boss scatter spawn points', () => {
     expect(nextTen(ctx)).toEqual(nextTen(fresh))
   })
 })
+
+/**
+ * The arena's boss. `CoverArena.boss` became optional when the survival arena
+ * arrived (it has none); every arena this suite builds still has one.
+ */
+function bossOf(arena: CoverArena): CoverBoss {
+  if (arena.boss === undefined) throw new Error('test arena has no boss')
+  return arena.boss
+}

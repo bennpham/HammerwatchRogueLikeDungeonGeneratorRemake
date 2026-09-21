@@ -1,5 +1,5 @@
 import React from 'react'
-import { campaignOrder, isDefaultOrder, slotLabel } from '../../generator'
+import { arenaModes, campaignOrder, isDefaultOrder, slotLabeller } from '../../generator'
 import type { CampaignCounts, CampaignSlot, DungeonParameters, ValidationIssue } from '../../generator'
 import { Section } from './fields'
 
@@ -30,6 +30,9 @@ export function FloorOrderEditor({ params, issues, onChange }: FloorOrderEditorP
   const fightCount = params.boss?.enabled === true ? (params.boss.fights?.length ?? 0) : 0
   const counts: CampaignCounts = { levels: params.levels, fights: fightCount, lobbies: params.lobbies.length }
   const order = campaignOrder(counts, params.levelOrder)
+  // Arena chips read AB1/AS2 — the prefix is that arena's mode, the number its
+  // position in the fight list. See campaign.ts's slotLabel.
+  const label = slotLabeller(arenaModes(params.boss))
 
   // Nothing to interleave when the campaign is only one kind of slot — all
   // floors, all fights, or all lobbies. As a tab it still has to render
@@ -100,7 +103,7 @@ export function FloorOrderEditor({ params, issues, onChange }: FloorOrderEditorP
             interleave.
           </p>
         ) : (
-          <FloorOrderChips order={order} onSwap={swap} canSwap={canSwap} />
+          <FloorOrderChips order={order} label={label} onSwap={swap} canSwap={canSwap} />
         )}
 
         <div className="boss-prep-actions">
@@ -134,11 +137,13 @@ function soleKindNoun(kinds: Set<CampaignSlot['kind']>): string {
 
 interface FloorOrderChipsProps {
   order: CampaignSlot[]
+  /** What to call a slot — bound to this campaign's arena modes, so an arena chip reads AB1/AS2. */
+  label: (slot: CampaignSlot) => string
   onSwap: (index: number, other: number) => void
   canSwap: (index: number, other: number) => boolean
 }
 
-function FloorOrderChips({ order, onSwap, canSwap }: FloorOrderChipsProps) {
+function FloorOrderChips({ order, label, onSwap, canSwap }: FloorOrderChipsProps) {
   return (
     <div className="floor-order">
       {order.map((slot, i) => (
@@ -149,18 +154,18 @@ function FloorOrderChips({ order, onSwap, canSwap }: FloorOrderChipsProps) {
             onClick={() => onSwap(i, i - 1)}
             disabled={!canSwap(i, i - 1)}
             title="Move earlier"
-            aria-label={`Move ${slotLabel(slot)} earlier`}
+            aria-label={`Move ${label(slot)} earlier`}
           >
             ◀
           </button>
-          <span className="chip-label">{slotLabel(slot)}</span>
+          <span className="chip-label">{label(slot)}</span>
           <button
             type="button"
             className="chip-move"
             onClick={() => onSwap(i, i + 1)}
             disabled={!canSwap(i, i + 1)}
             title="Move later"
-            aria-label={`Move ${slotLabel(slot)} later`}
+            aria-label={`Move ${label(slot)} later`}
           >
             ▶
           </button>

@@ -26,7 +26,15 @@ import {
   BOSS_TRAP_DIRECTIONS,
   MAX_TRAP_COUNT,
   TRAP_FAST_SPAWN_RATE_MS,
-  TRAP_SPREAD_MAX
+  TRAP_SPREAD_MAX,
+  SURVIVAL_COUNTDOWN_STYLES,
+  SURVIVAL_SECONDS_MAX,
+  SURVIVAL_COUNTDOWN_NODE_WARN,
+  arenaMode,
+  survivalBuffs,
+  survivalPickups,
+  survivalTraps,
+  survivalWaves
 } from './parameters'
 import { MUSIC_DEFAULT, MUSIC_TRACKS, isKnownMusicId } from '../music/tracks'
 import type { BossTrapDirection, TrapDirection } from './parameters'
@@ -648,6 +656,25 @@ function validateBossFight(
   /** field key for an arena setting of this fight */
   const af = (suffix: string): string => `boss.fights.${index}.arena.${suffix}`
 
+  // A SURVIVAL arena has no boss, so none of the boss-only rules below apply to
+  // it: its bossPool, waves, invulnerability, checkpoints and scatter-spawn
+  // settings stay on the object precisely so flipping the mode is lossless, but
+  // the generator never reads them — and blocking generation over a field
+  // nothing reads would be wrong.
+  //
+  // Rather than wrap six separate regions in a mode check and reindent them,
+  // the boss-only rules push HERE. In boss mode these are the real arrays, so
+  // the behaviour is identical to before survival mode existed; in survival
+  // mode they are a throwaway, which also keeps the `errors.length > before`
+  // guard below reading the right thing. What stays on the shared path is
+  // everything about the ROOM — size, theme, cover, multipliers — which means
+  // the same thing in both modes.
+  const isSurvival = arenaMode(fight) === 'survival'
+  const bossErrors: ValidationIssue[] = isSurvival ? [] : errors
+  const bossWarnings: ValidationIssue[] = isSurvival ? [] : warnings
+
+  if (isSurvival) validateSurvival(fight, index, errors, warnings)
+
   // min ≤ max on both axes
   if (arena.minWidth > arena.maxWidth) {
     errors.push({ field: af('minWidth'), message: 'Min width must be ≤ max width.' })
@@ -672,17 +699,17 @@ function validateBossFight(
 
   // bossPool must not be empty
   if (arena.bossPool.length === 0) {
-    errors.push({ field: af('bossPool'), message: 'At least one boss must be in the pool.' })
+    bossErrors.push({ field: af('bossPool'), message: 'At least one boss must be in the pool.' })
   }
   for (const id of arena.bossPool) {
     if (!BOSS_IDS.includes(id as typeof BOSS_IDS[number])) {
-      errors.push({ field: af('bossPool'), message: `Unknown boss "${id}".` })
+      bossErrors.push({ field: af('bossPool'), message: `Unknown boss "${id}".` })
     }
   }
 
   // exactly BOSS_WAVE_COUNT waves
   if (arena.waves.length !== BOSS_WAVE_COUNT) {
-    errors.push({
+    bossErrors.push({
       field: af('waves'),
       message: `Exactly ${BOSS_WAVE_COUNT} waves are required (100/75/50/25 and boss death).`
     })
@@ -694,7 +721,7 @@ function validateBossFight(
     const wave = arena.waves[i]
     const ms = wave.defaultIntervalMs
     if (!Number.isInteger(ms) || ms < MIN_WAVE_INTERVAL_MS || ms > MAX_WAVE_INTERVAL_MS) {
-      errors.push({
+      bossErrors.push({
         field: af(`waves.${i}.defaultIntervalMs`),
         message: `Spawn interval must be between ${MIN_WAVE_INTERVAL_MS} and ${MAX_WAVE_INTERVAL_MS} ms.`
       })
@@ -709,21 +736,21 @@ function validateBossFight(
       const { id, tier } = parseMonsterKey(key)
       const field = af(`waves.${i}.monsters`)
       if (!isKnownMonsterId(id)) {
-        errors.push({ field, message: `Wave ${i + 1} pool contains unknown monster "${key}".` })
+        bossErrors.push({ field, message: `Wave ${i + 1} pool contains unknown monster "${key}".` })
       } else if (tier === undefined || !Number.isInteger(tier)) {
-        errors.push({
+        bossErrors.push({
           field,
           message: `Wave ${i + 1} entry "${key}" has a malformed variant — the suffix after "#" must be a whole number.`
         })
       } else {
         const type = monsterTypeById(id)
         if (tier === defaultTier(type)) {
-          errors.push({
+          bossErrors.push({
             field,
             message: `Wave ${i + 1} entry "${key}" is not canonical — that variant is spelled "${id}".`
           })
         } else {
-          errors.push({
+          bossErrors.push({
             field,
             message: `Wave ${i + 1} entry "${key}" has no variant ${tier} — "${id}" has ${type.tiers.length} (0..${type.tiers.length - 1}).`
           })
@@ -733,7 +760,7 @@ function validateBossFight(
 
     for (const [id, max] of Object.entries(wave.monsterMax ?? {})) {
       if (!Number.isInteger(max) || max < -1) {
-        errors.push({
+        bossErrors.push({
           field: af(`waves.${i}.monsterMax.${id}`),
           message: `Max count for "${id}" in wave ${i + 1} must be a whole number ≥ -1 (-1 = endless).`
         })
@@ -743,7 +770,7 @@ function validateBossFight(
     if (wave.intervalMs) {
       for (const [id, overrideMs] of Object.entries(wave.intervalMs)) {
         if (!Number.isInteger(overrideMs) || overrideMs < MIN_WAVE_INTERVAL_MS || overrideMs > MAX_WAVE_INTERVAL_MS) {
-          errors.push({
+          bossErrors.push({
             field: af(`waves.${i}.intervalMs.${id}`),
             message: `Monster "${id}" in wave ${i + 1} has interval ${overrideMs} — must be ${MIN_WAVE_INTERVAL_MS}..${MAX_WAVE_INTERVAL_MS}.`
           })
@@ -755,13 +782,13 @@ function validateBossFight(
     // pre-feature default and never invalid.
     waveBuffs(wave).forEach((entry, j) => {
       if (buffById(entry.buff) === undefined) {
-        errors.push({
+        bossErrors.push({
           field: af(`waves.${i}.buffs.${j}.buff`),
           message: `"${entry.buff}" is not a buff the game ships.`
         })
       }
       if (!BUFF_TARGETS.includes(entry.target)) {
-        errors.push({
+        bossErrors.push({
           field: af(`waves.${i}.buffs.${j}.target`),
           message: `"${entry.target}" is not a buff target — use ${BUFF_TARGETS.join(', ')}.`
         })
@@ -772,7 +799,7 @@ function validateBossFight(
     // that has never been touched carries and is never invalid.
     wavePickups(wave).forEach((entry, j) => {
       if (pickupById(entry.item) === undefined) {
-        errors.push({
+        bossErrors.push({
           field: af(`waves.${i}.pickups.${j}.item`),
           message: `"${entry.item}" is not an item the game ships.`
         })
@@ -781,7 +808,7 @@ function validateBossFight(
       // see boss/wavePickups.ts. Bounded for the same reason every retry loop
       // in the port is.
       if (!Number.isInteger(entry.count) || entry.count < 1 || entry.count > MAX_PICKUP_COUNT) {
-        errors.push({
+        bossErrors.push({
           field: af(`waves.${i}.pickups.${j}.count`),
           message: `Wave ${i + 1} drops ${entry.count} × "${entry.item}" — the count must be a whole number 1..${MAX_PICKUP_COUNT}.`
         })
@@ -792,13 +819,13 @@ function validateBossFight(
     // that has never been touched carries and is never invalid.
     waveTraps(wave).forEach((row, j) => {
       if (projectileById(row.projectile) === undefined) {
-        errors.push({
+        bossErrors.push({
           field: af(`waves.${i}.traps.${j}.projectile`),
           message: `"${row.projectile}" is not a projectile the game ships.`
         })
       }
       if (!BOSS_TRAP_DIRECTIONS.includes(row.direction)) {
-        errors.push({
+        bossErrors.push({
           field: af(`waves.${i}.traps.${j}.direction`),
           message: `"${row.direction}" is not a firing direction — use ${BOSS_TRAP_DIRECTIONS.join(', ')}.`
         })
@@ -806,13 +833,13 @@ function validateBossFight(
       // Decimal on purpose: the reference axe rig fires at 0.5. The engine
       // clamps outside 0..2 with no warning, so the bound is ours to enforce.
       if (!Number.isFinite(row.spread) || row.spread < 0 || row.spread > TRAP_SPREAD_MAX) {
-        errors.push({
+        bossErrors.push({
           field: af(`waves.${i}.traps.${j}.spread`),
           message: `Wave ${i + 1}'s "${row.projectile}" trap fans at ${row.spread} — spread must be between 0 and ${TRAP_SPREAD_MAX}.`
         })
       }
       if (!Number.isInteger(row.spawnRateMs) || row.spawnRateMs < 1) {
-        errors.push({
+        bossErrors.push({
           field: af(`waves.${i}.traps.${j}.spawnRateMs`),
           message: `Wave ${i + 1}'s "${row.projectile}" trap fires every ${row.spawnRateMs} ms — the rate must be a whole number of milliseconds, at least 1.`
         })
@@ -820,14 +847,14 @@ function validateBossFight(
         // A warning, not an error: the engine imposes no bound and a very fast
         // lane is a legitimate thing to build deliberately. It is worth saying
         // out loud because nothing else will.
-        warnings.push({
+        bossWarnings.push({
           field: af(`waves.${i}.traps.${j}.spawnRateMs`),
           message: `Wave ${i + 1}'s "${row.projectile}" trap fires every ${row.spawnRateMs} ms. Below ${TRAP_FAST_SPAWN_RATE_MS} ms the arena fills with projectiles faster than the party can cross it, and the framerate suffers.`
         })
       }
       // Every spewer is its own node on its own tile — see boss/traps.ts.
       if (!Number.isInteger(row.count) || row.count < 1 || row.count > MAX_TRAP_COUNT) {
-        errors.push({
+        bossErrors.push({
           field: af(`waves.${i}.traps.${j}.count`),
           message: `Wave ${i + 1} places ${row.count} × "${row.projectile}" — the count must be a whole number 1..${MAX_TRAP_COUNT}.`
         })
@@ -842,7 +869,7 @@ function validateBossFight(
       const field = af(`waves.${i}.spawnMode.${id}`)
 
       if (!(BOSS_SPAWN_MODES as readonly string[]).includes(mode)) {
-        errors.push({ field, message: `"${mode}" is not one of: ${BOSS_SPAWN_MODES.join(', ')}.` })
+        bossErrors.push({ field, message: `"${mode}" is not one of: ${BOSS_SPAWN_MODES.join(', ')}.` })
         continue
       }
       if (!isScatterMode(mode)) continue
@@ -851,14 +878,14 @@ function validateBossFight(
       // put those wrecks in nine known places; a scatter puts them anywhere,
       // which is how an arena ends up walled off by its own dead towers.
       if (isKnownMonsterKey(id) && corpseCollision(resolveActorPath(id)) === 'blocking') {
-        errors.push({
+        bossErrors.push({
           field,
           message: `"${id}" leaves a wreck that still blocks movement, so it cannot be scattered — scattering it can wall the arena off. Use the anchors mode, or pick a variant whose wreck is passable.`
         })
       }
 
       if (wave.monsterMax[id] === -1) {
-        errors.push({
+        bossErrors.push({
           field,
           message: `"${id}" is set to endless (-1), which has no meaning for a one-shot scattered spawn. Give it a real count, or put it back on the anchors mode.`
         })
@@ -927,23 +954,23 @@ function validateBossFight(
   // the scatter modes' own knobs — same shape as cover's, deliberately separate
   // so pillars and monsters can be spaced differently
   if (!Number.isInteger(arena.spawn.spacing) || arena.spawn.spacing < 1) {
-    errors.push({ field: af('spawn.spacing'), message: 'Spawn spacing must be a whole number ≥ 1.' })
+    bossErrors.push({ field: af('spawn.spacing'), message: 'Spawn spacing must be a whole number ≥ 1.' })
   }
   if (!Number.isInteger(arena.spawn.ringSpacing) || arena.spawn.ringSpacing < 1) {
-    errors.push({ field: af('spawn.ringSpacing'), message: 'Spawn ring spacing must be a whole number ≥ 1.' })
+    bossErrors.push({ field: af('spawn.ringSpacing'), message: 'Spawn ring spacing must be a whole number ≥ 1.' })
   }
   if (!Number.isInteger(arena.spawn.clusters) || arena.spawn.clusters < 1) {
-    errors.push({ field: af('spawn.clusters'), message: 'Spawn cluster count must be a whole number ≥ 1.' })
+    bossErrors.push({ field: af('spawn.clusters'), message: 'Spawn cluster count must be a whole number ≥ 1.' })
   }
   if (!Number.isInteger(arena.spawn.batchSize) || arena.spawn.batchSize < 1) {
-    errors.push({ field: af('spawn.batchSize'), message: 'Spawn batch size must be a whole number ≥ 1.' })
+    bossErrors.push({ field: af('spawn.batchSize'), message: 'Spawn batch size must be a whole number ≥ 1.' })
   }
   if (
     !Number.isInteger(arena.spawn.batchIntervalMs) ||
     arena.spawn.batchIntervalMs < MIN_WAVE_INTERVAL_MS ||
     arena.spawn.batchIntervalMs > MAX_WAVE_INTERVAL_MS
   ) {
-    errors.push({
+    bossErrors.push({
       field: af('spawn.batchIntervalMs'),
       message: `Spawn batch interval must be a whole number of milliseconds between ${MIN_WAVE_INTERVAL_MS} and ${MAX_WAVE_INTERVAL_MS}.`
     })
@@ -952,7 +979,7 @@ function validateBossFight(
   // the invulnerability windows — one per health threshold, 0 disabling that one
   const invuln = arena.invulnerability
   if (!Array.isArray(invuln.seconds) || invuln.seconds.length !== BOSS_INVULN_COUNT) {
-    errors.push({
+    bossErrors.push({
       field: af('invulnerability.seconds'),
       message: `Boss invulnerability needs exactly ${BOSS_INVULN_COUNT} window lengths, one per health threshold (${BOSS_INVULN_THRESHOLDS.join(', ')}).`
     })
@@ -960,7 +987,7 @@ function validateBossFight(
     for (let i = 0; i < invuln.seconds.length; i++) {
       const s = invuln.seconds[i]
       if (!Number.isInteger(s) || s < 0 || s > MAX_BOSS_INVULN_SECONDS) {
-        errors.push({
+        bossErrors.push({
           field: af(`invulnerability.seconds.${i}`),
           message: `The ${BOSS_INVULN_THRESHOLDS[i]} window must be a whole number of seconds between 0 (off) and ${MAX_BOSS_INVULN_SECONDS}.`
         })
@@ -972,13 +999,13 @@ function validateBossFight(
   // the form only ever writes a known one — but a bad import should not silently
   // fall back to a default without the user seeing why
   if (!(arena.checkpoints.respawnPlayers in BOSS_CHECKPOINT_PRESETS)) {
-    errors.push({
+    bossErrors.push({
       field: af('checkpoints.respawnPlayers'),
       message: `Unknown checkpoint preset "${arena.checkpoints.respawnPlayers}".`
     })
   }
   if (!(arena.checkpoints.saveGame in BOSS_CHECKPOINT_PRESETS)) {
-    errors.push({
+    bossErrors.push({
       field: af('checkpoints.saveGame'),
       message: `Unknown checkpoint preset "${arena.checkpoints.saveGame}".`
     })
@@ -989,7 +1016,7 @@ function validateBossFight(
   // Both of these are shape-dependent, so they only run once the rules above
   // have confirmed the array is the right length and every entry is sane.
   if (invuln.enabled && invuln.seconds.every((s) => s === 0)) {
-    warnings.push({
+    bossWarnings.push({
       field: af('invulnerability.seconds'),
       message: 'Boss invulnerability is on but every window is 0 seconds — no threshold will pause the fight.'
     })
@@ -1000,7 +1027,7 @@ function validateBossFight(
   if (invuln.enabled && invuln.countdown) {
     const tickNodes = invuln.seconds.reduce((sum, s) => sum + (s > 0 ? s + 1 : 0), 0)
     if (tickNodes > BOSS_COUNTDOWN_NODE_WARN) {
-      warnings.push({
+      bossWarnings.push({
         field: af('invulnerability.countdown'),
         message: `The countdown adds ${tickNodes} script nodes (one per second, per window). Consider shorter windows, or turning the countdown off.`
       })
@@ -1014,7 +1041,7 @@ function validateBossFight(
     // is the shipped default, so warning about it would put a message on every
     // stock run.
     if (wave.monsters.length === 0 && i !== BOSS_DEATH_WAVE) {
-      warnings.push({
+      bossWarnings.push({
         field: af(`waves.${i}.monsters`),
         message: `Wave ${i + 1} has an empty monster pool — nothing will spawn at this tier.`
       })
@@ -1026,7 +1053,7 @@ function validateBossFight(
 
       const pair = `${entry.buff}|${entry.target}`
       if (seenTierBuffs.has(pair)) {
-        warnings.push({
+        bossWarnings.push({
           field: af(`waves.${i}.buffs.${j}.buff`),
           message: `Wave ${i + 1}: "${entry.buff}" is already applied to ${entry.target} on this tier — the second copy does nothing.`
         })
@@ -1036,7 +1063,7 @@ function validateBossFight(
       // The boss is already dead by this tier, so a buff aimed at the horde has
       // only whatever that tier itself spawns to land on.
       if (i === BOSS_DEATH_WAVE && entry.target === 'monsters' && wave.monsters.length === 0) {
-        warnings.push({
+        bossWarnings.push({
           field: af(`waves.${i}.buffs.${j}.target`),
           message:
             'The after-the-boss-dies buff catches monsters, but that tier spawns none — nothing will be buffed on the walk to the orb.'
@@ -1059,7 +1086,7 @@ function validateBossFight(
       // but a single row with the counts added is what the author meant, and
       // one row is what the form can then edit in one place.
       if (seenTierPickups.has(entry.item)) {
-        warnings.push({
+        bossWarnings.push({
           field: af(`waves.${i}.pickups.${j}.item`),
           message: `Wave ${i + 1} already drops "${entry.item}" — fold the two rows into one count.`
         })
@@ -1076,7 +1103,7 @@ function validateBossFight(
       // timer. Worth saying out loud: the number stays visible in
       // parameters.txt, so silence would read as "it still applies".
       if (wave.intervalMs?.[id] !== undefined) {
-        warnings.push({
+        bossWarnings.push({
           field,
           message: `"${id}" in wave ${i + 1} is scattered, so its ${wave.intervalMs[id]} ms interval is ignored — scattered monsters all spawn at once.`
         })
@@ -1104,7 +1131,7 @@ function validateBossFight(
   for (const [direction, wanted] of perWall) {
     const capacity = wallCapacity(arena.minWidth, arena.minHeight, direction)
     if (wanted > capacity) {
-      warnings.push({
+      bossWarnings.push({
         field: af('waves'),
         message: `The ${direction === 'up' ? 'south' : direction === 'down' ? 'north' : direction === 'left' ? 'east' : 'west'} wall is asked for ${wanted} ${direction}-firing spewers across all tiers, but an arena ${arena.minWidth}×${arena.minHeight} only has room for about ${capacity} spaced along it. The extra ones will be skipped.`
       })
@@ -1123,7 +1150,7 @@ function validateBossFight(
     0
   )
   if (scattered >= BOSS_SCATTER_WARN) {
-    warnings.push({
+    bossWarnings.push({
       field: af('waves'),
       message: `The waves scatter ${scattered} spawns in total, one script node each — that is a lot of nodes on one floor.`
     })
@@ -1148,7 +1175,7 @@ function validateBossFight(
       .filter((id) => isScatterMode(waveSpawnMode(wave, id)))
       .reduce((n, id) => n + Math.min(scatterCount(wave.monsterMax[id], arena.monsterMultiplier), budget), 0)
     if (points > capacity) {
-      warnings.push({
+      bossWarnings.push({
         field: af(`waves.${i}`),
         message: `Wave ${i + 1} wants ${points} scatter points but the smallest arena it can roll (${arena.minWidth}x${arena.minHeight}) fits about ${capacity} — some monsters will share tiles. Raise the arena size, or lower the spawn spacing or batch size.`
       })
@@ -1169,6 +1196,255 @@ function validateBossFight(
   // arena — unreachable now that BOSS_COVER_DENSITY_MAX errors at 0.25, and a
   // rule that can never fire is worse than no rule. The cap plus cover.ts's
   // reachability guarantee cover what this was reaching for.
+}
+
+/**
+ * Every rule for one SURVIVAL arena (issue #61).
+ *
+ * Called from `validateBossFight`, which has already checked everything about
+ * the room itself — size, theme, cover, multipliers — because those mean the
+ * same thing in both modes. What is left is the timeline: a round length, how
+ * it is announced, and four lists of timed events.
+ *
+ * House shape (the same one `validateLevelTraps` documents): snapshot, error
+ * rules, a guard, then warnings — so a list with an unknown id never also
+ * accumulates advisories about it.
+ *
+ * Field keys are scoped by fight index AND row index, so the form anchors an
+ * inline message to the exact row that is wrong rather than to the section.
+ */
+function validateSurvival(
+  fight: BossFight,
+  index: number,
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[]
+): void {
+  const before = errors.length
+
+  /** field key for a survival setting of this fight */
+  const sf = (suffix: string): string => `boss.fights.${index}.survival.${suffix}`
+
+  // A fight flipped to survival by a hand-edited file may carry no options at
+  // all. The generator falls back to the defaults rather than throwing
+  // (invariant 5), so there is nothing to validate and nothing to report.
+  const survival = fight.survival
+  if (survival === undefined) return
+
+  // Read the four lists through their accessors, never off the object.
+  //
+  // A hand-edited parameters.txt, or a settings file written before one of
+  // these lists existed, can hand us a `survival` missing any of them — and
+  // validation's whole job is to REPORT bad input, not to throw on it
+  // (invariant 5). The generator's rigs already go through the same accessors,
+  // so the two ends agree that an absent list means an empty one.
+  const waves = survivalWaves(survival)
+  const buffs = survivalBuffs(survival)
+  const pickups = survivalPickups(survival)
+  const traps = survivalTraps(survival)
+
+  // --- the round itself ---
+
+  if (!Number.isInteger(survival.seconds) || survival.seconds < 1 || survival.seconds > SURVIVAL_SECONDS_MAX) {
+    errors.push({
+      field: sf('seconds'),
+      message: `Survival length must be a whole number of seconds between 1 and ${SURVIVAL_SECONDS_MAX}.`
+    })
+  }
+
+  if (!(SURVIVAL_COUNTDOWN_STYLES as readonly string[]).includes(survival.countdown)) {
+    errors.push({
+      field: sf('countdown'),
+      message: `"${survival.countdown}" is not one of: ${SURVIVAL_COUNTDOWN_STYLES.join(', ')}.`
+    })
+  }
+
+  /**
+   * Whether a timestamp is a whole number of seconds inside the round.
+   *
+   * The upper bound is the round length itself: an event scheduled after the
+   * door has already opened never fires, which is a mistake rather than a
+   * style. It is checked against the STORED length even when that length is
+   * itself invalid — the two messages are independent, and suppressing one
+   * because of the other would hide half the problem.
+   */
+  const timeOk = (value: number): boolean =>
+    Number.isInteger(value) && value >= 0 && value <= survival.seconds
+
+  // --- wave rows ---
+
+  waves.forEach((row, i) => {
+    if (!isKnownMonsterKey(row.monster)) {
+      errors.push({ field: sf(`waves.${i}.monster`), message: `Unknown monster "${row.monster}".` })
+    }
+    if (!Number.isInteger(row.count) || row.count < 1) {
+      errors.push({
+        field: sf(`waves.${i}.count`),
+        // -1 means endless in a boss tier; it has no meaning against a round
+        // that ends at a known second, so it is rejected here rather than
+        // silently spawning forever.
+        message: 'Count must be a whole number of at least 1 — a survival round has no endless (-1) spawns.'
+      })
+    }
+    if (!timeOk(row.atSeconds)) {
+      errors.push({
+        field: sf(`waves.${i}.atSeconds`),
+        message: `Start time must be a whole number of seconds between 0 and the round length (${survival.seconds}).`
+      })
+    }
+    if (!Number.isInteger(row.intervalMs) || row.intervalMs < MIN_WAVE_INTERVAL_MS || row.intervalMs > MAX_WAVE_INTERVAL_MS) {
+      errors.push({
+        field: sf(`waves.${i}.intervalMs`),
+        message: `Spawn interval must be between ${MIN_WAVE_INTERVAL_MS} and ${MAX_WAVE_INTERVAL_MS} ms.`
+      })
+    }
+  })
+
+  // --- buff windows ---
+
+  buffs.forEach((row, i) => {
+    if (buffById(row.buff) === undefined) {
+      errors.push({ field: sf(`buffs.${i}.buff`), message: `Unknown buff "${row.buff}".` })
+    }
+    if (!BUFF_TARGETS.includes(row.target)) {
+      errors.push({
+        field: sf(`buffs.${i}.target`),
+        message: `"${row.target}" is not one of: ${BUFF_TARGETS.join(', ')}.`
+      })
+    }
+    validateWindow(row, sf(`buffs.${i}`), 'Buff window', survival.seconds, errors)
+  })
+
+  // --- item drops ---
+
+  pickups.forEach((row, i) => {
+    if (pickupById(row.item) === undefined) {
+      errors.push({ field: sf(`pickups.${i}.item`), message: `Unknown item "${row.item}".` })
+    }
+    if (!Number.isInteger(row.count) || row.count < 1 || row.count > MAX_PICKUP_COUNT) {
+      errors.push({
+        field: sf(`pickups.${i}.count`),
+        message: `Count must be a whole number between 1 and ${MAX_PICKUP_COUNT}.`
+      })
+    }
+    if (!timeOk(row.atSeconds)) {
+      errors.push({
+        field: sf(`pickups.${i}.atSeconds`),
+        message: `Drop time must be a whole number of seconds between 0 and the round length (${survival.seconds}).`
+      })
+    }
+  })
+
+  // --- trap windows ---
+
+  traps.forEach((row, i) => {
+    if (projectileById(row.projectile) === undefined) {
+      errors.push({ field: sf(`traps.${i}.projectile`), message: `Unknown projectile "${row.projectile}".` })
+    }
+    if (!BOSS_TRAP_DIRECTIONS.includes(row.direction)) {
+      errors.push({
+        field: sf(`traps.${i}.direction`),
+        message: `"${row.direction}" is not one of: ${BOSS_TRAP_DIRECTIONS.join(', ')}.`
+      })
+    }
+    if (!Number.isFinite(row.spread) || row.spread < 0 || row.spread > TRAP_SPREAD_MAX) {
+      errors.push({
+        field: sf(`traps.${i}.spread`),
+        message: `Spread must be between 0 and ${TRAP_SPREAD_MAX}.`
+      })
+    }
+    if (!Number.isInteger(row.spawnRateMs) || row.spawnRateMs < 1) {
+      errors.push({ field: sf(`traps.${i}.spawnRateMs`), message: 'Fire rate must be a whole number of milliseconds ≥ 1.' })
+    }
+    if (!Number.isInteger(row.count) || row.count < 1 || row.count > MAX_TRAP_COUNT) {
+      errors.push({
+        field: sf(`traps.${i}.count`),
+        message: `Trap count must be a whole number between 1 and ${MAX_TRAP_COUNT}.`
+      })
+    }
+    validateWindow(row, sf(`traps.${i}`), 'Trap window', survival.seconds, errors)
+  })
+
+  // Errors first, then advisories — a list with an unknown id never also
+  // collects warnings about it.
+  if (errors.length > before) return
+
+  // --- warnings ---
+
+  // A survival round with nothing in it is legal — the party simply waits out
+  // the clock in an empty room — but it is almost never what was meant.
+  if (waves.length === 0) {
+    warnings.push({
+      field: sf('waves'),
+      message: 'This survival arena spawns nothing — the party just waits for the timer.'
+    })
+  }
+
+  // One AnnounceText per second, all on one level. Same threshold and reasoning
+  // as timer mode's countdown; `milestones` is a fixed handful at any length,
+  // which is why it is the default.
+  if (survival.countdown === 'seconds' && survival.seconds + 1 > SURVIVAL_COUNTDOWN_NODE_WARN) {
+    warnings.push({
+      field: sf('countdown'),
+      message: `A per-second countdown over ${survival.seconds}s emits ${survival.seconds + 1} announcement nodes on this level. Switch to milestones to keep it to a handful.`
+    })
+  }
+
+  // The same wall-capacity heuristic the boss tiers get: every window's spewers
+  // come out of one pool per wall, carried across all of them, so the totals add
+  // up exactly as a boss arena's tiers do. A warning, not an error — the rig
+  // stops placing gracefully when a pool runs dry.
+  const perWall = new Map<BossTrapDirection, number>()
+  for (const row of traps) {
+    perWall.set(row.direction, (perWall.get(row.direction) ?? 0) + row.count)
+  }
+  for (const [direction, wanted] of perWall) {
+    const capacity = wallCapacity(fight.arena.minWidth, fight.arena.minHeight, direction)
+    if (wanted > capacity) {
+      warnings.push({
+        field: sf('traps'),
+        message: `The ${wallNoun(direction)} wall is asked for ${wanted} ${direction}-firing spewers across all windows, but an arena ${fight.arena.minWidth}×${fight.arena.minHeight} only has room for about ${capacity} spaced along it. The extra ones will be skipped.`
+      })
+    }
+  }
+}
+
+/**
+ * The `startSeconds < endSeconds`, both-inside-the-round rule the buff and trap
+ * windows share. Two rules that differ only in a noun are one rule.
+ */
+function validateWindow(
+  row: { startSeconds: number; endSeconds: number },
+  field: string,
+  noun: string,
+  seconds: number,
+  errors: ValidationIssue[]
+): void {
+  if (!Number.isInteger(row.startSeconds) || row.startSeconds < 0 || row.startSeconds > seconds) {
+    errors.push({
+      field: `${field}.startSeconds`,
+      message: `${noun} start must be a whole number of seconds between 0 and the round length (${seconds}).`
+    })
+    return
+  }
+  if (!Number.isInteger(row.endSeconds) || row.endSeconds < 0 || row.endSeconds > seconds) {
+    errors.push({
+      field: `${field}.endSeconds`,
+      message: `${noun} end must be a whole number of seconds between 0 and the round length (${seconds}).`
+    })
+    return
+  }
+  // A window that ends at or before it starts never switches anything on.
+  if (row.endSeconds <= row.startSeconds) {
+    errors.push({
+      field: `${field}.endSeconds`,
+      message: `${noun} end must be after its start.`
+    })
+  }
+}
+
+/** Which wall a trap direction stands on, for a message a person reads. */
+function wallNoun(direction: BossTrapDirection): string {
+  return direction === 'up' ? 'south' : direction === 'down' ? 'north' : direction === 'left' ? 'east' : 'west'
 }
 
 /**
