@@ -263,6 +263,63 @@ describe('survival — the timed rigs', () => {
     expect(shares.filter((n) => n === 1)).toHaveLength(9)
   }, 60_000)
 
+  it('gives an endless row an unbounded spawner per anchor, stopped at the end', () => {
+    // -1 means "keep coming until the clock runs out". Paired here with a
+    // finite row so the two shapes are compared in one arena: only the endless
+    // one gets a stop toggle, and only the finite one splits a count.
+    const params = withSurvival(0, {
+      waves: [
+        { monster: 'bat1', count: -1, atSeconds: 10, intervalMs: 1000 },
+        { monster: 'bat1', count: 9, atSeconds: 20, intervalMs: 2000 }
+      ]
+    })
+    const xml = arenaXml(generateOk(params, SEED), 0)
+    const clock = clockOf(xml)
+
+    const timers = nodesOfType(xml, 'TimerTrigger')
+    expect(timers, 'one timer per row').toHaveLength(2)
+    const [endlessTimer, finiteTimer] = timers
+
+    // The endless row: one spawner per anchor, each unbounded.
+    const spawns = nodesOfType(xml, 'SpawnObject')
+    const endlessSpawns = spawns.filter((s) =>
+      (intArr(endlessTimer.body, 'connections') ?? []).includes(s.id)
+    )
+    expect(endlessSpawns).toHaveLength(9)
+    for (const spawn of endlessSpawns) {
+      expect(intParam(spawn.body, 'trigger-times'), 'endless spawners must be unbounded').toBe(-1)
+    }
+
+    // The finite row is untouched — 9 over 9 anchors is 1 each.
+    const finiteSpawns = spawns.filter((s) =>
+      (intArr(finiteTimer.body, 'connections') ?? []).includes(s.id)
+    )
+    expect(finiteSpawns).toHaveLength(9)
+    expect(finiteSpawns.every((s) => intParam(s.body, 'trigger-times') === 1)).toBe(true)
+
+    // Only the endless row is stopped, and on the same tick that opens the door.
+    const stopOf = (timerId: number) =>
+      nodesOfType(xml, 'ToggleElement').find(
+        (n) => intParam(n.body, 'state') === 1 && (intArr(n.body, 'static') ?? []).includes(timerId)
+      )
+    const stop = stopOf(endlessTimer.id)
+    expect(stop, 'an endless row must be switched off at the end').toBeDefined()
+    expect(delayTo(clock, (stop as { id: number }).id)).toBe(60_000)
+    expect(stopOf(finiteTimer.id), 'a finite row needs no stop — trigger-times bounds it').toBeUndefined()
+  }, 60_000)
+
+  it('never scales an endless row by the arena monsterMultiplier', () => {
+    // -1 is a sentinel, not a quantity. scaledMax is what enforces that, and
+    // reusing it is what keeps this rig and the boss one from drifting.
+    const params = withSurvival(0, { waves: [{ monster: 'bat1', count: -1, atSeconds: 0, intervalMs: 1000 }] })
+    params.boss.fights[0].arena.monsterMultiplier = 3
+    const xml = arenaXml(generateOk(params, SEED), 0)
+
+    const spawns = nodesOfType(xml, 'SpawnObject')
+    expect(spawns).toHaveLength(9)
+    expect(spawns.every((s) => intParam(s.body, 'trigger-times') === -1)).toBe(true)
+  }, 60_000)
+
   it('gives each buff window its own field and an on/off pair', () => {
     const params = withSurvival(0, {
       buffs: [{ buff: 'bloodlust', target: 'monsters', startSeconds: 10, endSeconds: 40 }]
@@ -402,15 +459,23 @@ describe('survival — validation', () => {
     expect(
       fields(check({ waves: [{ monster: 'not_a_monster', count: 1, atSeconds: 0, intervalMs: 1000 }] }).errors)
     ).toContain('boss.fights.0.survival.waves.0.monster')
-    // -1 is the boss rig's endless sentinel and has no meaning against a round
-    // that ends at a known second.
+    // 0 and -2 are nonsense; -1 is the endless sentinel and is legal (below).
     expect(
-      fields(check({ waves: [{ monster: 'bat1', count: -1, atSeconds: 0, intervalMs: 1000 }] }).errors)
+      fields(check({ waves: [{ monster: 'bat1', count: 0, atSeconds: 0, intervalMs: 1000 }] }).errors)
+    ).toContain('boss.fights.0.survival.waves.0.count')
+    expect(
+      fields(check({ waves: [{ monster: 'bat1', count: -2, atSeconds: 0, intervalMs: 1000 }] }).errors)
     ).toContain('boss.fights.0.survival.waves.0.count')
     // A row scheduled after the door has opened never fires.
     expect(
       fields(check({ waves: [{ monster: 'bat1', count: 5, atSeconds: 90, intervalMs: 1000 }] }).errors)
     ).toContain('boss.fights.0.survival.waves.0.atSeconds')
+  })
+
+  it('accepts -1 as the endless count', () => {
+    const result = check({ waves: [{ monster: 'bat1', count: -1, atSeconds: 0, intervalMs: 1000 }] })
+    expect(fields(result.errors), JSON.stringify(result.errors)).not.toContain('boss.fights.0.survival.waves.0.count')
+    expect(result.valid).toBe(true)
   })
 
   it('rejects a window that ends at or before it starts', () => {

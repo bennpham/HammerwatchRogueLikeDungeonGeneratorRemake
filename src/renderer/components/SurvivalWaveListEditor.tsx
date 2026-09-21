@@ -119,11 +119,11 @@ export function SurvivalWaveListEditor({ value, onChange, issuePrefix, issues }:
                 <span className="field-label">Count</span>
                 <input
                   type="number"
-                  min={1}
+                  min={-1}
                   step={1}
                   value={row.count}
                   onChange={(e) => patch(index, { count: e.target.value === '' ? 1 : parseInt(e.target.value, 10) })}
-                  title="How many of this monster spawn in total from this row"
+                  title="How many of this monster spawn in total from this row. -1 means endless — every anchor keeps spawning it until the round's timer runs out, then stops."
                 />
                 {fieldIssues('count').map((issue, i) => (
                   <span key={i} className="field-message">

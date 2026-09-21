@@ -1276,13 +1276,13 @@ function validateSurvival(
     if (!isKnownMonsterKey(row.monster)) {
       errors.push({ field: sf(`waves.${i}.monster`), message: `Unknown monster "${row.monster}".` })
     }
-    if (!Number.isInteger(row.count) || row.count < 1) {
+    if (!Number.isInteger(row.count) || (row.count < 1 && row.count !== -1)) {
       errors.push({
         field: sf(`waves.${i}.count`),
-        // -1 means endless in a boss tier; it has no meaning against a round
-        // that ends at a known second, so it is rejected here rather than
-        // silently spawning forever.
-        message: 'Count must be a whole number of at least 1 — a survival round has no endless (-1) spawns.'
+        // -1 is the same endless sentinel a boss tier's monsterMax uses. In a
+        // survival round it means "keep coming until the clock runs out" — the
+        // rig stops the row's timer on the tick that opens the alcove.
+        message: 'Count must be a whole number ≥ 1, or -1 for endless.'
       })
     }
     if (!timeOk(row.atSeconds)) {

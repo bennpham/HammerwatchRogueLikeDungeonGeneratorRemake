@@ -95,7 +95,16 @@ export function buildSurvivalRig(ctx: GenerationContext, survival: SurvivalOptio
   // can leave any of the four lists out, and an absent list has to mean an
   // empty one rather than a crash (invariant 5). config/validation.ts reads
   // them the same way, so neither end can disagree about that.
-  buildSurvivalWaveRig(ctx, survivalWaves(survival), arena.monsterMultiplier, arena.anchors, clock, markerX, markerY)
+  buildSurvivalWaveRig(
+    ctx,
+    survivalWaves(survival),
+    arena.monsterMultiplier,
+    arena.anchors,
+    clock,
+    survival.seconds,
+    markerX,
+    markerY
+  )
 
   buildSurvivalBuffRig(ctx, survivalBuffs(survival), arena.width, arena.height, clock, markerX, markerY)
 

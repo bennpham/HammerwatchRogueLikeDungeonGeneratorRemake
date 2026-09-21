@@ -1022,8 +1022,13 @@ reason — blocking generation over a field nothing reads would be wrong.
 - **No scattered spawns.** A wave row always spawns from the nine anchors, so
   `arena.ts` hands `placeSpawnPoints` an empty request list in survival mode and
   the arena makes **no draw** there.
-- **No endless count.** `-1` is meaningful only against an unbounded fight; a
-  round ends at a known second, so validation rejects it.
+- **Endless rows stop at the end.** `count: -1` is the same sentinel a boss
+  tier's `monsterMax` uses — every anchor gets an unbounded `SpawnObject`, and
+  `scaledMax` keeps `monsterMultiplier` from scaling it. But a boss fight is
+  unbounded and a survival round is not, so an endless row also gets a
+  `ToggleElement{state: 1}` on the clock tick that opens the alcove. Without it
+  a lingering party is fed ~18 actors/second forever. Finite rows need no stop:
+  they self-limit through `trigger-times`.
 
 **RNG.** A survival arena draws a DIFFERENT NUMBER of `ctx.bossRand` values than
 a boss one — no boss pick, no scatter points — so flipping a fight's mode moves
