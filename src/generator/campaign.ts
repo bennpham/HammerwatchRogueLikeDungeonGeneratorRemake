@@ -211,20 +211,74 @@ export function slotEntryId(slot: CampaignSlot): string {
 }
 
 /**
- * What the preview tabs and the reorder UI call a slot: `3` for the third
- * dungeon floor, `B2` for the second boss fight, `L2` for the second lobby.
- * All 1-based, because they are shown to a person.
+ * Which kind of arena a `boss` slot is (issue #61) — a boss fight, or a
+ * survival round cleared by outlasting a clock.
+ *
+ * It lives here, next to the labels, rather than in config/parameters.ts with
+ * the rest of the parameter types, because parameters.ts imports THIS file and
+ * not the other way round. `parameters.ts` re-exports it, which is where the
+ * rest of the app reads it from.
  */
-export function slotLabel(slot: CampaignSlot): string {
+export type ArenaMode = 'boss' | 'survival'
+
+/** The two arena modes, in the order the Arena tab's sub-tabs list them. */
+export const ARENA_MODES = ['boss', 'survival'] as const
+
+/**
+ * What the preview tabs, the reorder UI and `levelOrder=` call a slot: `3` for
+ * the third dungeon floor, `L2` for the second lobby, and for an arena
+ * `AB2`/`AS2` — the PREFIX is its mode, the NUMBER is its position in the
+ * `fights` array. All 1-based, because they are shown to a person.
+ *
+ * Numbering the arenas by array index rather than per mode is deliberate. The
+ * two modes share one ordered `fights` array, and `normalizeOrder` repairs an
+ * order by dealing each kind's indices back into the positions that kind
+ * already occupies. Per-mode counters ("the second survival arena") would need
+ * a second numbering space that is not the array index, so flipping one
+ * arena's mode would silently renumber every later chip and a token would no
+ * longer map to a slot. With the prefix carrying the mode and the number
+ * carrying the position, one boss and one survival arena read `AB1`, `AS2`,
+ * and flipping either changes one letter and nothing else.
+ *
+ * `mode` is optional, and omitting it yields the historical `B2`. That is what
+ * `parameters.txt` files written before survival mode existed carry, and
+ * `parseSlotLabel` still reads.
+ */
+export function slotLabel(slot: CampaignSlot, mode?: ArenaMode): string {
   if (slot.kind === 'floor') return String(slot.index + 1)
-  if (slot.kind === 'boss') return `B${slot.index + 1}`
+  if (slot.kind === 'boss') {
+    const prefix = mode === undefined ? 'B' : mode === 'survival' ? 'AS' : 'AB'
+    return `${prefix}${slot.index + 1}`
+  }
   return `L${slot.index + 1}`
 }
 
-/** Parse one `parameters.txt` order token — `3`, `B2` or `L2`, all 1-based. Null when malformed. */
+/**
+ * A `slotLabel` bound to one campaign's arena modes — what every call site that
+ * has the fight list actually wants, instead of repeating the index lookup.
+ *
+ * An index past the end of `modes` falls back to the bare `B` spelling rather
+ * than guessing, which is the right answer for a stale order: the slot does not
+ * exist, and `normalizeOrder` is about to drop it.
+ */
+export function slotLabeller(modes: readonly ArenaMode[]): (slot: CampaignSlot) => string {
+  return (slot) => slotLabel(slot, slot.kind === 'boss' ? modes[slot.index] : undefined)
+}
+
+/**
+ * Parse one `parameters.txt` order token — `3`, `L2`, and for an arena any of
+ * `B2`, `AB2` or `AS2`. All 1-based. Null when malformed.
+ *
+ * All three arena spellings resolve to the same `{kind: 'boss', index}`: the
+ * `AB`/`AS` distinction in a token is INFORMATIONAL, so a file stays readable
+ * at a glance, and `boss<i>Mode` is the single source of truth for what an
+ * arena actually is. A hand-edited file whose token disagrees with its mode key
+ * is not an error — the token's prefix is simply ignored, and the next export
+ * rewrites it to match (invariant 5: recover, never throw).
+ */
 export function parseSlotLabel(token: string): CampaignSlot | null {
   const trimmed = token.trim()
-  const boss = /^[Bb](\d+)$/.exec(trimmed)
+  const boss = /^(?:[Aa][BbSs]|[Bb])(\d+)$/.exec(trimmed)
   if (boss !== null) {
     const index = parseInt(boss[1], 10) - 1
     return index >= 0 ? { kind: 'boss', index } : null

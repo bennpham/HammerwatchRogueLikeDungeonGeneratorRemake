@@ -1,5 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { CAMPAIGN_PRESETS, campaignPresetById, defaultParameters, pruneTweaks, validateParameters } from '../generator'
+import {
+  CAMPAIGN_PRESETS,
+  arenaMode,
+  campaignPresetById,
+  defaultParameters,
+  pruneTweaks,
+  validateParameters
+} from '../generator'
 import type { DungeonParameters, PlayerTweaks } from '../generator'
 import type { AppSettings, GenerateResponse } from '../shared/ipc'
 import { ParameterForm } from './components/ParameterForm'
@@ -34,6 +41,19 @@ export function App() {
     () => Object.keys(pruneTweaks(params.playerTweaks ?? {})).length,
     [params.playerTweaks]
   )
+
+  const arenaTabBadge = useMemo(() => {
+    if (!params.boss.enabled) return 'off'
+    const fights = params.boss.fights ?? []
+    if (fights.length === 0) return 'off'
+    const bossCount = fights.filter((f) => arenaMode(f) === 'boss').length
+    const survivalCount = fights.length - bossCount
+    const parts = [
+      bossCount > 0 && `${bossCount} boss`,
+      survivalCount > 0 && `${survivalCount} survival`
+    ].filter((p): p is string => p !== false)
+    return parts.join(' · ')
+  }, [params.boss])
 
   const showToast = (kind: Toast['kind'], text: string) => {
     setToast({ kind, text })
@@ -207,7 +227,7 @@ export function App() {
               : leftTab === 'lobby'
                 ? 'Reset lobbies'
                 : leftTab === 'boss'
-                  ? 'Reset boss tab'
+                  ? 'Reset arena tab'
                   : leftTab === 'order'
                     ? 'Reset floor order'
                     : 'Reset defaults'}
@@ -235,14 +255,8 @@ export function App() {
               className={leftTab === 'boss' ? 'tab active' : 'tab'}
               onClick={() => setLeftTab('boss')}
             >
-              Boss
-              <span className="tab-count">
-                {!params.boss.enabled
-                  ? 'off'
-                  : (params.boss.fights?.length ?? 0) > 1
-                    ? `${params.boss.fights.length} fights`
-                    : 'on'}
-              </span>
+              Arena
+              <span className="tab-count">{arenaTabBadge}</span>
             </button>
             <button
               className={leftTab === 'order' ? 'tab active' : 'tab'}

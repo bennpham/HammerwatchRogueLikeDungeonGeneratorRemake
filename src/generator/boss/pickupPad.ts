@@ -64,6 +64,29 @@ import type { PickupLane } from '../objects/pickupTypes'
  * A lane that somehow exhausts both columns wraps to its first slot and
  * stacks, which is legal: two items on one tile are both pickable.
  */
+/**
+ * The arena facts a drop rig needs to place an item. Read-only, all of it.
+ *
+ * Lives here rather than next to either rig because both the boss arena's
+ * per-tier drops (`boss/wavePickups.ts`) and the survival arena's timed drops
+ * (`survival/pickups.ts`) place onto the same pad and must not drift on what
+ * they need to do it.
+ */
+export interface PickupArena {
+  width: number
+  height: number
+  /** The entrance mouth's centre column — `entranceRect` in arena.ts. */
+  entranceCx: number
+  /** The entrance mouth's northernmost row. */
+  entranceTop: number
+  /**
+   * Post-prune walkable floor, indexed `x + y * width`, from cover.ts's
+   * `reachableMask`. A pad slot outside it has a pillar on it. Optional so a
+   * test can build a rig without a map; every slot counts as free then.
+   */
+  walkable?: Uint8Array
+}
+
 export const PAD_ROWS = 10
 
 /** How far north of the entrance mouth the pad's bottom row sits. */

@@ -48,7 +48,17 @@ export interface CoverArena {
   height: number
   /** resolves the pillar doodad's real per-theme footprint */
   theme: string
-  boss: CoverBoss
+  /**
+   * The boss standing in the arena, for overlap and connectivity purposes.
+   *
+   * ABSENT in a survival arena, which has no boss actor at all (see
+   * `src/generator/survival/`). Every use below treats an absent boss as "no
+   * footprint to route around": nothing is blocked out for it, and the prune
+   * requires only the anchors and the alcove to stay reachable. It is optional
+   * rather than a zero-footprint stand-in because a zero rect still reserves a
+   * tile, and a survival arena's centre is ordinary floor.
+   */
+  boss?: CoverBoss
   /** the 9 spawn anchors, already computed by anchors.ts */
   anchors: Anchor[]
   /** the south-wall entrance mouth */
@@ -81,11 +91,8 @@ export function isFree(candidate: Rect, arena: CoverArena, placed: readonly Rect
     return false
   }
 
-  const bossRect = footprintRect(arena.boss.x, arena.boss.y, {
-    width: arena.boss.footprintWidth,
-    height: arena.boss.footprintHeight
-  })
-  if (overlaps(candidate, bossRect)) return false
+  const bossRect = bossFootprint(arena)
+  if (bossRect !== null && overlaps(candidate, bossRect)) return false
   if (overlaps(candidate, arena.entrance)) return false
   if (overlaps(candidate, arena.alcove)) return false
 
@@ -340,11 +347,8 @@ function rectCoversTile(rect: Rect, width: number, height: number, x: number, y:
 function buildBlockedMask(arena: CoverArena, rects: readonly Rect[]): Uint8Array {
   const { width, height } = arena
   const blocked = new Uint8Array(width * height)
-  const bossRect = footprintRect(arena.boss.x, arena.boss.y, {
-    width: arena.boss.footprintWidth,
-    height: arena.boss.footprintHeight
-  })
-  rasterizeRect(bossRect, width, height, blocked)
+  const bossRect = bossFootprint(arena)
+  if (bossRect !== null) rasterizeRect(bossRect, width, height, blocked)
   for (const r of rects) rasterizeRect(r, width, height, blocked)
   return blocked
 }
@@ -442,21 +446,49 @@ function nearestInteriorTile(rect: Rect, arena: CoverArena): { x: number; y: num
  */
 function reachabilityTargets(arena: CoverArena): Array<{ x: number; y: number }> {
   const { width, height, boss } = arena
-  const bossRect = footprintRect(boss.x, boss.y, { width: boss.footprintWidth, height: boss.footprintHeight })
-  const b = rectTileBounds(bossRect, width, height)
-  const bossX = Math.round(boss.x)
-  const bossY = Math.round(boss.y)
+  const bossRect = bossFootprint(arena)
+
+  // A survival arena has no boss, so the four tiles around its footprint are
+  // not targets and nothing is filtered out for covering it — the anchors and
+  // the alcove are the whole list.
+  const bossTargets: Array<{ x: number; y: number }> = []
+  if (boss !== undefined && bossRect !== null) {
+    const b = rectTileBounds(bossRect, width, height)
+    const bossX = Math.round(boss.x)
+    const bossY = Math.round(boss.y)
+    bossTargets.push(
+      { x: bossX, y: b.y0 - 1 },
+      { x: bossX, y: b.y1 + 1 },
+      { x: b.x0 - 1, y: bossY },
+      { x: b.x1 + 1, y: bossY }
+    )
+  }
 
   const targets: Array<{ x: number; y: number }> = [
-    { x: bossX, y: b.y0 - 1 },
-    { x: bossX, y: b.y1 + 1 },
-    { x: b.x0 - 1, y: bossY },
-    { x: b.x1 + 1, y: bossY },
+    ...bossTargets,
     ...arena.anchors.map((a) => ({ x: Math.round(a.x), y: Math.round(a.y) })),
     nearestInteriorTile(arena.alcove, arena)
   ]
 
-  return targets.filter((t) => t.x >= 0 && t.y >= 0 && t.x < width && t.y < height && !rectCoversTile(bossRect, width, height, t.x, t.y))
+  return targets.filter(
+    (t) =>
+      t.x >= 0 &&
+      t.y >= 0 &&
+      t.x < width &&
+      t.y < height &&
+      (bossRect === null || !rectCoversTile(bossRect, width, height, t.x, t.y))
+  )
+}
+
+/**
+ * The boss's footprint rect, or null in a survival arena. One helper rather
+ * than three copies of the same spread, so the absent case cannot be handled
+ * three different ways.
+ */
+function bossFootprint(arena: CoverArena): Rect | null {
+  const { boss } = arena
+  if (boss === undefined) return null
+  return footprintRect(boss.x, boss.y, { width: boss.footprintWidth, height: boss.footprintHeight })
 }
 
 /**

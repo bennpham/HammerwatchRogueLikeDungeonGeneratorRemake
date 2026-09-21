@@ -9,8 +9,13 @@ interface FloorTimerEditorProps {
   onChange: (params: DungeonParameters) => void
 }
 
-/** `M:SS`, matching what the countdown announces in game. */
-function formatSeconds(total: number): string {
+/**
+ * `M:SS`, matching what the countdown announces in game.
+ *
+ * Exported because SurvivalTab needs the exact same rendering for its own
+ * seconds field — a survival round's clock is the same "M:SS" shape.
+ */
+export function formatSeconds(total: number): string {
   if (!Number.isFinite(total) || total < 0) return '—'
   return `${Math.trunc(total / 60)}:${String(Math.trunc(total) % 60).padStart(2, '0')}`
 }

@@ -19,7 +19,13 @@ import {
   waveBuffs,
   wavePickups,
   waveTraps,
-  BOSS_TRAP_DIRECTIONS
+  BOSS_TRAP_DIRECTIONS,
+  arenaMode,
+  ARENA_MODES,
+  DEFAULT_SURVIVAL_INTERVAL_MS,
+  SURVIVAL_COUNTDOWN_STYLES,
+  SURVIVAL_SECONDS_MAX,
+  defaultSurvivalOptions
 } from './parameters'
 import { UPGRADE_KINDS, noUpgrades } from '../levelTemplate/surgery'
 import type { UpgradeCounts } from '../levelTemplate/surgery'
@@ -34,15 +40,22 @@ import type {
   LobbyOptions,
   WavePickup,
   BossTrap,
-  BossTrapDirection
+  BossTrapDirection,
+  ArenaMode,
+  SurvivalBuff,
+  SurvivalCountdown,
+  SurvivalOptions,
+  SurvivalPickup,
+  SurvivalTrap,
+  SurvivalWave
 } from './parameters'
-import { MONSTER_FAMILIES, MONSTER_TYPES } from '../objects/monsterTypes'
+import { MONSTER_FAMILIES, MONSTER_TYPES, isKnownMonsterKey } from '../objects/monsterTypes'
 import { buffById } from '../objects/buffTypes'
 import { pickupById } from '../objects/pickupTypes'
 import { projectileById } from '../objects/projectileTypes'
 import { isLobbyCategory } from '../lobby/shops'
 import { DEFAULT_LOBBY_PRESET_ID, LOBBY_PRESETS } from '../lobby/presets'
-import { campaignOrder, isDefaultOrder, normalizeOrder, parseSlotLabel, slotLabel } from '../campaign'
+import { campaignOrder, isDefaultOrder, normalizeOrder, parseSlotLabel, slotLabeller } from '../campaign'
 import type { CampaignSlot } from '../campaign'
 import { TWEAK_FIELD_MAP, pruneTweaks } from '../tweak/overrides'
 import { MUSIC_DEFAULT, isKnownMusicId } from '../music/tracks'
@@ -232,6 +245,51 @@ function parseTrapRows(key: string, value: string, unknownKeys: string[]): BossT
   return rows
 }
 
+/**
+ * `<projectile>:<dir>:<spread>:<rate>:<count>:<start>:<end>|…` — a survival
+ * arena's trap windows.
+ *
+ * The first five fields are `parseTrapRows`' own, deliberately in the same
+ * order and with the same defaults, so a boss tier's row and a survival window
+ * read identically up to the two timestamps appended on the tail. That tail
+ * placement is the house rule for growing a value: a field added at the end
+ * leaves every shorter line valid.
+ *
+ * A window with no timestamps runs the whole round — the friendliest reading
+ * of a hand-written line, and never fatal (invariant #5). `end` is left at
+ * `Number.POSITIVE_INFINITY`'s stand-in, SURVIVAL_SECONDS_MAX, rather than 0,
+ * because a window ending at 0 would never fire at all.
+ */
+function parseSurvivalTrapRows(key: string, value: string, unknownKeys: string[]): SurvivalTrap[] {
+  const rows: SurvivalTrap[] = []
+
+  for (const segment of value.split('|')) {
+    const trimmed = segment.trim()
+    if (trimmed === '') continue
+    const parts = trimmed.split(':').map((p) => p.trim())
+
+    // Re-parse the first five fields through the shared row parser, so the two
+    // key families cannot drift on defaults or on which field is which.
+    const base = parseTrapRows(key, parts.slice(0, 5).join(':'), unknownKeys)
+    if (base.length === 0) continue
+
+    const startSeconds = parts[5] === undefined || parts[5] === '' ? 0 : parseInt(parts[5], 10)
+    if (Number.isNaN(startSeconds)) {
+      unknownKeys.push(`${key} start "${parts[5]}"`)
+      continue
+    }
+    const endSeconds = parts[6] === undefined || parts[6] === '' ? SURVIVAL_SECONDS_MAX : parseInt(parts[6], 10)
+    if (Number.isNaN(endSeconds)) {
+      unknownKeys.push(`${key} end "${parts[6]}"`)
+      continue
+    }
+
+    rows.push({ ...base[0], startSeconds, endSeconds })
+  }
+
+  return rows
+}
+
 function parseBossFightKey(
   suffix: string,
   key: string,
@@ -241,6 +299,178 @@ function parseBossFightKey(
   unknownKeys: string[]
 ): boolean {
   const arena = fight.arena
+
+  // --- Arena mode and the survival keys (issue #61) ---
+  //
+  // All six are on their OWN suffixes rather than extra fields on an existing
+  // key, for the byte-compatibility reason stated throughout this file: a
+  // boss-mode fight writes not one of them, so every parameters.txt written
+  // before survival mode existed round-trips unchanged.
+  //
+  // None of these patterns can collide with the `waveN`/`waveBuffN`/
+  // `waveTrapN`/`wavePickupN` family below — those are anchored on `wave`, and
+  // `survivalwaves` is not `wave<digits>` — but they are tested first anyway,
+  // which is the habit that keeps the next one safe.
+
+  /** The fight's survival options, created on first mention. */
+  const survivalOf = (): SurvivalOptions => {
+    if (fight.survival === undefined) fight.survival = defaultSurvivalOptions()
+    return fight.survival
+  }
+
+  if (suffix === 'mode') {
+    const text = value.trim().toLowerCase()
+    if (!(ARENA_MODES as readonly string[]).includes(text)) {
+      unknownKeys.push(`${key} value "${value.trim()}"`)
+      return true
+    }
+    fight.mode = text as ArenaMode
+    // A survival fight always has options, even if the file describes none.
+    if (fight.mode === 'survival') survivalOf()
+    return true
+  }
+
+  // survival=<seconds>,<countdown> — the round length and how it is announced.
+  // Per-field NaN guard, like bossCover and bossSpawn: a malformed field is
+  // reported and only that field keeps its default.
+  if (suffix === 'survival') {
+    const survival = survivalOf()
+    const parts = value.split(',').map((p) => p.trim())
+
+    if (parts[0] !== undefined && parts[0] !== '') {
+      const seconds = parseInt(parts[0], 10)
+      if (Number.isNaN(seconds)) unknownKeys.push(`${key} seconds "${parts[0]}"`)
+      else survival.seconds = seconds
+    }
+    if (parts[1] !== undefined && parts[1] !== '') {
+      const style = parts[1].toLowerCase()
+      if (!(SURVIVAL_COUNTDOWN_STYLES as readonly string[]).includes(style)) {
+        unknownKeys.push(`${key} countdown "${parts[1]}"`)
+      } else {
+        survival.countdown = style as SurvivalCountdown
+      }
+    }
+    return true
+  }
+
+  // survivalWaves=<monster>:<count>:<atSeconds>:<intervalMs>|…
+  if (suffix === 'survivalwaves') {
+    const survival = survivalOf()
+    const rows: SurvivalWave[] = []
+
+    for (const segment of value.split('|')) {
+      const trimmed = segment.trim()
+      if (trimmed === '') continue
+      const parts = trimmed.split(':').map((p) => p.trim())
+      const monster = parts[0] ?? ''
+
+      if (!isKnownMonsterKey(monster)) {
+        unknownKeys.push(`${key} monster "${monster}"`)
+        continue
+      }
+      const count = parts[1] === undefined || parts[1] === '' ? 1 : parseInt(parts[1], 10)
+      if (Number.isNaN(count)) {
+        unknownKeys.push(`${key} count "${parts[1]}"`)
+        continue
+      }
+      // A row with no timestamp starts at the beginning — the friendliest
+      // reading of a hand-written line.
+      const atSeconds = parts[2] === undefined || parts[2] === '' ? 0 : parseInt(parts[2], 10)
+      if (Number.isNaN(atSeconds)) {
+        unknownKeys.push(`${key} at "${parts[2]}"`)
+        continue
+      }
+      const intervalMs =
+        parts[3] === undefined || parts[3] === '' ? DEFAULT_SURVIVAL_INTERVAL_MS : parseInt(parts[3], 10)
+      if (Number.isNaN(intervalMs)) {
+        unknownKeys.push(`${key} interval "${parts[3]}"`)
+        continue
+      }
+
+      rows.push({ monster, count, atSeconds, intervalMs })
+    }
+
+    survival.waves = rows
+    return true
+  }
+
+  // survivalBuffs=<id>:<target>:<startSeconds>:<endSeconds>|…
+  if (suffix === 'survivalbuffs') {
+    const survival = survivalOf()
+    const rows: SurvivalBuff[] = []
+
+    for (const segment of value.split('|')) {
+      const trimmed = segment.trim()
+      if (trimmed === '') continue
+      const parts = trimmed.split(':').map((p) => p.trim())
+      const id = parts[0] ?? ''
+
+      if (buffById(id) === undefined) {
+        unknownKeys.push(`${key} buff "${id}"`)
+        continue
+      }
+      // An omitted target reads as `players`, matching the per-floor buffN key.
+      const targetText = parts[1] === undefined || parts[1] === '' ? 'players' : parts[1].toLowerCase()
+      if (!(BUFF_TARGETS as readonly string[]).includes(targetText)) {
+        unknownKeys.push(`${key} target "${parts[1]}"`)
+        continue
+      }
+      const startSeconds = parts[2] === undefined || parts[2] === '' ? 0 : parseInt(parts[2], 10)
+      if (Number.isNaN(startSeconds)) {
+        unknownKeys.push(`${key} start "${parts[2]}"`)
+        continue
+      }
+      const endSeconds = parts[3] === undefined || parts[3] === '' ? SURVIVAL_SECONDS_MAX : parseInt(parts[3], 10)
+      if (Number.isNaN(endSeconds)) {
+        unknownKeys.push(`${key} end "${parts[3]}"`)
+        continue
+      }
+
+      rows.push({ buff: id, target: targetText as BuffTarget, startSeconds, endSeconds })
+    }
+
+    survival.buffs = rows
+    return true
+  }
+
+  // survivalPickups=<item>:<count>:<atSeconds>|…
+  if (suffix === 'survivalpickups') {
+    const survival = survivalOf()
+    const rows: SurvivalPickup[] = []
+
+    for (const segment of value.split('|')) {
+      const trimmed = segment.trim()
+      if (trimmed === '') continue
+      const parts = trimmed.split(':').map((p) => p.trim())
+      const id = parts[0] ?? ''
+
+      if (pickupById(id) === undefined) {
+        unknownKeys.push(`${key} item "${id}"`)
+        continue
+      }
+      const count = parts[1] === undefined || parts[1] === '' ? 1 : parseInt(parts[1], 10)
+      if (Number.isNaN(count)) {
+        unknownKeys.push(`${key} count "${parts[1]}"`)
+        continue
+      }
+      const atSeconds = parts[2] === undefined || parts[2] === '' ? 0 : parseInt(parts[2], 10)
+      if (Number.isNaN(atSeconds)) {
+        unknownKeys.push(`${key} at "${parts[2]}"`)
+        continue
+      }
+
+      rows.push({ item: id, count, atSeconds })
+    }
+
+    survival.pickups = rows
+    return true
+  }
+
+  // survivalTraps=<projectile>:<dir>:<spread>:<rate>:<count>:<start>:<end>|…
+  if (suffix === 'survivaltraps') {
+    survivalOf().traps = parseSurvivalTrapRows(key, value, unknownKeys)
+    return true
+  }
 
   if (suffix === 'invuln') {
     // `off` (or a bare 0) turns the feature off and leaves the window lengths
@@ -1232,13 +1462,48 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
   // before floors could be reordered.
   const order = campaignOrder({ levels: params.levels, fights: fights.length, lobbies: lobbies.length }, params.levelOrder)
   if (!isDefaultOrder(order, { levels: params.levels, fights: fights.length, lobbies: lobbies.length })) {
-    lines.push(`levelOrder=${order.map(slotLabel).join(',')}`)
+    const label = slotLabeller(fights.map(arenaMode))
+    lines.push(`levelOrder=${order.map(label).join(',')}`)
   }
 
   lines.push(`boss=${params.boss.enabled ? 1 : 0}`)
   lines.push(`bossFights=${fights.length}`)
   fights.forEach((fight, f) => {
     const arena = fight.arena
+
+    // Arena mode, and the survival block when it is one (issue #61).
+    //
+    // A boss-mode fight writes NOT ONE of these keys — not even `boss<i>Mode`,
+    // whose absence already means boss — so every stock export, and every file
+    // written before survival mode existed, round-trips byte for byte.
+    //
+    // A survival fight writes all six unconditionally, empty lists included, so
+    // that clearing a list in the form and exporting really does clear it on
+    // re-import rather than falling back to whatever the base object held.
+    if (arenaMode(fight) === 'survival') {
+      const survival = fight.survival ?? defaultSurvivalOptions()
+      lines.push(`boss${f}Mode=survival`)
+      lines.push(`boss${f}Survival=${survival.seconds},${survival.countdown}`)
+      lines.push(
+        `boss${f}SurvivalWaves=${survival.waves
+          .map((w) => `${w.monster}:${w.count}:${w.atSeconds}:${w.intervalMs}`)
+          .join('|')}`
+      )
+      lines.push(
+        `boss${f}SurvivalBuffs=${survival.buffs
+          .map((b) => `${b.buff}:${b.target}:${b.startSeconds}:${b.endSeconds}`)
+          .join('|')}`
+      )
+      lines.push(
+        `boss${f}SurvivalPickups=${survival.pickups.map((d) => `${d.item}:${d.count}:${d.atSeconds}`).join('|')}`
+      )
+      lines.push(
+        `boss${f}SurvivalTraps=${survival.traps
+          .map((t) => `${t.projectile}:${t.direction}:${t.spread}:${t.spawnRateMs}:${t.count}:${t.startSeconds}:${t.endSeconds}`)
+          .join('|')}`
+      )
+    }
+
     lines.push(`boss${f}Theme=${arena.theme}`)
     // Only when set and not the default sentinel, so a fight that never chose
     // a track round-trips byte-identical to before this option existed.

@@ -1,17 +1,17 @@
 import { GenerationContext } from './core/context'
 import { Level } from './map/level'
-import { DungeonParameters, defaultParameters, bossFights } from './config/parameters'
+import { DungeonParameters, defaultParameters, bossFights, arenaMode, defaultSurvivalOptions } from './config/parameters'
 import { validateParameters, ValidationResult } from './config/validation'
 import { emitTweakFiles } from './tweak/overrides'
 import { DEFAULT_LOBBY_PRESET_ID, buildLobby, lobbyPresetById } from './lobby'
 import { buildBossArena } from './boss'
-import { bossArenaId, bossArenaPath, campaignOrder, gatewayAfter, lobbyId, lobbyPath, slotEntryId, slotLabel } from './campaign'
+import { bossArenaId, bossArenaPath, campaignOrder, gatewayAfter, lobbyId, lobbyPath, slotEntryId, slotLabeller } from './campaign'
 import { buildFloorHazardRig } from './timer/hazard'
 import { buildFloorBuffRig } from './buffs/field'
 import { buildMusicRig } from './music/rig'
 import { buildFloorTrapRig } from './traps/floor'
 
-export type { DungeonParameters, LobbyOptions, BossOptions, BossFight, BossArenaOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FloorBuff, FloorTrap, TrapDirection, BuffTarget, WavePickup, BossTrap, BossTrapDirection, BossCheckpointPreset } from './config/parameters'
+export type { DungeonParameters, LobbyOptions, BossOptions, BossFight, BossArenaOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FloorBuff, FloorTrap, TrapDirection, BuffTarget, WavePickup, BossTrap, BossTrapDirection, BossCheckpointPreset, ArenaMode, SurvivalOptions, SurvivalWave, SurvivalBuff, SurvivalPickup, SurvivalTrap, SurvivalCountdown } from './config/parameters'
 export {
   THEMES,
   BOSS_IDS,
@@ -51,7 +51,20 @@ export {
   BOSS_TRAP_DIRECTIONS,
   MAX_TRAP_COUNT,
   TRAP_SPREAD_MAX,
-  waveSpawnMode
+  waveSpawnMode,
+  ARENA_MODES,
+  SURVIVAL_COUNTDOWN_STYLES,
+  SURVIVAL_SECONDS_MAX,
+  SURVIVAL_COUNTDOWN_NODE_WARN,
+  DEFAULT_SURVIVAL_SECONDS,
+  DEFAULT_SURVIVAL_INTERVAL_MS,
+  arenaMode,
+  arenaModes,
+  defaultSurvivalOptions,
+  survivalWaves,
+  survivalBuffs,
+  survivalPickups,
+  survivalTraps
 } from './config/parameters'
 export { BUFF_DEFS, BUFF_GROUPS, BUFF_HELPFUL_IDS, buffById } from './objects/buffTypes'
 export type { BuffDef } from './objects/buffTypes'
@@ -78,6 +91,7 @@ export {
   lobbyPath,
   normalizeOrder,
   parseSlotLabel,
+  slotLabeller,
   slotEntryId,
   slotLabel
 } from './campaign'
@@ -418,7 +432,12 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
     const position = bossPosition.get(i)
     const gateway = position === undefined ? { kind: 'orb' as const } : gatewayAfter(order, position)
 
-    const { xml, preview } = buildBossArena(ctx, fight.arena, params.levels + i, gateway)
+    // A survival fight hands its options through; a boss fight passes nothing,
+    // which is what selects the mode inside. `defaultSurvivalOptions()` covers
+    // a fight a hand-written file flipped to survival without describing one.
+    const survival = arenaMode(fight) === 'survival' ? (fight.survival ?? defaultSurvivalOptions()) : undefined
+
+    const { xml, preview } = buildBossArena(ctx, fight.arena, params.levels + i, gateway, survival)
     files.push({ path: bossArenaPath(i), content: xml })
     arenaPreviews.set(i, preview)
   })
@@ -469,18 +488,21 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
   // then the fights, which is exactly what was emitted before the order was
   // configurable.
   const previews: LevelPreview[] = []
+  // Arena chips read AB1/AS2 — the prefix is the fight's mode, the number its
+  // position in the fight list. See campaign.ts's slotLabel.
+  const label = slotLabeller(fights.map(arenaMode))
   let floorLabel = 0
   for (const slot of order) {
     if (slot.kind === 'floor') {
       levelString += `<level id="${slot.index}" res="levels/level${slot.index}.xml" name="lvl.floor?floor=${floorLabel}" />\n`
       floorLabel += 1
       const preview = floorPreviews.get(slot.index)
-      if (preview !== undefined) previews.push({ ...preview, label: slotLabel(slot) })
+      if (preview !== undefined) previews.push({ ...preview, label: label(slot) })
     } else if (slot.kind === 'boss') {
       levelString += `<level id="${bossArenaId(slot.index)}" res="${bossArenaPath(slot.index)}" name="lvl.floor?floor=${floorLabel}" />\n`
       floorLabel += 1
       const preview = arenaPreviews.get(slot.index)
-      if (preview !== undefined) previews.push({ ...preview, label: slotLabel(slot) })
+      if (preview !== undefined) previews.push({ ...preview, label: label(slot) })
     } else {
       // A lobby contributes no preview — it has no generated geometry, and
       // LobbyDiagram in the form is its stand-in.

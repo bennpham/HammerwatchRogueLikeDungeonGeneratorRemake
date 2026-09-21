@@ -123,6 +123,20 @@ src/
 │   │   └── traps.ts      per-tier ProjectileSpewers along the walls; these DO
 │   │                     replace one another, and are the only optional boss
 │   │                     rig that draws from ctx.bossRand
+│   ├── survival/        the SURVIVAL arena's rig — everything boss/'s tier
+│   │   │                 rigs do, re-keyed from boss health to elapsed time.
+│   │   │                 Exists because the engine fires the `Boss ...` events
+│   │   │                 only for an actor in the actors/boss_* folders, so an
+│   │   │                 arena with no boss gets none of them
+│   │   ├── clock.ts     the one GlobalEventTrigger("LevelLoaded") everything
+│   │   │                 hangs off, plus the three countdown styles
+│   │   ├── waves.ts     timed spawn rows; anchors only, never scattered
+│   │   ├── buffs.ts     timed aura windows — they do NOT replace one another
+│   │   ├── pickups.ts   timed drops onto the same entrance pad
+│   │   ├── traps.ts     timed spewer windows — the ONLY survival rig that
+│   │   │                 draws, and it draws from ctx.bossRand
+│   │   ├── opener.ts    DestroyObject on the alcove seals, at `seconds`
+│   │   └── index.ts     buildSurvivalRig() — the fixed call order
 │   ├── tweak/            player balance (tweak/*.xml) — NOT level generation
 │   │   ├── types.ts      TweakFile/TweakParam/TweakUpgrade, PlayerTweaks
 │   │   ├── baseline.ts   full stock transcription of the 9 game tweak files
@@ -303,7 +317,7 @@ reference/hammerwatch-tweak-stats.md
 | `levelOrder` | the shipped order (**not** absent): `L1,1,…,7,L2,B1,8` | the campaign's play order, one `CampaignSlot` per lobby, per floor and per boss **fight**. Absent = every lobby, then every floor, then every fight; with `lobbies: []` that is the pre-feature shape and the only value guaranteed byte-identical. All three sequences stay ascending; only the interleaving is free, and a **lobby may never be last** (it carries no victory orb). `levelOrder=L1,1,2,B1,3` in `parameters.txt`, written only when it differs from the default. See *Campaign order* |
 
 `BossOptions` (`config/parameters.ts`) is `{enabled, fights: BossFight[]}`, and a
-`BossFight` is `{arena: BossArenaOptions}` — an arena and nothing else since
+`BossFight` is `{mode?, arena: BossArenaOptions, survival?}` — an arena and nothing else since
 issue #48 took the prep room out of the fight (`BossPrepOptions` is deleted;
 `defaultLobby('BETA-boss-prep')` placed before `B1` in `levelOrder` is what
 replaces it). Defaults from
@@ -973,6 +987,74 @@ stock default — a dungeon master tuning lobby 1 and asking for a second almost
 always wants a variation on it. The diagram plots the selected preset's own
 diamond and upgrade slot tables instead of hardcoding the dungeon room's grid,
 so a new preset draws whatever its tables describe with no UI change.
+
+## Arena mode: Boss or Survival (`survival/`, issue #61)
+
+Every arena slot is one of two kinds, stored as `BossFight.mode` — **absent
+means `'boss'`**, which is the byte-identity contract that keeps every
+pre-feature parameter object and `parameters.txt` unchanged. Read it through
+`arenaMode(fight)`, never off the field.
+
+**Why survival needs its own rig rather than a flag on the boss one.** The
+engine fires `Boss 75% / 50% / 25% / Died` for any actor in the `actors/boss_*`
+folders and for **nothing else** — this repo never sends them. A survival arena
+places no boss actor, so none of those events ever fire, and every rig listening
+for one (wave tiers 1-4, the per-tier buffs, traps and drops, the checkpoints,
+the invulnerability windows, **and the alcove opener**) would emit a trigger
+nothing pulls. `survival/` re-keys the same jobs to elapsed time: one
+`GlobalEventTrigger("LevelLoaded")` with a per-connection millisecond delay per
+event, the `timer/hazard.ts` pattern.
+
+**What the two modes share is the ROOM.** `arena: BossArenaOptions` is read by
+both — size, theme, floor pattern, cover, food, music, multipliers, the entrance
+and the arrival respawn are all identical. The boss-only fields (`bossPool`,
+`waves`, `invulnerability`, `checkpoints`, `spawn`) stay on the object in
+survival mode, simply unread, so **flipping a fight's mode is lossless in both
+directions**. `validation.ts` gates the boss-only rules on the mode for the same
+reason — blocking generation over a field nothing reads would be wrong.
+
+**Three differences from the boss rig that are deliberate, not oversights:**
+
+- **Windows do not replace one another.** A boss tier switches the previous
+  tier's buffs and traps off as it switches its own on, because tiers are phases
+  of one fight. A survival window is a span on a timeline, so two overlapping
+  windows both apply and each owns exactly one on/off pair.
+- **No scattered spawns.** A wave row always spawns from the nine anchors, so
+  `arena.ts` hands `placeSpawnPoints` an empty request list in survival mode and
+  the arena makes **no draw** there.
+- **Endless rows stop at the end.** `count: -1` is the same sentinel a boss
+  tier's `monsterMax` uses — every anchor gets an unbounded `SpawnObject`, and
+  `scaledMax` keeps `monsterMultiplier` from scaling it. But a boss fight is
+  unbounded and a survival round is not, so an endless row also gets a
+  `ToggleElement{state: 1}` on the clock tick that opens the alcove. Without it
+  a lingering party is fed ~18 actors/second forever. Finite rows need no stop:
+  they self-limit through `trigger-times`.
+
+**RNG.** A survival arena draws a DIFFERENT NUMBER of `ctx.bossRand` values than
+a boss one — no boss pick, no scatter points — so flipping a fight's mode moves
+every arena **after** it, exactly as adding or removing a fight does. No dungeon
+floor moves (separate stream) and no earlier arena moves (earlier position); the
+suite asserts both. Survival's own fixed order: width, height, alcove wall
+(all three of N/E/W, since no boss vetoes one), cover, food, floor pattern, one
+`iRand` per placed trap spewer, then `getArenaXML`'s cosmetics.
+
+**Labels.** An arena slot is `AB{n}` or `AS{n}` — the **prefix is the mode**, the
+**number is the index in the `fights` array**. One boss and one survival arena
+read `AB1`, `AS2`. Numbering by array index rather than per mode is what keeps
+`normalizeOrder` untouched and stops a mode flip renumbering other chips.
+`slotLabeller(arenaModes(boss))` is what every call site with the fight list
+uses. `parseSlotLabel` accepts `B1`, `AB1` and `AS1` alike: the prefix in a token
+is **informational**, and `boss<i>Mode` is the single source of truth, so a
+hand-edited mismatch is not an error — the mode key wins and the next export
+rewrites the token.
+
+`parameters.txt` carries `boss<i>Mode`, `boss<i>Survival=<seconds>,<countdown>`,
+and `boss<i>SurvivalWaves` / `SurvivalBuffs` / `SurvivalPickups` /
+`SurvivalTraps`, each a `|`-separated row list on its own key. A **boss-mode
+fight writes not one of them**, `boss<i>Mode` included. Read the four lists
+through `survivalWaves`/`survivalBuffs`/`survivalPickups`/`survivalTraps`, never
+off the object — a hand-edited file can leave any of them out, and both the rig
+and the validator treat absent as empty rather than throwing (invariant 5).
 
 ## Boss finale (`boss/`)
 

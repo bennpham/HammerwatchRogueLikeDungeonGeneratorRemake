@@ -239,7 +239,7 @@ export function buildTrapRig(ctx: GenerationContext, waves: readonly BossWave[],
  * order along that wall — the innermost interior floor row or column, minus the
  * corners, the entrance, the alcove mouth and any tile a pillar stands on.
  */
-function wallSlots(arena: TrapArena, direction: BossTrapDirection): Slot[] {
+export function wallSlots(arena: TrapArena, direction: BossTrapDirection): Slot[] {
   const { width, height, entrance, alcoveWall, midX, midY } = arena
   const slots: Slot[] = []
 

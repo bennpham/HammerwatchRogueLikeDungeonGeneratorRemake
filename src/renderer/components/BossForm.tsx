@@ -14,8 +14,10 @@ import {
   THEME_DEFS,
   buffById,
   pickupById,
+  arenaMode,
   corpseCollision,
   defaultBossFight,
+  defaultSurvivalOptions,
   defaultTier,
   getTheme,
   isDefaultOrder,
@@ -24,12 +26,14 @@ import {
   monsterVariantsInGroup,
   normalizeOrder,
   resolveActorPath,
+  slotLabel,
   waveBuffs,
   wavePickups,
   waveTraps,
   waveSpawnMode
 } from '../../generator'
 import type {
+  ArenaMode,
   ArenaPatternKind,
   BossArenaOptions,
   BossCheckpointPreset,
@@ -42,6 +46,7 @@ import type {
   BossWave,
   CampaignCounts,
   DungeonParameters,
+  SurvivalOptions,
   ValidationIssue
 } from '../../generator'
 import { BoolField, NumberField, Section, Subsection, ToggleGroup } from './fields'
@@ -49,6 +54,7 @@ import { MusicPicker } from './MusicPicker'
 import { BuffListEditor } from './BuffListEditor'
 import { PickupListEditor } from './PickupListEditor'
 import { TrapListEditor } from './TrapListEditor'
+import { SurvivalTab } from './SurvivalTab'
 import { InfoTip } from './InfoTip'
 import { MonsterFilterBar, useMonsterFilter } from './MonsterFilterBar'
 import { PoolGroup } from './PoolGroup'
@@ -114,6 +120,15 @@ export function BossForm({ params, issues, onChange }: BossFormProps) {
     const waves = fight.arena.waves.map((w, i) => (i === index ? { ...w, ...patch } : w))
     setArena({ waves })
   }
+  // Flipping the mode never discards the other half's config — the generator
+  // ignores whichever half is unused rather than deleting it, so a dungeon
+  // master can flip back and forth while tuning without losing work. The
+  // first flip TO survival seeds a fresh config; every flip after that reuses
+  // whatever is already stored on the fight.
+  const setMode = (mode: ArenaMode) =>
+    setFight(active, mode === 'survival' ? { mode, survival: fight.survival ?? defaultSurvivalOptions() } : { mode })
+  const setSurvival = (patch: Partial<SurvivalOptions>) =>
+    setFight(active, { survival: { ...(fight.survival ?? defaultSurvivalOptions()), ...patch } })
 
   // Grow by cloning the LAST fight, not the default one: a dungeon master who
   // has tuned fight 1 and asks for a second almost always wants a variation on
@@ -139,20 +154,20 @@ export function BossForm({ params, issues, onChange }: BossFormProps) {
 
   return (
     <div className="parameter-form boss-form">
-      <Section title="Boss fight" defaultOpen>
+      <Section title="Arena" defaultOpen>
         <p className="hint">
-          Appends a generated arena after the last dungeon floor. Turning it off reproduces today's
-          campaign byte-for-byte — the arena draws from its own RNG stream, so the dungeon itself is
-          identical either way, for the same seed. Put a lobby right in front of it, from the Lobby
-          tab, if the party should shop before the fight.
+          Appends a generated arena after the last dungeon floor — a boss fight or a survival round,
+          picked per arena below. Turning it off reproduces today's campaign byte-for-byte — the arena
+          draws from its own RNG stream, so the dungeon itself is identical either way, for the same
+          seed. Put a lobby right in front of it, from the Lobby tab, if the party should shop first.
         </p>
         <BoolField
-          label="Add a boss fight after the last floor"
+          label="Add an arena after the last floor"
           checked={boss.enabled}
           onChange={(enabled) => set({ enabled })}
         />
         <NumberField
-          label="Number of boss fights"
+          label="Number of arenas"
           field="boss.fights"
           value={fights.length}
           issues={issues}
@@ -161,8 +176,9 @@ export function BossForm({ params, issues, onChange }: BossFormProps) {
           onChange={setFightCount}
         />
         <p className="hint">
-          Each fight is its own arena. Arrange several fights — and any lobbies between them — on the
-          Floor order tab; only the campaign's last slot carries the victory orb.
+          Each arena is independent — its own layout, its own mode. Arrange several arenas — and any
+          lobbies between them — on the Floor order tab; only the campaign's last slot carries the
+          victory orb.
         </p>
       </Section>
 
@@ -170,13 +186,13 @@ export function BossForm({ params, issues, onChange }: BossFormProps) {
         <>
           {fights.length > 1 && (
             <div className="panel-tabs boss-fight-tabs">
-              {fights.map((_, i) => (
+              {fights.map((f, i) => (
                 <button
                   key={i}
                   className={i === active ? 'tab active' : 'tab'}
                   onClick={() => setFightIndex(i)}
                 >
-                  Fight {i + 1}
+                  {slotLabel({ kind: 'boss', index: i }, arenaMode(f))}
                 </button>
               ))}
               <button
@@ -184,20 +200,52 @@ export function BossForm({ params, issues, onChange }: BossFormProps) {
                 className="copy-down"
                 onClick={copyToNext}
                 disabled={active + 1 >= fights.length}
-                title="Replace the next fight's arena with this one's"
+                title="Replace the next arena's whole config with this one's"
               >
-                Copy to next fight
+                Copy to next arena
               </button>
             </div>
           )}
 
-          <ArenaTab
+          <Section title="Mode" defaultOpen>
+            <ToggleGroup
+              label="Arena mode"
+              value={arenaMode(fight)}
+              onChange={setMode}
+              options={[
+                { value: 'boss', label: 'Boss', title: 'Fight one of the boss pool; the horde spawns on health thresholds' },
+                { value: 'survival', label: 'Survival', title: 'No boss — outlast a clock while timed waves, buffs, drops and traps run' }
+              ]}
+            />
+            <p className="hint">
+              Flipping modes never discards the other one's setup — a fight kept in Boss mode still
+              remembers a Survival config you built earlier, and vice versa.
+            </p>
+          </Section>
+
+          <SharedArenaFields
             arena={fight.arena}
             fieldPrefix={`boss.fights.${active}.arena`}
             issues={issues}
             setArena={setArena}
-            setWave={setWave}
           />
+
+          {arenaMode(fight) === 'survival' ? (
+            <SurvivalTab
+              survival={fight.survival ?? defaultSurvivalOptions()}
+              fieldPrefix={`boss.fights.${active}.survival`}
+              issues={issues}
+              onChange={setSurvival}
+            />
+          ) : (
+            <BossOnlyArenaFields
+              arena={fight.arena}
+              fieldPrefix={`boss.fights.${active}.arena`}
+              issues={issues}
+              setArena={setArena}
+              setWave={setWave}
+            />
+          )}
         </>
       )}
     </div>
@@ -213,64 +261,21 @@ function cloneFight(fight: BossFight): BossFight {
   return JSON.parse(JSON.stringify(fight)) as BossFight
 }
 
-interface ArenaTabProps {
+interface SharedArenaFieldsProps {
   arena: BossArenaOptions
   /** validation field root for this fight, e.g. `boss.fights.0.arena` */
   fieldPrefix: string
   issues: ValidationIssue[]
   setArena: (patch: Partial<BossArenaOptions>) => void
-  setWave: (index: number, patch: Partial<BossWave>) => void
 }
 
-function ArenaTab({ arena, fieldPrefix, issues, setArena, setWave }: ArenaTabProps) {
-  // Which scatter modes any wave actually uses, so the knobs that only matter
-  // for `ring` and `gaussian` stay hidden until they mean something — the same
-  // conditional shape the Cover section uses for its own two knobs.
-  const scatterModesInUse = new Set(
-    arena.waves.flatMap((wave) => wave.monsters.map((id) => waveSpawnMode(wave, id)).filter(isScatterMode))
-  )
-
-  /**
-   * Gives every later tier this tier's buffs. Copying the *previous* tier is
-   * the common setup — the buffs replace one another, so a fight that wants one
-   * aura for its whole second half has to repeat it on each tier that would
-   * otherwise clear it.
-   */
-  const copyWaveBuffDown = (index: number) => {
-    const source = waveBuffs(arena.waves[index])
-    setArena({
-      waves: arena.waves.map((wave, i) =>
-        i > index ? { ...wave, buffs: source.map((b) => ({ ...b })) } : wave
-      )
-    })
-  }
-
-  /** Gives every later tier this tier's drops. Twin of copyWaveBuffDown. */
-  const copyWavePickupDown = (index: number) => {
-    const source = wavePickups(arena.waves[index])
-    setArena({
-      waves: arena.waves.map((wave, i) =>
-        i > index ? { ...wave, pickups: source.map((d) => ({ ...d })) } : wave
-      )
-    })
-  }
-
-  const copyWaveTrapDown = (index: number) => {
-    const source = waveTraps(arena.waves[index])
-    setArena({
-      waves: arena.waves.map((wave, i) =>
-        i > index ? { ...wave, traps: source.map((t) => ({ ...t })) } : wave
-      )
-    })
-  }
-
-  const toggleBoss = (id: string, on: boolean) => {
-    const next = new Set(arena.bossPool)
-    if (on) next.add(id)
-    else next.delete(id)
-    setArena({ bossPool: [...next] })
-  }
-
+/**
+ * The sections that mean the same thing whether a boss is standing in the
+ * arena or a clock is running: size, multipliers, theme, music and cover.
+ * Rendered once per arena regardless of `arenaMode` — only the sections below
+ * it branch on mode.
+ */
+function SharedArenaFields({ arena, fieldPrefix, issues, setArena }: SharedArenaFieldsProps) {
   return (
     <>
       <Section title="General" defaultOpen>
@@ -406,6 +411,126 @@ function ArenaTab({ arena, fieldPrefix, issues, setArena, setWave }: ArenaTabPro
         />
       </Section>
 
+      <Section title="Cover">
+        <ToggleGroup
+          label="Pattern"
+          value={arena.cover.pattern}
+          onChange={(pattern) => setArena({ cover: { ...arena.cover, pattern } })}
+          options={BOSS_COVER_PATTERNS.map((p) => ({ value: p, label: p }))}
+        />
+        {issues
+          .filter((i) => i.field === `${fieldPrefix}.cover.pattern`)
+          .map((issue, i) => (
+            <p key={i} className="field-message">
+              {issue.message}
+            </p>
+          ))}
+        <div className="field-grid">
+          <NumberField
+            label="Density"
+            field={`${fieldPrefix}.cover.density`}
+            value={arena.cover.density}
+            onChange={(density) => setArena({ cover: { ...arena.cover, density } })}
+            issues={issues}
+            min={0}
+            max={BOSS_COVER_DENSITY_MAX}
+            step={0.01}
+            title="Fraction of the free arena floor cover pillars try to fill"
+          />
+          {arena.cover.pattern === 'ring' && (
+            <NumberField
+              label="Ring spacing"
+              field={`${fieldPrefix}.cover.ringSpacing`}
+              value={arena.cover.ringSpacing}
+              onChange={(ringSpacing) => setArena({ cover: { ...arena.cover, ringSpacing } })}
+              issues={issues}
+              min={1}
+              title="Gap between pillars around the ring, so it stays walkable rather than a second wall"
+            />
+          )}
+          {arena.cover.pattern === 'gaussian' && (
+            <NumberField
+              label="Clusters"
+              field={`${fieldPrefix}.cover.clusters`}
+              value={arena.cover.clusters}
+              onChange={(clusters) => setArena({ cover: { ...arena.cover, clusters } })}
+              issues={issues}
+              min={1}
+              title="Number of seeded cluster centres pillars scatter around"
+            />
+          )}
+        </div>
+      </Section>
+    </>
+  )
+}
+
+interface BossOnlyArenaFieldsProps {
+  arena: BossArenaOptions
+  /** validation field root for this fight, e.g. `boss.fights.0.arena` */
+  fieldPrefix: string
+  issues: ValidationIssue[]
+  setArena: (patch: Partial<BossArenaOptions>) => void
+  setWave: (index: number, patch: Partial<BossWave>) => void
+}
+
+/**
+ * Everything that only means something when a boss is actually in the
+ * arena — the pool, its invulnerability windows, the five health-tier rigs
+ * and the scatter-spawn tuning. Rendered only in Boss mode; Survival mode
+ * renders `SurvivalTab` instead.
+ */
+function BossOnlyArenaFields({ arena, fieldPrefix, issues, setArena, setWave }: BossOnlyArenaFieldsProps) {
+  // Which scatter modes any wave actually uses, so the knobs that only matter
+  // for `ring` and `gaussian` stay hidden until they mean something — the same
+  // conditional shape the Cover section uses for its own two knobs.
+  const scatterModesInUse = new Set(
+    arena.waves.flatMap((wave) => wave.monsters.map((id) => waveSpawnMode(wave, id)).filter(isScatterMode))
+  )
+
+  /**
+   * Gives every later tier this tier's buffs. Copying the *previous* tier is
+   * the common setup — the buffs replace one another, so a fight that wants one
+   * aura for its whole second half has to repeat it on each tier that would
+   * otherwise clear it.
+   */
+  const copyWaveBuffDown = (index: number) => {
+    const source = waveBuffs(arena.waves[index])
+    setArena({
+      waves: arena.waves.map((wave, i) =>
+        i > index ? { ...wave, buffs: source.map((b) => ({ ...b })) } : wave
+      )
+    })
+  }
+
+  /** Gives every later tier this tier's drops. Twin of copyWaveBuffDown. */
+  const copyWavePickupDown = (index: number) => {
+    const source = wavePickups(arena.waves[index])
+    setArena({
+      waves: arena.waves.map((wave, i) =>
+        i > index ? { ...wave, pickups: source.map((d) => ({ ...d })) } : wave
+      )
+    })
+  }
+
+  const copyWaveTrapDown = (index: number) => {
+    const source = waveTraps(arena.waves[index])
+    setArena({
+      waves: arena.waves.map((wave, i) =>
+        i > index ? { ...wave, traps: source.map((t) => ({ ...t })) } : wave
+      )
+    })
+  }
+
+  const toggleBoss = (id: string, on: boolean) => {
+    const next = new Set(arena.bossPool)
+    if (on) next.add(id)
+    else next.delete(id)
+    setArena({ bossPool: [...next] })
+  }
+
+  return (
+    <>
       <Section title="Boss" badge={`${arena.bossPool.length}/${BOSS_DEF_LIST.length}`}>
         <p className="hint">The seed picks one boss from this pool per campaign.</p>
         <div className="pool-checkboxes">
@@ -614,57 +739,6 @@ function ArenaTab({ arena, fieldPrefix, issues, setArena, setWave }: ArenaTabPro
           checkpoints={arena.checkpoints}
           onChange={(checkpoints) => setArena({ checkpoints })}
         />
-      </Section>
-
-      <Section title="Cover">
-        <ToggleGroup
-          label="Pattern"
-          value={arena.cover.pattern}
-          onChange={(pattern) => setArena({ cover: { ...arena.cover, pattern } })}
-          options={BOSS_COVER_PATTERNS.map((p) => ({ value: p, label: p }))}
-        />
-        {issues
-          .filter((i) => i.field === `${fieldPrefix}.cover.pattern`)
-          .map((issue, i) => (
-            <p key={i} className="field-message">
-              {issue.message}
-            </p>
-          ))}
-        <div className="field-grid">
-          <NumberField
-            label="Density"
-            field={`${fieldPrefix}.cover.density`}
-            value={arena.cover.density}
-            onChange={(density) => setArena({ cover: { ...arena.cover, density } })}
-            issues={issues}
-            min={0}
-            max={BOSS_COVER_DENSITY_MAX}
-            step={0.01}
-            title="Fraction of the free arena floor cover pillars try to fill"
-          />
-          {arena.cover.pattern === 'ring' && (
-            <NumberField
-              label="Ring spacing"
-              field={`${fieldPrefix}.cover.ringSpacing`}
-              value={arena.cover.ringSpacing}
-              onChange={(ringSpacing) => setArena({ cover: { ...arena.cover, ringSpacing } })}
-              issues={issues}
-              min={1}
-              title="Gap between pillars around the ring, so it stays walkable rather than a second wall"
-            />
-          )}
-          {arena.cover.pattern === 'gaussian' && (
-            <NumberField
-              label="Clusters"
-              field={`${fieldPrefix}.cover.clusters`}
-              value={arena.cover.clusters}
-              onChange={(clusters) => setArena({ cover: { ...arena.cover, clusters } })}
-              issues={issues}
-              min={1}
-              title="Number of seeded cluster centres pillars scatter around"
-            />
-          )}
-        </div>
       </Section>
 
       <Section title="Scattered spawns">
