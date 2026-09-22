@@ -17,20 +17,24 @@
  *   - clear of every `ObjectSet`'s footprint AND its wall rect, which are
  *     different rectangles, so the stairs, the shop and the portal are all out.
  *
- * Plus the one thing a rectangle scan needs that a wall scan got for free: the
- * top `overhangRows(theme)` rows of a room are dead space under the wall art on
- * the lettered themes. `map/reachability.ts` models exactly this, and a monster
- * spawned up there is one spawned inside a wall.
+ * Plus the one thing a rectangle scan needs that a wall scan got for free: a
+ * margin. The scan runs over `roomSpawnBox` (map/room.ts), the original's own
+ * Lair-spawner box, not the raw room rectangle. A tile can be open floor in the
+ * tile map and still be inside a wall's collision — the row under the north
+ * wall art, the column beside the west wall, the rows above the south wall —
+ * and a monster spawned there cannot move. That was every stuck wave spawn in
+ * the 2026-09-22 playtest; the box's north inset also covers the overhang
+ * `map/reachability.ts` models.
  *
  * Pure — draws nothing. The caller spends the stream.
  */
 
 import type { Level } from '../map/level'
 import type { Room } from '../map/room'
+import { roomSpawnBox } from '../map/room'
 import type { GenerationContext } from '../core/context'
 import type { Slot } from '../traps/slots'
 import { eligibleRoom, inBounds } from '../traps/floor'
-import { overhangRows } from '../map/reachability'
 
 /**
  * Every free interior tile of one room, in row-major order.
@@ -45,13 +49,11 @@ export function roomInteriorSlots(
   roomIndex: number
 ): Slot[] {
   const slots: Slot[] = []
-  const top = room.y + overhangRows(room.theme)
+  const box = roomSpawnBox(room)
 
-  // Room.contains is inclusive on both ends, so the interior really does run to
-  // `x + width` and `y + height` — writing `<` here would silently drop the
-  // last row and column of every room.
-  for (let y = top; y <= room.y + room.height; y++) {
-    for (let x = room.x; x <= room.x + room.width; x++) {
+  // Inclusive, like the box itself. A room too small for it yields nothing.
+  for (let y = box.y0; y <= box.y1; y++) {
+    for (let x = box.x0; x <= box.x1; x++) {
       if (!interiorClear(level, ctx, roomIndex, x, y)) continue
       slots.push({ x, y })
     }

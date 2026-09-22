@@ -1058,7 +1058,19 @@ room, the same count the arena's anchors give and for the same
 too-many-actors-in-one-frame reason. Per-tier traps replace one another and
 share `traps/floor.ts`'s placement, so they are the always-on floor traps made
 switchable. Invulnerability may not share a floor with timer mode: both announce
-countdowns on one level. Per-tier item **drops are deliberately absent** — the
+countdowns on one level.
+
+**Placement keeps off the walls, and teleports land on LevelStart.** Both
+rules came from the 2026-09-22 playtest (DISCOVERY-LOG).
+- Wave spawns and the boss's own tile use `roomSpawnBox` (`map/room.ts`): the
+  original's Lair-spawner box, `x+2 … x+w-2, y+4 … y+h-2`. A tile next to a
+  wall is open floor in the tile map but inside the wall's collision, and
+  anything spawned there is stuck.
+- `Checkpoint` and `RespawnPlayers` teleport the party to **their own
+  position**, so the floor passes its `LevelStart` as `buildCheckpointRig`'s
+  `respawnAt`. Only the triggers go in the marker column past the east edge.
+
+Per-tier item **drops are deliberately absent** — the
 arena's land on a fixed entrance pad and a floor has no equivalent; deferred
 rather than scattered arbitrarily.
 

@@ -30,6 +30,7 @@ import { defaultDungeonBoss, MOBILE_BOSS_IDS } from '../src/generator'
 import { validateParameters } from '../src/generator/config/validation'
 import { parseParametersTxt, serializeParametersTxt } from '../src/generator/config/configFile'
 import { BOSS_DEFS, BOSS_DEF_LIST } from '../src/generator/boss/bosses'
+import { roomSpawnBox } from '../src/generator/map/room'
 import { allIds, badIntArray, nodesOfType } from './xmlHelpers'
 import { plainParameters } from './params'
 
@@ -103,6 +104,21 @@ function stringParam(body: string, name: string): string | null {
 }
 
 /** Every `<dictionary>` in the actors section, as its `type` string. */
+interface RoomRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/** A script node's position — the generator writes `<float name="x">`/`"y"`. */
+function nodePos(body: string): { x: number; y: number } {
+  return {
+    x: Number(/<float name="x">(-?[\d.]+)<\/float>/.exec(body)?.[1]),
+    y: Number(/<float name="y">(-?[\d.]+)<\/float>/.exec(body)?.[1])
+  }
+}
+
 function actorTypes(xml: string): string[] {
   const section = /<array name="actors">([\s\S]*?)<\/array>/.exec(xml)
   if (section === null) return []
@@ -287,6 +303,65 @@ describe('dungeon boss — the tier rigs', () => {
 
     // And they must not all be piled in one place.
     expect(new Set(spawns.map((p) => `${p.x},${p.y}`)).size, 'points must be distinct').toBe(spawns.length)
+  }, 60_000)
+
+  it('keeps every wave spawn and the boss off the walls, across seeds', () => {
+    // A tile can be open floor and still inside a wall's collision: the
+    // 2026-09-22 playtest found every spawn flush against a wall stuck. The
+    // rule is the original's own Lair-spawner box, so pin exactly that.
+    const params = withBoss({ waves: waveOn(0, { bat1: 40 }) })
+    for (const seed of [SEED, 1, 4242, 987654, 20260922]) {
+      const result = generateOk(params, seed)
+      const preview = result.levels.find((l) => l.label === String(BOSS_FLOOR + 1))
+      const rooms = (preview as { rooms: RoomRect[] }).rooms
+      const xml = floorXml(result, BOSS_FLOOR)
+
+      const points = nodesOfType(xml, 'SpawnObject').map((n) => nodePos(n.body))
+      expect(points.length, `seed ${seed}: some spawns`).toBeGreaterThan(0)
+
+      const section = /<array name="actors">([\s\S]*?)<\/array>/.exec(xml)?.[1] ?? ''
+      const boss = /<string name="type">actors\/boss_[^<]*<\/string>\s*<float name="x">(-?[\d.]+)<\/float>\s*<float name="y">(-?[\d.]+)<\/float>/.exec(section)
+      expect(boss, `seed ${seed}: the boss actor`).not.toBeNull()
+      points.push({ x: Number(boss?.[1]), y: Number(boss?.[2]) })
+
+      for (const p of points) {
+        const boxed = rooms.some((r) => {
+          const b = roomSpawnBox(r)
+          return p.x >= b.x0 && p.x <= b.x1 && p.y >= b.y0 && p.y <= b.y1
+        })
+        expect(boxed, `seed ${seed}: (${p.x},${p.y}) is within a wall's reach of its room edge`).toBe(true)
+      }
+    }
+  }, 120_000)
+
+  it('respawns and checkpoints the party on LevelStart, never off the map', () => {
+    // RespawnPlayers and Checkpoint teleport the party to THEIR OWN position.
+    // The rig used to put them in the editor marker column past the map's
+    // east edge, and the party was stranded outside the dungeon.
+    const params = withBoss({ checkpoints: { respawnPlayers: '75-50-25-dead', saveGame: '50' } })
+    const result = generateOk(params, SEED)
+    const xml = floorXml(result, BOSS_FLOOR)
+
+    const starts = nodesOfType(xml, 'LevelStart').map((n) => nodePos(n.body))
+    expect(starts).toHaveLength(1)
+    const at = (p: { x: number; y: number }): boolean => p.x === starts[0].x && p.y === starts[0].y
+
+    // One per milestone from the rig, plus the floor's own arrival respawn in
+    // the Entrance prefab, which is left where the original put it.
+    const respawns = nodesOfType(xml, 'RespawnPlayers').map((n) => nodePos(n.body))
+    expect(respawns).toHaveLength(5)
+    expect(respawns.filter(at), 'the rig respawns, stacked on LevelStart').toHaveLength(4)
+
+    const checkpoints = nodesOfType(xml, 'Checkpoint').map((n) => nodePos(n.body))
+    expect(checkpoints).toHaveLength(1)
+    expect(at(checkpoints[0]), 'the save checkpoint sits on LevelStart').toBe(true)
+
+    const preview = result.levels.find((l) => l.label === String(BOSS_FLOOR + 1))
+    const rooms = (preview as { rooms: RoomRect[] }).rooms
+    for (const p of [...respawns, ...checkpoints]) {
+      const inside = rooms.some((r) => p.x >= r.x && p.x <= r.x + r.width && p.y >= r.y && p.y <= r.y + r.height)
+      expect(inside, `teleport target (${p.x},${p.y}) is outside every room`).toBe(true)
+    }
   }, 60_000)
 
   it('ships per-tier traps disabled behind their trigger, and draws nothing without them', () => {

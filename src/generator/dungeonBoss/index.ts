@@ -73,8 +73,10 @@ export function buildFloorBossRig(
   if (level.bossSpot === null) return
 
   // Marker column for the cosmetic editor nodes: just past the map's east
-  // edge, where nothing can be standing. Only the spewers and SpawnObjects
-  // care about their real positions.
+  // edge, where nothing can be standing. The spewers, SpawnObjects and the
+  // checkpoint rig's Checkpoint/RespawnPlayers care about their real
+  // positions — the last two teleport the party to themselves, so they go on
+  // the floor's LevelStart instead.
   const markerX = level.width + 1
   const markerY = 0
 
@@ -90,7 +92,12 @@ export function buildFloorBossRig(
 
   buildInvulnerabilityRig(ctx, boss.invulnerability, actor.id, markerX, markerY)
 
-  buildCheckpointRig(ctx, boss.checkpoints, markerX, markerY)
+  // `scriptNodes` is cleared per level, so this is this floor's own start.
+  // A floor always has one; without it there is nowhere safe to respawn.
+  const start = ctx.scriptNodes.find((n) => n.type === 'LevelStart')
+  if (start !== undefined) {
+    buildCheckpointRig(ctx, boss.checkpoints, markerX, markerY, { x: start.x, y: start.y })
+  }
 
   buildFloorBossOpener(ctx, level.seals, markerX, markerY)
 }

@@ -1,4 +1,4 @@
-import { Room } from './room'
+import { Room, roomSpawnBox } from './room'
 import { sealRoomWall, sealRoomWithButton } from './buttonSeal'
 import { Passage } from './passage'
 import { Tile } from './tile'
@@ -326,18 +326,24 @@ export class Level {
       // a boss in there could never be reached. A `locked` vault is excluded
       // too: chaining a gold key in front of the boss would make the floor's
       // one guaranteed gate depend on a chance-rolled one.
-      const eligible = this.rooms.filter(
-        (r) => r.type !== 'Entrance' && r.type !== 'Shop' && !r.sealed && !r.locked
-      )
+      // A room must also be big enough for `roomSpawnBox` to be non-empty, or
+      // the draws below would get an inverted range.
+      const eligible = this.rooms.filter((r) => {
+        if (r.type === 'Entrance' || r.type === 'Shop' || r.sealed || r.locked) return false
+        const box = roomSpawnBox(r)
+        return box.x0 <= box.x1 && box.y0 <= box.y1
+      })
       if (eligible.length === 0) {
         this.levelValid = false
       } else {
         const room = eligible[rand.iRand(0, eligible.length)]
-        // The same interior box every other placement uses (`spawnKey`,
-        // `grantLockLoot`): `+2` on y clears the north wall art's overhang.
+        // The original's Lair-spawner box, not the bare room: a boss on the
+        // tile beside a wall is inside that wall's collision and cannot walk
+        // out. The worm burrows, which is why it got away with this.
+        const box = roomSpawnBox(room)
         const spot = {
-          x: Math.trunc(rand.fRand(room.x, room.x + room.width)),
-          y: Math.trunc(rand.fRand(room.y + 2, room.y + room.height))
+          x: Math.trunc(rand.fRand(box.x0, box.x1)),
+          y: Math.trunc(rand.fRand(box.y0, box.y1))
         }
         this.bossSpot = spot
         ctx.reachTargets.push(spot)

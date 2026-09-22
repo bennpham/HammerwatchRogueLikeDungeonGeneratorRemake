@@ -8,6 +8,39 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-22 — floor-boss playtest: the worm works; respawns and wave spawns were placed where players and monsters get stuck
+**Tag:** [VERIFIED] — the user played a generated worm boss floor and hand-fixed
+its `level0.xml` in the editor (`level0_fix_attempt.xml`).
+**Context:** Issue #61's Dungeon → Boss, first in-game run (PR #63).
+**Evidence:**
+1. **The worm works as a dungeon-floor boss.** Confirmed by the user. The
+   previous entry's `Boss …`-events-on-a-floor claim is not upgraded by this
+   alone: tier-0 waves fire on `LevelLoaded`, not a boss event, so it stays
+   [EMITTED] until a health-tier rig (a 75/50/25% wave, invulnerability, or a
+   checkpoint) is seen firing on a floor.
+2. **`RespawnPlayers` and `Checkpoint` are positional: they teleport the party
+   to the node's own position.** The rig put them in the editor marker column
+   (`level.width + 1`, rows 0-2), past the map's east edge, which strands the
+   party outside the dungeon. The user's fix stacks every one of them on the
+   floor's `LevelStart`. This agrees with the 2026-09-05 checkpoint entry
+   ("teleported to the checkpoint marker's position") and contradicts what
+   `boss/checkpoints.ts` used to say about its coordinates ("nothing about the
+   rig is positional"). The arena never showed it only because it hands the
+   rig its entrance shape, which sits beside its own `LevelStart`.
+3. **A `SpawnObject` flush against a wall traps what it spawns.** Every wave
+   spawn the user moved sat on the tile next to a wall doodad (1 tile from the
+   north/west wall, 1–2 from the south). The tile map calls those tiles open
+   floor, but they are inside the wall's collision. The user's corrections land
+   exactly on the original generator's own Lair-spawner box,
+   `x+2 … x+w-2, y+4 … y+h-2` (`map/room.ts`, `transform('Lair')`), which the
+   arena's anchors also use (`ANCHOR_INSET = 2`, `NORTH_ANCHOR_INSET = 4`).
+**Impact:** `boss/checkpoints.ts` takes a `respawnAt` point, and the floor rig
+passes its `LevelStart`. The arena omits it, so its output is unchanged.
+`map/room.ts` exports that box as `roomSpawnBox`; both the wave pool
+(`dungeonBoss/placement.ts`) and the boss's own tile (`map/level.ts`) use it.
+The floor's ordinary arrival `RespawnPlayers` in the Entrance prefab
+(`objectSet.ts`) is inside the entrance room and was left alone.
+
 ### 2026-09-22 — there is no teleport node: `RespawnPlayers` is the only player-mover, and it heals
 **Tag:** [VERIFIED] for the absence (an exhaustive search of our own vocabulary
 and the original's), [VERIFIED] for what `RespawnPlayers` does (recorded in the
