@@ -30,14 +30,16 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    All I/O lives in `src/main/**`.
 2. **Determinism.** Same params + same seed ⇒ byte-identical output. Never
    introduce `Math.random()`, `Date.now()`, or `Object` iteration order
-   dependence into the generator. Four streams, never mixed: layout randomness
-   draws from `ctx.rand`, cosmetic (floor tiles, overlay and mixed palettes)
-   from `ctx.cosmeticRand`, everything in the boss arena from `ctx.bossRand`,
-   and the per-floor wall traps from `ctx.trapRand` (`seed + 3`) — one `iRand`
-   per placed spewer, in numeric floor order, and only after the retry loop has
-   *accepted* a floor, so a discarded candidate never draws. Mixing them shifts
-   the streams after and every existing seed changes. A path with nothing to
-   draw must return *before* touching a stream.
+   dependence into the generator. **Five** streams, never mixed: layout
+   randomness draws from `ctx.rand`, cosmetic (floor tiles, overlay and mixed
+   palettes) from `ctx.cosmeticRand`, everything in the boss arena from
+   `ctx.bossRand`, the per-floor wall traps from `ctx.trapRand` (`seed + 3`) —
+   one `iRand` per placed spewer, in numeric floor order, and only after the
+   retry loop has *accepted* a floor, so a discarded candidate never draws —
+   and the per-floor BOSS from `ctx.floorBossRand` (`seed + 4`), on the same
+   post-acceptance terms. Mixing them shifts the streams after and every
+   existing seed changes. A path with nothing to draw must return *before*
+   touching a stream.
 3. **No unbounded loops.** Every retry loop in the port is bounded
    (`MAX_LEVEL_ATTEMPTS = 60`, 1000/2000-attempt inner loops). The original
    retried forever; that is a bug we fixed, not a behaviour to restore.
@@ -63,7 +65,28 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    mode, number is the index in `fights`, which is what keeps `normalizeOrder`
    untouched; `parseSlotLabel` still accepts the old `B{n}`.
 
-7. **The optional layers never move a seed's dungeon.**
+7. **A dungeon floor can host a boss, and that one layer DOES move the floor.**
+   `levelBoss[i]` (`dungeonBoss/`, issue #61) is the one per-floor layer that is
+   not purely additive, and the exception is deliberate: a boss floor's way out
+   is a **sealed portal room**, not a stairs room, so `map/level.ts` takes the
+   orb/portal branch whatever `ctx.gateway.kind` says and `map/room.ts` renders
+   the red portal at `gateway.target` — the same substitution `boss/arena.ts`
+   makes for an arena, which has no stairs prefab either. Sealing a *stairs*
+   room is not an option: `transform('Exit')` has no dead-end guard,
+   `buttonSeal` refuses an Exit room, an ExitDn prefab occupies the wall band a
+   DOWN corridor's seal is drawn into, and `sealHolds` would pass such a floor
+   silently. The branch costs a different number of `ctx.rand` draws, so
+   **enabling a boss moves that floor and every floor after it** — invariant 8's
+   gateway-kind cost, paid knowingly; a floor with `enabled: false` must draw
+   exactly what it always drew. Everything after acceptance draws from
+   `ctx.floorBossRand` alone. The boss's tile is chosen **during** construction
+   and pushed to `ctx.reachTargets`, because the seal opens only on its death:
+   an unreachable boss is an unfinishable floor. Only a **mobile** boss may
+   stand on a floor (`MOBILE_BOSS_IDS` — authored, not derived from
+   `static="true"`, which is about the collider and is true for the burrowing
+   worm), and invulnerability may not share a floor with timer mode.
+
+8. **The optional layers never move a seed's dungeon.**
    `src/generator/tweak/**` and `lobby/**` draw **no** random values and run
    after every level is built; `boss/**` draws only from `ctx.bossRand` — once
    per boss fight, in list order, so adding a second fight cannot move the
@@ -77,13 +100,13 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    `levels/level*.xml` byte-identical — only which extra files exist, and which
    level a floor's gateway names, may change; clearing every tweak emits no
    `tweak/` folder at all. The one thing that *does* move a floor is the KIND
-   of gateway it gets (see invariant 8), because `map/level.ts` picks a
+   of gateway it gets (see invariant 9), because `map/level.ts` picks a
    different room for stairs than for a portal or orb. The stock defaults are
    not empty any more: `defaultParameters()` ships two lobbies, the boss on,
    `player.shared.remove.life`, and the escape floor's timer, so a stock run
    emits two lobbies, an arena, exactly one tweak file, and one floor carrying
    a hazard rig.
-8. **The campaign order changes links, never generation.** `levelOrder`
+9. **The campaign order changes links, never generation.** `levelOrder`
    (`campaign.ts`) decides where each level leads, what `levels.xml` lists and
    in what order, and which slot carries the victory orb — via `ctx.gateway`,
    which `map/level.ts`, `map/room.ts`, `objects/objectSet.ts` and
@@ -101,7 +124,7 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    a list — but the presets' order is not the default one (a lobby sits before
    the fight and their last floor is played after it), so they store it
    explicitly and must.
-9. **A floor the player cannot finish is invalid.** `map/reachability.ts`
+10. **A floor the player cannot finish is invalid.** `map/reachability.ts`
    flood-fills with the wall art's two-row overhang modelled (`OVERHANG_ROWS`)
    and rejects a floor unless the entrance reaches the exit/orb/portal and
    every key; the bounded retry loop re-rolls it. Never relax the check, or

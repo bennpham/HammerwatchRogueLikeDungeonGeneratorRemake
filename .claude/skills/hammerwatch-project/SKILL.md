@@ -123,6 +123,23 @@ src/
 │   │   └── traps.ts      per-tier ProjectileSpewers along the walls; these DO
 │   │                     replace one another, and are the only optional boss
 │   │                     rig that draws from ctx.bossRand
+│   ├── dungeonBoss/     a boss standing on an ORDINARY DUNGEON FLOOR (issue
+│   │   │                 #61). Thinner than survival/, and for the opposite
+│   │   │                 reason: a floor WITH a boss actor gets the `Boss ...`
+│   │   │                 events for free, so boss/invulnerability.ts and
+│   │   │                 boss/checkpoints.ts are called verbatim and the tier
+│   │   │                 wiring of boss/waves.ts and boss/traps.ts is reused.
+│   │   │                 What is new is PLACEMENT
+│   │   ├── placement.ts interior free-floor tiles of a finished level — the
+│   │   │                 one thing nothing else enumerated (traps/floor.ts
+│   │   │                 only finds wall-adjacent slots)
+│   │   ├── actor.ts     the boss itself; one draw, which boss
+│   │   ├── waves.ts     boss/waves.ts's anchors path with the nine anchors
+│   │   │                 swapped for floor-wide points  <- draws
+│   │   ├── traps.ts     traps/floor.ts placement + boss/traps.ts tier wiring
+│   │   │                 <- draws
+│   │   ├── opener.ts    Boss Died -> DestroyObject on the floor's seals
+│   │   └── index.ts     buildFloorBossRig() — the fixed call order
 │   ├── survival/        the SURVIVAL arena's rig — everything boss/'s tier
 │   │   │                 rigs do, re-keyed from boss health to elapsed time.
 │   │   │                 Exists because the engine fires the `Boss ...` events
@@ -197,12 +214,13 @@ reference/hammerwatch-tweak-stats.md
 2. **Determinism.** `(params, seed)` ⇒ byte-identical files. Forbidden inside
    the generator: `Math.random()`, `Date`, `crypto`, iteration over an object
    whose key order isn't fixed, `Array.sort` without a total comparator.
-3. **Four RNG streams, never mixed.** `ctx.rand` (seed) drives layout and
+3. **Five RNG streams, never mixed.** `ctx.rand` (seed) drives layout and
    population — the stream that must match the Java original.
    `ctx.cosmeticRand` (seed + 1) drives floor-tile variants, overlay tilesets
    and mixed-palette slots. `ctx.bossRand` (seed + 2) drives everything in the
    boss arena, which is generated after the floors precisely so it can draw as
-   much as it likes. `ctx.trapRand` (seed + 3) drives the per-floor wall traps,
+   much as it likes. `ctx.trapRand` (seed + 3) drives the per-floor wall traps, and
+   `ctx.floorBossRand` (seed + 4) the per-floor boss,
    one `iRand` per placed spewer, for the same reason: they are placed onto a
    finished floor, and drawing them from `rand` would shift every *later*
    floor's whole layout the moment any earlier floor were trapped. Drawing from
@@ -987,6 +1005,62 @@ stock default — a dungeon master tuning lobby 1 and asking for a second almost
 always wants a variation on it. The diagram plots the selected preset's own
 diamond and upgrade slot tables instead of hardcoding the dungeon room's grid,
 so a new preset draws whatever its tables describe with no UI change.
+
+## Dungeon floors that host a boss (`dungeonBoss/`, issue #61)
+
+`levelBoss[i]` puts a boss on an ordinary floor. The floor keeps every standard
+control — rooms, passages, theme, pools, multipliers — and gains a boss, a
+sealed way out, and the arena's health-tier rigs.
+
+**The exit becomes a portal, and that is the whole trick.** A boss floor's way
+out has to be SEALED until the boss dies, and only the orb/portal branch of
+`map/level.ts` produces a room a seal can close. Sealing a stairs room instead
+would mean: `transform('Exit')` has no dead-end guard, `sealRoomWithButton`
+refuses an `Exit` room, an ExitDn prefab sits at `room.y - 2` in the very wall
+band a `DOWN` corridor's seal line is drawn into, and `sealHolds` — which looks
+for `type === 'Orb'` and a goal prefab of `Orb`/`BossPortal` — would pass every
+such floor silently. So a boss floor takes the orb/portal branch whatever
+`ctx.gateway.kind` says, and `map/room.ts` renders the red `BossPortal` at
+`gateway.target`. `boss/arena.ts` already does exactly this, an arena having no
+stairs prefab of its own. The dead-end guard, the seal wall and `sealHolds` all
+work **unchanged**.
+
+**Two RNG effects, only one of them new.** Taking the portal branch is a
+different number of `ctx.rand` draws (`transform('Exit')` rolls a prefab x per
+attempt then runs `transform('Lair')` on the room — hundreds; `transform('Orb')`
+draws zero), so **enabling a boss moves that floor and every floor after it**.
+That is invariant 9's gateway-kind cost, paid knowingly, and free today because
+no seed predates the feature — but a floor with `enabled: false` must draw
+exactly what it always drew. Everything after acceptance draws from
+`ctx.floorBossRand` (`seed + 4`) alone: not `trapRand`, which would move an
+armed floor's always-on spewers, and not `bossRand`, which would move every
+arena.
+
+**The boss's tile is chosen during construction, not in the rig.** It is pushed
+to `ctx.reachTargets`, because the way out opens only on the boss's death — an
+unreachable boss is an unfinishable floor, exactly as an unreachable button
+would be. `buttonSeal.ts`'s `pickButtonTile` is the pattern it copies. The rig
+proper runs post-acceptance and only places the actor at the tile already
+chosen.
+
+**Only mobile bosses.** `MOBILE_BOSS_IDS` (`config/parameters.ts`) is
+**authored**, not derived: `<collision static="...">` describes the collider,
+not locomotion, and is `true` for the worm, which burrows across a whole arena,
+while anubis and krilith carry no `<collision>` child at all. Out are the dragon
+(pinned to a top wall, no upward-facing art) and the queen. `boss/bosses.ts`
+derives each def's `mobile` flag from that list; the list lives in
+`parameters.ts` because `bosses.ts` imports from there and not the reverse.
+
+**Other rules.** The seal is built whether or not `lockFinalRoom` is ticked —
+the setting is campaign-wide, so a form cannot force it per floor. Wave monsters
+spawn from `FLOOR_SPAWN_POINTS` (9) interior points pooled across every eligible
+room, the same count the arena's anchors give and for the same
+too-many-actors-in-one-frame reason. Per-tier traps replace one another and
+share `traps/floor.ts`'s placement, so they are the always-on floor traps made
+switchable. Invulnerability may not share a floor with timer mode: both announce
+countdowns on one level. Per-tier item **drops are deliberately absent** — the
+arena's land on a fixed entrance pad and a floor has no equivalent; deferred
+rather than scattered arbitrarily.
 
 ## Arena mode: Boss or Survival (`survival/`, issue #61)
 
