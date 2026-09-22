@@ -1,5 +1,5 @@
-import React from 'react'
-import { MUSIC_DEFAULT, THEME_DEFS, defaultFloorTimer, isDefaultOrder, normalizeOrder } from '../../generator'
+import React, { useState } from 'react'
+import { MUSIC_DEFAULT, THEME_DEFS, defaultDungeonBoss, defaultFloorTimer, isDefaultOrder, normalizeOrder } from '../../generator'
 import type { CampaignCounts, DungeonParameters, ValidationIssue } from '../../generator'
 import { BoolField, NumberField, Section } from './fields'
 import { MusicPicker } from './MusicPicker'
@@ -8,6 +8,7 @@ import { MonsterMaxTable } from './MonsterMaxTable'
 import { FloorTimerEditor } from './FloorTimerEditor'
 import { FloorBuffEditor } from './FloorBuffEditor'
 import { FloorTrapEditor } from './FloorTrapEditor'
+import { DungeonBossEditor } from './DungeonBossEditor'
 
 /** Themes bucketed by their registry group, in registry order. */
 const THEME_GROUPS = THEME_DEFS.reduce<[string, (typeof THEME_DEFS)[number][]][]>((groups, def) => {
@@ -24,6 +25,11 @@ interface ParameterFormProps {
 }
 
 export function ParameterForm({ params, issues, onChange }: ParameterFormProps) {
+  // Standard vs Boss are two views of the SAME dungeon parameters — Boss adds
+  // the per-floor boss section on top, it does not replace anything. Session
+  // state only, like every other sub-tab selector in this app.
+  const [dungeonTab, setDungeonTab] = useState<'standard' | 'boss'>('standard')
+
   const set = <K extends keyof DungeonParameters>(key: K, value: DungeonParameters[K]) => {
     onChange({ ...params, [key]: value })
   }
@@ -58,6 +64,24 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
       while (floorMusic.length < levels) floorMusic.push(MUSIC_DEFAULT)
       next.floorMusic = floorMusic.slice(0, Math.max(levels, 1))
 
+      // Unlike levelBuffs/levelTraps/levelTimers, a new floor pads with a
+      // fresh disabled boss rather than cloning the last floor's — the same
+      // shape floorMusic uses for its own default sentinel. Cloning would mean
+      // growing the floor count silently seals a new floor's exit too.
+      //
+      // And it stays ABSENT while it was absent: `levelBoss` is the one
+      // per-floor array `defaultParameters()` does not ship, and its doc
+      // comment reads "a params object without it ... is byte-identical to the
+      // pre-feature generator". Materialising a row of disabled bosses just
+      // because the floor count changed would make that sentence false for
+      // every campaign that merely got resized, even though nothing downstream
+      // would notice.
+      if (params.levelBoss !== undefined) {
+        const levelBoss = params.levelBoss.map((b) => JSON.parse(JSON.stringify(b)))
+        while (levelBoss.length < levels) levelBoss.push(defaultDungeonBoss())
+        next.levelBoss = levelBoss.slice(0, Math.max(levels, 1))
+      }
+
       // A stored order names floors that may no longer exist, or may now be
       // missing one. Repairing keeps the arrangement the dungeon master made
       // instead of throwing it away every time the count changes; an order that
@@ -88,8 +112,25 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
     set('floorMusic', floorMusic)
   }
 
+  const enabledBossFloors = (params.levelBoss ?? []).slice(0, params.levels).filter((b) => b.enabled).length
+
   return (
     <div className="parameter-form">
+      <div className="panel-tabs dungeon-sub-tabs">
+        <button
+          className={dungeonTab === 'standard' ? 'tab active' : 'tab'}
+          onClick={() => setDungeonTab('standard')}
+        >
+          Standard
+        </button>
+        <button className={dungeonTab === 'boss' ? 'tab active' : 'tab'} onClick={() => setDungeonTab('boss')}>
+          Boss
+          {enabledBossFloors > 0 && <span className="tab-count">{enabledBossFloors}</span>}
+        </button>
+      </div>
+
+      {dungeonTab === 'boss' && <DungeonBossEditor params={params} issues={issues} onChange={onChange} />}
+
       <Section title="General" defaultOpen>
         <div className="field-grid">
           <NumberField label="Levels" field="levels" value={params.levels} onChange={setLevels} issues={issues} min={0} max={50} title="Number of floors in the campaign — 0 means a boss-only campaign (needs the boss fight on, and usually a lobby to shop from first)" />

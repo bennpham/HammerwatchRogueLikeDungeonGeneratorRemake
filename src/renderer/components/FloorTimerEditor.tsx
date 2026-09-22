@@ -69,6 +69,12 @@ export function FloorTimerEditor({ params, issues, onChange }: FloorTimerEditorP
       {Array.from({ length: count }, (_, level) => {
         const timer = params.levelTimers?.[level] ?? defaultFloorTimer()
         const verb = timer.damage < 0 ? 'heal' : 'damage'
+        // A boss floor's invulnerability windows announce their own countdown;
+        // running the timer's countdown alongside it on the same floor is the
+        // exact conflict validation blocks on (levelBoss.<i>.invulnerability).
+        // Disabling the toggle here stops a dungeon master introducing that
+        // conflict from this side, rather than only catching it after the fact.
+        const bossInvulnOn = params.levelBoss?.[level]?.enabled && params.levelBoss[level].invulnerability.enabled
         return (
           <details key={level} className="pool-level">
             <summary>
@@ -83,9 +89,23 @@ export function FloorTimerEditor({ params, issues, onChange }: FloorTimerEditorP
               <BoolField
                 label="Timer on for this floor"
                 checked={timer.enabled}
+                // Only blocks turning it ON — if a conflict already exists
+                // (e.g. from an imported file), the toggle must stay usable so
+                // the dungeon master can clear it from this side too.
+                disabled={bossInvulnOn && !timer.enabled}
                 onChange={(enabled) => patch(level, { enabled })}
-                title="Arms a floor-wide damage field once the countdown ends"
+                title={
+                  bossInvulnOn
+                    ? 'Disabled: this floor\'s boss invulnerability is on, and the two cannot announce competing countdowns on one floor. Turn invulnerability off on the Boss tab first.'
+                    : 'Arms a floor-wide damage field once the countdown ends'
+                }
               />
+              {bossInvulnOn && !timer.enabled && (
+                <p className="hint">
+                  This floor's boss invulnerability is on (see the Dungeon tab's Boss sub-tab), so the
+                  timer stays off here.
+                </p>
+              )}
               {timer.enabled && (
                 <>
                   <div className="field-grid">
