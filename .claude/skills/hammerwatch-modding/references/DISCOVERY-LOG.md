@@ -8,6 +8,37 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-22 — the `actors/boss_*` folders hold bodyguards, not just bosses; `boss-hp` may be the real `Boss …` trigger
+**Tag:** [UNVERIFIED] — read from the extracted XML only; nothing placed or played.
+**Context:** Issue #64's "Bodyguards to Include" discovery phase. Full audit
+posted on the issue (comment 5786124801).
+**Evidence:**
+1. **Bodyguards that are new content** (no equivalent in `monsterTypes.ts`):
+   `boss_knight/knight_guard.xml` (150 HP melee, `guard_4.png`),
+   `boss_knight/knight_guard_lich_{1,2,3}.xml` (80 HP `caster`: nova /
+   seeker / summons 5× `boss_knight/skeleton_1_small`),
+   `boss_lich/lich_guard_lich.xml` (summons `lich_guard_skeleton`),
+   `boss_lich/boss_lich_mirror.xml` (50 HP, drops 7× `bat_3`), and
+   `boss_krilith/skeleton_1_mb.xml` (400 HP, weaker than the root one).
+2. **No-loot twins of roster monsters:** `boss_knight/archer_1`,
+   `boss_knight/skeleton_1`, `boss_knight/skeleton_1_small`,
+   `boss_lich/lich_guard_skeleton`, `boss_anubis/mummy_ranged_2_noloot`. Each
+   has no loot, and most have aggro range 30 instead of 10-12.
+3. **Not monsters for a preset:** `boss_krilith/skeleton_1_mb_static_*`
+   (1500 HP, `passive`, no skills), projectiles (`fireball_trap`, `firespray`,
+   `lich_projectile`), doodads (statues, throne, corpses, `*_razed`,
+   `boss_krilith_static`, `collision_skeleton_1_mb`).
+4. **`boss-hp: true` appears only on the 7 bosses plus `boss_worm_decoy` and
+   `boss_worm_key`.** None of the bodyguards has it, even though they live in
+   `boss_*` folders. The documented rule "the engine fires `Boss 75/50/25/Died`
+   for any actor in `actors/boss_*`" was inferred, not isolated. `boss-hp`, or
+   the `boss-*` behaviour, is an equally good explanation.
+**Impact:** Before any bodyguard enters a preset (issue #64), playtest one
+guard, e.g. `knight_guard`, on a floor that has a `GlobalEventTrigger "Boss Died"`.
+If killing it fires the event, a guard would open a boss floor's sealed portal
+early and trigger the arena tier rigs. If it doesn't, the "folder" rule in this
+log and in `hammerwatch-project` should be rewritten around `boss-hp`.
+
 ### 2026-09-22 — floor-boss playtest: the worm works; respawns and wave spawns were placed where players and monsters get stuck
 **Tag:** [VERIFIED] — the user played a generated worm boss floor and hand-fixed
 its `level0.xml` in the editor (`level0_fix_attempt.xml`).
