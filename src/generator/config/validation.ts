@@ -676,7 +676,13 @@ function validateBossFight(
   const bossErrors: ValidationIssue[] = isSurvival ? [] : errors
   const bossWarnings: ValidationIssue[] = isSurvival ? [] : warnings
 
-  if (isSurvival) validateSurvival(fight, index, errors, warnings)
+  // Survival's ADVISORIES are suppressed for a campaign with no arenas, the
+  // same way the boss-mode warnings below stop at `!boss.enabled`. The fight
+  // list is retained while arenas are off — zero arenas is a cleared flag, not
+  // a cleared list — so without this a turned-off campaign still reports things
+  // like "this survival arena spawns nothing" about an arena it will not build.
+  // Errors still go through, exactly as they do in boss mode.
+  if (isSurvival) validateSurvival(fight, index, errors, boss.enabled ? warnings : [])
 
   // min ≤ max on both axes
   if (arena.minWidth > arena.maxWidth) {

@@ -38,7 +38,7 @@ import type {
   SurvivalOptions,
   ValidationIssue
 } from '../../generator'
-import { BoolField, NumberField, Section, Subsection, ToggleGroup } from './fields'
+import { NumberField, Section, Subsection, ToggleGroup } from './fields'
 import { MusicPicker } from './MusicPicker'
 import { BuffListEditor } from './BuffListEditor'
 import { PickupListEditor } from './PickupListEditor'
@@ -70,6 +70,10 @@ export function BossForm({ params, issues, onChange }: BossFormProps) {
   const fights = boss.fights ?? []
   const active = Math.min(fightIndex, Math.max(0, fights.length - 1))
   const fight = fights[active]
+  // What the count field shows, and the single thing that means "there are no
+  // arenas". `fights` is kept intact while the campaign is off, so the stored
+  // length is not the answer on its own.
+  const arenaCount = boss.enabled ? fights.length : 0
 
   // Repairs the stored campaign order against the fight list the patch leaves
   // behind, exactly as ParameterForm.setLevels does for the floor count. The
@@ -115,12 +119,25 @@ export function BossForm({ params, issues, onChange }: BossFormProps) {
   // has tuned fight 1 and asks for a second almost always wants a variation on
   // it rather than the stock castle arena back. Same growth rule the per-floor
   // arrays use in ParameterForm.setLevels.
+  //
+  // Zero is how the campaign turns arenas off — there is no separate checkbox.
+  // It clears the flag and deliberately KEEPS the fight list, so 0 -> 1 hands
+  // back the arena that was already tuned rather than a stock castle. Same
+  // losslessness setMode relies on above when it flips boss <-> survival.
   const setFightCount = (countRaw: number) => {
-    const count = Math.max(1, Math.trunc(countRaw))
-    if (count === fights.length) return
+    const count = Math.max(0, Math.trunc(countRaw))
+    // Zero is checked before the no-op guard: a hand-written file can carry
+    // `boss=1` with no fight blocks, which already reads 0 here and raises the
+    // "no fights configured" error. Typing 0 has to be able to clear the flag
+    // and settle that, rather than short-circuit as "already 0".
+    if (count === 0) {
+      if (boss.enabled) set({ enabled: false })
+      return
+    }
+    if (count === arenaCount) return
     const next = fights.slice(0, count)
     while (next.length < count) next.push(cloneFight(next[next.length - 1] ?? defaultBossFight()))
-    set({ fights: next })
+    set({ enabled: true, fights: next })
     if (active >= count) setFightIndex(count - 1)
   }
 
@@ -138,21 +155,17 @@ export function BossForm({ params, issues, onChange }: BossFormProps) {
       <Section title="Arena" defaultOpen>
         <p className="hint">
           Appends a generated arena after the last dungeon floor — a boss fight or a survival round,
-          picked per arena below. Turning it off reproduces today's campaign byte-for-byte — the arena
-          draws from its own RNG stream, so the dungeon itself is identical either way, for the same
-          seed. Put a lobby right in front of it, from the Lobby tab, if the party should shop first.
+          picked per arena below. Zero arenas reproduces the pre-boss campaign exactly, the same rule{' '}
+          <code>lobbies</code> follows for its own list — each arena draws from its own RNG stream, so
+          the dungeon itself is identical either way, for the same seed. Put a lobby right in front of
+          one, from the Lobby tab, if the party should shop first.
         </p>
-        <BoolField
-          label="Add an arena after the last floor"
-          checked={boss.enabled}
-          onChange={(enabled) => set({ enabled })}
-        />
         <NumberField
           label="Number of arenas"
           field="boss.fights"
-          value={fights.length}
+          value={arenaCount}
           issues={issues}
-          min={1}
+          min={0}
           step={1}
           onChange={setFightCount}
         />
@@ -163,7 +176,7 @@ export function BossForm({ params, issues, onChange }: BossFormProps) {
         </p>
       </Section>
 
-      {fight !== undefined && (
+      {arenaCount > 0 && fight !== undefined && (
         <>
           {fights.length > 1 && (
             <div className="panel-tabs boss-fight-tabs">
