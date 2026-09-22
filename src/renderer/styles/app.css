@@ -881,6 +881,14 @@ button.primary:hover:not(:disabled) {
   flex-wrap: wrap;
 }
 
+/* The Dungeon tab's Standard/Boss Settings row sits right under the top-level
+   tabs and uses the same buttons, so a gap and a rule mark it as a level down. */
+.dungeon-sub-tabs {
+  margin: 12px 12px 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--border);
+}
+
 .right-panel .panel-tabs {
   padding: 0;
   margin-bottom: -4px;

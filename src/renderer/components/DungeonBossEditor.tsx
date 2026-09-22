@@ -98,7 +98,7 @@ export function DungeonBossEditor({ params, issues, onChange }: DungeonBossEdito
       <Section title="Boss floors" defaultOpen badge={enabledLevels.length > 0 ? `${enabledLevels.length}` : undefined}>
         <p className="hint">
           Puts a mobile boss on an ordinary dungeon floor, chasing the party across it. Two things
-          follow from turning one on, whatever else you set below:
+          follow from turning one on, whatever else you set for the boss:
         </p>
         <ul className="hint hint-list">
           <li>

@@ -25,9 +25,10 @@ interface ParameterFormProps {
 }
 
 export function ParameterForm({ params, issues, onChange }: ParameterFormProps) {
-  // Standard vs Boss are two views of the SAME dungeon parameters — Boss adds
-  // the per-floor boss section on top, it does not replace anything. Session
-  // state only, like every other sub-tab selector in this app.
+  // Standard vs Boss are two views of the SAME dungeon parameters, shown one at
+  // a time: Boss holds only the per-floor boss editor, because several of its
+  // sections share names with standard ones and the two read as one form when
+  // stacked. Session state only, like every other sub-tab selector here.
   const [dungeonTab, setDungeonTab] = useState<'standard' | 'boss'>('standard')
 
   const set = <K extends keyof DungeonParameters>(key: K, value: DungeonParameters[K]) => {
@@ -121,142 +122,146 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
           className={dungeonTab === 'standard' ? 'tab active' : 'tab'}
           onClick={() => setDungeonTab('standard')}
         >
-          Standard
+          Standard Settings
         </button>
         <button className={dungeonTab === 'boss' ? 'tab active' : 'tab'} onClick={() => setDungeonTab('boss')}>
-          Boss
+          Boss Settings
           {enabledBossFloors > 0 && <span className="tab-count">{enabledBossFloors}</span>}
         </button>
       </div>
 
       {dungeonTab === 'boss' && <DungeonBossEditor params={params} issues={issues} onChange={onChange} />}
 
-      <Section title="General" defaultOpen>
-        <div className="field-grid">
-          <NumberField label="Levels" field="levels" value={params.levels} onChange={setLevels} issues={issues} min={0} max={50} title="Number of floors in the campaign — 0 means a boss-only campaign (needs the boss fight on, and usually a lobby to shop from first)" />
-          <NumberField label="Map width" field="mapWidth" value={params.mapWidth} onChange={(v) => set('mapWidth', v)} issues={issues} min={20} step={20} title="In tiles — multiples of 20 recommended" />
-          <NumberField label="Map height" field="mapHeight" value={params.mapHeight} onChange={(v) => set('mapHeight', v)} issues={issues} min={20} step={20} title="In tiles — multiples of 20 recommended" />
-          <NumberField label="Edge padding" field="edgePadding" value={params.edgePadding} onChange={(v) => set('edgePadding', v)} issues={issues} min={0} title="Empty border around the map" />
-          <NumberField label="Room padding" field="roomPadding" value={params.roomPadding} onChange={(v) => set('roomPadding', v)} issues={issues} min={0} title="Minimum gap between rooms" />
-        </div>
-      </Section>
+      {dungeonTab === 'standard' && (
+        <>
+          <Section title="General" defaultOpen>
+            <div className="field-grid">
+              <NumberField label="Levels" field="levels" value={params.levels} onChange={setLevels} issues={issues} min={0} max={50} title="Number of floors in the campaign — 0 means a boss-only campaign (needs the boss fight on, and usually a lobby to shop from first)" />
+              <NumberField label="Map width" field="mapWidth" value={params.mapWidth} onChange={(v) => set('mapWidth', v)} issues={issues} min={20} step={20} title="In tiles — multiples of 20 recommended" />
+              <NumberField label="Map height" field="mapHeight" value={params.mapHeight} onChange={(v) => set('mapHeight', v)} issues={issues} min={20} step={20} title="In tiles — multiples of 20 recommended" />
+              <NumberField label="Edge padding" field="edgePadding" value={params.edgePadding} onChange={(v) => set('edgePadding', v)} issues={issues} min={0} title="Empty border around the map" />
+              <NumberField label="Room padding" field="roomPadding" value={params.roomPadding} onChange={(v) => set('roomPadding', v)} issues={issues} min={0} title="Minimum gap between rooms" />
+            </div>
+          </Section>
 
-      <Section title="Rooms & passages" defaultOpen>
-        <div className="field-grid">
-          <NumberField label="Min room size" field="minRoomSize" value={params.minRoomSize} onChange={(v) => set('minRoomSize', v)} issues={issues} min={3} />
-          <NumberField label="Max room size" field="maxRoomSize" value={params.maxRoomSize} onChange={(v) => set('maxRoomSize', v)} issues={issues} min={3} />
-          <NumberField label="Min room count" field="minRoomCount" value={params.minRoomCount} onChange={(v) => set('minRoomCount', v)} issues={issues} min={2} />
-          <NumberField label="Max room count" field="maxRoomCount" value={params.maxRoomCount} onChange={(v) => set('maxRoomCount', v)} issues={issues} min={2} />
-          <NumberField label="Min passage width" field="minPassageWidth" value={params.minPassageWidth} onChange={(v) => set('minPassageWidth', v)} issues={issues} min={1} />
-          <NumberField label="Max passage width" field="maxPassageWidth" value={params.maxPassageWidth} onChange={(v) => set('maxPassageWidth', v)} issues={issues} min={1} />
-        </div>
-      </Section>
+          <Section title="Rooms & passages" defaultOpen>
+            <div className="field-grid">
+              <NumberField label="Min room size" field="minRoomSize" value={params.minRoomSize} onChange={(v) => set('minRoomSize', v)} issues={issues} min={3} />
+              <NumberField label="Max room size" field="maxRoomSize" value={params.maxRoomSize} onChange={(v) => set('maxRoomSize', v)} issues={issues} min={3} />
+              <NumberField label="Min room count" field="minRoomCount" value={params.minRoomCount} onChange={(v) => set('minRoomCount', v)} issues={issues} min={2} />
+              <NumberField label="Max room count" field="maxRoomCount" value={params.maxRoomCount} onChange={(v) => set('maxRoomCount', v)} issues={issues} min={2} />
+              <NumberField label="Min passage width" field="minPassageWidth" value={params.minPassageWidth} onChange={(v) => set('minPassageWidth', v)} issues={issues} min={1} />
+              <NumberField label="Max passage width" field="maxPassageWidth" value={params.maxPassageWidth} onChange={(v) => set('maxPassageWidth', v)} issues={issues} min={1} />
+            </div>
+          </Section>
 
-      <Section title="Chances & multipliers">
-        <div className="field-grid">
-          <NumberField label="Shop chance" field="shopChance" value={params.shopChance} onChange={(v) => set('shopChance', v)} issues={issues} min={0} max={1} step={0.05} title="Chance per level of a shop room" />
-          <NumberField label="Vault chance" field="vaultChance" value={params.vaultChance} onChange={(v) => set('vaultChance', v)} issues={issues} min={0} max={1} step={0.05} title="Chance per level of a locked treasure vault" />
-          <NumberField label="Lock chance" field="lockChance" value={params.lockChance} onChange={(v) => set('lockChance', v)} issues={issues} min={0} max={1} step={0.05} title="Chance per level of an extra locked room" />
-          <NumberField label="Key chance" field="keyChance" value={params.keyChance} onChange={(v) => set('keyChance', v)} issues={issues} min={0} max={1} step={0.05} title="Chance per level that a key spawns for the last lock" />
-          <NumberField label="Monster ×" field="monsterMultiplier" value={params.monsterMultiplier} onChange={(v) => set('monsterMultiplier', v)} issues={issues} min={0} step={0.1} title="Scales monster horde sizes" />
-          <NumberField label="Gold ×" field="goldMultiplier" value={params.goldMultiplier} onChange={(v) => set('goldMultiplier', v)} issues={issues} min={0} step={0.1} title="Scales treasure amounts" />
-          <NumberField label="Food ×" field="foodMultiplier" value={params.foodMultiplier} onChange={(v) => set('foodMultiplier', v)} issues={issues} min={0} step={0.1} title="Scales health/mana drops" />
-        </div>
-        <BoolField
-          className="field-grid-footer"
-          label="Lock final room"
-          checked={params.lockFinalRoom}
-          onChange={(v) => set('lockFinalRoom', v)}
-          title="Final floor only: the victory orb sits in a dead-end room behind a destructible wall, blown open by a floor button just outside it. No key involved, so keys hoarded from earlier floors or spent on the wrong door cannot strand the party."
-        />
-      </Section>
-
-      <Section title="Themes" badge={params.themes.slice(0, params.levels).join(', ')}>
-        <p className="hint">
-          Tileset per level:<br/>
-          &nbsp;&nbsp;<strong>a–d</strong> classic dungeon<br/>
-          &nbsp;&nbsp;<strong>e–g</strong> castle<br/>
-          &nbsp;&nbsp;<strong>h</strong>–<strong>i</strong> desert (h outdoors, i indoors)<br/>
-          <br/>
-          Bonus levels 1–5 are Gauntlet easter eggs theme:<br/>
-          &nbsp;&nbsp;1 = asphalt<br/>
-          &nbsp;&nbsp;2 = brown crack dirt<br/>
-          &nbsp;&nbsp;3 = black/brown diagonal squares<br/>
-          &nbsp;&nbsp;4 = brown/tan checker tiles<br/>
-          &nbsp;&nbsp;5 = red tiles.<br/>
-          <br/>
-          Entries like <strong>c - tiles</strong> are that same theme with an
-          alternate tileset layered over its floor. Same rooms, walls and
-          stairs — only the floor art changes.<br/>
-          <br/>
-          <strong>c - mixed</strong> varies that choice across the level: every
-          room and every corridor picks its own surface from the plain theme and
-          its alternates, so a carpeted hall can lead into a dirt-floored vault.
-        </p>
-        <div className="theme-grid">
-          {Array.from({ length: Math.max(params.levels, 0) || 0 }, (_, i) => (
-            <label key={i} className="theme-item">
-              <span>Level {i + 1}</span>
-              <select value={params.themes[i] ?? 'a'} onChange={(e) => setTheme(i, e.target.value)}>
-                {THEME_GROUPS.map(([group, defs]) => (
-                  <optgroup key={group} label={group}>
-                    {defs.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </label>
-          ))}
-        </div>
-        {issues
-          .filter((i) => i.field === 'themes')
-          .map((issue, i) => (
-            <p key={i} className="field-message">
-              {issue.message}
-            </p>
-          ))}
-      </Section>
-
-      <Section title="Music per level">
-        <p className="hint">
-          Swaps a floor's own music track. Left on <strong>Default</strong>,
-          a floor plays whatever the game falls back to — nothing is emitted.
-        </p>
-        <div className="field-grid">
-          {Array.from({ length: Math.max(params.levels, 0) || 0 }, (_, i) => (
-            <MusicPicker
-              key={i}
-              label={`Level ${i + 1}`}
-              field={`floorMusic.${i}`}
-              value={params.floorMusic?.[i]}
-              onChange={(v) => setFloorMusic(i, v)}
-              issues={issues}
+          <Section title="Chances & multipliers">
+            <div className="field-grid">
+              <NumberField label="Shop chance" field="shopChance" value={params.shopChance} onChange={(v) => set('shopChance', v)} issues={issues} min={0} max={1} step={0.05} title="Chance per level of a shop room" />
+              <NumberField label="Vault chance" field="vaultChance" value={params.vaultChance} onChange={(v) => set('vaultChance', v)} issues={issues} min={0} max={1} step={0.05} title="Chance per level of a locked treasure vault" />
+              <NumberField label="Lock chance" field="lockChance" value={params.lockChance} onChange={(v) => set('lockChance', v)} issues={issues} min={0} max={1} step={0.05} title="Chance per level of an extra locked room" />
+              <NumberField label="Key chance" field="keyChance" value={params.keyChance} onChange={(v) => set('keyChance', v)} issues={issues} min={0} max={1} step={0.05} title="Chance per level that a key spawns for the last lock" />
+              <NumberField label="Monster ×" field="monsterMultiplier" value={params.monsterMultiplier} onChange={(v) => set('monsterMultiplier', v)} issues={issues} min={0} step={0.1} title="Scales monster horde sizes" />
+              <NumberField label="Gold ×" field="goldMultiplier" value={params.goldMultiplier} onChange={(v) => set('goldMultiplier', v)} issues={issues} min={0} step={0.1} title="Scales treasure amounts" />
+              <NumberField label="Food ×" field="foodMultiplier" value={params.foodMultiplier} onChange={(v) => set('foodMultiplier', v)} issues={issues} min={0} step={0.1} title="Scales health/mana drops" />
+            </div>
+            <BoolField
+              className="field-grid-footer"
+              label="Lock final room"
+              checked={params.lockFinalRoom}
+              onChange={(v) => set('lockFinalRoom', v)}
+              title="Final floor only: the victory orb sits in a dead-end room behind a destructible wall, blown open by a floor button just outside it. No key involved, so keys hoarded from earlier floors or spent on the wrong door cannot strand the party."
             />
-          ))}
-        </div>
-      </Section>
+          </Section>
 
-      <Section title="Monster pools per level">
-        <MonsterPoolsEditor params={params} issues={issues} onChange={onChange} />
-      </Section>
+          <Section title="Themes" badge={params.themes.slice(0, params.levels).join(', ')}>
+            <p className="hint">
+              Tileset per level:<br/>
+              &nbsp;&nbsp;<strong>a–d</strong> classic dungeon<br/>
+              &nbsp;&nbsp;<strong>e–g</strong> castle<br/>
+              &nbsp;&nbsp;<strong>h</strong>–<strong>i</strong> desert (h outdoors, i indoors)<br/>
+              <br/>
+              Bonus levels 1–5 are Gauntlet easter eggs theme:<br/>
+              &nbsp;&nbsp;1 = asphalt<br/>
+              &nbsp;&nbsp;2 = brown crack dirt<br/>
+              &nbsp;&nbsp;3 = black/brown diagonal squares<br/>
+              &nbsp;&nbsp;4 = brown/tan checker tiles<br/>
+              &nbsp;&nbsp;5 = red tiles.<br/>
+              <br/>
+              Entries like <strong>c - tiles</strong> are that same theme with an
+              alternate tileset layered over its floor. Same rooms, walls and
+              stairs — only the floor art changes.<br/>
+              <br/>
+              <strong>c - mixed</strong> varies that choice across the level: every
+              room and every corridor picks its own surface from the plain theme and
+              its alternates, so a carpeted hall can lead into a dirt-floored vault.
+            </p>
+            <div className="theme-grid">
+              {Array.from({ length: Math.max(params.levels, 0) || 0 }, (_, i) => (
+                <label key={i} className="theme-item">
+                  <span>Level {i + 1}</span>
+                  <select value={params.themes[i] ?? 'a'} onChange={(e) => setTheme(i, e.target.value)}>
+                    {THEME_GROUPS.map(([group, defs]) => (
+                      <optgroup key={group} label={group}>
+                        {defs.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </label>
+              ))}
+            </div>
+            {issues
+              .filter((i) => i.field === 'themes')
+              .map((issue, i) => (
+                <p key={i} className="field-message">
+                  {issue.message}
+                </p>
+              ))}
+          </Section>
 
-      <Section title="Monster max counts">
-        <MonsterMaxTable params={params} onChange={onChange} />
-      </Section>
+          <Section title="Music per level">
+            <p className="hint">
+              Swaps a floor's own music track. Left on <strong>Default</strong>,
+              a floor plays whatever the game falls back to — nothing is emitted.
+            </p>
+            <div className="field-grid">
+              {Array.from({ length: Math.max(params.levels, 0) || 0 }, (_, i) => (
+                <MusicPicker
+                  key={i}
+                  label={`Level ${i + 1}`}
+                  field={`floorMusic.${i}`}
+                  value={params.floorMusic?.[i]}
+                  onChange={(v) => setFloorMusic(i, v)}
+                  issues={issues}
+                />
+              ))}
+            </div>
+          </Section>
 
-      <Section title="Buffs per floor" badge={(params.levelBuffs ?? []).slice(0, params.levels).some((b) => b.length > 0) ? 'on' : undefined}>
-        <FloorBuffEditor params={params} issues={issues} onChange={onChange} />
-      </Section>
-      <Section title="Traps per floor" badge={(params.levelTraps ?? []).slice(0, params.levels).some((t) => t.length > 0) ? 'on' : undefined}>
-        <FloorTrapEditor params={params} issues={issues} onChange={onChange} />
-      </Section>
+          <Section title="Monster pools per level">
+            <MonsterPoolsEditor params={params} issues={issues} onChange={onChange} />
+          </Section>
 
-      <Section title="Timer mode" badge={(params.levelTimers ?? []).slice(0, params.levels).some((t) => t.enabled) ? 'on' : undefined}>
-        <FloorTimerEditor params={params} issues={issues} onChange={onChange} />
-      </Section>
+          <Section title="Monster max counts">
+            <MonsterMaxTable params={params} onChange={onChange} />
+          </Section>
+
+          <Section title="Buffs per floor" badge={(params.levelBuffs ?? []).slice(0, params.levels).some((b) => b.length > 0) ? 'on' : undefined}>
+            <FloorBuffEditor params={params} issues={issues} onChange={onChange} />
+          </Section>
+          <Section title="Traps per floor" badge={(params.levelTraps ?? []).slice(0, params.levels).some((t) => t.length > 0) ? 'on' : undefined}>
+            <FloorTrapEditor params={params} issues={issues} onChange={onChange} />
+          </Section>
+
+          <Section title="Timer mode" badge={(params.levelTimers ?? []).slice(0, params.levels).some((t) => t.enabled) ? 'on' : undefined}>
+            <FloorTimerEditor params={params} issues={issues} onChange={onChange} />
+          </Section>
+        </>
+      )}
     </div>
   )
 }
