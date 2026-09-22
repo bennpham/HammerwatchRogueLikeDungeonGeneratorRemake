@@ -2121,6 +2121,19 @@ function validateLevelBoss(p: DungeonParameters, errors: ValidationIssue[], warn
           })
         }
       }
+      // Each copy is its own SpawnObject, so the count is a node count — the
+      // same bound the arena puts on it.
+      for (const [j, entry] of wavePickups(wave).entries()) {
+        if (pickupById(entry.item) === undefined) {
+          errors.push({ field: bf(`waves.${tier}.pickups.${j}.item`), message: `Floor ${i + 1}: "${entry.item}" is not an item the game ships.` })
+        }
+        if (!Number.isInteger(entry.count) || entry.count < 1 || entry.count > MAX_PICKUP_COUNT) {
+          errors.push({
+            field: bf(`waves.${tier}.pickups.${j}.count`),
+            message: `Floor ${i + 1}: wave ${tier + 1} drops ${entry.count} × "${entry.item}" — the count must be a whole number 1..${MAX_PICKUP_COUNT}.`
+          })
+        }
+      }
     })
 
     const invuln = boss.invulnerability
@@ -2179,6 +2192,21 @@ function validateLevelBoss(p: DungeonParameters, errors: ValidationIssue[], warn
         message: `Floor ${i + 1}: the boss fights alone — no wave tier spawns anything.`
       })
     }
+
+    // Two rows of one item work — they just scatter separately — but one row
+    // with the counts added is what was meant, and what the form edits in one place.
+    boss.waves.forEach((wave, tier) => {
+      const seen = new Set<string>()
+      wavePickups(wave).forEach((entry, j) => {
+        if (seen.has(entry.item)) {
+          warnings.push({
+            field: bf(`waves.${tier}.pickups.${j}.item`),
+            message: `Floor ${i + 1}: wave ${tier + 1} already drops "${entry.item}" — fold the two rows into one count.`
+          })
+        }
+        seen.add(entry.item)
+      })
+    })
   })
 
   if (levelBoss.length > p.levels) {

@@ -1,9 +1,10 @@
 import React, { useState } from 'react'
-import { BOSS_DEF_LIST, defaultDungeonBoss, waveBuffs, waveTraps } from '../../generator'
+import { BOSS_DEF_LIST, defaultDungeonBoss, pickupById, waveBuffs, wavePickups, waveTraps } from '../../generator'
 import type { DungeonBoss, DungeonParameters, BossWave, ValidationIssue } from '../../generator'
 import { NumberField, Section, Subsection } from './fields'
 import { BuffListEditor } from './BuffListEditor'
 import { TrapListEditor } from './TrapListEditor'
+import { PickupListEditor } from './PickupListEditor'
 import { WaveEditor, WAVE_LABELS } from './WaveEditor'
 import { InvulnerabilityEditor, invulnBadge } from './InvulnerabilityEditor'
 import { CheckpointsEditor, checkpointBadge } from './CheckpointsEditor'
@@ -82,6 +83,14 @@ export function DungeonBossEditor({ params, issues, onChange }: DungeonBossEdito
     const source = waveBuffs(boss.waves[tier])
     setFloor(level, {
       waves: boss.waves.map((w, i) => (i > tier ? { ...w, buffs: source.map((b) => ({ ...b })) } : w))
+    })
+  }
+
+  const copyWavePickupDown = (tier: number) => {
+    if (level === undefined || boss === undefined) return
+    const source = wavePickups(boss.waves[tier])
+    setFloor(level, {
+      waves: boss.waves.map((w, i) => (i > tier ? { ...w, pickups: source.map((d) => ({ ...d })) } : w))
     })
   }
 
@@ -175,6 +184,7 @@ export function DungeonBossEditor({ params, issues, onChange }: DungeonBossEdito
             onToggleBoss={(id, on) => toggleBoss(level, id, on)}
             onCopyWaveBuffDown={copyWaveBuffDown}
             onCopyWaveTrapDown={copyWaveTrapDown}
+            onCopyWavePickupDown={copyWavePickupDown}
           />
         </>
       )}
@@ -196,9 +206,10 @@ interface DungeonBossFloorEditorProps {
   onToggleBoss: (id: string, on: boolean) => void
   onCopyWaveBuffDown: (tier: number) => void
   onCopyWaveTrapDown: (tier: number) => void
+  onCopyWavePickupDown: (tier: number) => void
 }
 
-/** One floor's whole boss config — the sections BossForm's arena runs, minus the geometry and the pickups a floor has no drop pad for. */
+/** One floor's whole boss config — the sections BossForm's arena runs, minus the arena geometry. */
 function DungeonBossFloorEditor({
   boss,
   level,
@@ -207,7 +218,8 @@ function DungeonBossFloorEditor({
   onWaveChange,
   onToggleBoss,
   onCopyWaveBuffDown,
-  onCopyWaveTrapDown
+  onCopyWaveTrapDown,
+  onCopyWavePickupDown
 }: DungeonBossFloorEditorProps) {
   const fieldPrefix = `levelBoss.${level}`
 
@@ -318,6 +330,48 @@ function DungeonBossFloorEditor({
                   className="copy-down"
                   onClick={() => onCopyWaveBuffDown(i)}
                   title="Give every later tier these same buffs and targets"
+                >
+                  Copy to tiers below
+                </button>
+              )}
+            </Subsection>
+          )
+        })}
+      </Section>
+
+      <Section title="Wave pickups" badge={boss.waves.some((w) => wavePickups(w).length > 0) ? 'on' : undefined}>
+        <p className="hint">
+          A tier's drops appear <strong>scattered across the floor's rooms</strong> the moment its
+          threshold fires, each copy on its own tile, and stay until somebody walks over them — so
+          unlike the buffs above, the tiers do <strong>not</strong> replace one another, and the
+          health nobody collected at 50% is still out there at 25%. No tier drops anything by
+          default.
+        </p>
+        {boss.waves.map((wave, i) => {
+          const pickups = wavePickups(wave)
+          return (
+            <Subsection
+              key={i}
+              title={WAVE_LABELS[i] ?? `Tier ${i + 1}`}
+              badge={
+                pickups.length === 0
+                  ? 'none'
+                  : pickups.map((d) => `${d.count}× ${pickupById(d.item)?.label ?? d.item}`).join(', ')
+              }
+            >
+              <PickupListEditor
+                value={pickups}
+                onChange={(next) => onWaveChange(i, { pickups: next })}
+                noun="tier"
+                issuePrefix={`${fieldPrefix}.waves.${i}.pickups`}
+                issues={issues}
+              />
+              {i < boss.waves.length - 1 && (
+                <button
+                  type="button"
+                  className="copy-down"
+                  onClick={() => onCopyWavePickupDown(i)}
+                  title="Give every later tier these same drops and counts"
                 >
                   Copy to tiers below
                 </button>

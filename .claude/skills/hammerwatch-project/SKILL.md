@@ -1070,9 +1070,16 @@ rules came from the 2026-09-22 playtest (DISCOVERY-LOG).
   position**, so the floor passes its `LevelStart` as `buildCheckpointRig`'s
   `respawnAt`. Only the triggers go in the marker column past the east edge.
 
-Per-tier item **drops are deliberately absent** — the
-arena's land on a fixed entrance pad and a floor has no equivalent; deferred
-rather than scattered arbitrarily.
+**Per-tier item drops scatter across the floor** (`dungeonBoss/pickups.ts`).
+The arena drops on a fixed pad by its entrance, and a floor has no such spot,
+so each copy gets its own random interior tile: the same `floorInteriorSlots`
+and `takeSlot` the wave monsters use, from a pool of its own that is refilled
+if a big table empties it. The wiring is the arena's: one
+`SpawnObject{trigger-times: 1}` per copy off the tier trigger, with tier 0 on
+`LevelLoaded`. It is built **last** in `buildFloorBossRig`, so turning drops
+on only appends ids and `floorBossRand` draws and moves nothing already on
+the floor. `bossFloorN WavePickup<T>=item:count|…` in `parameters.txt`
+shares `parsePickupRows` with the arena's `boss<f>WavePickupN`.
 
 ## Arena mode: Boss or Survival (`survival/`, issue #61)
 

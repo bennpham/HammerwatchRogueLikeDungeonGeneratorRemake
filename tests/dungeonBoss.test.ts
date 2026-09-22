@@ -103,7 +103,6 @@ function stringParam(body: string, name: string): string | null {
   return found === null ? null : found[1]
 }
 
-/** Every `<dictionary>` in the actors section, as its `type` string. */
 interface RoomRect {
   x: number
   y: number
@@ -119,6 +118,7 @@ function nodePos(body: string): { x: number; y: number } {
   }
 }
 
+/** Every `<dictionary>` in the actors section, as its `type` string. */
 function actorTypes(xml: string): string[] {
   const section = /<array name="actors">([\s\S]*?)<\/array>/.exec(xml)
   if (section === null) return []
@@ -364,6 +364,66 @@ describe('dungeon boss — the tier rigs', () => {
     }
   }, 60_000)
 
+  it('scatters wave pickups over the floor, one tile per copy, off each tier trigger', () => {
+    const waves = defaultDungeonBoss().waves
+    waves[0] = { ...waves[0], pickups: [{ item: 'health_4', count: 2 }] }
+    waves[2] = { ...waves[2], pickups: [{ item: 'mana_2', count: 3 }, { item: 'health_2', count: 1 }] }
+    const result = generateOk(withBoss({ waves }), SEED)
+    const xml = floorXml(result, BOSS_FLOOR)
+
+    const items = nodesOfType(xml, 'SpawnObject').filter((n) => /items\//.test(n.body))
+    expect(items, 'one SpawnObject per copy').toHaveLength(6)
+    for (const n of items) expect(intParam(n.body, 'trigger-times'), 'a drop fires once').toBe(1)
+
+    // Each copy hangs off its tier's trigger: tier 0 on LevelLoaded, tier 2 on Boss 50%.
+    const triggers = nodesOfType(xml, 'GlobalEventTrigger')
+    const feeding = (event: string): number[] =>
+      triggers.filter((t) => stringParam(t.body, 'parameters') === event).flatMap((t) => intArr(t.body, 'connections') ?? [])
+    const itemIds = new Set(items.map((n) => n.id))
+    expect(feeding('LevelLoaded').filter((id) => itemIds.has(id))).toHaveLength(2)
+    expect(feeding('Boss 50%').filter((id) => itemIds.has(id))).toHaveLength(4)
+
+    // Scattered, not stacked, and never against a wall.
+    const points = items.map((n) => nodePos(n.body))
+    expect(new Set(points.map((p) => `${p.x},${p.y}`)).size, 'every copy on its own tile').toBe(6)
+    const preview = result.levels.find((l) => l.label === String(BOSS_FLOOR + 1))
+    const rooms = (preview as { rooms: RoomRect[] }).rooms
+    for (const p of points) {
+      const boxed = rooms.some((r) => {
+        const b = roomSpawnBox(r)
+        return p.x >= b.x0 && p.x <= b.x1 && p.y >= b.y0 && p.y <= b.y1
+      })
+      expect(boxed, `drop at (${p.x},${p.y}) is within a wall's reach of its room edge`).toBe(true)
+    }
+  }, 60_000)
+
+  it('turning pickups on moves nothing already on the floor', () => {
+    // Built last, drawing last: every existing node keeps its id, position and
+    // wiring, and the actors and items are untouched.
+    const base = withBoss({ waves: waveOn(1, { bat1: 12 }) })
+    const withDrops = withBoss({ waves: waveOn(1, { bat1: 12 }) })
+    withDrops.levelBoss![BOSS_FLOOR].waves[3].pickups = [{ item: 'health_4', count: 5 }]
+
+    const before = floorXml(generateOk(base, SEED), BOSS_FLOOR)
+    const after = floorXml(generateOk(withDrops, SEED), BOSS_FLOOR)
+
+    const nodes = (xml: string): Map<number, string> => {
+      const out = new Map<number, string>()
+      for (const m of xml.matchAll(/<dictionary>\s*<int name="id">(-?\d+)<\/int>\s*<string name="type">([^<]*)<\/string>/g)) {
+        const body = xml.slice(m.index, xml.indexOf('</dictionary>', m.index))
+        out.set(Number(m[1]), `${m[2]}@${nodePos(body).x},${nodePos(body).y}|${(intArr(body, 'connections') ?? []).join(' ')}`)
+      }
+      return out
+    }
+    const was = nodes(before)
+    const now = nodes(after)
+    for (const [id, sig] of was) expect(now.get(id), `node ${id} changed`).toBe(sig)
+    expect(now.size).toBeGreaterThan(was.size)
+
+    const section = (xml: string, name: string): string => new RegExp(`<array name="${name}">[\\s\\S]*?</array>`).exec(xml)?.[0] ?? ''
+    expect(section(after, 'actors')).toBe(section(before, 'actors'))
+  }, 60_000)
+
   it('ships per-tier traps disabled behind their trigger, and draws nothing without them', () => {
     const untrapped = generateOk(withBoss(), SEED)
 
@@ -412,6 +472,23 @@ describe('dungeon boss — validation', () => {
 
     const result = validateParameters(withBoss({ bossPool: ['boss_queen'] }))
     expect(fields(result.errors)).toContain(`levelBoss.${BOSS_FLOOR}.bossPool`)
+  })
+
+  it('rejects a bad pickup row and warns on a duplicate one', () => {
+    const waves = defaultDungeonBoss().waves
+    waves[1] = { ...waves[1], pickups: [{ item: 'nonsense', count: 1 }, { item: 'health_4', count: 0 }] }
+    expect(fields(validateParameters(withBoss({ waves })).errors)).toEqual(
+      expect.arrayContaining([
+        `levelBoss.${BOSS_FLOOR}.waves.1.pickups.0.item`,
+        `levelBoss.${BOSS_FLOOR}.waves.1.pickups.1.count`
+      ])
+    )
+
+    const dup = defaultDungeonBoss().waves
+    dup[1] = { ...dup[1], pickups: [{ item: 'health_4', count: 1 }, { item: 'health_4', count: 2 }] }
+    const result = validateParameters(withBoss({ waves: dup }))
+    expect(result.errors).toHaveLength(0)
+    expect(fields(result.warnings)).toContain(`levelBoss.${BOSS_FLOOR}.waves.1.pickups.1.item`)
   })
 
   it('rejects an empty pool', () => {
@@ -480,6 +557,25 @@ describe('dungeon boss — parameters.txt', () => {
     expect(back?.waves[1].traps).toEqual([
       { projectile: 'shooter_arrow', direction: 'up', spread: 0.5, spawnRateMs: 900, count: 3 }
     ])
+  })
+
+  it('round-trips wave pickups, and writes none for a tier without them', () => {
+    const waves = defaultDungeonBoss().waves
+    waves[2] = { ...waves[2], pickups: [{ item: 'health_4', count: 2 }, { item: 'mana_2', count: 1 }] }
+    const text = serializeParametersTxt(withBoss({ waves }))
+    expect(text).toMatch(/^bossFloor1WavePickup3=health_4:2\|mana_2:1$/m)
+    expect(text.match(/^bossFloor1WavePickup/gm), 'only the tier that drops').toHaveLength(1)
+
+    const parsed = parseParametersTxt(text, bareParams())
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.levelBoss?.[BOSS_FLOOR].waves[2].pickups).toEqual([
+      { item: 'health_4', count: 2 },
+      { item: 'mana_2', count: 1 }
+    ])
+    // Not swallowed by the waveN branch, and an unknown item is reported, not fatal.
+    const bad = parseParametersTxt('bossFloor1=1\nbossFloor1WavePickup1=nonsense:3|health_4', bareParams())
+    expect(bad.unknownKeys.some((k) => /nonsense/.test(k))).toBe(true)
+    expect(bad.params.levelBoss?.[BOSS_FLOOR].waves[0].pickups).toEqual([{ item: 'health_4', count: 1 }])
   })
 
   it('writes not one key for a campaign with no boss floor', () => {

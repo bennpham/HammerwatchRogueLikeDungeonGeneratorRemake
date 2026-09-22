@@ -22,17 +22,13 @@
  *   5. invulnerability windows on the boss actor
  *   6. checkpoints     respawn / save-game milestones
  *   7. opener          Boss Died -> DestroyObject on the seals
+ *   8. pickups         per-tier item drops across the floor <- draws
  *
  * Every step from 2 on returns before allocating an id when its own config is
- * empty, which is what keeps one from moving another's ids. Steps 1, 2 and 4
- * are the only ones that draw, and they draw only from `ctx.floorBossRand`.
- *
- * NOT here, deliberately: per-tier item drops. The arena's land on a fixed pad
- * just inside its entrance (`boss/pickupPad.ts`), learnable because every arena
- * has the same one; a dungeon floor has no equivalent, and dealing them onto
- * scattered room tiles would reproduce the 2026-08-28 playtest failure where a
- * mid-fight heal was placed somewhere nobody found it. Deferred to a follow-up
- * that can decide a placement rule on purpose rather than by default.
+ * empty, which is what keeps one from moving another's ids. Steps 1, 2, 4 and
+ * 8 are the only ones that draw, and they draw only from `ctx.floorBossRand`.
+ * Pickups come last on purpose: they were added after the rest, and running
+ * last is what lets turning them on move nothing already on the floor.
  */
 
 import type { GenerationContext } from '../core/context'
@@ -46,12 +42,14 @@ import { floorInteriorSlots } from './placement'
 import { buildFloorBossWaveRig } from './waves'
 import { buildFloorBossTrapRig } from './traps'
 import { buildFloorBossOpener } from './opener'
+import { buildFloorBossPickupRig } from './pickups'
 
 export { placeFloorBoss } from './actor'
 export { floorInteriorSlots, roomInteriorSlots } from './placement'
 export { buildFloorBossWaveRig, FLOOR_SPAWN_POINTS } from './waves'
 export { buildFloorBossTrapRig } from './traps'
 export { BOSS_DIED_EVENT, OPENED_TEXT, buildFloorBossOpener } from './opener'
+export { buildFloorBossPickupRig } from './pickups'
 
 /**
  * Builds the whole dungeon-boss rig for one accepted floor, in the fixed order
@@ -100,4 +98,6 @@ export function buildFloorBossRig(
   }
 
   buildFloorBossOpener(ctx, level.seals, markerX, markerY)
+
+  buildFloorBossPickupRig(ctx, boss.waves, level, markerX, markerY)
 }

@@ -196,6 +196,38 @@ function newBossFightParseState(): BossFightParseState {
  * fatal). There is no alias to a lobby index; the break is deliberately loud.
  */
 /**
+ * Parses an `<item>:<count>|…` value into drop rows. Shared by the arena's
+ * `boss<f>WavePickupN` and the floor's `bossFloor<i>WavePickupN`, for the same
+ * no-drift reason `parseTrapRows` below is shared.
+ *
+ * A bare item with no count is one copy — the friendliest reading of a
+ * hand-written line. An unknown item or a non-numeric count is reported
+ * through `unknownKeys` and skipped, never thrown on (invariant #5).
+ */
+function parsePickupRows(key: string, value: string, unknownKeys: string[]): WavePickup[] {
+  const entries: WavePickup[] = []
+  for (const segment of value.split('|')) {
+    const trimmed = segment.trim()
+    if (trimmed === '') continue
+    const colon = trimmed.indexOf(':')
+    const id = (colon === -1 ? trimmed : trimmed.slice(0, colon)).trim()
+    const countText = colon === -1 ? '1' : trimmed.slice(colon + 1).trim()
+
+    if (pickupById(id) === undefined) {
+      unknownKeys.push(`${key} item "${id}"`)
+      continue
+    }
+    const count = parseInt(countText, 10)
+    if (Number.isNaN(count)) {
+      unknownKeys.push(`${key} count "${countText}"`)
+      continue
+    }
+    entries.push({ item: id, count })
+  }
+  return entries
+}
+
+/**
  * Parses a `<projectile>:<direction>:<spread>:<rate>:<count>|…` value into trap
  * rows. Shared verbatim by the arena's `boss<f>WaveTrapN` and the floor's
  * `trapN`, which carry the same five fields in the same grammar — the two must
@@ -372,9 +404,20 @@ function parseFloorBossKey(
     return true
   }
 
-  // The three tier lines, tested most-specific-first for the same
+  // The four tier lines, tested most-specific-first for the same
   // anchored-pattern reason the arena's are: `wavetrap1` must not fall through
   // to the `wave(\d+)` branch.
+  const pickupMatch = suffix.match(/^wavepickup(\d+)$/)
+  if (pickupMatch) {
+    const tier = parseInt(pickupMatch[1], 10) - 1
+    if (tier < 0 || tier >= BOSS_WAVE_COUNT) {
+      unknownKeys.push(key)
+      return true
+    }
+    boss.waves[tier].pickups = parsePickupRows(key, value, unknownKeys)
+    return true
+  }
+
   const trapMatch = suffix.match(/^wavetrap(\d+)$/)
   if (trapMatch) {
     const tier = parseInt(trapMatch[1], 10) - 1
@@ -819,30 +862,7 @@ function parseBossFightKey(
       unknownKeys.push(key)
       return true
     }
-    const entries: WavePickup[] = []
-
-    for (const segment of value.split('|')) {
-      const trimmed = segment.trim()
-      if (trimmed === '') continue
-      const colon = trimmed.indexOf(':')
-      const id = (colon === -1 ? trimmed : trimmed.slice(0, colon)).trim()
-      // A bare item with no count is one copy — the friendliest reading of a
-      // hand-written line, and never fatal (invariant #5).
-      const countText = colon === -1 ? '1' : trimmed.slice(colon + 1).trim()
-
-      if (pickupById(id) === undefined) {
-        unknownKeys.push(`${key} item "${id}"`)
-        continue
-      }
-      const count = parseInt(countText, 10)
-      if (Number.isNaN(count)) {
-        unknownKeys.push(`${key} count "${countText}"`)
-        continue
-      }
-      entries.push({ item: id, count })
-    }
-
-    arena.waves[idx].pickups = entries
+    arena.waves[idx].pickups = parsePickupRows(key, value, unknownKeys)
     state.sawPickupLine.add(idx)
     return true
   }
@@ -1641,6 +1661,10 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
           const buffs = waveBuffs(wave)
           if (buffs.length > 0) {
             lines.push(`bossFloor${i}WaveBuff${tier + 1}=${buffs.map((b) => `${b.buff}:${b.target}`).join('|')}`)
+          }
+          const pickups = wavePickups(wave)
+          if (pickups.length > 0) {
+            lines.push(`bossFloor${i}WavePickup${tier + 1}=${pickups.map((d) => `${d.item}:${d.count}`).join('|')}`)
           }
           const traps = waveTraps(wave)
           if (traps.length > 0) {
