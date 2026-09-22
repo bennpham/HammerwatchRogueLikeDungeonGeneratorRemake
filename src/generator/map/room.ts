@@ -12,6 +12,36 @@ export type RoomType = 'None' | 'Entrance' | 'Exit' | 'Vault' | 'Lair' | 'Storag
 
 const TWO_PI = 2 * Math.PI
 
+/** Tiles kept between a spawned actor and a room's west, east and south walls. */
+export const SPAWN_SIDE_INSET = 2
+/** The north edge's deeper inset: the 2-row wall-art overhang plus the same 2. */
+export const SPAWN_NORTH_INSET = 4
+
+/**
+ * Where an actor can be dropped in a room without landing in its walls —
+ * inclusive tile bounds. This is the original's own Lair-spawner box (the
+ * `fRand(this.x + 2, …)` / `fRand(this.y + 4, …)` in `transform('Lair')`
+ * below, left as literals so the port stays line-for-line), and the arena's
+ * anchors use the same 2-and-4 (`boss/anchors.ts`). An actor on the tile next
+ * to a wall is inside that wall's collision and cannot move: a playtest on
+ * 2026-09-22 found every floor-boss wave spawn that did this stuck.
+ *
+ * Empty (`x0 > x1` or `y0 > y1`) for a room too small to hold it.
+ */
+export function roomSpawnBox(room: { x: number; y: number; width: number; height: number }): {
+  x0: number
+  x1: number
+  y0: number
+  y1: number
+} {
+  return {
+    x0: room.x + SPAWN_SIDE_INSET,
+    x1: room.x + room.width - SPAWN_SIDE_INSET,
+    y0: room.y + SPAWN_NORTH_INSET,
+    y1: room.y + room.height - SPAWN_SIDE_INSET
+  }
+}
+
 /**
  * A rectangular room: random placement, then a transform() into one of the
  * special room types populates it with content (ported from Room.java).
@@ -227,7 +257,10 @@ export class Room {
         if (this.locked) return false
         // the orb can only be locked behind a single door if exactly one
         // corridor reaches it — same condition lockRoom() enforces
-        if (params.lockFinalRoom && this.passages.length !== 1) return false
+        // A boss floor is always sealed (issue #61), so its gateway room must
+        // be a dead end whether or not `lockFinalRoom` is ticked — the seal is
+        // drawn across a single corridor and has nothing to close otherwise.
+        if ((params.lockFinalRoom || ctx.floorBoss) && this.passages.length !== 1) return false
         // What comes next swaps the orb prefab for one of two portals, at the
         // same coordinates: the red one into a fight's arena, or the blue one
         // into a lobby — three visually distinct ways for a floor to end, so
@@ -245,9 +278,13 @@ export class Room {
           ctx,
           this.x + Math.trunc(this.width / 2),
           this.y + Math.trunc(this.height / 2) + 1,
-          gateway?.kind === 'portal' ? 'BossPortal' : gateway?.kind === 'lobbyPortal' ? 'LobbyPortal' : 'Orb',
+          // `exit` reaches here only on a boss floor, which takes this branch
+          // instead of the stairs one — render it as the red portal pointing at
+          // the next floor, the same substitution boss/arena.ts makes for an
+          // arena that has no stairs prefab of its own.
+          gateway?.kind === 'lobbyPortal' ? 'LobbyPortal' : gateway?.kind === 'orb' || gateway === null ? 'Orb' : 'BossPortal',
           this.theme,
-          gateway?.kind === 'portal' ? gateway.target : gateway?.kind === 'lobbyPortal' ? gateway.target : undefined
+          gateway?.kind === 'orb' || gateway === null ? undefined : gateway.target
         )
         this.type = type
         return true

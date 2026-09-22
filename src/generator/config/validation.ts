@@ -30,6 +30,7 @@ import {
   SURVIVAL_COUNTDOWN_STYLES,
   SURVIVAL_SECONDS_MAX,
   SURVIVAL_COUNTDOWN_NODE_WARN,
+  MOBILE_BOSS_IDS,
   arenaMode,
   survivalBuffs,
   survivalPickups,
@@ -52,6 +53,7 @@ import {
   parseMonsterKey,
   resolveActorPath
 } from '../objects/monsterTypes'
+import { isMobileBoss } from '../boss/bosses'
 import { corpseCollision } from '../objects/actorCollision'
 import { BUFF_HELPFUL_IDS, buffById } from '../objects/buffTypes'
 import { MAX_PICKUP_COUNT, pickupById } from '../objects/pickupTypes'
@@ -313,6 +315,7 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
   validatePlayerTweaks(p, errors, warnings)
   validateLevelBuffs(p, errors, warnings)
   validateLevelTraps(p, errors, warnings)
+  validateLevelBoss(p, errors, warnings)
   validateLevelTimers(p, errors, warnings)
   validateFloorMusic(p, errors, warnings)
   validateLobbies(p, errors, warnings)
@@ -673,7 +676,13 @@ function validateBossFight(
   const bossErrors: ValidationIssue[] = isSurvival ? [] : errors
   const bossWarnings: ValidationIssue[] = isSurvival ? [] : warnings
 
-  if (isSurvival) validateSurvival(fight, index, errors, warnings)
+  // Survival's ADVISORIES are suppressed for a campaign with no arenas, the
+  // same way the boss-mode warnings below stop at `!boss.enabled`. The fight
+  // list is retained while arenas are off — zero arenas is a cleared flag, not
+  // a cleared list — so without this a turned-off campaign still reports things
+  // like "this survival arena spawns nothing" about an arena it will not build.
+  // Errors still go through, exactly as they do in boss mode.
+  if (isSurvival) validateSurvival(fight, index, errors, boss.enabled ? warnings : [])
 
   // min ≤ max on both axes
   if (arena.minWidth > arena.maxWidth) {
@@ -2019,6 +2028,195 @@ function validateLevelBuffs(p: DungeonParameters, errors: ValidationIssue[], war
  * rooms rather than an arena, and no upper bound on `count` — see
  * FloorTrap.count's doc comment for why MAX_TRAP_COUNT does not apply here.
  */
+/**
+ * Every rule for the per-floor bosses (issue #61).
+ *
+ * House shape, the one `validateLevelTraps` documents: snapshot, error rules, a
+ * guard, then warnings — so a floor with an unknown boss never also collects
+ * advisories about it.
+ *
+ * Only ENABLED floors are checked. A disabled entry is the stock value on every
+ * floor of every campaign, so validating its contents would make the default
+ * parameter set noisy about a feature nobody switched on.
+ */
+function validateLevelBoss(p: DungeonParameters, errors: ValidationIssue[], warnings: ValidationIssue[]): void {
+  const levelBoss = p.levelBoss
+  if (levelBoss === undefined) return
+
+  const before = errors.length
+
+  levelBoss.slice(0, p.levels).forEach((boss, i) => {
+    if (boss === undefined || !boss.enabled) return
+
+    const bf = (suffix: string): string => `levelBoss.${i}.${suffix}`
+
+    if (boss.bossPool.length === 0) {
+      errors.push({ field: bf('bossPool'), message: `Floor ${i + 1}: at least one boss must be in the pool.` })
+    }
+    for (const id of boss.bossPool) {
+      if (!BOSS_IDS.includes(id as (typeof BOSS_IDS)[number])) {
+        errors.push({ field: bf('bossPool'), message: `Floor ${i + 1}: unknown boss "${id}".` })
+      } else if (!isMobileBoss(id)) {
+        // The floor's way out is sealed until the boss dies, so a boss that
+        // cannot cross the floor to reach the party is a floor that can never
+        // be finished. An arena confines the fight; a dungeon floor does not.
+        errors.push({
+          field: bf('bossPool'),
+          message: `Floor ${i + 1}: "${id}" cannot move, so it can never reach the party on a dungeon floor. Pick one of: ${MOBILE_BOSS_IDS.join(', ')}.`
+        })
+      }
+    }
+
+    if (boss.waves.length !== BOSS_WAVE_COUNT) {
+      errors.push({
+        field: bf('waves'),
+        message: `Floor ${i + 1}: exactly ${BOSS_WAVE_COUNT} wave tiers are required (100/75/50/25 and boss death).`
+      })
+    }
+
+    boss.waves.forEach((wave, tier) => {
+      for (const key of wave.monsters) {
+        if (!isKnownMonsterKey(key)) {
+          errors.push({ field: bf(`waves.${tier}.monsters`), message: `Floor ${i + 1}: unknown monster "${key}".` })
+        }
+      }
+      for (const [id, max] of Object.entries(wave.monsterMax ?? {})) {
+        if (!Number.isInteger(max) || max < -1) {
+          errors.push({
+            field: bf(`waves.${tier}.monsterMax.${id}`),
+            message: `Floor ${i + 1}: max count for "${id}" must be a whole number ≥ -1 (-1 = endless).`
+          })
+        }
+      }
+      const ms = wave.defaultIntervalMs
+      if (!Number.isInteger(ms) || ms < MIN_WAVE_INTERVAL_MS || ms > MAX_WAVE_INTERVAL_MS) {
+        errors.push({
+          field: bf(`waves.${tier}.defaultIntervalMs`),
+          message: `Floor ${i + 1}: spawn interval must be between ${MIN_WAVE_INTERVAL_MS} and ${MAX_WAVE_INTERVAL_MS} ms.`
+        })
+      }
+      for (const [j, row] of waveTraps(wave).entries()) {
+        const tf = (suffix: string): string => bf(`waves.${tier}.traps.${j}.${suffix}`)
+        if (projectileById(row.projectile) === undefined) {
+          errors.push({ field: tf('projectile'), message: `Floor ${i + 1}: unknown projectile "${row.projectile}".` })
+        }
+        if (!BOSS_TRAP_DIRECTIONS.includes(row.direction)) {
+          errors.push({ field: tf('direction'), message: `Floor ${i + 1}: "${row.direction}" is not one of: ${BOSS_TRAP_DIRECTIONS.join(', ')}.` })
+        }
+        if (!Number.isFinite(row.spread) || row.spread < 0 || row.spread > TRAP_SPREAD_MAX) {
+          errors.push({ field: tf('spread'), message: `Floor ${i + 1}: spread must be between 0 and ${TRAP_SPREAD_MAX}.` })
+        }
+        if (!Number.isInteger(row.count) || row.count < 1) {
+          errors.push({ field: tf('count'), message: `Floor ${i + 1}: trap count must be a whole number of at least 1.` })
+        }
+      }
+      for (const [j, entry] of waveBuffs(wave).entries()) {
+        if (buffById(entry.buff) === undefined) {
+          errors.push({ field: bf(`waves.${tier}.buffs.${j}.buff`), message: `Floor ${i + 1}: unknown buff "${entry.buff}".` })
+        }
+        if (!BUFF_TARGETS.includes(entry.target)) {
+          errors.push({
+            field: bf(`waves.${tier}.buffs.${j}.target`),
+            message: `Floor ${i + 1}: "${entry.target}" is not one of: ${BUFF_TARGETS.join(', ')}.`
+          })
+        }
+      }
+      // Each copy is its own SpawnObject, so the count is a node count — the
+      // same bound the arena puts on it.
+      for (const [j, entry] of wavePickups(wave).entries()) {
+        if (pickupById(entry.item) === undefined) {
+          errors.push({ field: bf(`waves.${tier}.pickups.${j}.item`), message: `Floor ${i + 1}: "${entry.item}" is not an item the game ships.` })
+        }
+        if (!Number.isInteger(entry.count) || entry.count < 1 || entry.count > MAX_PICKUP_COUNT) {
+          errors.push({
+            field: bf(`waves.${tier}.pickups.${j}.count`),
+            message: `Floor ${i + 1}: wave ${tier + 1} drops ${entry.count} × "${entry.item}" — the count must be a whole number 1..${MAX_PICKUP_COUNT}.`
+          })
+        }
+      }
+    })
+
+    const invuln = boss.invulnerability
+    for (const [j, seconds] of invuln.seconds.entries()) {
+      if (!Number.isInteger(seconds) || seconds < 0 || seconds > MAX_BOSS_INVULN_SECONDS) {
+        errors.push({
+          field: bf(`invulnerability.seconds.${j}`),
+          message: `Floor ${i + 1}: an invulnerability window must be a whole number of seconds between 0 and ${MAX_BOSS_INVULN_SECONDS}.`
+        })
+      }
+    }
+
+    // Both rigs count down on screen on the same level, and the issue is
+    // explicit that turning one on turns the other off. An error rather than a
+    // silent drop: whichever we discarded, the dungeon master configured it.
+    if (invuln.enabled && p.levelTimers?.[i]?.enabled === true) {
+      errors.push({
+        field: bf('invulnerability'),
+        message: `Floor ${i + 1}: boss invulnerability and timer mode cannot both run on one floor — they announce competing countdowns. Switch one off.`
+      })
+    }
+
+    if (!(boss.checkpoints.respawnPlayers in BOSS_CHECKPOINT_PRESETS)) {
+      errors.push({ field: bf('checkpoints.respawnPlayers'), message: `Floor ${i + 1}: unknown checkpoint preset "${boss.checkpoints.respawnPlayers}".` })
+    }
+    if (!(boss.checkpoints.saveGame in BOSS_CHECKPOINT_PRESETS)) {
+      errors.push({ field: bf('checkpoints.saveGame'), message: `Floor ${i + 1}: unknown checkpoint preset "${boss.checkpoints.saveGame}".` })
+    }
+
+    if (!Number.isFinite(boss.monsterMultiplier) || boss.monsterMultiplier < 0) {
+      errors.push({ field: bf('monsterMultiplier'), message: `Floor ${i + 1}: multiplier must be ≥ 0.` })
+    }
+  })
+
+  if (errors.length > before) return
+
+  // --- warnings ---
+
+  levelBoss.slice(0, p.levels).forEach((boss, i) => {
+    if (boss === undefined || !boss.enabled) return
+    const bf = (suffix: string): string => `levelBoss.${i}.${suffix}`
+
+    // The gateway room has to be a dead end for the seal to close it, and a
+    // floor with very few rooms rarely rolls one — the same shape the existing
+    // lockFinalRoom warning is about, and here it is not optional.
+    if (p.minRoomCount < 3) {
+      warnings.push({
+        field: bf('enabled'),
+        message: `Floor ${i + 1}: a boss floor's way out must be a dead-end room, which a floor of only ${p.minRoomCount} rooms will often fail to produce — expect slow generation or a failure.`
+      })
+    }
+
+    if (boss.waves.every((w) => w.monsters.length === 0)) {
+      warnings.push({
+        field: bf('waves'),
+        message: `Floor ${i + 1}: the boss fights alone — no wave tier spawns anything.`
+      })
+    }
+
+    // Two rows of one item work — they just scatter separately — but one row
+    // with the counts added is what was meant, and what the form edits in one place.
+    boss.waves.forEach((wave, tier) => {
+      const seen = new Set<string>()
+      wavePickups(wave).forEach((entry, j) => {
+        if (seen.has(entry.item)) {
+          warnings.push({
+            field: bf(`waves.${tier}.pickups.${j}.item`),
+            message: `Floor ${i + 1}: wave ${tier + 1} already drops "${entry.item}" — fold the two rows into one count.`
+          })
+        }
+        seen.add(entry.item)
+      })
+    })
+  })
+
+  if (levelBoss.length > p.levels) {
+    warnings.push({
+      field: 'levelBoss',
+      message: `There are more boss entries than floors — the extra entries are ignored.`
+    })
+  }
+}
+
 function validateLevelTraps(p: DungeonParameters, errors: ValidationIssue[], warnings: ValidationIssue[]): void {
   const levelTraps = p.levelTraps
   if (levelTraps === undefined) return

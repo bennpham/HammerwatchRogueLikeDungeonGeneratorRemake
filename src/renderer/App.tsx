@@ -42,6 +42,11 @@ export function App() {
     [params.playerTweaks]
   )
 
+  const dungeonTabBadge = useMemo(() => {
+    const bossCount = (params.levelBoss ?? []).slice(0, params.levels).filter((b) => b.enabled).length
+    return bossCount > 0 ? `${params.levels} floors · ${bossCount} boss` : `${params.levels} floors`
+  }, [params.levels, params.levelBoss])
+
   const arenaTabBadge = useMemo(() => {
     if (!params.boss.enabled) return 'off'
     const fights = params.boss.fights ?? []
@@ -250,6 +255,7 @@ export function App() {
               onClick={() => setLeftTab('dungeon')}
             >
               Dungeon
+              <span className="tab-count">{dungeonTabBadge}</span>
             </button>
             <button
               className={leftTab === 'boss' ? 'tab active' : 'tab'}

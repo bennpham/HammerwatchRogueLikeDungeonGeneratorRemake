@@ -31,8 +31,13 @@ export function FloorOrderEditor({ params, issues, onChange }: FloorOrderEditorP
   const counts: CampaignCounts = { levels: params.levels, fights: fightCount, lobbies: params.lobbies.length }
   const order = campaignOrder(counts, params.levelOrder)
   // Arena chips read AB1/AS2 — the prefix is that arena's mode, the number its
-  // position in the fight list. See campaign.ts's slotLabel.
-  const label = slotLabeller(arenaModes(params.boss))
+  // position in the fight list. See campaign.ts's slotLabel. A floor with a
+  // boss on it reads 8B. That suffix is display-only: slotLabel itself also
+  // names the preview tabs and the `levelOrder=` tokens, which must not change
+  // when a boss is toggled.
+  const arenaLabel = slotLabeller(arenaModes(params.boss))
+  const label = (slot: CampaignSlot): string =>
+    arenaLabel(slot) + (slot.kind === 'floor' && params.levelBoss?.[slot.index]?.enabled === true ? 'B' : '')
 
   // Nothing to interleave when the campaign is only one kind of slot — all
   // floors, all fights, or all lobbies. As a tab it still has to render
@@ -88,9 +93,11 @@ export function FloorOrderEditor({ params, issues, onChange }: FloorOrderEditorP
         badge={params.levelOrder === undefined ? 'default' : 'custom'}
       >
         <p className="hint">
-          The order the campaign is played in. Boss fights are <strong>B1</strong>,{' '}
-          <strong>B2</strong>… and lobbies are <strong>L1</strong>, <strong>L2</strong>… — both can go
-          anywhere except last, since only a dungeon floor or a boss arena carries the victory orb.
+          The order the campaign is played in. Arenas are <strong>AB1</strong> (boss) or{' '}
+          <strong>AS1</strong> (survival), lobbies are <strong>L1</strong>, <strong>L2</strong>…, and
+          a dungeon floor with a boss on it reads <strong>8B</strong>. Arenas and lobbies can go
+          anywhere except that a lobby can never be last, since only a dungeon floor or an arena
+          carries the victory orb.
           Floors, fights and lobbies each keep their own order; only how the three interleave is up
           to you, so the ◀ ▶ buttons will not move a chip past another of the same kind, or move a
           lobby into the last slot.

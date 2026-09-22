@@ -1,4 +1,4 @@
-import { BOSS_IDS } from '../config/parameters'
+import { BOSS_IDS, MOBILE_BOSS_IDS } from '../config/parameters'
 
 /**
  * Which walls of the arena's sealed reward alcove a boss's presence rules out.
@@ -33,6 +33,24 @@ export interface BossDef {
    * body-block the reward the alcove opens onto.
    */
   forbiddenAlcoveWalls: AlcoveWall[]
+  /**
+   * Whether this boss can chase the party around a level — what decides if it
+   * may stand on a DUNGEON FLOOR (issue #61), where there is no arena to
+   * confine the fight and a boss that cannot close the distance is simply
+   * never fought.
+   *
+   * AUTHORED, not derived, because nothing in the actor files answers it.
+   * `<collision static="...">` is about the collider, not about locomotion: it
+   * is `true` for the worm, which burrows across the whole arena, and anubis
+   * and krilith carry no `<collision>` child at all so they state nothing
+   * either way. Reading `static` as "immobile" would wrongly exclude the worm
+   * and wrongly include the other two.
+   *
+   * False for exactly the dragon (no upward-facing art, pinned to the top
+   * wall) and the queen (static collider, no `movement` dict) — the two the
+   * issue names. Everything else chases.
+   */
+  mobile: boolean
 }
 
 /**
@@ -70,7 +88,7 @@ export interface BossDef {
  * shallowest row whose collider clears the band; for the dragon that is row 3,
  * which is the hand-patched arena the fix was confirmed on.
  */
-const BOSS_DEFS_LIST: BossDef[] = [
+const BOSS_DEFS_LIST: Omit<BossDef, 'mobile'>[] = [
   {
     id: 'boss_anubis',
     actorPath: 'actors/boss_anubis/boss_anubis.xml',
@@ -143,8 +161,12 @@ const BOSS_DEFS_LIST: BossDef[] = [
 ]
 
 /** One entry per `BOSS_IDS` id, in that order — enforced by a test. */
+// `mobile` is derived from MOBILE_BOSS_IDS rather than written on each def
+// above: that list lives in config/parameters.ts because this file imports
+// from there and not the other way round, and one source of truth beats two
+// that a test has to keep agreeing.
 export const BOSS_DEFS: Readonly<Record<BossId, BossDef>> = Object.fromEntries(
-  BOSS_DEFS_LIST.map((d) => [d.id, d])
+  BOSS_DEFS_LIST.map((d) => [d.id, { ...d, mobile: (MOBILE_BOSS_IDS as readonly string[]).includes(d.id) }])
 ) as Record<BossId, BossDef>
 
 /** `BOSS_DEFS` as a `BOSS_IDS`-ordered array, for callers that want to iterate. */
@@ -180,4 +202,9 @@ export function topWallBossY(def: BossDef): number {
  */
 export function topWallBossClearance(def: BossDef, bossY: number): number {
   return Math.ceil(bossY + def.footprintHeight / 2 + (def.collisionOffsetY ?? 0)) + 1
+}
+
+/** Whether `id` names a boss a dungeon floor may host — see MOBILE_BOSS_IDS. */
+export function isMobileBoss(id: string): boolean {
+  return (MOBILE_BOSS_IDS as readonly string[]).includes(id)
 }

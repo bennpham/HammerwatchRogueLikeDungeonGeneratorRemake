@@ -22,6 +22,8 @@ import {
   BOSS_TRAP_DIRECTIONS,
   arenaMode,
   ARENA_MODES,
+  BOSS_IDS,
+  defaultDungeonBoss,
   DEFAULT_SURVIVAL_INTERVAL_MS,
   SURVIVAL_COUNTDOWN_STYLES,
   SURVIVAL_SECONDS_MAX,
@@ -47,7 +49,8 @@ import type {
   SurvivalOptions,
   SurvivalPickup,
   SurvivalTrap,
-  SurvivalWave
+  SurvivalWave,
+  DungeonBoss
 } from './parameters'
 import { MONSTER_FAMILIES, MONSTER_TYPES, isKnownMonsterKey } from '../objects/monsterTypes'
 import { buffById } from '../objects/buffTypes'
@@ -103,6 +106,7 @@ export const PARAMETER_ORDER = [
   'buff', // placeholder: expanded to buffN for each floor that carries a buff
   'trap', // placeholder: expanded to trapN for each floor that runs wall traps
   'timer', // placeholder: expanded to timerN for each floor whose timer is on
+  'bossFloor', // placeholder: expanded to bossFloorN… for each floor carrying a boss
   'music', // placeholder: expanded to musicN for each floor with a track set
   'monsterMax', // placeholder: expanded per MONSTER_TYPES order
   'playerTweaks', // placeholder: sorted by key
@@ -191,6 +195,38 @@ function newBossFightParseState(): BossFightParseState {
  * like any other key this parser no longer recognizes (invariant #5: never
  * fatal). There is no alias to a lobby index; the break is deliberately loud.
  */
+/**
+ * Parses an `<item>:<count>|…` value into drop rows. Shared by the arena's
+ * `boss<f>WavePickupN` and the floor's `bossFloor<i>WavePickupN`, for the same
+ * no-drift reason `parseTrapRows` below is shared.
+ *
+ * A bare item with no count is one copy — the friendliest reading of a
+ * hand-written line. An unknown item or a non-numeric count is reported
+ * through `unknownKeys` and skipped, never thrown on (invariant #5).
+ */
+function parsePickupRows(key: string, value: string, unknownKeys: string[]): WavePickup[] {
+  const entries: WavePickup[] = []
+  for (const segment of value.split('|')) {
+    const trimmed = segment.trim()
+    if (trimmed === '') continue
+    const colon = trimmed.indexOf(':')
+    const id = (colon === -1 ? trimmed : trimmed.slice(0, colon)).trim()
+    const countText = colon === -1 ? '1' : trimmed.slice(colon + 1).trim()
+
+    if (pickupById(id) === undefined) {
+      unknownKeys.push(`${key} item "${id}"`)
+      continue
+    }
+    const count = parseInt(countText, 10)
+    if (Number.isNaN(count)) {
+      unknownKeys.push(`${key} count "${countText}"`)
+      continue
+    }
+    entries.push({ item: id, count })
+  }
+  return entries
+}
+
 /**
  * Parses a `<projectile>:<direction>:<spread>:<rate>:<count>|…` value into trap
  * rows. Shared verbatim by the arena's `boss<f>WaveTrapN` and the floor's
@@ -288,6 +324,196 @@ function parseSurvivalTrapRows(key: string, value: string, unknownKeys: string[]
   }
 
   return rows
+}
+
+/**
+ * One `bossFloorN…` key (issue #61). Returns false for a suffix this parser
+ * does not know, so the caller falls through to the catch-all and reports it
+ * rather than swallowing it.
+ *
+ * The wave/buff/trap lines deliberately reuse the arena's own grammars
+ * (`parseWaveLine`, `parseTrapRows`, the `id:target` buff pairs), because a
+ * floor boss's tiers ARE `BossWave`s — one format, one parser, no drift.
+ */
+function parseFloorBossKey(
+  suffix: string,
+  key: string,
+  value: string,
+  boss: DungeonBoss,
+  unknownKeys: string[]
+): boolean {
+  // bossFloorN=<enabled>|<bossIds>|<monsterMultiplier>
+  if (suffix === '') {
+    const parts = value.split('|').map((v) => v.trim())
+    boss.enabled = parts[0] === '1' || parts[0]?.toLowerCase() === 'true'
+    if (parts[1] !== undefined && parts[1] !== '') {
+      const pool: string[] = []
+      for (const id of parts[1].split(',').map((v) => v.trim()).filter((v) => v !== '')) {
+        if (!BOSS_IDS.includes(id as (typeof BOSS_IDS)[number])) {
+          unknownKeys.push(`${key} boss "${id}"`)
+          continue
+        }
+        pool.push(id)
+      }
+      if (pool.length > 0) boss.bossPool = pool
+    }
+    if (parts[2] !== undefined && parts[2] !== '') {
+      const multiplier = parseFloat(parts[2])
+      if (Number.isNaN(multiplier)) unknownKeys.push(`${key} multiplier "${parts[2]}"`)
+      else boss.monsterMultiplier = multiplier
+    }
+    return true
+  }
+
+  if (suffix === 'invuln') {
+    // `off` keeps the window lengths, so toggling in a file and back loses
+    // nothing — the same shape boss<i>Invuln uses.
+    if (value.trim().toLowerCase() === 'off') {
+      boss.invulnerability.enabled = false
+      return true
+    }
+    boss.invulnerability.enabled = true
+    const parts = value.split(',').map((v) => v.trim()).filter((v) => v !== '')
+    const seconds = [...boss.invulnerability.seconds]
+    for (let i = 0; i < BOSS_INVULN_COUNT; i++) {
+      const raw = parts.length === 1 ? parts[0] : parts[i]
+      if (raw === undefined || raw === '') continue
+      const parsed = parseInt(raw, 10)
+      if (Number.isNaN(parsed)) unknownKeys.push(`${key} value "${raw}"`)
+      else seconds[i] = parsed
+    }
+    boss.invulnerability.seconds = seconds
+    return true
+  }
+
+  if (suffix === 'invulncountdown') {
+    boss.invulnerability.countdown = value.trim() === '1' || value.trim().toLowerCase() === 'true'
+    return true
+  }
+
+  if (suffix === 'checkpoints') {
+    const parts = value.split(',').map((v) => v.trim())
+    if (parts[0] !== undefined && parts[0] !== '') {
+      if (parts[0] in BOSS_CHECKPOINT_PRESETS) boss.checkpoints.respawnPlayers = parts[0] as BossCheckpointPreset
+      else unknownKeys.push(`${key} respawn preset "${parts[0]}"`)
+    }
+    if (parts[1] !== undefined && parts[1] !== '') {
+      if (parts[1] in BOSS_CHECKPOINT_PRESETS) boss.checkpoints.saveGame = parts[1] as BossCheckpointPreset
+      else unknownKeys.push(`${key} save preset "${parts[1]}"`)
+    }
+    return true
+  }
+
+  // The four tier lines, tested most-specific-first for the same
+  // anchored-pattern reason the arena's are: `wavetrap1` must not fall through
+  // to the `wave(\d+)` branch.
+  const pickupMatch = suffix.match(/^wavepickup(\d+)$/)
+  if (pickupMatch) {
+    const tier = parseInt(pickupMatch[1], 10) - 1
+    if (tier < 0 || tier >= BOSS_WAVE_COUNT) {
+      unknownKeys.push(key)
+      return true
+    }
+    boss.waves[tier].pickups = parsePickupRows(key, value, unknownKeys)
+    return true
+  }
+
+  const trapMatch = suffix.match(/^wavetrap(\d+)$/)
+  if (trapMatch) {
+    const tier = parseInt(trapMatch[1], 10) - 1
+    if (tier < 0 || tier >= BOSS_WAVE_COUNT) {
+      unknownKeys.push(key)
+      return true
+    }
+    boss.waves[tier].traps = parseTrapRows(key, value, unknownKeys)
+    return true
+  }
+
+  const buffMatch = suffix.match(/^wavebuff(\d+)$/)
+  if (buffMatch) {
+    const tier = parseInt(buffMatch[1], 10) - 1
+    if (tier < 0 || tier >= BOSS_WAVE_COUNT) {
+      unknownKeys.push(key)
+      return true
+    }
+    const entries: FloorBuff[] = []
+    for (const segment of value.split('|')) {
+      const trimmed = segment.trim()
+      if (trimmed === '') continue
+      const parts = trimmed.split(':').map((v) => v.trim())
+      if (buffById(parts[0]) === undefined) {
+        unknownKeys.push(`${key} buff "${parts[0]}"`)
+        continue
+      }
+      const target = parts[1] === undefined || parts[1] === '' ? 'players' : parts[1].toLowerCase()
+      if (!(BUFF_TARGETS as readonly string[]).includes(target)) {
+        unknownKeys.push(`${key} target "${parts[1]}"`)
+        continue
+      }
+      entries.push({ buff: parts[0], target: target as BuffTarget })
+    }
+    boss.waves[tier].buffs = entries
+    return true
+  }
+
+  const waveMatch = suffix.match(/^wave(\d+)$/)
+  if (waveMatch) {
+    const tier = parseInt(waveMatch[1], 10) - 1
+    if (tier < 0 || tier >= BOSS_WAVE_COUNT) {
+      unknownKeys.push(key)
+      return true
+    }
+    // <monsters>|<defaultIntervalMs>|<monsterMax>|<intervalMs overrides>
+    // The arena's fifth field (spawn modes) is deliberately absent: a floor has
+    // no scatter modes, so writing one would describe something nothing reads.
+    const parts = value.split('|')
+    const wave = boss.waves[tier]
+
+    const monsters: string[] = []
+    for (const id of (parts[0] ?? '').split(',').map((v) => v.trim()).filter((v) => v !== '')) {
+      if (!isKnownMonsterKey(id)) {
+        unknownKeys.push(`${key} monster "${id}"`)
+        continue
+      }
+      monsters.push(id)
+    }
+    wave.monsters = monsters
+
+    if (parts[1] !== undefined && parts[1].trim() !== '') {
+      const ms = parseInt(parts[1].trim(), 10)
+      if (Number.isNaN(ms)) unknownKeys.push(`${key} interval "${parts[1].trim()}"`)
+      else wave.defaultIntervalMs = ms
+    }
+
+    const maxes: Record<string, number> = {}
+    for (const entry of (parts[2] ?? '').split(',').map((v) => v.trim()).filter((v) => v !== '')) {
+      const [id, raw] = entry.split(':').map((v) => v.trim())
+      const parsed = parseInt(raw ?? '', 10)
+      if (Number.isNaN(parsed)) {
+        unknownKeys.push(`${key} max "${entry}"`)
+        continue
+      }
+      maxes[id] = parsed
+    }
+    wave.monsterMax = maxes
+
+    const overrides: Record<string, number> = {}
+    for (const entry of (parts[3] ?? '').split(',').map((v) => v.trim()).filter((v) => v !== '')) {
+      const [id, raw] = entry.split(':').map((v) => v.trim())
+      const parsed = parseInt(raw ?? '', 10)
+      if (Number.isNaN(parsed)) {
+        unknownKeys.push(`${key} interval override "${entry}"`)
+        continue
+      }
+      overrides[id] = parsed
+    }
+    if (Object.keys(overrides).length > 0) wave.intervalMs = overrides
+    else delete wave.intervalMs
+
+    return true
+  }
+
+  return false
 }
 
 function parseBossFightKey(
@@ -636,30 +862,7 @@ function parseBossFightKey(
       unknownKeys.push(key)
       return true
     }
-    const entries: WavePickup[] = []
-
-    for (const segment of value.split('|')) {
-      const trimmed = segment.trim()
-      if (trimmed === '') continue
-      const colon = trimmed.indexOf(':')
-      const id = (colon === -1 ? trimmed : trimmed.slice(0, colon)).trim()
-      // A bare item with no count is one copy — the friendliest reading of a
-      // hand-written line, and never fatal (invariant #5).
-      const countText = colon === -1 ? '1' : trimmed.slice(colon + 1).trim()
-
-      if (pickupById(id) === undefined) {
-        unknownKeys.push(`${key} item "${id}"`)
-        continue
-      }
-      const count = parseInt(countText, 10)
-      if (Number.isNaN(count)) {
-        unknownKeys.push(`${key} count "${countText}"`)
-        continue
-      }
-      entries.push({ item: id, count })
-    }
-
-    arena.waves[idx].pickups = entries
+    arena.waves[idx].pickups = parsePickupRows(key, value, unknownKeys)
     state.sawPickupLine.add(idx)
     return true
   }
@@ -1025,6 +1228,22 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     // writes that form any more — the serializer always emits the index — but
     // reading it keeps every parameters.txt written before multiple fights
     // existed importing exactly as it did, per invariant #5.
+    // bossFloorN… — the per-floor boss (issue #61).
+    //
+    // MUST be tested before the `boss(\d*)` fight dispatcher below. That one's
+    // index is `\d*`, so it matches the empty string, and `bossfloor1` would
+    // otherwise split as fight 0 with the suffix "floor1" and be swallowed.
+    const bossFloorMatch = keyLower.match(/^bossfloor(\d+)(.*)$/)
+    if (bossFloorMatch) {
+      const levelIndex = parseInt(bossFloorMatch[1], 10)
+      const suffix = bossFloorMatch[2]
+      const levelBoss = params.levelBoss ?? (params.levelBoss = [])
+      while (levelBoss.length <= levelIndex) levelBoss.push(defaultDungeonBoss())
+      if (parseFloorBossKey(suffix, key, value, levelBoss[levelIndex], result.unknownKeys)) {
+        continue
+      }
+      // fell through to the catch-all, which reports it — never fatal.
+    }
     const bossMatch = keyLower.match(/^boss(\d*)(.+)$/)
     if (bossMatch) {
       const suffix = bossMatch[2]
@@ -1405,6 +1624,57 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
         lines.push(
           `timer${i}=1|${timer.seconds}|${timer.damage}|${timer.freqMs}|${timer.countdown ? 1 : 0}`
         )
+      })
+    } else if (key === 'bossFloor') {
+      // Only floors with a boss ON get lines — and then the whole block, so
+      // clearing a wave tier in the form and re-importing really does clear it
+      // rather than falling back to the base object. A campaign with no boss
+      // floor writes not one of these keys, which is what keeps every file
+      // exported before the feature byte-identical.
+      ;(params.levelBoss ?? []).forEach((boss, i) => {
+        if (!boss.enabled) return
+        lines.push(`bossFloor${i}=1|${boss.bossPool.join(',')}|${boss.monsterMultiplier.toFixed(6)}`)
+        lines.push(
+          `bossFloor${i}Invuln=${boss.invulnerability.enabled ? boss.invulnerability.seconds.join(',') : 'off'}`
+        )
+        lines.push(`bossFloor${i}InvulnCountdown=${boss.invulnerability.countdown ? 1 : 0}`)
+        lines.push(`bossFloor${i}Checkpoints=${boss.checkpoints.respawnPlayers},${boss.checkpoints.saveGame}`)
+
+        boss.waves.forEach((wave, tier) => {
+          const maxes = wave.monsters
+            .map((id) => `${id}:${wave.monsterMax[id] ?? DEFAULT_WAVE_MONSTER_MAX}`)
+            .join(',')
+          // Sorted, so the same params always serialize to the same bytes
+          // whatever order the overrides were inserted in.
+          const overrides = wave.intervalMs
+            ? Object.entries(wave.intervalMs)
+                .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+                .map(([id, ms]) => `${id}:${ms}`)
+                .join(',')
+            : ''
+          lines.push(
+            `bossFloor${i}Wave${tier + 1}=${wave.monsters.join(',')}|${wave.defaultIntervalMs}|${maxes}|${overrides}`
+          )
+
+          // Their own keys, written only for tiers that carry something — the
+          // same reason the arena's buff and trap lines are separate keys.
+          const buffs = waveBuffs(wave)
+          if (buffs.length > 0) {
+            lines.push(`bossFloor${i}WaveBuff${tier + 1}=${buffs.map((b) => `${b.buff}:${b.target}`).join('|')}`)
+          }
+          const pickups = wavePickups(wave)
+          if (pickups.length > 0) {
+            lines.push(`bossFloor${i}WavePickup${tier + 1}=${pickups.map((d) => `${d.item}:${d.count}`).join('|')}`)
+          }
+          const traps = waveTraps(wave)
+          if (traps.length > 0) {
+            lines.push(
+              `bossFloor${i}WaveTrap${tier + 1}=${traps
+                .map((t) => `${t.projectile}:${t.direction}:${t.spread}:${t.spawnRateMs}:${t.count}`)
+                .join('|')}`
+            )
+          }
+        })
       })
     } else if (key === 'music') {
       // Only floors with a track actually set get a line. Keeps

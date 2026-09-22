@@ -1,6 +1,6 @@
 import { GenerationContext } from './core/context'
 import { Level } from './map/level'
-import { DungeonParameters, defaultParameters, bossFights, arenaMode, defaultSurvivalOptions } from './config/parameters'
+import { DungeonParameters, defaultParameters, bossFights, arenaMode, defaultSurvivalOptions, floorBoss } from './config/parameters'
 import { validateParameters, ValidationResult } from './config/validation'
 import { emitTweakFiles } from './tweak/overrides'
 import { DEFAULT_LOBBY_PRESET_ID, buildLobby, lobbyPresetById } from './lobby'
@@ -10,8 +10,9 @@ import { buildFloorHazardRig } from './timer/hazard'
 import { buildFloorBuffRig } from './buffs/field'
 import { buildMusicRig } from './music/rig'
 import { buildFloorTrapRig } from './traps/floor'
+import { buildFloorBossRig } from './dungeonBoss'
 
-export type { DungeonParameters, LobbyOptions, BossOptions, BossFight, BossArenaOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FloorBuff, FloorTrap, TrapDirection, BuffTarget, WavePickup, BossTrap, BossTrapDirection, BossCheckpointPreset, ArenaMode, SurvivalOptions, SurvivalWave, SurvivalBuff, SurvivalPickup, SurvivalTrap, SurvivalCountdown } from './config/parameters'
+export type { DungeonParameters, DungeonBoss, LobbyOptions, BossOptions, BossFight, BossArenaOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FloorBuff, FloorTrap, TrapDirection, BuffTarget, WavePickup, BossTrap, BossTrapDirection, BossCheckpointPreset, ArenaMode, SurvivalOptions, SurvivalWave, SurvivalBuff, SurvivalPickup, SurvivalTrap, SurvivalCountdown } from './config/parameters'
 export {
   THEMES,
   BOSS_IDS,
@@ -60,6 +61,9 @@ export {
   DEFAULT_SURVIVAL_INTERVAL_MS,
   arenaMode,
   arenaModes,
+  MOBILE_BOSS_IDS,
+  defaultDungeonBoss,
+  floorBoss,
   defaultSurvivalOptions,
   survivalWaves,
   survivalBuffs,
@@ -364,6 +368,11 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
     // rather than a null gateway if it ever did.
     const position = floorPosition.get(i)
     ctx.gateway = position === undefined ? { kind: 'orb' } : gatewayAfter(order, position)
+    // Read during construction too, and for the same reason: a boss floor's way
+    // out is a sealed portal room rather than a stairs room, which `Level` and
+    // `Room.transform` decide while the floor is being built, not after.
+    const levelBoss = floorBoss(params, i)
+    ctx.floorBoss = levelBoss !== undefined
 
     let level: Level | null = null
     for (let attempt = 0; attempt < MAX_LEVEL_ATTEMPTS; attempt++) {
@@ -403,6 +412,16 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
     // Rand: drawing in the constructor would tie a floor's trap positions to
     // how many times reachability happened to reject it. See traps/floor.ts.
     buildFloorTrapRig(ctx, params.levelTraps?.[i], level)
+
+    // Fifth and last: the dungeon boss (issue #61). After the four above so
+    // arming one cannot move a buff, timer, music or ordinary-trap node's id,
+    // and drawing from ctx.floorBossRand — its own stream — so it cannot move
+    // an armed floor's spewer positions or any arena's layout either.
+    //
+    // The one thing it does move is this floor's own layout, and every floor
+    // after it, because a boss floor takes a different branch inside `new
+    // Level()` above. That is decided by ctx.floorBoss, not here.
+    buildFloorBossRig(ctx, levelBoss, level)
 
     files.push({ path: `levels/level${i}.xml`, content: level.getXML() })
     floorPreviews.set(i, buildPreview(ctx, level))

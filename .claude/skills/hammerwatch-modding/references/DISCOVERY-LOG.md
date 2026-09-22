@@ -8,6 +8,102 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-22 — floor-boss playtest: the worm works; respawns and wave spawns were placed where players and monsters get stuck
+**Tag:** [VERIFIED] — the user played a generated worm boss floor and hand-fixed
+its `level0.xml` in the editor (`level0_fix_attempt.xml`).
+**Context:** Issue #61's Dungeon → Boss, first in-game run (PR #63).
+**Evidence:**
+1. **The worm works as a dungeon-floor boss.** Confirmed by the user. The
+   previous entry's `Boss …`-events-on-a-floor claim is not upgraded by this
+   alone: tier-0 waves fire on `LevelLoaded`, not a boss event, so it stays
+   [EMITTED] until a health-tier rig (a 75/50/25% wave, invulnerability, or a
+   checkpoint) is seen firing on a floor.
+2. **`RespawnPlayers` and `Checkpoint` are positional: they teleport the party
+   to the node's own position.** The rig put them in the editor marker column
+   (`level.width + 1`, rows 0-2), past the map's east edge, which strands the
+   party outside the dungeon. The user's fix stacks every one of them on the
+   floor's `LevelStart`. This agrees with the 2026-09-05 checkpoint entry
+   ("teleported to the checkpoint marker's position") and contradicts what
+   `boss/checkpoints.ts` used to say about its coordinates ("nothing about the
+   rig is positional"). The arena never showed it only because it hands the
+   rig its entrance shape, which sits beside its own `LevelStart`.
+3. **A `SpawnObject` flush against a wall traps what it spawns.** Every wave
+   spawn the user moved sat on the tile next to a wall doodad (1 tile from the
+   north/west wall, 1–2 from the south). The tile map calls those tiles open
+   floor, but they are inside the wall's collision. The user's corrections land
+   exactly on the original generator's own Lair-spawner box,
+   `x+2 … x+w-2, y+4 … y+h-2` (`map/room.ts`, `transform('Lair')`), which the
+   arena's anchors also use (`ANCHOR_INSET = 2`, `NORTH_ANCHOR_INSET = 4`).
+**Impact:** `boss/checkpoints.ts` takes a `respawnAt` point, and the floor rig
+passes its `LevelStart`. The arena omits it, so its output is unchanged.
+`map/room.ts` exports that box as `roomSpawnBox`; both the wave pool
+(`dungeonBoss/placement.ts`) and the boss's own tile (`map/level.ts`) use it.
+The floor's ordinary arrival `RespawnPlayers` in the Entrance prefab
+(`objectSet.ts`) is inside the entrance room and was left alone.
+
+### 2026-09-22 — there is no teleport node: `RespawnPlayers` is the only player-mover, it heals, and teleport-without-respawn is not possible
+**Tag:** [VERIFIED] for the absence (an exhaustive search of our own vocabulary
+and the original's), [VERIFIED] for what `RespawnPlayers` does (recorded in the
+2026-09-05 checkpoint entry above), and **[VERIFIED] 2026-09-22 by the user**
+that "teleport the player back to start WITHOUT respawn" **is not possible** in
+this engine — which was the part that mattered.
+**Context:** Issue #61's Dungeon → Boss asks for a checkpoint option that
+"teleports the player back to start WITHOUT respawn", keyed to boss health.
+**Evidence:**
+1. **No such node exists.** `NodeTypeName` (`objects/scriptNode.ts`) lists 21
+   types and none of them moves a player: `ToggleElement`, `AreaTrigger`,
+   `RespawnPlayers`, `ShopArea`, `LevelStart`, `LevelExitArea`, `AnnounceText`,
+   `ObjectEventTrigger`, `RectangleShape`, `GameEnd`, `SpawnObject`,
+   `GlobalEventTrigger`, `TimerTrigger`, `DestroyObject`, `ToggleImmortality`,
+   `DangerArea`, `PlaySound`, `PlayMusic`, `ChangeDoodadState`,
+   `ProjectileSpewer`, `Checkpoint`. The Java original's own `NodeType` enum
+   (`reference/original-java/src/hammerwatchgen/ScriptNode.java`) has ten, and
+   none either. `ASSET-REGISTRY.md`'s script-node table lists the same 21.
+2. **"Teleport" in this repo is doodad art only** — `exit_teleport.xml`,
+   `exit_teleport_stand.xml`, `exit_teleport_boss.xml`, `exit_teleport_exit.xml`
+   are level-transition portals, and the 2026-08-10 entry records that the boss
+   portal art carries "no teleport logic and no destination" on its own.
+3. **`RespawnPlayers` IS a teleport**, per the 2026-09-05 checkpoint entry:
+   when respawn fires, "all players are teleported to the checkpoint marker's
+   position with full health and mana, regardless of where they were on the map
+   when the trigger fired". So the movement exists — bundled with a heal.
+**Impact:** the option is permanently out of scope for Dungeon → Boss — not
+deferred. The checkpoint rig's `RespawnPlayers` (teleport plus heal) stays the
+only player-mover. `NodeCheckpoint(..., false)` sets the respawn point without writing a
+save, but it does not move anybody by itself.
+**Settled 2026-09-22:** not possible (see the tag). Do not reopen this without
+new evidence of an engine capability to move players without respawning them.
+
+### 2026-09-22 — a boss actor on an ordinary dungeon floor, and its sealed portal exit
+**Tag:** [EMITTED]. Emitted and asserted by `tests/dungeonBoss.test.ts`; not yet
+loaded in game. Promote in `ASSET-REGISTRY.md` once a boss floor is played.
+**Context:** Issue #61's Dungeon → Boss (`src/generator/dungeonBoss/`).
+**Evidence / reasoning:**
+1. **The `Boss …` events are the actor's, not the arena's.** The 2026-08-19
+   entry records that the engine fires `Boss 75% / 50% / 25% / Died` for any
+   actor in the `actors/boss_*` folders. Nothing in it is arena-specific, so an
+   actor placed on a dungeon floor should fire them too — which is what lets
+   `boss/invulnerability.ts`, `boss/checkpoints.ts` and the tier wiring of
+   `boss/waves.ts` and `boss/traps.ts` be reused on a floor verbatim. **This is
+   the assumption the whole feature rests on and it is the first thing to check
+   in a playtest.**
+2. **A dungeon floor cannot seal a stairs room**, so a boss floor renders its
+   exit as the red `BossPortal` pointed at the next floor instead. Four
+   independent reasons, all in code: `Room.transform('Exit')` has no dead-end
+   guard (the orb branch's `passages.length !== 1` test has no counterpart);
+   `sealRoomWithButton` refuses `type === 'Exit'`; an ExitDn `ObjectSet` is
+   placed at `room.y - 2`, inside the north wall band, while a `DOWN` corridor's
+   seal line is drawn at `entrance.y + 1 + overhangRows(theme)` — the same rows;
+   and `sealHolds` looks for `type === 'Orb'` and a goal prefab of
+   `Orb`/`BossPortal`, so it would have found neither and passed the floor
+   silently. `boss/arena.ts` already makes the same substitution, an arena
+   having no stairs prefab of its own.
+3. **A `BossPortal` accepts an arbitrary target level id** and registers exactly
+   three ids off zero RNG draws (`objects/objectSet.ts`), so pointing one at an
+   ordinary numeric floor id is the same contract as pointing it at an arena.
+**Impact:** `src/generator/dungeonBoss/`, the boss branch in `map/level.ts` and
+`map/room.ts`, and the `bossFloorN…` keys in `config/configFile.ts`.
+
 ### 2026-09-21 — a survival arena: no boss actor means no `Boss …` events, and the alcove opens on a delayed `LevelLoaded`
 **Tag:** [EMITTED]. The rig is emitted and asserted by `tests/survival.test.ts`;
 nothing here has been confirmed in a running game yet. Promote to `[VERIFIED]`
