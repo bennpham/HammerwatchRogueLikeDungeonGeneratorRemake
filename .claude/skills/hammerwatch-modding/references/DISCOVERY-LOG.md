@@ -41,11 +41,12 @@ passes its `LevelStart`. The arena omits it, so its output is unchanged.
 The floor's ordinary arrival `RespawnPlayers` in the Entrance prefab
 (`objectSet.ts`) is inside the entrance room and was left alone.
 
-### 2026-09-22 — there is no teleport node: `RespawnPlayers` is the only player-mover, and it heals
+### 2026-09-22 — there is no teleport node: `RespawnPlayers` is the only player-mover, it heals, and teleport-without-respawn is not possible
 **Tag:** [VERIFIED] for the absence (an exhaustive search of our own vocabulary
 and the original's), [VERIFIED] for what `RespawnPlayers` does (recorded in the
-2026-09-05 checkpoint entry above), **[UNVERIFIED]** for whether it revives a
-DEAD player or only relocates living ones — which is the part that matters.
+2026-09-05 checkpoint entry above), and **[VERIFIED] 2026-09-22 by the user**
+that "teleport the player back to start WITHOUT respawn" **is not possible** in
+this engine — which was the part that mattered.
 **Context:** Issue #61's Dungeon → Boss asks for a checkpoint option that
 "teleports the player back to start WITHOUT respawn", keyed to boss health.
 **Evidence:**
@@ -66,14 +67,12 @@ DEAD player or only relocates living ones — which is the part that matters.
    when respawn fires, "all players are teleported to the checkpoint marker's
    position with full health and mana, regardless of where they were on the map
    when the trigger fired". So the movement exists — bundled with a heal.
-**Impact:** the option is NOT implemented in the Dungeon → Boss PR. The nearest
-mechanism heals and (probably) revives, which is the opposite of what was
-asked. `NodeCheckpoint(..., false)` sets the respawn point without writing a
+**Impact:** the option is permanently out of scope for Dungeon → Boss — not
+deferred. The checkpoint rig's `RespawnPlayers` (teleport plus heal) stays the
+only player-mover. `NodeCheckpoint(..., false)` sets the respawn point without writing a
 save, but it does not move anybody by itself.
-**What would settle it:** a playtest answering whether `RespawnPlayers` revives
-a dead player or only relocates living ones. If it only relocates, the option is
-implementable as-is and only needs renaming; if it revives, the feature needs an
-engine capability we have no evidence for.
+**Settled 2026-09-22:** not possible (see the tag). Do not reopen this without
+new evidence of an engine capability to move players without respawning them.
 
 ### 2026-09-22 — a boss actor on an ordinary dungeon floor, and its sealed portal exit
 **Tag:** [EMITTED]. Emitted and asserted by `tests/dungeonBoss.test.ts`; not yet
