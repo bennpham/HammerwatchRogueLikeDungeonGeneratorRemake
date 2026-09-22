@@ -219,6 +219,75 @@ export function defaultFloorTimer(): FloorTimer {
  * for the exit rather than another floor to clear. 91 AnnounceText nodes, well
  * under TIMER_COUNTDOWN_NODE_WARN.
  */
+/**
+ * A boss standing on an ordinary dungeon floor (issue #61) — the floor keeps
+ * every one of its standard controls and gains a boss, a sealed way out, and
+ * the same health-tier rigs the arena runs.
+ *
+ * This is deliberately NOT `BossArenaOptions`. An arena owns its own geometry
+ * (size, theme, floor pattern, cover) and picks its boss from all seven; a
+ * floor supplies the geometry itself and can only host a boss that MOVES, so
+ * the two share the rigs rather than the options. The fields that are here are
+ * exactly the ones the issue lists, minus the geometry.
+ *
+ * `waves` is the arena's own `BossWave`, reused whole: its `buffs` and `traps`
+ * are the issue's Wave Buffs and Traps sections, so one type covers three.
+ * Two of its fields are simply not read on a floor — `spawnMode`, because a
+ * floor has no scatter modes (wave monsters always land on interior room
+ * tiles), and `pickups`, which are deferred to a follow-up because a dungeon
+ * floor has no entrance drop pad for them to land on.
+ */
+export interface DungeonBoss {
+  /** Off by default; a floor with this false emits no nodes and moves no draw. */
+  enabled: boolean
+  /**
+   * The bosses this floor may roll, as a subset of `MOBILE_BOSS_IDS`. A
+   * stationary boss parked in a room can never reach the party, so validation
+   * rejects one rather than letting a floor ship unwinnable.
+   */
+  bossPool: string[]
+  /** Exactly BOSS_WAVE_COUNT tiers, keyed to the boss's health like an arena's. */
+  waves: BossWave[]
+  /** Seconds of immortality per health threshold. Mutually exclusive with this floor's timer. */
+  invulnerability: { enabled: boolean; seconds: number[]; countdown: boolean }
+  /** The same two milestone presets the arena carries. */
+  checkpoints: { respawnPlayers: BossCheckpointPreset; saveGame: BossCheckpointPreset }
+  /** Scales each tier's counts, separate from the dungeon's own monsterMultiplier. */
+  monsterMultiplier: number
+}
+
+/**
+ * A fresh, disabled dungeon boss — the stock value for every floor.
+ *
+ * Disabled, and with an empty wave table, so that adding the field to a
+ * parameter object changes nothing: the whole feature is opt-in per floor.
+ */
+export function defaultDungeonBoss(): DungeonBoss {
+  return {
+    enabled: false,
+    bossPool: [...MOBILE_BOSS_IDS],
+    waves: Array.from({ length: BOSS_WAVE_COUNT }, () => emptyWave()),
+    invulnerability: {
+      enabled: false,
+      seconds: BOSS_INVULN_THRESHOLDS.map(() => DEFAULT_BOSS_INVULN_SECONDS),
+      countdown: true
+    },
+    checkpoints: { respawnPlayers: 'never', saveGame: 'never' },
+    monsterMultiplier: 1.0
+  }
+}
+
+/** A tier carrying nothing — no monsters, no buffs, no traps. */
+function emptyWave(): BossWave {
+  return { monsters: [], monsterMax: {}, defaultIntervalMs: 1500, buffs: [], traps: [] }
+}
+
+/** The boss config for floor `i`, or undefined when that floor has none. */
+export function floorBoss(params: DungeonParameters, level: number): DungeonBoss | undefined {
+  const boss = params.levelBoss?.[level]
+  return boss !== undefined && boss.enabled ? boss : undefined
+}
+
 export function escapeFloorTimer(): FloorTimer {
   return { enabled: true, seconds: 90, damage: 1, freqMs: 100, countdown: true }
 }
@@ -305,6 +374,25 @@ export interface DungeonParameters {
    * the pre-feature generator for every seed.
    */
   levelTimers?: FloorTimer[]
+  /**
+   * A boss standing on a dungeon floor, one entry per floor (issue #61).
+   * Optional, and disabled per floor by default: a params object without it, or
+   * with every floor disabled, produces byte-identical output to the
+   * pre-feature generator for every seed.
+   *
+   * Unlike the other three per-floor layers this one is NOT purely additive to
+   * the floor it is on. A boss floor's way out becomes a sealed portal room
+   * instead of a stairs room, which is a different branch of `map/level.ts`
+   * and a different number of `ctx.rand` draws, so enabling a boss moves that
+   * floor's layout and every floor generated after it — the same cost invariant
+   * 8 documents for changing a floor's gateway KIND, and free in practice
+   * because no seed predates the feature. What must not move is a floor with
+   * no boss on it; every branch is gated on `enabled`.
+   *
+   * The rig proper is a post-pass like `traps/floor.ts`, drawing only from
+   * `ctx.floorBossRand`. See `src/generator/dungeonBoss/`.
+   */
+  levelBoss?: DungeonBoss[]
   /**
    * A `MUSIC_TRACKS` id per level, or the `MUSIC_DEFAULT` sentinel. Optional,
    * and unset per floor by default: a params object without it, or with every
@@ -922,6 +1010,28 @@ export const BOSS_IDS = [
   'boss_queen',
   'boss_worm'
 ] as const
+
+/**
+ * The bosses that can CHASE — the pool a dungeon floor may host (issue #61).
+ *
+ * Authored here rather than derived from the actor files, because nothing in
+ * them answers the question. `<collision static="...">` describes the collider,
+ * not locomotion: it is `true` for the worm, which burrows across a whole
+ * arena, and anubis and krilith carry no `<collision>` child at all, so they
+ * state nothing either way. Reading `static` as "immobile" would wrongly drop
+ * the worm and wrongly keep the other two.
+ *
+ * Out: the dragon (pinned to the top wall, no upward-facing art) and the queen
+ * (static collider, no `movement` dict — it attacks in every direction but
+ * stays put). Those are the two the issue names.
+ *
+ * It matters because an arena confines a fight and a dungeon floor does not: a
+ * boss that cannot close the distance is one the party walks away from, which
+ * on a boss floor means never opening the sealed way out. `boss/bosses.ts`
+ * derives each def's `mobile` flag from this list; it lives here because that
+ * file imports from this one and not the other way round.
+ */
+export const MOBILE_BOSS_IDS = ['boss_anubis', 'boss_knight', 'boss_krilith', 'boss_lich', 'boss_worm'] as const
 
 /**
  * One stock lobby built from `presetId`. A fresh object every call, like

@@ -177,7 +177,7 @@ export function buildFloorTrapRig(
 }
 
 /** Every legal slot on the floor for `direction`, room by room in index order. */
-function floorSlots(level: Level, ctx: GenerationContext, direction: TrapDirection): Slot[] {
+export function floorSlots(level: Level, ctx: GenerationContext, direction: TrapDirection): Slot[] {
   const slots: Slot[] = []
   level.rooms.forEach((room, roomIndex) => {
     if (!eligibleRoom(room)) return
@@ -187,7 +187,12 @@ function floorSlots(level: Level, ctx: GenerationContext, direction: TrapDirecti
 }
 
 /** Whether a room may hold traps at all — see the header for each reason. */
-function eligibleRoom(room: Room): boolean {
+/**
+ * Rooms a per-floor rig may place into. Exported because the dungeon boss rig
+ * (`dungeonBoss/`) draws from the same set — the reasons a room is a bad place
+ * for a spewer are the same reasons it is a bad place for a wave monster.
+ */
+export function eligibleRoom(room: Room): boolean {
   if (room.type === 'Entrance' || room.type === 'Shop') return false
   if (room.sealed) return false
   return true
@@ -325,7 +330,7 @@ function slotClear(
   return true
 }
 
-function inBounds(level: Level, x: number, y: number): boolean {
+export function inBounds(level: Level, x: number, y: number): boolean {
   return x >= 0 && y >= 0 && x < level.width && y < level.height
 }
 

@@ -71,9 +71,7 @@ const MAX_BUTTON_ATTEMPTS = 2000
  * case the caller re-rolls the floor.
  */
 export function sealRoomWithButton(room: Room, ctx: GenerationContext, rooms: Room[]): boolean {
-  if (room.passages.length !== 1 || room.locked || room.type === 'Entrance' || room.type === 'Exit') {
-    return false
-  }
+  if (!sealable(room)) return false
 
   // Before the button is placed, so pickButtonTile's locked-room rule excludes
   // the very room this seal is about to close.
@@ -81,10 +79,58 @@ export function sealRoomWithButton(room: Room, ctx: GenerationContext, rooms: Ro
   room.sealed = true
 
   // First, because a floor with nowhere to hide the button is discarded whole
-  // and there is no point emitting a wall for it.
+  // and there is no point emitting a wall for it. It also has to come before
+  // the wall below, which allocates doodad ids: swapping the two would move
+  // every id on the floor.
   const button = pickButtonTile(ctx, rooms)
   if (button === null) return false
 
+  const seals = drawSealWall(room, ctx)
+
+  return buildButtonRig(room, ctx, seals, button)
+}
+
+/**
+ * The same destructible wall, with no button to open it — what a DUNGEON BOSS
+ * floor gets (issue #61), where the key is the boss's death rather than
+ * anything the party can stand on.
+ *
+ * Returns the wall pieces so the caller can wire them to whatever opens them;
+ * `dungeonBoss/opener.ts` hangs the arena's own
+ * `GlobalEventTrigger('Boss Died') -> DestroyObject` off exactly this set.
+ * Null when the room is not a lockable dead end, in which case the floor
+ * re-rolls, same as the button path.
+ *
+ * Draws NO random value — there is no button to hide. That is the whole
+ * difference between this and `sealRoomWithButton`.
+ */
+export function sealRoomWall(room: Room, ctx: GenerationContext): Doodad[] | null {
+  if (!sealable(room)) return null
+
+  room.locked = true
+  room.sealed = true
+
+  return drawSealWall(room, ctx)
+}
+
+/**
+ * Whether a room can carry a seal at all: a dead end, not already locked, and
+ * not one of the two rooms whose stair prefab owns the wall band the seal would
+ * be drawn into.
+ *
+ * The `Exit` clause is load-bearing rather than inherited. An ExitDn prefab
+ * sits at `room.y - 2`, inside the north wall band, and a DOWN corridor's seal
+ * line is drawn at `entrance.y + 1 + overhangRows(theme)` — the same rows. They
+ * would be emitted over each other. A boss floor sidesteps this entirely by
+ * taking the orb/portal branch instead of the stairs branch, which is why
+ * `sealRoomWall` can share this guard unchanged.
+ */
+function sealable(room: Room): boolean {
+  return !(room.passages.length !== 1 || room.locked || room.type === 'Entrance' || room.type === 'Exit')
+}
+
+/** The wall itself: the pieces barring the room's single corridor. */
+function drawSealWall(room: Room, ctx: GenerationContext): Doodad[] {
   const p = room.passages[0]
   const entrance = p.path[0]
 
@@ -154,6 +200,20 @@ export function sealRoomWithButton(room: Room, ctx: GenerationContext, rooms: Ro
 
   for (const s of seals) s.needSync = true
 
+  return seals
+}
+
+/**
+ * The button half: the plate, its reachability claim, and the one-shot trigger
+ * that destroys `seals`. Split from the wall above so a dungeon boss floor can
+ * take the wall alone — see `sealRoomWall`.
+ */
+function buildButtonRig(
+  room: Room,
+  ctx: GenerationContext,
+  seals: Doodad[],
+  button: { x: number; y: number }
+): boolean {
   // `need-sync` because a script changes its state below — without it the press
   // would only be seen by the client who stepped on it. [VERIFIED] against
   // campaign/levels/level_1.xml, whose two floor buttons differ on exactly this

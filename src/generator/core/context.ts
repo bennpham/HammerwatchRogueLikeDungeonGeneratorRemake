@@ -51,6 +51,22 @@ export class GenerationContext {
    */
   readonly trapRand: Rand
 
+  /**
+   * drives the optional per-floor BOSS (`dungeonBoss/`, issue #61) — where its
+   * wave monsters land and where its per-tier spewers stand. A fifth stream,
+   * for the same reason `trapRand` is a fourth: the rig is a post-pass onto a
+   * finished floor, and giving it a stream of its own is what stops arming a
+   * boss from moving an armed floor's TRAP positions or any arena's layout.
+   *
+   * Note the one thing this does NOT protect, because it cannot: a boss floor
+   * takes a different branch of `map/level.ts` (a sealed portal room instead
+   * of a stairs room), and that branch is chosen during construction, off
+   * `rand`. So enabling a boss does move that floor's layout and every floor
+   * after it. This stream keeps everything that happens AFTER acceptance from
+   * adding to that.
+   */
+  readonly floorBossRand: Rand
+
   currentLevel = 0
   idCounter = 0
   lastLockType = 0
@@ -70,6 +86,17 @@ export class GenerationContext {
    * `Level` and carries its own exit target.
    */
   gateway: Gateway | null = null
+
+  /**
+   * Whether the floor currently being built hosts a boss (issue #61) — set by
+   * the generator before each `new Level()`, exactly as `gateway` is, and for
+   * the same reason: `map/level.ts` and `map/room.ts` read it while choosing
+   * the floor's way out.
+   *
+   * A boss floor's exit is a sealed portal room rather than a stairs room, so
+   * this has to be known before the room is picked, not after.
+   */
+  floorBoss = false
 
   monsters: Monster[] = []
   items: Item[] = []
@@ -93,6 +120,7 @@ export class GenerationContext {
     this.cosmeticRand = new Rand(seed + 1)
     this.bossRand = new Rand(seed + 2)
     this.trapRand = new Rand(seed + 3)
+    this.floorBossRand = new Rand(seed + 4)
   }
 
   /** Equivalent of the Clear() calls between levels in HammerwatchGen.main */

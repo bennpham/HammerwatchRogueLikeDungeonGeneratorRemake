@@ -227,7 +227,10 @@ export class Room {
         if (this.locked) return false
         // the orb can only be locked behind a single door if exactly one
         // corridor reaches it — same condition lockRoom() enforces
-        if (params.lockFinalRoom && this.passages.length !== 1) return false
+        // A boss floor is always sealed (issue #61), so its gateway room must
+        // be a dead end whether or not `lockFinalRoom` is ticked — the seal is
+        // drawn across a single corridor and has nothing to close otherwise.
+        if ((params.lockFinalRoom || ctx.floorBoss) && this.passages.length !== 1) return false
         // What comes next swaps the orb prefab for one of two portals, at the
         // same coordinates: the red one into a fight's arena, or the blue one
         // into a lobby — three visually distinct ways for a floor to end, so
@@ -245,9 +248,13 @@ export class Room {
           ctx,
           this.x + Math.trunc(this.width / 2),
           this.y + Math.trunc(this.height / 2) + 1,
-          gateway?.kind === 'portal' ? 'BossPortal' : gateway?.kind === 'lobbyPortal' ? 'LobbyPortal' : 'Orb',
+          // `exit` reaches here only on a boss floor, which takes this branch
+          // instead of the stairs one — render it as the red portal pointing at
+          // the next floor, the same substitution boss/arena.ts makes for an
+          // arena that has no stairs prefab of its own.
+          gateway?.kind === 'lobbyPortal' ? 'LobbyPortal' : gateway?.kind === 'orb' || gateway === null ? 'Orb' : 'BossPortal',
           this.theme,
-          gateway?.kind === 'portal' ? gateway.target : gateway?.kind === 'lobbyPortal' ? gateway.target : undefined
+          gateway?.kind === 'orb' || gateway === null ? undefined : gateway.target
         )
         this.type = type
         return true

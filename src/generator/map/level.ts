@@ -1,5 +1,5 @@
 import { Room } from './room'
-import { sealRoomWithButton } from './buttonSeal'
+import { sealRoomWall, sealRoomWithButton } from './buttonSeal'
 import { Passage } from './passage'
 import { Tile } from './tile'
 import { searchPatterns } from './wallPattern'
@@ -40,6 +40,26 @@ export class Level {
    * Used only by the mixed themes, to give a whole room one floor surface.
    */
   regionMap: Int32Array = new Int32Array(0)
+
+  /**
+   * The destructible wall pieces barring the sealed room's corridor, when this
+   * floor has one, so a post-pass can wire whatever opens them.
+   *
+   * The button path opens its own wall inside `buttonSeal.ts` and leaves this
+   * empty; a DUNGEON BOSS floor has no button, and `dungeonBoss/opener.ts`
+   * hangs a `Boss Died` trigger off these after the floor is accepted.
+   */
+  seals: Doodad[] = []
+
+  /**
+   * Where this floor's boss stands, when it has one (issue #61).
+   *
+   * Chosen HERE rather than in the post-pass that places the actor, because it
+   * is pushed to `ctx.reachTargets` and so has to exist before reachability
+   * runs at the end of this constructor. A boss the party cannot walk to is a
+   * floor that can never be finished — its sealed way out would never open.
+   */
+  bossSpot: { x: number; y: number } | null = null
 
   private ctx: GenerationContext
 
@@ -136,7 +156,21 @@ export class Level {
     // order the two are the same thing (floor `levels - 1` is the last slot, or
     // the one before the first boss fight), which is why this moved without
     // changing any seed.
-    if (ctx.gateway?.kind === 'exit') {
+    // A BOSS floor never takes the stairs branch, whatever comes next (issue
+    // #61). Its way out has to be SEALED until the boss dies, and only the
+    // orb/portal branch produces a room a seal can close: `transform('Orb')`
+    // refuses anything that is not a dead end, `buttonSeal` refuses an Exit
+    // room outright, and an ExitDn prefab sits in the very wall band a DOWN
+    // corridor's seal line is drawn into. So the stairs become a portal
+    // pointing at the same level — exactly what `boss/arena.ts` already does,
+    // an arena having no stairs prefab of its own either.
+    //
+    // This is the one thing about a boss floor that is NOT a post-pass: it is a
+    // different branch, taking a different number of `ctx.rand` draws, so
+    // arming a boss moves this floor's layout and every floor after it. Free
+    // today because no seed predates the feature, and gated so a floor without
+    // a boss draws exactly what it always drew.
+    if (ctx.gateway?.kind === 'exit' && !ctx.floorBoss) {
       // exit stairs down to the next floor
       success = false
       for (let attempt = 0; attempt < 2000; attempt++) {
@@ -205,7 +239,11 @@ export class Level {
     // exactly one such room, on floor `levels - 1`, which is what this used to
     // test for directly; a rearranged campaign can have several, and each is
     // the last gate before something that matters.
-    if (params.lockFinalRoom && ctx.gateway?.kind !== 'exit') {
+    // A boss floor is sealed whether or not `lockFinalRoom` is ticked: the
+    // issue is explicit that the wall is there either way, and the setting is
+    // campaign-wide so the form cannot force it for one floor. Every other
+    // floor keeps the original condition exactly.
+    if (ctx.floorBoss || (params.lockFinalRoom && ctx.gateway?.kind !== 'exit')) {
       // transform('Orb') already refused every room with more than one
       // passage, so the orb room is a dead end and the seal fits across its
       // single corridor
@@ -216,7 +254,16 @@ export class Level {
       // doors. The wall the button destroys cannot be opened wrong.
       let gated = false
       if (orbRoom !== undefined) {
-        gated = sealRoomWithButton(orbRoom, ctx, this.rooms)
+        if (ctx.floorBoss) {
+          // No button on a boss floor — the boss's death is the key. The wall
+          // is identical; only what opens it differs, and that is wired after
+          // the floor is accepted (see dungeonBoss/opener.ts).
+          const seals = sealRoomWall(orbRoom, ctx)
+          gated = seals !== null
+          if (seals !== null) this.seals = seals
+        } else {
+          gated = sealRoomWithButton(orbRoom, ctx, this.rooms)
+        }
         // the same consolation powerup, off the same three draws, that
         // lockRoom() grants — see Room.grantLockLoot
         if (gated) orbRoom.grantLockLoot()
@@ -257,6 +304,43 @@ export class Level {
             break
           }
         }
+      }
+    }
+
+    // Where this floor's boss will stand (issue #61).
+    //
+    // Picked HERE, not in the post-pass that places the actor, for one reason:
+    // it is pushed to `ctx.reachTargets` and so must exist before
+    // `exitReachable` runs at the end of this constructor. A boss the party
+    // cannot walk to never dies, its seal never opens, and the floor can never
+    // be finished — the same failure an unreachable button would be, handled
+    // the same way. `buttonSeal.ts`'s `pickButtonTile` is the pattern.
+    //
+    // Drawn from `ctx.rand` rather than the boss rig's own stream because it
+    // feeds reachability, which decides whether the floor is re-rolled at all.
+    // That is already paid for: a boss floor's layout has moved regardless, by
+    // taking the portal branch above.
+    if (ctx.floorBoss) {
+      // The entrance is where the party materialises blind, the shop is a
+      // no-combat room, and the sealed room is behind the wall the boss opens —
+      // a boss in there could never be reached. A `locked` vault is excluded
+      // too: chaining a gold key in front of the boss would make the floor's
+      // one guaranteed gate depend on a chance-rolled one.
+      const eligible = this.rooms.filter(
+        (r) => r.type !== 'Entrance' && r.type !== 'Shop' && !r.sealed && !r.locked
+      )
+      if (eligible.length === 0) {
+        this.levelValid = false
+      } else {
+        const room = eligible[rand.iRand(0, eligible.length)]
+        // The same interior box every other placement uses (`spawnKey`,
+        // `grantLockLoot`): `+2` on y clears the north wall art's overhang.
+        const spot = {
+          x: Math.trunc(rand.fRand(room.x, room.x + room.width)),
+          y: Math.trunc(rand.fRand(room.y + 2, room.y + room.height))
+        }
+        this.bossSpot = spot
+        ctx.reachTargets.push(spot)
       }
     }
 
