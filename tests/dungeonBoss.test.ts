@@ -163,6 +163,33 @@ describe('dungeon boss — the floor itself', () => {
     expect(mobilePaths).toContain(bosses[0])
   }, 60_000)
 
+  it('stands the boss inside a room the party can reach', () => {
+    // Its tile is a ctx.reachTargets entry, so a floor that generated at all
+    // has already had reachability prove the walk to it — the way out opens
+    // only on its death, so an unreachable boss is an unfinishable floor.
+    // What this adds is that the tile is real room floor, not a wall or a
+    // corridor tail.
+    const result = generateOk(withBoss(), SEED)
+    const xml = floorXml(result, BOSS_FLOOR)
+
+    const section = /<array name="actors">([\s\S]*?)<\/array>/.exec(xml)
+    const boss = [...(section?.[1] ?? '').matchAll(
+      /<int name="id">[^<]*<\/int>\s*<string name="type">(actors\/boss_[^<]*)<\/string>\s*<float name="x">(-?[\d.]+)<\/float>\s*<float name="y">(-?[\d.]+)<\/float>/g
+    )].map((m) => ({ x: Number(m[2]), y: Number(m[3]) }))
+    expect(boss, 'the boss actor, with a position').toHaveLength(1)
+
+    const preview = result.levels.find((l) => l.label === String(BOSS_FLOOR + 1))
+    const rooms = (preview as { rooms: { x: number; y: number; width: number; height: number; type: string; sealed: boolean }[] }).rooms
+    const host = rooms.find(
+      (r) => boss[0].x >= r.x && boss[0].x <= r.x + r.width && boss[0].y >= r.y && boss[0].y <= r.y + r.height
+    )
+    expect(host, `boss at (${boss[0].x},${boss[0].y}) is in no room`).toBeDefined()
+    // Never behind the wall it is supposed to open, and never where the party
+    // materialises blind.
+    expect(host?.sealed, 'the boss must not be inside the room it unlocks').toBe(false)
+    expect(host?.type).not.toBe('Entrance')
+  }, 60_000)
+
   it('turns the way out into a sealed portal room instead of stairs', () => {
     // The floor's next slot is another dungeon floor, so without a boss it gets
     // the stairs prefab; with one it must get the red portal, in a dead-end
@@ -407,4 +434,29 @@ describe('dungeon boss — parameters.txt', () => {
     expect(parsed.params.levelBoss?.[1]?.enabled).toBe(true)
     expect(parsed.params.levelBoss?.[1]?.monsterMultiplier).toBe(1.0)
   })
+})
+
+describe('dungeon boss — robustness', () => {
+  /**
+   * The gateway room of a boss floor must be a DEAD END for the seal to close
+   * it, which is a shape the room placer only sometimes rolls. That is a real
+   * risk of the portal decision: if dead ends were rare, boss floors would
+   * burn through MAX_LEVEL_ATTEMPTS and fail. This pins that they do not, on
+   * stock room counts, across a spread of seeds.
+   */
+  it('generates on every seed, with the seal holding each time', () => {
+    for (const seed of [1, 7, 42, SEED, 20260922]) {
+      const result = generateOk(withBoss({ waves: waveOn(0, { bat1: 9 }) }), seed)
+      const xml = floorXml(result, BOSS_FLOOR)
+
+      expect(nodesOfType(xml, 'DestroyObject'), `seed ${seed}: sealed`).toHaveLength(1)
+      expect(actorTypes(xml).filter((t) => t.startsWith('actors/boss_')), `seed ${seed}: one boss`).toHaveLength(1)
+
+      // `sealHolds` runs inside the constructor and rejects a floor whose exit
+      // is reachable with the wall up, so a floor that came back at all has
+      // already proved its gate. What this adds is that it came back.
+      const preview = result.levels.find((l) => l.label === String(BOSS_FLOOR + 1))
+      expect(preview?.rooms.some((r) => r.sealed), `seed ${seed}: a sealed room`).toBe(true)
+    }
+  }, 120_000)
 })
