@@ -6,13 +6,13 @@ import {
   BOSS_DEATH_WAVE,
   BOSS_DEF_LIST,
   BOSS_FLOOR_PATTERNS,
-  MAX_BOSS_COUNT,
   MAX_TRAP_COUNT,
   THEME_DEFS,
   buffById,
   pickupById,
   arenaBossCount,
   arenaMode,
+  bossSelection,
   defaultBossFight,
   defaultSurvivalOptions,
   getTheme,
@@ -51,6 +51,7 @@ import { SurvivalTab } from './SurvivalTab'
 import { WaveEditor, WAVE_LABELS } from './WaveEditor'
 import { InvulnerabilityEditor, invulnBadge } from './InvulnerabilityEditor'
 import { CheckpointsEditor, checkpointBadge } from './CheckpointsEditor'
+import { BossSelectionEditor } from './BossSelectionEditor'
 
 interface BossFormProps {
   params: DungeonParameters
@@ -528,54 +529,25 @@ function BossOnlyArenaFields({ arena, fieldPrefix, issues, setArena, setWave }: 
     })
   }
 
-  const toggleBoss = (id: string, on: boolean) => {
-    const next = new Set(arena.bossPool)
-    if (on) next.add(id)
-    else next.delete(id)
-    setArena({ bossPool: [...next] })
-  }
-
   return (
     <>
       <Section title="Boss" badge={`${arena.bossPool.length}/${BOSS_DEF_LIST.length}`}>
-        <p className="hint">The seed picks {bossCount === 1 ? 'one boss' : `${bossCount} bosses`} from this pool per campaign.</p>
-        <NumberField
-          label="Number of bosses"
-          field={`${fieldPrefix}.bossCount`}
-          value={bossCount}
-          onChange={(v) => setArena({ bossCount: !Number.isFinite(v) || v === 1 ? undefined : v })}
-          issues={issues}
-          min={1}
-          max={MAX_BOSS_COUNT}
-          step={1}
-          title="How many bosses this arena rolls at once"
-        />
-        <p className="hint">Dragon and Queen can appear at most once.</p>
         {multiBoss && (
           <p className="hint">
             Multiple bosses: health-threshold events can&apos;t tell bosses apart — only the 100%
             (start) and all-bosses-dead tiers run; invulnerability and checkpoints are off.
           </p>
         )}
-        <div className="pool-checkboxes">
-          {BOSS_DEF_LIST.map((def) => (
-            <label key={def.id} className="pool-checkbox">
-              <input
-                type="checkbox"
-                checked={arena.bossPool.includes(def.id)}
-                onChange={(e) => toggleBoss(def.id, e.target.checked)}
-              />
-              {bossLabel(def.id)}
-            </label>
-          ))}
-        </div>
-        {issues
-          .filter((i) => i.field === `${fieldPrefix}.bossPool`)
-          .map((issue, i) => (
-            <p key={i} className="field-message">
-              {issue.message}
-            </p>
-          ))}
+        <BossSelectionEditor
+          selection={bossSelection(arena)}
+          bossPool={arena.bossPool}
+          bossCount={bossCount}
+          bossLineup={arena.bossLineup}
+          defs={BOSS_DEF_LIST.map((def) => ({ id: def.id, label: bossLabel(def.id), unique: def.unique }))}
+          fieldPrefix={fieldPrefix}
+          issues={issues}
+          onChange={(patch) => setArena(patch)}
+        />
       </Section>
 
       <Section title="Boss invulnerability" badge={invulnBadge(arena.invulnerability)} disabled={multiBoss}>

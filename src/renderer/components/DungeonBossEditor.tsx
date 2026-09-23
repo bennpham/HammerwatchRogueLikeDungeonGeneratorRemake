@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import {
   BOSS_DEATH_WAVE,
   BOSS_DEF_LIST,
-  MAX_BOSS_COUNT,
+  bossSelection,
   defaultDungeonBoss,
   floorBossCount,
   isMultiBoss,
@@ -19,6 +19,7 @@ import { PickupListEditor } from './PickupListEditor'
 import { WaveEditor, WAVE_LABELS } from './WaveEditor'
 import { InvulnerabilityEditor, invulnBadge } from './InvulnerabilityEditor'
 import { CheckpointsEditor, checkpointBadge } from './CheckpointsEditor'
+import { BossSelectionEditor } from './BossSelectionEditor'
 
 interface DungeonBossEditorProps {
   params: DungeonParameters
@@ -80,14 +81,6 @@ export function DungeonBossEditor({ params, issues, onChange }: DungeonBossEdito
   const active = Math.min(tabIndex, Math.max(0, enabledLevels.length - 1))
   const level = enabledLevels[active]
   const boss = level !== undefined ? list[level] : undefined
-
-  const toggleBoss = (level: number, id: string, on: boolean) => {
-    const current = list[level]
-    const next = new Set(current.bossPool)
-    if (on) next.add(id)
-    else next.delete(id)
-    setFloor(level, { bossPool: [...next] })
-  }
 
   const copyWaveBuffDown = (tier: number) => {
     if (level === undefined || boss === undefined) return
@@ -192,7 +185,6 @@ export function DungeonBossEditor({ params, issues, onChange }: DungeonBossEdito
             issues={issues}
             onChange={(patch) => setFloor(level, patch)}
             onWaveChange={(tier, patch) => setWave(level, tier, patch)}
-            onToggleBoss={(id, on) => toggleBoss(level, id, on)}
             onCopyWaveBuffDown={copyWaveBuffDown}
             onCopyWaveTrapDown={copyWaveTrapDown}
             onCopyWavePickupDown={copyWavePickupDown}
@@ -214,7 +206,6 @@ interface DungeonBossFloorEditorProps {
   issues: ValidationIssue[]
   onChange: (patch: Partial<DungeonBoss>) => void
   onWaveChange: (tier: number, patch: Partial<BossWave>) => void
-  onToggleBoss: (id: string, on: boolean) => void
   onCopyWaveBuffDown: (tier: number) => void
   onCopyWaveTrapDown: (tier: number) => void
   onCopyWavePickupDown: (tier: number) => void
@@ -227,7 +218,6 @@ function DungeonBossFloorEditor({
   issues,
   onChange,
   onWaveChange,
-  onToggleBoss,
   onCopyWaveBuffDown,
   onCopyWaveTrapDown,
   onCopyWavePickupDown
@@ -244,47 +234,25 @@ function DungeonBossFloorEditor({
     <>
       <Section title="Boss" badge={`${boss.bossPool.length}/${MOBILE_BOSS_DEFS.length}`}>
         <p className="hint">
-          The seed picks {bossCount === 1 ? 'one boss' : `${bossCount} bosses`} from this pool for
-          this floor. Only bosses that can move are offered — a stationary one parked in a room
-          could never reach the party on an open floor.
+          Only bosses that can move are offered — a stationary one parked in a room could never
+          reach the party on an open floor.
         </p>
-        <NumberField
-          label="Number of bosses"
-          field={`${fieldPrefix}.bossCount`}
-          value={bossCount}
-          onChange={(v) => onChange({ bossCount: !Number.isFinite(v) || v === 1 ? undefined : v })}
-          issues={issues}
-          min={1}
-          max={MAX_BOSS_COUNT}
-          step={1}
-          title="How many bosses this floor rolls at once"
-        />
-        <p className="hint">Dragon and Queen can appear at most once.</p>
         {multiBoss && (
           <p className="hint">
             Multiple bosses: health-threshold events can&apos;t tell bosses apart — only the 100%
             (start) and all-bosses-dead tiers run; invulnerability and checkpoints are off.
           </p>
         )}
-        <div className="pool-checkboxes">
-          {MOBILE_BOSS_DEFS.map((def) => (
-            <label key={def.id} className="pool-checkbox">
-              <input
-                type="checkbox"
-                checked={boss.bossPool.includes(def.id)}
-                onChange={(e) => onToggleBoss(def.id, e.target.checked)}
-              />
-              {bossLabel(def.id)}
-            </label>
-          ))}
-        </div>
-        {issues
-          .filter((i) => i.field === `${fieldPrefix}.bossPool`)
-          .map((issue, i) => (
-            <p key={i} className="field-message">
-              {issue.message}
-            </p>
-          ))}
+        <BossSelectionEditor
+          selection={bossSelection(boss)}
+          bossPool={boss.bossPool}
+          bossCount={bossCount}
+          bossLineup={boss.bossLineup}
+          defs={MOBILE_BOSS_DEFS.map((def) => ({ id: def.id, label: bossLabel(def.id), unique: def.unique }))}
+          fieldPrefix={fieldPrefix}
+          issues={issues}
+          onChange={(patch) => onChange(patch)}
+        />
       </Section>
 
       <Section title="Boss invulnerability" badge={invulnBadge(boss.invulnerability)} disabled={multiBoss}>
