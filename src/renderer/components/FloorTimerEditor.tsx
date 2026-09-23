@@ -1,5 +1,5 @@
 import React from 'react'
-import { defaultFloorTimer } from '../../generator'
+import { defaultFloorTimer, floorBossCount, isMultiBoss } from '../../generator'
 import type { DungeonParameters, FloorTimer, ValidationIssue } from '../../generator'
 import { BoolField, NumberField } from './fields'
 
@@ -74,7 +74,13 @@ export function FloorTimerEditor({ params, issues, onChange }: FloorTimerEditorP
         // exact conflict validation blocks on (levelBoss.<i>.invulnerability).
         // Disabling the toggle here stops a dungeon master introducing that
         // conflict from this side, rather than only catching it after the fact.
-        const bossInvulnOn = params.levelBoss?.[level]?.enabled && params.levelBoss[level].invulnerability.enabled
+        // A multi-boss floor skips invulnerability outright (isMultiBoss), so
+        // the two can coexist there and this must not lock the timer out.
+        const floorBoss = params.levelBoss?.[level]
+        const bossInvulnOn =
+          floorBoss?.enabled === true &&
+          floorBoss.invulnerability.enabled &&
+          !isMultiBoss(floorBossCount(floorBoss))
         return (
           <details key={level} className="pool-level">
             <summary>
