@@ -364,6 +364,22 @@ name, integers ≥ 1 for every `cover.*` / `spawn.*` spacing and cluster knob
 `spacing,ringSpacing,clusters,batchSize,batchIntervalMs`; the older three-field
 form still parses.
 
+### Multiple bosses (issue #64 part 1)
+
+`bossCount` (arena: `boss<i>Count`; floor: 4th field of `bossFloor<i>=`) —
+**absent means 1**. `isMultiBoss(count)` is the single gate every rig and
+validation rule reads.
+
+| Symptom | Cause |
+| --- | --- |
+| "Boss invulnerability windows never fire with 2+ bosses" | Working as designed. The engine's `Boss 75/50/25%` events can't say WHICH boss crossed a threshold, so invulnerability (and checkpoints) is skipped outright above `bossCount = 1` — validation only *warns* if the settings are still populated, never blocks. |
+| "Wave tiers 75/50/25% never spawn anything with 2+ bosses" | Same reason — those tiers are skipped entirely, not fired for the wrong boss. Only tier 0 (100%, start) and the death tier run. Validation warns if a skipped tier still carries monsters/buffs/traps/drops. |
+| "The seal/alcove opened after only one of several bosses died" | That would be an `ObjectEventTrigger`/`Counter` wiring bug — escalate. It should open only once EVERY boss's own `Destroyed` event has reached the shared `Counter` (`boss/tierSource.ts`'s `buildAllBossesDied`). This whole rig is `[UNVERIFIED]` (2026-09-23 DISCOVERY-LOG entry) — if it never opens at all in game, that is the playtest finding the entry asks for, not a generator bug to patch blind. |
+| "bossCount rejected even though the pool has several bosses" | The pool may be all-unique (only `boss_dragon`/`boss_queen`) — each can appear at most once, so `bossCount` cannot exceed the pool's size. |
+| "bossCount rejected at a size that looks big enough" | `arenaBossLayout` (pure, no draws) could not fit every combination the pool could roll at `minWidth × minHeight` — raise the minimum size, narrow the pool, or lower the count. This is a real geometry check (footprints + a fixed gap + the entrance + the anchors), not a guess. |
+| "Two identical bosses picked for one fight" | Expected for anything except `boss_dragon`/`boss_queen` — `pickBosses` only removes a candidate from the pool once picked when `BossDef.unique` is true. |
+| "A boss floor's `invulnerability` + timer-mode error disappeared" | Working as designed — that error only applies to a single-boss floor (`bossCount = 1`); above that, invulnerability is already skipped, so it cannot compete with the timer. |
+
 ## Where the logs and state live
 
 The app does not write its own log file. Ask the reporter for:

@@ -65,6 +65,35 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    mode, number is the index in `fights`, which is what keeps `normalizeOrder`
    untouched; `parseSlotLabel` still accepts the old `B{n}`.
 
+   **An arena or a floor may carry more than one boss** (`bossCount`, issue #64
+   part 1 — **absent means 1**, read through `arenaBossCount`/`floorBossCount`).
+   The engine fires `Boss 75%/50%/25%/Died` for the FIRST boss actor to cross a
+   threshold or die and for nothing else, so with `isMultiBoss(count)` true no
+   rig can tell whose threshold it saw: every tier-keyed rig (waves, wave
+   buffs, wave pickups, traps) skips tiers 75/50/25% entirely — **before**
+   allocating a node for them — and re-keys the death tier and the alcove/seal
+   opener to "every boss's own death". `boss/tierSource.ts`'s
+   `buildAllBossesDied` builds that rig once: one
+   `ObjectEventTrigger(Destroyed, [actor], trigger-times 1)` per boss feeding
+   one shared `Counter(target = bossCount)` ([UNVERIFIED] node shape — see the
+   modding skill's DISCOVERY-LOG), and every rig connects to that Counter
+   exactly as it would to a single boss's `GlobalEventTrigger`. A count > 1
+   draws `bossCount` values through `boss/bosses.ts`'s `pickBosses` — dragon
+   and queen are `unique: true` and are removed from the candidate pool once
+   picked, every other boss may repeat — drawn on an arena from `ctx.bossRand`
+   immediately after the historical single pick (so `bossCount = 1` reproduces
+   that single draw exactly) and on a floor from `ctx.floorBossRand`.
+   Invulnerability and checkpoints are skipped outright for `isMultiBoss`,
+   never re-keyed: their settings stay on the object, unread, the same
+   losslessness a survival fight's boss-only fields already get.
+   `boss/geometry.ts`'s `arenaBossLayout` places every arena boss with **zero**
+   extra draws — a topWall boss (the dragon) keeps its historical
+   `topWallBossY` spot, the primary centre boss (queen if picked, else first
+   in pick order) keeps the historical `(midX, midY)`, and every other boss
+   gets a fixed offset (W, then E, then S/N) clear of the entrance and the
+   anchors; `validation.ts` rejects a `bossCount`/pool/size combination the
+   layout cannot fit before generation ever runs.
+
 7. **A dungeon floor can host a boss, and that one layer DOES move the floor.**
    `levelBoss[i]` (`dungeonBoss/`, issue #61) is the one per-floor layer that is
    not purely additive, and the exception is deliberate: a boss floor's way out
@@ -84,7 +113,10 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    an unreachable boss is an unfinishable floor. Only a **mobile** boss may
    stand on a floor (`MOBILE_BOSS_IDS` — authored, not derived from
    `static="true"`, which is about the collider and is true for the burrowing
-   worm), and invulnerability may not share a floor with timer mode.
+   worm), and invulnerability may not share a floor with timer mode (single-boss
+   floors only — see invariant 6's multi-boss addendum: a floor with
+   `isMultiBoss(floorBossCount(boss))` skips invulnerability outright, so it
+   cannot compete with the timer's countdown and the two may coexist).
 
 8. **The optional layers never move a seed's dungeon.**
    `src/generator/tweak/**` and `lobby/**` draw **no** random values and run

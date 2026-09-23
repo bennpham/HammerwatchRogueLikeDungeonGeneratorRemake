@@ -57,8 +57,19 @@ export interface CoverArena {
    * requires only the anchors and the alcove to stay reachable. It is optional
    * rather than a zero-footprint stand-in because a zero rect still reserves a
    * tile, and a survival arena's centre is ordinary floor.
+   *
+   * Superseded by `bosses` when that is given (issue #64 part 1's multi-boss
+   * arenas) — see that field.
    */
   boss?: CoverBoss
+  /**
+   * Every boss standing in the arena, for a multi-boss fight (issue #64 part
+   * 1). When present, this is used instead of `boss` throughout the file —
+   * `bossFootprints` is the one place that reads either field, so a
+   * single-entry `bosses` list and the historical `boss` field produce
+   * identical results.
+   */
+  bosses?: CoverBoss[]
   /** the 9 spawn anchors, already computed by anchors.ts */
   anchors: Anchor[]
   /** the south-wall entrance mouth */
@@ -91,8 +102,9 @@ export function isFree(candidate: Rect, arena: CoverArena, placed: readonly Rect
     return false
   }
 
-  const bossRect = bossFootprint(arena)
-  if (bossRect !== null && overlaps(candidate, bossRect)) return false
+  for (const bossRect of bossFootprints(arena)) {
+    if (overlaps(candidate, bossRect)) return false
+  }
   if (overlaps(candidate, arena.entrance)) return false
   if (overlaps(candidate, arena.alcove)) return false
 
@@ -347,8 +359,7 @@ function rectCoversTile(rect: Rect, width: number, height: number, x: number, y:
 function buildBlockedMask(arena: CoverArena, rects: readonly Rect[]): Uint8Array {
   const { width, height } = arena
   const blocked = new Uint8Array(width * height)
-  const bossRect = bossFootprint(arena)
-  if (bossRect !== null) rasterizeRect(bossRect, width, height, blocked)
+  for (const bossRect of bossFootprints(arena)) rasterizeRect(bossRect, width, height, blocked)
   for (const r of rects) rasterizeRect(r, width, height, blocked)
   return blocked
 }
@@ -445,15 +456,17 @@ function nearestInteriorTile(rect: Rect, arena: CoverArena): { x: number; y: num
  * ever looked at a pillar-caused blockage elsewhere.
  */
 function reachabilityTargets(arena: CoverArena): Array<{ x: number; y: number }> {
-  const { width, height, boss } = arena
-  const bossRect = bossFootprint(arena)
+  const { width, height } = arena
+  const bosses = arenaBosses(arena)
+  const bossRects = bossFootprints(arena)
 
   // A survival arena has no boss, so the four tiles around its footprint are
   // not targets and nothing is filtered out for covering it — the anchors and
-  // the alcove are the whole list.
+  // the alcove are the whole list. A multi-boss arena gets four targets PER
+  // boss, one around each one's own footprint.
   const bossTargets: Array<{ x: number; y: number }> = []
-  if (boss !== undefined && bossRect !== null) {
-    const b = rectTileBounds(bossRect, width, height)
+  bosses.forEach((boss, i) => {
+    const b = rectTileBounds(bossRects[i], width, height)
     const bossX = Math.round(boss.x)
     const bossY = Math.round(boss.y)
     bossTargets.push(
@@ -462,7 +475,7 @@ function reachabilityTargets(arena: CoverArena): Array<{ x: number; y: number }>
       { x: b.x0 - 1, y: bossY },
       { x: b.x1 + 1, y: bossY }
     )
-  }
+  })
 
   const targets: Array<{ x: number; y: number }> = [
     ...bossTargets,
@@ -476,19 +489,24 @@ function reachabilityTargets(arena: CoverArena): Array<{ x: number; y: number }>
       t.y >= 0 &&
       t.x < width &&
       t.y < height &&
-      (bossRect === null || !rectCoversTile(bossRect, width, height, t.x, t.y))
+      !bossRects.some((r) => rectCoversTile(r, width, height, t.x, t.y))
   )
 }
 
+/** `arena.bosses` when given, else `arena.boss` as a single-entry list, else empty. */
+function arenaBosses(arena: CoverArena): readonly CoverBoss[] {
+  if (arena.bosses !== undefined) return arena.bosses
+  return arena.boss !== undefined ? [arena.boss] : []
+}
+
 /**
- * The boss's footprint rect, or null in a survival arena. One helper rather
- * than three copies of the same spread, so the absent case cannot be handled
- * three different ways.
+ * Every boss's footprint rect, in `arenaBosses` order. Empty in a survival
+ * arena. One helper rather than several copies of the same spread, so the
+ * absent case and the multi-boss case cannot be handled differently in
+ * different places.
  */
-function bossFootprint(arena: CoverArena): Rect | null {
-  const { boss } = arena
-  if (boss === undefined) return null
-  return footprintRect(boss.x, boss.y, { width: boss.footprintWidth, height: boss.footprintHeight })
+function bossFootprints(arena: CoverArena): Rect[] {
+  return arenaBosses(arena).map((b) => footprintRect(b.x, b.y, { width: b.footprintWidth, height: b.footprintHeight }))
 }
 
 /**

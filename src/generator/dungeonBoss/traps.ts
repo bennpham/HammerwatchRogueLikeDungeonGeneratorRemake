@@ -30,11 +30,12 @@ import { waveTraps } from '../config/parameters'
 import type { Level } from '../map/level'
 import type { ProjectileDef } from '../objects/projectileTypes'
 import { projectileById } from '../objects/projectileTypes'
-import { NodeGlobalEventTrigger, NodeProjectileSpewer, NodeToggleElement } from '../objects/nodes'
+import { NodeProjectileSpewer, NodeToggleElement } from '../objects/nodes'
 import type { Slot } from '../traps/slots'
 import { SPEWER_DIRECTION, TILE_CENTRE, WALLS, takeSlot } from '../traps/slots'
 import { floorSlots } from '../traps/floor'
-import { TIER_EVENT_NAMES } from '../boss/waves'
+import type { TierSource } from '../boss/tierSource'
+import { singleBossTierSource } from '../boss/tierSource'
 
 /**
  * Builds the floor's per-tier trap rig. Emits nothing at all — not one node,
@@ -48,7 +49,8 @@ export function buildFloorBossTrapRig(
   waves: readonly BossWave[],
   level: Level,
   x: number,
-  y: number
+  y: number,
+  tierSource: TierSource = singleBossTierSource()
 ): void {
   const carried: { def: ProjectileDef; row: BossTrap }[][] = waves.map((wave) =>
     waveTraps(wave).flatMap((row) => {
@@ -78,6 +80,8 @@ export function buildFloorBossTrapRig(
   for (let tier = 0; tier < carried.length; tier++) {
     const entries = carried[tier]
     if (entries.length === 0) continue
+    // Multi-boss (issue #64 part 1): tiers 75/50/25% skipped entirely.
+    if (tier > 0 && tierSource.skipTier(tier)) continue
 
     const spewers: NodeProjectileSpewer[] = []
     for (const { def, row: trap } of entries) {
@@ -110,7 +114,7 @@ export function buildFloorBossTrapRig(
 
     if (tier > 0) {
       row += 1
-      const trigger = new NodeGlobalEventTrigger(ctx, x, row, TIER_EVENT_NAMES[tier - 1])
+      const trigger = tierSource.tierTrigger(ctx, x, row, tier)
 
       for (const stale of previous) {
         row += 1

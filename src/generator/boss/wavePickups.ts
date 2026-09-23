@@ -59,10 +59,11 @@ import type { BossWave, WavePickup } from '../config/parameters'
 import { wavePickups } from '../config/parameters'
 import type { PickupLane } from '../objects/pickupTypes'
 import { pickupById } from '../objects/pickupTypes'
-import { NodeAreaTrigger, NodeGlobalEventTrigger, NodeRectangleShape, NodeSpawnObject } from '../objects/nodes'
+import { NodeAreaTrigger, NodeRectangleShape, NodeSpawnObject } from '../objects/nodes'
 import type { PadSlot, PickupArena } from './pickupPad'
 import { pickupPad } from './pickupPad'
-import { TIER_EVENT_NAMES } from './waves'
+import type { TierSource } from './tierSource'
+import { singleBossTierSource } from './tierSource'
 
 /**
  * Re-exported so the boss arena stays the one place that talks about its own
@@ -83,7 +84,8 @@ export function buildWavePickupRig(
   ctx: GenerationContext,
   waves: readonly BossWave[],
   arena: PickupArena,
-  entranceShape: NodeRectangleShape
+  entranceShape: NodeRectangleShape,
+  tierSource: TierSource = singleBossTierSource()
 ): void {
   const carried: WavePickup[][] = waves.map((wave) =>
     wavePickups(wave).filter((entry) => pickupById(entry.item) !== undefined && entry.count > 0)
@@ -112,6 +114,8 @@ export function buildWavePickupRig(
   for (let tier = 0; tier < carried.length; tier++) {
     const entries = carried[tier]
     if (entries.length === 0) continue
+    // Multi-boss (issue #64 part 1): tiers 75/50/25% skipped entirely.
+    if (tier > 0 && tierSource.skipTier(tier)) continue
 
     // Trigger nodes are parked off the arena, one column per tier — cosmetic
     // editor markers only. The SpawnObjects DO care about position: that is
@@ -125,7 +129,7 @@ export function buildWavePickupRig(
       areaTrig.connectToShape(entranceShape)
       triggerNode = areaTrig
     } else {
-      triggerNode = new NodeGlobalEventTrigger(ctx, col, row, TIER_EVENT_NAMES[tier - 1])
+      triggerNode = tierSource.tierTrigger(ctx, col, row, tier)
     }
 
     for (const entry of entries) {

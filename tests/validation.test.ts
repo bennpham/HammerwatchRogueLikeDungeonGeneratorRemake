@@ -933,6 +933,104 @@ describe('boss validation', () => {
   })
 })
 
+describe('boss count validation (issue #64 part 1)', () => {
+  const withBoss = (
+    patch: Partial<ReturnType<typeof defaultParameters>['boss']['fights'][number]> & { enabled?: boolean }
+  ) => {
+    const p = defaultParameters()
+    const { enabled, ...fightPatch } = patch
+    p.boss = {
+      ...p.boss,
+      ...(enabled === undefined ? {} : { enabled }),
+      fights: p.boss.fights.map((f, i) => (i === 0 ? { ...f, ...fightPatch } : f))
+    }
+    return validateParameters(p)
+  }
+
+  it('accepts every whole number from 1 to MAX_BOSS_COUNT', () => {
+    const arena = defaultParameters().boss.fights[0].arena
+    for (let n = 1; n <= 4; n++) {
+      const result = withBoss({ arena: { ...arena, bossCount: n } })
+      expect(fieldsOf(result.errors)).not.toContain('boss.fights.0.arena.bossCount')
+    }
+  })
+
+  it('rejects 0, a negative number, a non-integer and anything above MAX_BOSS_COUNT', () => {
+    const arena = defaultParameters().boss.fights[0].arena
+    for (const bad of [0, -1, 1.5, 5]) {
+      const result = withBoss({ arena: { ...arena, bossCount: bad } })
+      expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.bossCount')
+    }
+  })
+
+  it('rejects a bossCount above an all-unique pool\'s size', () => {
+    const arena = defaultParameters().boss.fights[0].arena
+    const result = withBoss({ arena: { ...arena, bossPool: ['boss_dragon', 'boss_queen'], bossCount: 3 } })
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.bossCount')
+  })
+
+  it('allows a bossCount equal to an all-unique pool\'s size', () => {
+    const arena = defaultParameters().boss.fights[0].arena
+    const result = withBoss({ arena: { ...arena, bossPool: ['boss_dragon', 'boss_queen'], bossCount: 2 } })
+    expect(fieldsOf(result.errors)).not.toContain('boss.fights.0.arena.bossCount')
+  })
+
+  it('allows a bossCount above pool size when the pool is not all-unique', () => {
+    const arena = defaultParameters().boss.fights[0].arena
+    const result = withBoss({ arena: { ...arena, bossPool: ['boss_knight'], bossCount: 4 } })
+    expect(fieldsOf(result.errors)).not.toContain('boss.fights.0.arena.bossCount')
+  })
+
+  it('rejects a multi-boss arena too small for its pool to lay out', () => {
+    const arena = defaultParameters().boss.fights[0].arena
+    // The minimum legal single-boss arena, asked to also fit 3 extra queens —
+    // the largest footprint — cannot possibly lay them all out.
+    const result = withBoss({
+      arena: {
+        ...arena,
+        minWidth: 14,
+        maxWidth: 20,
+        minHeight: 18,
+        maxHeight: 24,
+        bossPool: ['boss_queen', 'boss_knight'],
+        bossCount: 4
+      }
+    })
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.bossCount')
+  })
+
+  it('warns, but does not error, when a multi-boss fight still configures 75/50/25% content, invulnerability or checkpoints', () => {
+    const arena = defaultParameters().boss.fights[0].arena
+    const result = withBoss({
+      arena: {
+        ...arena,
+        bossPool: ['boss_knight', 'boss_lich'],
+        bossCount: 2,
+        waves: arena.waves.map((w, i) => (i === 1 ? { ...w, monsters: ['bat1'], monsterMax: { bat1: 5 } } : w)),
+        invulnerability: { enabled: true, seconds: [30, 30, 30], countdown: true },
+        checkpoints: { respawnPlayers: '50', saveGame: 'never' }
+      }
+    })
+    expect(result.errors).toEqual([])
+    expect(fieldsOf(result.warnings)).toContain('boss.fights.0.arena.waves.1')
+    expect(fieldsOf(result.warnings)).toContain('boss.fights.0.arena.invulnerability.enabled')
+    expect(fieldsOf(result.warnings)).toContain('boss.fights.0.arena.checkpoints.respawnPlayers')
+  })
+
+  it('does not warn about 75/50/25% content, invulnerability or checkpoints for a single-boss fight', () => {
+    const arena = defaultParameters().boss.fights[0].arena
+    const result = withBoss({
+      arena: {
+        ...arena,
+        bossCount: 1,
+        waves: arena.waves.map((w, i) => (i === 1 ? { ...w, monsters: ['bat1'], monsterMax: { bat1: 5 } } : w)),
+        invulnerability: { enabled: true, seconds: [30, 30, 30], countdown: true }
+      }
+    })
+    expect(fieldsOf(result.warnings)).not.toContain('boss.fights.0.arena.invulnerability.enabled')
+  })
+})
+
 describe('boss arena theme warning', () => {
   const withBoss = (
     patch: Partial<ReturnType<typeof defaultParameters>['boss']['fights'][number]> & { enabled?: boolean }

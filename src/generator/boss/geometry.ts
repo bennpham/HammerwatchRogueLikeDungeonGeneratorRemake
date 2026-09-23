@@ -5,8 +5,10 @@
  * means.
  */
 
-import { largestBossFootprintArea } from './bosses'
+import { largestBossFootprintArea, topWallBossY } from './bosses'
+import type { BossDef } from './bosses'
 import { ANCHOR_INSET, ENTRANCE_DEPTH, ENTRANCE_WIDTH } from './anchors'
+import type { Anchor } from './anchors'
 
 /** Arena floor needs room for the boss, the 3x3 alcove and the 9 spawn anchors. */
 export const ARENA_MIN_WIDTH = 14
@@ -101,4 +103,153 @@ export function freeFloorArea(width: number, height: number): number {
 export function coverPillarCount(density: number, width: number, height: number, theme: string): number {
   const free = freeFloorArea(width, height)
   return Math.max(0, Math.floor((free * density) / pillarFootprintArea(theme)))
+}
+
+/**
+ * Positions every boss of a multi-boss arena (issue #64 part 1). Pure and
+ * draw-free — every call site's `ctx.bossRand` order is untouched by how many
+ * bosses are placed.
+ *
+ * One `topWall` boss (the dragon, unique — see `bosses.ts`) keeps its
+ * historical spot: `(midX, topWallBossY(def))`. The centre-placed bosses are
+ * headed by a PRIMARY — the queen if one was picked, else the first centre
+ * boss in pick order — at exactly `(midX, midY)`, the same tile a single
+ * centre boss has always used. Every other centre boss goes at a fixed,
+ * draw-free offset from the primary: west, then east, then south (or north
+ * when there is no `topWall` boss to occupy the north side), each spaced by
+ * the sum of the two footprints' half-widths/heights plus `BOSS_LAYOUT_GAP`.
+ *
+ * Returns `null` when a placement would not fit inside the interior, would
+ * overlap the entrance rectangle, would overlap another boss's footprint, or
+ * when there are more centre bosses than the three fixed offsets can hold —
+ * `config/validation.ts` is the gate that keeps this from happening for a
+ * validated parameter set.
+ */
+export const BOSS_LAYOUT_GAP = 3
+
+export interface BossPlacement {
+  def: BossDef
+  x: number
+  y: number
+}
+
+interface LayoutRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+function centredRect(x: number, y: number, width: number, height: number): LayoutRect {
+  return { x: x - width / 2, y: y - height / 2, width, height }
+}
+
+/**
+ * A placement's footprint rect, INCLUDING its collision shape's own vertical
+ * offset (`collisionOffsetY` — only ever set for the `topWall` boss; see
+ * `bosses.ts`). Omitting it here undercounts a topWall boss's true collider by
+ * up to half a tile and can make a legitimate layout look like it clips a
+ * nearby anchor's clearance box, when `anchors.ts`'s own
+ * `topWallBossClearance` already accounts for the same offset.
+ */
+function placementRect(p: BossPlacement): LayoutRect {
+  return centredRect(p.x, p.y + (p.def.collisionOffsetY ?? 0), p.def.footprintWidth, p.def.footprintHeight)
+}
+
+function rectsOverlap(a: LayoutRect, b: LayoutRect): boolean {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
+}
+
+export function arenaBossLayout(
+  width: number,
+  height: number,
+  entrance: LayoutRect,
+  anchors: readonly Anchor[],
+  bosses: readonly BossDef[]
+): BossPlacement[] | null {
+  const midX = Math.trunc(width / 2)
+  const midY = Math.trunc(height / 2)
+
+  const topWall = bosses.find((b) => b.placement === 'topWall')
+  const centreBosses = bosses.filter((b) => b.placement !== 'topWall')
+
+  const placements: BossPlacement[] = []
+  // The "fixed" placements — the topWall boss and the primary centre boss —
+  // sit at spots `anchors()` has ALREADY been asked to clear (via
+  // `topWallBossClearance` and `centreAnchor`'s own push), so they are
+  // exempted from the anchor-clearance check below: re-checking them against
+  // a flat, offset-unaware clearance box would reject layouts the real anchor
+  // math already made safe (see `placementRect`'s comment). Only the EXTRA
+  // (offset) bosses — the ones nothing has reasoned about yet — are checked
+  // against the anchors, matching this function's own doc comment ("clear of
+  // the entrance rect and anchors" applies to the fixed offsets).
+  const extraPlacements: BossPlacement[] = []
+
+  if (topWall !== undefined) {
+    placements.push({ def: topWall, x: midX, y: topWallBossY(topWall) })
+  }
+
+  if (centreBosses.length > 0) {
+    // Index-based, not reference-based: two picked bosses of the SAME kind
+    // (e.g. two liches) are the same `BossDef` object, so filtering by
+    // `!==` would drop both instead of just the primary.
+    const queenIndex = centreBosses.findIndex((b) => b.id === 'boss_queen')
+    const primaryIndex = queenIndex >= 0 ? queenIndex : 0
+    const primary = centreBosses[primaryIndex]
+    placements.push({ def: primary, x: midX, y: midY })
+
+    const rest = centreBosses.filter((_, i) => i !== primaryIndex)
+    const offsets: Array<'W' | 'E' | 'S' | 'N'> = topWall !== undefined ? ['W', 'E', 'S'] : ['W', 'E', 'N']
+    if (rest.length > offsets.length) return null
+
+    for (let i = 0; i < rest.length; i++) {
+      const other = rest[i]
+      const gapX = Math.ceil(primary.footprintWidth / 2 + other.footprintWidth / 2) + BOSS_LAYOUT_GAP
+      const gapY = Math.ceil(primary.footprintHeight / 2 + other.footprintHeight / 2) + BOSS_LAYOUT_GAP
+      let x = midX
+      let y = midY
+      switch (offsets[i]) {
+        case 'W':
+          x = midX - gapX
+          break
+        case 'E':
+          x = midX + gapX
+          break
+        case 'S':
+          y = midY + gapY
+          break
+        case 'N':
+          y = midY - gapY
+          break
+      }
+      const placement = { def: other, x, y }
+      placements.push(placement)
+      extraPlacements.push(placement)
+    }
+  }
+
+  // Bounds and entrance checks apply to every placement; anchor clearance
+  // only to the extras (see above); mutual overlap to every pair.
+  for (const p of placements) {
+    const rect = placementRect(p)
+    if (rect.x < 0 || rect.y < 0 || rect.x + rect.width > width || rect.y + rect.height > height) return null
+    if (rectsOverlap(rect, entrance)) return null
+  }
+  const anchorClearance = 1
+  for (const p of extraPlacements) {
+    const rect = placementRect(p)
+    for (const a of anchors) {
+      const anchorRect: LayoutRect = { x: a.x - anchorClearance, y: a.y - anchorClearance, width: anchorClearance * 2, height: anchorClearance * 2 }
+      if (rectsOverlap(rect, anchorRect)) return null
+    }
+  }
+  for (let i = 0; i < placements.length; i++) {
+    const ri = placementRect(placements[i])
+    for (let j = i + 1; j < placements.length; j++) {
+      const rj = placementRect(placements[j])
+      if (rectsOverlap(ri, rj)) return null
+    }
+  }
+
+  return placements
 }

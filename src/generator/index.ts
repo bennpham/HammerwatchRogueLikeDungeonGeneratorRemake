@@ -1,6 +1,6 @@
 import { GenerationContext } from './core/context'
 import { Level } from './map/level'
-import { DungeonParameters, defaultParameters, bossFights, arenaMode, defaultSurvivalOptions, floorBoss } from './config/parameters'
+import { DungeonParameters, defaultParameters, bossFights, arenaMode, defaultSurvivalOptions, floorBoss, floorBossCount } from './config/parameters'
 import { validateParameters, ValidationResult } from './config/validation'
 import { emitTweakFiles } from './tweak/overrides'
 import { DEFAULT_LOBBY_PRESET_ID, buildLobby, lobbyPresetById } from './lobby'
@@ -372,7 +372,7 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
     // out is a sealed portal room rather than a stairs room, which `Level` and
     // `Room.transform` decide while the floor is being built, not after.
     const levelBoss = floorBoss(params, i)
-    ctx.floorBoss = levelBoss !== undefined
+    ctx.floorBoss = levelBoss !== undefined ? floorBossCount(levelBoss) : 0
 
     let level: Level | null = null
     for (let attempt = 0; attempt < MAX_LEVEL_ATTEMPTS; attempt++) {

@@ -230,10 +230,20 @@ export class NodeShopArea extends ScriptNode {
   }
 }
 
-/** Ported from NodeObjectEventTrigger.java */
+/**
+ * Ported from NodeObjectEventTrigger.java.
+ *
+ * Generalised (issue #64 part 1) to watch any object by raw id — an ACTOR's,
+ * for the "all bosses died" Counter feed (`boss/tierSource.ts`) — not only an
+ * `Item`. `itemConnections` and `connectItem` are unchanged so the orb's
+ * existing wiring (`objects/objectSet.ts`) emits exactly what it always did;
+ * `connectObject` is the same underlying array under a name that does not
+ * imply "item".
+ */
 export class NodeObjectEventTrigger extends ScriptNode {
   event = 'Destroyed'
   itemConnections: Item[] = []
+  private objectIds: number[] = []
 
   constructor(ctx: GenerationContext, x: number, y: number) {
     super(ctx, x, y, 'ObjectEventTrigger')
@@ -243,11 +253,16 @@ export class NodeObjectEventTrigger extends ScriptNode {
     this.itemConnections.push(i)
   }
 
+  /** Watches any object (an actor, a doodad, …) by its raw id. */
+  connectObject(o: { id: number }): void {
+    this.objectIds.push(o.id)
+  }
+
   protected getParametersDict(): XMLDictionary {
     const d = new XMLDictionary('parameters')
     d.addData(new XMLString('event', this.event))
     const objectDict = new XMLDictionary('object')
-    objectDict.addData(new XMLIntArray('static', this.itemConnections.map((i) => i.id)))
+    objectDict.addData(new XMLIntArray('static', [...this.itemConnections.map((i) => i.id), ...this.objectIds]))
     d.addData(objectDict)
     return d
   }
@@ -525,6 +540,38 @@ export class NodeProjectileSpewer extends ScriptNode {
     d.addData(new XMLString('projectile', this.projectilePath))
     d.addData(new XMLFloat('spread', this.spread))
     d.addData(new XMLInt('spawn-rate', this.spawnRateMs))
+    return d
+  }
+}
+
+/**
+ * Counts incoming triggers and fires its own `connections` once `target` of
+ * them have arrived — the "all bosses died" mechanism for a multi-boss fight
+ * or floor (issue #64 part 1, `boss/tierSource.ts`). One
+ * `ObjectEventTrigger(Destroyed)` per boss actor feeds this node; once every
+ * one has fired, the death-tier rigs and the alcove/seal opener run exactly as
+ * they would off a single boss's `GlobalEventTrigger("Boss Died")`.
+ *
+ * [UNVERIFIED] — no shipped level or editor-saved file demonstrates a Counter
+ * node; this shape (a `<dictionary name="parameters">` holding one
+ * `<int name="count">`) is this port's best guess, modelled on every other
+ * node here that carries a single numeric setting (`NodeTimerTrigger`,
+ * `NodeToggleElement`). See the modding skill's DISCOVERY-LOG for the playtest
+ * recipe that would confirm or refute it before this reaches players.
+ */
+export class NodeCounter extends ScriptNode {
+  constructor(
+    ctx: GenerationContext,
+    x: number,
+    y: number,
+    public target: number
+  ) {
+    super(ctx, x, y, 'Counter')
+  }
+
+  protected getParametersDict(): XMLDictionary {
+    const d = new XMLDictionary('parameters')
+    d.addData(new XMLInt('count', this.target))
     return d
   }
 }

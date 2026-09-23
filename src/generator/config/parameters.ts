@@ -254,6 +254,12 @@ export interface DungeonBoss {
   checkpoints: { respawnPlayers: BossCheckpointPreset; saveGame: BossCheckpointPreset }
   /** Scales each tier's counts, separate from the dungeon's own monsterMultiplier. */
   monsterMultiplier: number
+  /**
+   * How many bosses this floor rolls (issue #64 part 1). **Absent means 1** —
+   * read through `floorBossCount`. Same multi-boss re-keying as an arena's
+   * `bossCount` — see that field's comment and `boss/tierSource.ts`. 1..MAX_BOSS_COUNT.
+   */
+  bossCount?: number
 }
 
 /**
@@ -596,6 +602,22 @@ export interface BossArenaOptions {
    * no `PlayMusic` node). See `src/generator/music/`.
    */
   music?: string
+  /**
+   * How many bosses this arena rolls (issue #64 part 1). **Absent means 1** —
+   * read it through `arenaBossCount`, never off the field — which is what
+   * keeps every parameter object and `parameters.txt` written before this
+   * feature byte-identical. 1..MAX_BOSS_COUNT.
+   *
+   * The engine fires `Boss 75%/50%/25%/Died` for the FIRST boss actor to cross
+   * a threshold or die, and for nothing else — with two or more bosses no rig
+   * can tell whose threshold it saw. So above 1, every tier-keyed rig (waves,
+   * wave buffs, wave pickups, traps) skips the 75/50/25% tiers entirely and
+   * re-keys the death tier and the alcove opener to "every boss's own death",
+   * counted by a shared Counter — see `boss/tierSource.ts`. Invulnerability and
+   * checkpoints are skipped outright; their settings stay on the object,
+   * simply unread, the same losslessness `arenaMode` already promises.
+   */
+  bossCount?: number
 }
 
 /**
@@ -1032,6 +1054,36 @@ export const BOSS_IDS = [
  * file imports from this one and not the other way round.
  */
 export const MOBILE_BOSS_IDS = ['boss_anubis', 'boss_knight', 'boss_krilith', 'boss_lich', 'boss_worm'] as const
+
+/**
+ * Most bosses one arena or one dungeon floor may roll at once (issue #64
+ * part 1). Four is a deliberate ceiling, not a measured ceiling: a fifth
+ * mobile-boss slot would need a fifth fixed layout offset this port's arena
+ * geometry does not have (see `boss/geometry.ts`'s `arenaBossLayout`), and a
+ * floor's pool of `MOBILE_BOSS_IDS` is only five ids long, so four leaves the
+ * "distinct bosses" case (no unique repeats) actually reachable.
+ */
+export const MAX_BOSS_COUNT = 4
+
+/** `arena.bossCount`, with the absent-means-one default applied. */
+export function arenaBossCount(arena: BossArenaOptions): number {
+  return arena.bossCount ?? 1
+}
+
+/** `boss.bossCount`, with the absent-means-one default applied. */
+export function floorBossCount(boss: DungeonBoss): number {
+  return boss.bossCount ?? 1
+}
+
+/**
+ * Whether `count` bosses means the engine's `Boss 75%/50%/25%/Died` events can
+ * no longer be trusted to mean any one particular boss — the single gate every
+ * multi-boss rig and validation rule reads, so "more than one" is decided in
+ * exactly one place.
+ */
+export function isMultiBoss(count: number): boolean {
+  return count > 1
+}
 
 /**
  * One stock lobby built from `presetId`. A fresh object every call, like

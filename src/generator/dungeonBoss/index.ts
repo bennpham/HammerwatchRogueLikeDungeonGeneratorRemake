@@ -33,18 +33,20 @@
 
 import type { GenerationContext } from '../core/context'
 import type { DungeonBoss } from '../config/parameters'
+import { floorBossCount, isMultiBoss } from '../config/parameters'
 import type { Level } from '../map/level'
 import { buildInvulnerabilityRig } from '../boss/invulnerability'
 import { buildCheckpointRig } from '../boss/checkpoints'
 import { buildWaveBuffRig } from '../boss/waveBuffs'
-import { placeFloorBoss } from './actor'
+import { buildAllBossesDied, multiBossTierSource, singleBossTierSource } from '../boss/tierSource'
+import { placeFloorBoss, placeFloorBosses } from './actor'
 import { floorInteriorSlots } from './placement'
 import { buildFloorBossWaveRig } from './waves'
 import { buildFloorBossTrapRig } from './traps'
 import { buildFloorBossOpener } from './opener'
 import { buildFloorBossPickupRig } from './pickups'
 
-export { placeFloorBoss } from './actor'
+export { placeFloorBoss, placeFloorBosses } from './actor'
 export { floorInteriorSlots, roomInteriorSlots } from './placement'
 export { buildFloorBossWaveRig, FLOOR_SPAWN_POINTS } from './waves'
 export { buildFloorBossTrapRig } from './traps'
@@ -68,7 +70,7 @@ export function buildFloorBossRig(
   level: Level
 ): void {
   if (boss === undefined || !boss.enabled) return
-  if (level.bossSpot === null) return
+  if (level.bossSpots.length === 0) return
 
   // Marker column for the cosmetic editor nodes: just past the map's east
   // edge, where nothing can be standing. The spewers, SpawnObjects and the
@@ -78,26 +80,51 @@ export function buildFloorBossRig(
   const markerX = level.width + 1
   const markerY = 0
 
-  const actor = placeFloorBoss(ctx, boss.bossPool, level.bossSpot)
-  if (actor === null) return
+  const count = floorBossCount(boss)
+  const multi = isMultiBoss(count)
+  const actors = placeFloorBosses(ctx, boss.bossPool, level.bossSpots, count)
+  if (actors.length === 0) return
+
+  // Multi-boss (issue #64 part 1): the same "all bosses died" Counter every
+  // arena builds, built once right after the actors are placed. Single boss:
+  // unused — every tier-keyed rig below keeps building its own
+  // `GlobalEventTrigger`, exactly as it always has.
+  const tierSource = multi
+    ? multiBossTierSource(buildAllBossesDied(ctx, actors, markerX, markerY))
+    : singleBossTierSource()
 
   const pool = floorInteriorSlots(level, ctx)
-  buildFloorBossWaveRig(ctx, boss.waves, boss.monsterMultiplier, pool, markerX, markerY)
+  buildFloorBossWaveRig(ctx, boss.waves, boss.monsterMultiplier, pool, markerX, markerY, tierSource)
 
-  buildWaveBuffRig(ctx, boss.waves, level.width, level.height, markerX, markerY)
+  buildWaveBuffRig(ctx, boss.waves, level.width, level.height, markerX, markerY, tierSource)
 
-  buildFloorBossTrapRig(ctx, boss.waves, level, markerX, markerY)
+  buildFloorBossTrapRig(ctx, boss.waves, level, markerX, markerY, tierSource)
 
-  buildInvulnerabilityRig(ctx, boss.invulnerability, actor.id, markerX, markerY)
+  // Invulnerability and checkpoints need to know THE boss, not a boss, so
+  // both are skipped outright for a multi-boss floor — same reasoning as the
+  // arena's (`boss/arena.ts`). Their settings stay on `boss`, simply unread.
+  if (!multi) {
+    buildInvulnerabilityRig(ctx, boss.invulnerability, actors[0].id, markerX, markerY)
 
-  // `scriptNodes` is cleared per level, so this is this floor's own start.
-  // A floor always has one; without it there is nowhere safe to respawn.
-  const start = ctx.scriptNodes.find((n) => n.type === 'LevelStart')
-  if (start !== undefined) {
-    buildCheckpointRig(ctx, boss.checkpoints, markerX, markerY, { x: start.x, y: start.y })
+    // `scriptNodes` is cleared per level, so this is this floor's own start.
+    // A floor always has one; without it there is nowhere safe to respawn.
+    const start = ctx.scriptNodes.find((n) => n.type === 'LevelStart')
+    if (start !== undefined) {
+      buildCheckpointRig(ctx, boss.checkpoints, markerX, markerY, { x: start.x, y: start.y })
+    }
   }
 
-  buildFloorBossOpener(ctx, level.seals, markerX, markerY)
+  buildFloorBossOpener(
+    ctx,
+    level.seals,
+    markerX,
+    markerY,
+    // `multiBossTierSource.tierTrigger` ignores its tier argument and always
+    // returns the shared Counter, so any value reaches it — the opener just
+    // wants the same node every death-tier rig above connected from.
+    multi ? tierSource.tierTrigger(ctx, markerX, markerY, 0) : undefined,
+    count
+  )
 
-  buildFloorBossPickupRig(ctx, boss.waves, level, markerX, markerY)
+  buildFloorBossPickupRig(ctx, boss.waves, level, markerX, markerY, tierSource)
 }

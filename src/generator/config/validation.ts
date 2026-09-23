@@ -31,6 +31,10 @@ import {
   SURVIVAL_SECONDS_MAX,
   SURVIVAL_COUNTDOWN_NODE_WARN,
   MOBILE_BOSS_IDS,
+  MAX_BOSS_COUNT,
+  arenaBossCount,
+  floorBossCount,
+  isMultiBoss,
   arenaMode,
   survivalBuffs,
   survivalPickups,
@@ -53,7 +57,10 @@ import {
   parseMonsterKey,
   resolveActorPath
 } from '../objects/monsterTypes'
-import { isMobileBoss } from '../boss/bosses'
+import { BOSS_DEFS, isMobileBoss, topWallBossClearance, topWallBossY, UNIQUE_BOSS_IDS } from '../boss/bosses'
+import type { BossDef } from '../boss/bosses'
+import { arenaBossLayout } from '../boss/geometry'
+import { anchors as computeAnchors, ENTRANCE_DEPTH, ENTRANCE_WIDTH } from '../boss/anchors'
 import { corpseCollision } from '../objects/actorCollision'
 import { BUFF_HELPFUL_IDS, buffById } from '../objects/buffTypes'
 import { MAX_PICKUP_COUNT, pickupById } from '../objects/pickupTypes'
@@ -595,6 +602,66 @@ const MIN_WAVE_INTERVAL_MS = 100
 const MAX_WAVE_INTERVAL_MS = 60000
 
 /**
+ * Whether `pool` (a list of boss ids, not necessarily validated yet — callers
+ * filter to known ids first) can fit `count` bosses into an arena of exactly
+ * `minWidth` x `minHeight`, over EVERY combination the seed could actually
+ * draw (issue #64 part 1). `pickBosses` never repeats a unique boss (dragon,
+ * queen) within one pick, so the search only enumerates combinations that
+ * respect that — a brute force over at most `pool.length ** count` combos,
+ * bounded by `MAX_BOSS_COUNT` (4) and `BOSS_IDS.length` (7), so at most 2401
+ * calls to the pure, draw-free `arenaBossLayout`.
+ *
+ * The entrance rectangle and the 9 anchors are recomputed here with no boss
+ * clearance, matching what a same-size arena with the SMALLEST legal boss
+ * combination would use — good enough for a validation estimate, and never
+ * more permissive than what `arena.ts` actually builds (a real arena's
+ * anchors get pushed further from a boss than this unclearanced set, which
+ * only makes real placement strictly easier to fit than what this checks).
+ */
+function bossLayoutFitsEveryCombo(minWidth: number, minHeight: number, pool: readonly string[], count: number): boolean {
+  const defs = pool.filter((id): id is (typeof BOSS_IDS)[number] => (BOSS_IDS as readonly string[]).includes(id)).map((id) => BOSS_DEFS[id])
+  if (defs.length === 0) return true // an empty/unknown pool is its own error, reported separately
+
+  const entrance = {
+    x: Math.trunc(minWidth / 2) - Math.trunc(ENTRANCE_WIDTH / 2),
+    y: minHeight - ENTRANCE_DEPTH,
+    width: ENTRANCE_WIDTH,
+    height: ENTRANCE_DEPTH
+  }
+
+  const combo: BossDef[] = []
+  let ok = true
+  const recurse = (): void => {
+    if (!ok) return
+    if (combo.length === count) {
+      // The anchor list needs the SAME clearance `arena.ts` gives it before
+      // ever calling `arenaBossLayout` — a topWall boss's northClearance and
+      // the primary centre boss's own footprint — or a legitimate combo would
+      // be flagged as not fitting purely because an unclearanced anchor sits
+      // on top of the very boss it was pushed clear of in the real arena.
+      const topWall = combo.find((d) => d.placement === 'topWall')
+      const centreDefs = combo.filter((d) => d.placement !== 'topWall')
+      const primary = centreDefs.find((d) => d.id === 'boss_queen') ?? centreDefs[0]
+      const anchorList = computeAnchors(minWidth, minHeight, {
+        ...(topWall !== undefined ? { northClearance: topWallBossClearance(topWall, topWallBossY(topWall)) } : {}),
+        ...(primary !== undefined ? { centreBoss: { width: primary.footprintWidth, height: primary.footprintHeight } } : {})
+      })
+      if (arenaBossLayout(minWidth, minHeight, entrance, anchorList, combo) === null) ok = false
+      return
+    }
+    for (const def of defs) {
+      if (def.unique && combo.includes(def)) continue
+      combo.push(def)
+      recurse()
+      combo.pop()
+      if (!ok) return
+    }
+  }
+  recurse()
+  return ok
+}
+
+/**
  * The boss arena is generated geometry with its own validation rules — sizes,
  * pool completeness and interval bounds. Absent boss object means "off", not
  * "invalid", mirroring how validateLobby handles the lobby.
@@ -710,9 +777,45 @@ function validateBossFight(
   if (arena.bossPool.length === 0) {
     bossErrors.push({ field: af('bossPool'), message: 'At least one boss must be in the pool.' })
   }
+  const knownPoolIds: string[] = []
   for (const id of arena.bossPool) {
     if (!BOSS_IDS.includes(id as typeof BOSS_IDS[number])) {
       bossErrors.push({ field: af('bossPool'), message: `Unknown boss "${id}".` })
+    } else {
+      knownPoolIds.push(id)
+    }
+  }
+
+  // bossCount (issue #64 part 1): a whole number 1..MAX_BOSS_COUNT, and — if
+  // the pool holds only unique bosses (dragon, queen: at most one each) —
+  // never more than the pool can actually supply.
+  const bossCount = arenaBossCount(arena)
+  if (!Number.isInteger(bossCount) || bossCount < 1 || bossCount > MAX_BOSS_COUNT) {
+    bossErrors.push({
+      field: af('bossCount'),
+      message: `Boss count must be a whole number from 1 to ${MAX_BOSS_COUNT}.`
+    })
+  } else {
+    if (knownPoolIds.length > 0 && knownPoolIds.every((id) => (UNIQUE_BOSS_IDS as readonly string[]).includes(id)) && bossCount > knownPoolIds.length) {
+      bossErrors.push({
+        field: af('bossCount'),
+        message: `Every boss in the pool is unique (at most one each) — a pool of ${knownPoolIds.length} cannot supply ${bossCount} bosses.`
+      })
+    }
+    // Layout fit: only meaningful once the pool and the minimum size are both
+    // sane — `isMultiBoss`'s single-boss case reuses the historical single
+    // draw and needs no layout check at all.
+    if (
+      isMultiBoss(bossCount) &&
+      knownPoolIds.length > 0 &&
+      arena.minWidth >= ARENA_MIN_WIDTH &&
+      arena.minHeight >= ARENA_MIN_HEIGHT &&
+      !bossLayoutFitsEveryCombo(arena.minWidth, arena.minHeight, knownPoolIds, bossCount)
+    ) {
+      bossErrors.push({
+        field: af('bossCount'),
+        message: `At ${bossCount} bosses, this arena's minimum size (${arena.minWidth}×${arena.minHeight}) cannot fit some combination the pool could roll. Raise the minimum size, narrow the pool, or lower the boss count.`
+      })
     }
   }
 
@@ -1039,6 +1142,38 @@ function validateBossFight(
       bossWarnings.push({
         field: af('invulnerability.countdown'),
         message: `The countdown adds ${tickNodes} script nodes (one per second, per window). Consider shorter windows, or turning the countdown off.`
+      })
+    }
+  }
+
+  // Multi-boss (issue #64 part 1): the engine's `Boss 75/50/25%` events cannot
+  // tell which boss crossed a threshold, so the generator skips tiers 1-3 and
+  // invulnerability/checkpoints outright — but their settings stay on the
+  // object (lossless, same as a survival fight's boss-only fields), which
+  // means a dungeon master can configure something the generator will
+  // silently never build. Warn, don't block: the settings are legitimate to
+  // keep around for a later count-1 flip.
+  if (isMultiBoss(bossCount)) {
+    for (let i = 0; i < arena.waves.length; i++) {
+      if (i === 0 || i === BOSS_DEATH_WAVE) continue
+      const wave = arena.waves[i]
+      if (wave.monsters.length > 0 || waveBuffs(wave).length > 0 || waveTraps(wave).length > 0 || wavePickups(wave).length > 0) {
+        bossWarnings.push({
+          field: af(`waves.${i}`),
+          message: `${bossCount} bosses means the 75/50/25% health events can't tell them apart — wave ${i + 1}'s monsters, buffs, traps and drops will never run. Move them to the 100% or boss-death tier.`
+        })
+      }
+    }
+    if (invuln.enabled) {
+      bossWarnings.push({
+        field: af('invulnerability.enabled'),
+        message: `${bossCount} bosses means invulnerability windows are skipped entirely — the engine can't tell which boss crossed a threshold.`
+      })
+    }
+    if (arena.checkpoints.respawnPlayers !== 'never' || arena.checkpoints.saveGame !== 'never') {
+      bossWarnings.push({
+        field: af('checkpoints.respawnPlayers'),
+        message: `${bossCount} bosses means checkpoints are skipped entirely — the engine can't tell which boss crossed a threshold.`
       })
     }
   }
@@ -2053,6 +2188,7 @@ function validateLevelBoss(p: DungeonParameters, errors: ValidationIssue[], warn
     if (boss.bossPool.length === 0) {
       errors.push({ field: bf('bossPool'), message: `Floor ${i + 1}: at least one boss must be in the pool.` })
     }
+    const knownFloorPoolIds: string[] = []
     for (const id of boss.bossPool) {
       if (!BOSS_IDS.includes(id as (typeof BOSS_IDS)[number])) {
         errors.push({ field: bf('bossPool'), message: `Floor ${i + 1}: unknown boss "${id}".` })
@@ -2064,7 +2200,30 @@ function validateLevelBoss(p: DungeonParameters, errors: ValidationIssue[], warn
           field: bf('bossPool'),
           message: `Floor ${i + 1}: "${id}" cannot move, so it can never reach the party on a dungeon floor. Pick one of: ${MOBILE_BOSS_IDS.join(', ')}.`
         })
+      } else {
+        knownFloorPoolIds.push(id)
       }
+    }
+
+    // bossCount (issue #64 part 1): a whole number 1..MAX_BOSS_COUNT, and — if
+    // the pool holds only unique bosses — never more than the pool can
+    // actually supply. In practice MOBILE_BOSS_IDS has none, but the rule is
+    // the same one an arena's pool follows, not a floor-specific exemption.
+    const floorBossCountValue = floorBossCount(boss)
+    if (!Number.isInteger(floorBossCountValue) || floorBossCountValue < 1 || floorBossCountValue > MAX_BOSS_COUNT) {
+      errors.push({
+        field: bf('bossCount'),
+        message: `Floor ${i + 1}: boss count must be a whole number from 1 to ${MAX_BOSS_COUNT}.`
+      })
+    } else if (
+      knownFloorPoolIds.length > 0 &&
+      knownFloorPoolIds.every((id) => (UNIQUE_BOSS_IDS as readonly string[]).includes(id)) &&
+      floorBossCountValue > knownFloorPoolIds.length
+    ) {
+      errors.push({
+        field: bf('bossCount'),
+        message: `Floor ${i + 1}: every boss in the pool is unique (at most one each) — a pool of ${knownFloorPoolIds.length} cannot supply ${floorBossCountValue} bosses.`
+      })
     }
 
     if (boss.waves.length !== BOSS_WAVE_COUNT) {
@@ -2149,7 +2308,10 @@ function validateLevelBoss(p: DungeonParameters, errors: ValidationIssue[], warn
     // Both rigs count down on screen on the same level, and the issue is
     // explicit that turning one on turns the other off. An error rather than a
     // silent drop: whichever we discarded, the dungeon master configured it.
-    if (invuln.enabled && p.levelTimers?.[i]?.enabled === true) {
+    // Multi-boss (issue #64 part 1): invulnerability is skipped outright for
+    // more than one boss, so it cannot compete with the timer's countdown —
+    // this error applies only to a single-boss floor.
+    if (!isMultiBoss(floorBossCountValue) && invuln.enabled && p.levelTimers?.[i]?.enabled === true) {
       errors.push({
         field: bf('invulnerability'),
         message: `Floor ${i + 1}: boss invulnerability and timer mode cannot both run on one floor — they announce competing countdowns. Switch one off.`
@@ -2191,6 +2353,34 @@ function validateLevelBoss(p: DungeonParameters, errors: ValidationIssue[], warn
         field: bf('waves'),
         message: `Floor ${i + 1}: the boss fights alone — no wave tier spawns anything.`
       })
+    }
+
+    // Multi-boss (issue #64 part 1): same ignored-settings warnings the arena
+    // carries — the generator skips tiers 1-3 and invulnerability/checkpoints
+    // outright, so content left on them will never run.
+    const floorMulti = isMultiBoss(floorBossCount(boss))
+    if (floorMulti) {
+      boss.waves.forEach((wave, tier) => {
+        if (tier === 0 || tier === BOSS_WAVE_COUNT - 1) return
+        if (wave.monsters.length > 0 || waveBuffs(wave).length > 0 || waveTraps(wave).length > 0 || wavePickups(wave).length > 0) {
+          warnings.push({
+            field: bf(`waves.${tier}`),
+            message: `Floor ${i + 1}: with several bosses the 75/50/25% health events can't tell them apart — wave ${tier + 1}'s monsters, buffs, traps and drops will never run.`
+          })
+        }
+      })
+      if (boss.invulnerability.enabled) {
+        warnings.push({
+          field: bf('invulnerability'),
+          message: `Floor ${i + 1}: with several bosses, invulnerability windows are skipped entirely.`
+        })
+      }
+      if (boss.checkpoints.respawnPlayers !== 'never' || boss.checkpoints.saveGame !== 'never') {
+        warnings.push({
+          field: bf('checkpoints.respawnPlayers'),
+          message: `Floor ${i + 1}: with several bosses, checkpoints are skipped entirely.`
+        })
+      }
     }
 
     // Two rows of one item work — they just scatter separately — but one row

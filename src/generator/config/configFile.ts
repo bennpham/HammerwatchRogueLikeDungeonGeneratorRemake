@@ -27,7 +27,9 @@ import {
   DEFAULT_SURVIVAL_INTERVAL_MS,
   SURVIVAL_COUNTDOWN_STYLES,
   SURVIVAL_SECONDS_MAX,
-  defaultSurvivalOptions
+  defaultSurvivalOptions,
+  arenaBossCount,
+  floorBossCount
 } from './parameters'
 import { UPGRADE_KINDS, noUpgrades } from '../levelTemplate/surgery'
 import type { UpgradeCounts } from '../levelTemplate/surgery'
@@ -342,7 +344,10 @@ function parseFloorBossKey(
   boss: DungeonBoss,
   unknownKeys: string[]
 ): boolean {
-  // bossFloorN=<enabled>|<bossIds>|<monsterMultiplier>
+  // bossFloorN=<enabled>|<bossIds>|<monsterMultiplier>|<bossCount>
+  // The 4th field is issue #64 part 1's boss count — only present when the
+  // file was written with more than one, so an old three-field line parses to
+  // count 1 (the field's own default) exactly as before this feature existed.
   if (suffix === '') {
     const parts = value.split('|').map((v) => v.trim())
     boss.enabled = parts[0] === '1' || parts[0]?.toLowerCase() === 'true'
@@ -361,6 +366,11 @@ function parseFloorBossKey(
       const multiplier = parseFloat(parts[2])
       if (Number.isNaN(multiplier)) unknownKeys.push(`${key} multiplier "${parts[2]}"`)
       else boss.monsterMultiplier = multiplier
+    }
+    if (parts[3] !== undefined && parts[3] !== '') {
+      const count = parseInt(parts[3], 10)
+      if (Number.isNaN(count)) unknownKeys.push(`${key} count "${parts[3]}"`)
+      else boss.bossCount = count
     }
     return true
   }
@@ -778,6 +788,14 @@ function parseBossFightKey(
   }
   if (suffix === 'pool') {
     arena.bossPool = value.split(',').map((s) => s.trim()).filter((s) => s !== '')
+    return true
+  }
+  if (suffix === 'count') {
+    // issue #64 part 1. Absent means 1 — see arenaBossCount — so this key is
+    // only ever written for a fight that rolls more than one boss.
+    const n = parseInt(value.trim(), 10)
+    if (Number.isNaN(n)) unknownKeys.push(`${key} value "${value}"`)
+    else arena.bossCount = n
     return true
   }
   if (suffix === 'cover') {
@@ -1633,7 +1651,11 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
       // exported before the feature byte-identical.
       ;(params.levelBoss ?? []).forEach((boss, i) => {
         if (!boss.enabled) return
-        lines.push(`bossFloor${i}=1|${boss.bossPool.join(',')}|${boss.monsterMultiplier.toFixed(6)}`)
+        // The 4th field is only written when the count differs from 1 (issue
+        // #64 part 1), so a single-boss floor's line is byte-identical to
+        // before this feature existed.
+        const countSuffix = floorBossCount(boss) !== 1 ? `|${floorBossCount(boss)}` : ''
+        lines.push(`bossFloor${i}=1|${boss.bossPool.join(',')}|${boss.monsterMultiplier.toFixed(6)}${countSuffix}`)
         lines.push(
           `bossFloor${i}Invuln=${boss.invulnerability.enabled ? boss.invulnerability.seconds.join(',') : 'off'}`
         )
@@ -1784,6 +1806,12 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
     lines.push(`boss${f}Width=${arena.minWidth},${arena.maxWidth}`)
     lines.push(`boss${f}Height=${arena.minHeight},${arena.maxHeight}`)
     lines.push(`boss${f}Pool=${arena.bossPool.join(',')}`)
+    // Only when more than one — issue #64 part 1. Absent means 1, so a fight
+    // that never touched this rolls not one boss count line, keeping every
+    // file written before the feature byte-identical.
+    if (arenaBossCount(arena) !== 1) {
+      lines.push(`boss${f}Count=${arenaBossCount(arena)}`)
+    }
     lines.push(
       `boss${f}Cover=${arena.cover.pattern},${arena.cover.density},${arena.cover.ringSpacing},${arena.cover.clusters}`
     )

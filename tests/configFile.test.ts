@@ -229,6 +229,26 @@ describe('parameters.txt parsing', () => {
     expect(parsed.unknownKeys).toEqual([])
   })
 
+  it('writes boss<f>Count only when it differs from 1, and round-trips it (issue #64 part 1)', () => {
+    const stock = defaultParameters()
+    // bossCount is absent by default, so a stock export carries no key.
+    expect(serializeParametersTxt(stock)).not.toMatch(/boss0Count=/)
+
+    const original = defaultParameters()
+    original.boss.fights[0].arena.bossCount = 3
+    const text = serializeParametersTxt(original)
+    expect(text).toContain('boss0Count=3')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.params.boss.fights[0].arena.bossCount).toBe(3)
+    expect(parsed.unknownKeys).toEqual([])
+
+    // An old file with no boss<f>Count key at all parses to count 1 (absent).
+    const legacyText = text.replace(/\nboss0Count=3/, '')
+    const legacyParsed = parseParametersTxt(legacyText)
+    expect(legacyParsed.params.boss.fights[0].arena.bossCount).toBeUndefined()
+  })
+
   it('round-trips per-monster interval overrides and a -1 (endless) monsterMax', () => {
     const original = defaultParameters()
     original.boss.fights[0].arena.waves[2] = {

@@ -8,6 +8,52 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-23 — `Counter` and `ObjectEventTrigger` watching an actor are both invented, for multi-boss (issue #64 part 1)
+**Tag:** [UNVERIFIED] — neither shape has been placed or played; both are this
+port's best guess, and generation should not ship to players without a
+playtest confirming or refuting them.
+**Context:** Multiple bosses in one arena or on one dungeon floor. The engine
+fires `Boss 75%/50%/25%/Died` for the FIRST boss actor to cross a threshold or
+die and for nothing else, so with two or more bosses no rig can tell which one
+it saw — validated separately in the 2026-09-22 entry below, whose "folder"
+rule this feature otherwise relies on unchanged. The death tier is re-keyed to
+"every boss's own death": one `ObjectEventTrigger` per boss listens for that
+boss actor's own `Destroyed` event (not a doodad's or an item's — every
+verified `ObjectEventTrigger` use before this, the orb prefab included, watches
+an `Item`), each with `trigger-times: 1`, feeding one new `Counter` node whose
+`target` is the boss count. Every death-tier rig (waves, wave buffs, wave
+pickups, traps) and the alcove/seal opener connect FROM the Counter exactly as
+they would from a single boss's `GlobalEventTrigger`.
+**Node shapes chosen, and why:**
+- `NodeObjectEventTrigger` generalised to accept a raw id via `connectObject(o:
+  {id})`, alongside the existing `connectItem(Item)` — same underlying
+  `<int-arr name="object"><static>` array, just not restricted to `Item`
+  instances any more. Nothing evidences the engine accepts an ACTOR id here
+  rather than an item/doodad id; it is inferred from `Destroyed` being a
+  generic object-lifecycle event name, not proven.
+- `NodeCounter`: `<dictionary name="parameters"><int name="count">N</int>
+  </dictionary>`, modelled on every other node here with one numeric setting
+  (`NodeTimerTrigger`, `NodeToggleElement`). No assumption is made about
+  whether the count is a target to reach, a remaining budget, or something
+  else entirely — the field name `count` and its semantics (fire connections
+  once N `Destroyed` events have arrived) are this port's invention.
+**Playtest recipe to confirm or refute before this ships:** build a 2-boss
+arena (`boss<f>Count=2`), enter it, and kill both bosses. If the alcove opens
+and the death-tier drops appear, the `Counter` shape works as guessed — tag it
+[VERIFIED] and update this entry and `hammerwatch-project`'s invariant 6.
+If nothing happens after both bosses die, the party is stuck behind the seal:
+capture the level's exported XML, check the editor's own node palette (if
+`Counter` is not a real type there, that confirms it is fictional and this
+whole rig needs a different mechanism — candidates to try next: chaining N
+`ObjectEventTrigger`s so trigger *i*'s `Destroyed` is only reachable once
+trigger *i-1* has fired (no free-standing count), or wiring a `Boss Died` from
+each boss actor individually if `boss-hp`/the `Boss …` events turn out to be
+per-actor rather than per-level as this port assumed everywhere else).
+**Impact:** validation and the generator behave as if this rig works; the
+handback for issue #64 part 1 flags it explicitly as needing this playtest
+before merge to players, per the constraint matrix in
+`hammerwatch-crash-triage`.
+
 ### 2026-09-22 — the `actors/boss_*` folders hold bodyguards, not just bosses; `boss-hp` may be the real `Boss …` trigger
 **Tag:** [UNVERIFIED] — read from the extracted XML only; nothing placed or played.
 **Context:** Issue #64's "Bodyguards to Include" discovery phase. Full audit

@@ -82,6 +82,8 @@ import {
 import type { Anchor } from './anchors'
 import type { SpawnPointMap, SpawnRequest } from './spawnPoints'
 import { spawnPointKey } from './spawnPoints'
+import type { TierSource } from './tierSource'
+import { singleBossTierSource } from './tierSource'
 
 /**
  * GlobalEventTrigger names for tiers 75/50/25 and the boss-death tier — index 0
@@ -193,13 +195,17 @@ export function buildWaveRig(
   anchorList: readonly Anchor[],
   entranceShape: NodeRectangleShape,
   spawnPoints: SpawnPointMap = new Map(),
-  batchIntervalMs: number = DEFAULT_BATCH_INTERVAL_MS
+  batchIntervalMs: number = DEFAULT_BATCH_INTERVAL_MS,
+  tierSource: TierSource = singleBossTierSource()
 ): void {
   let y = entranceShape.y
 
   for (let tier = 0; tier < waves.length; tier++) {
     const wave = waves[tier]
     if (wave.monsters.length === 0) continue
+    // Multi-boss (issue #64 part 1): tiers 75/50/25% are skipped entirely,
+    // before allocating any node for them — see tierSource.ts's header.
+    if (tier > 0 && tierSource.skipTier(tier)) continue
 
     // Scatter monsters leave the timer rig entirely, so the split has to happen
     // before the interval grouping below — otherwise a tier of nothing but
@@ -233,7 +239,7 @@ export function buildWaveRig(
       areaTrig.connectToShape(entranceShape)
       triggerNode = areaTrig
     } else {
-      triggerNode = new NodeGlobalEventTrigger(ctx, entranceShape.x, y, TIER_EVENT_NAMES[tier - 1])
+      triggerNode = tierSource.tierTrigger(ctx, entranceShape.x, y, tier)
     }
 
     // Group this tier's monsters by effective interval, preserving the order

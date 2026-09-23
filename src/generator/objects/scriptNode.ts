@@ -23,6 +23,7 @@ export type NodeTypeName =
   | 'ChangeDoodadState'
   | 'ProjectileSpewer'
   | 'Checkpoint'
+  | 'Counter'
 
 /**
  * Base scripting node (ported from ScriptNode.java). Most subclasses override

@@ -88,15 +88,17 @@ export class GenerationContext {
   gateway: Gateway | null = null
 
   /**
-   * Whether the floor currently being built hosts a boss (issue #61) — set by
-   * the generator before each `new Level()`, exactly as `gateway` is, and for
-   * the same reason: `map/level.ts` and `map/room.ts` read it while choosing
-   * the floor's way out.
+   * How many bosses the floor currently being built hosts (issue #61; a count
+   * rather than a flag since issue #64 part 1) — set by the generator before
+   * each `new Level()`, exactly as `gateway` is, and for the same reason:
+   * `map/level.ts` and `map/room.ts` read it while choosing the floor's way
+   * out. 0 means no boss; every truthy check elsewhere in the port (`if
+   * (ctx.floorBoss)`) still works unchanged against a positive count.
    *
    * A boss floor's exit is a sealed portal room rather than a stairs room, so
    * this has to be known before the room is picked, not after.
    */
-  floorBoss = false
+  floorBoss = 0
 
   monsters: Monster[] = []
   items: Item[] = []
