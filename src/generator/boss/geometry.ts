@@ -106,9 +106,9 @@ export function coverPillarCount(density: number, width: number, height: number,
 }
 
 /**
- * Positions every boss of a multi-boss arena (issue #64 part 1). Pure and
- * draw-free — every call site's `ctx.bossRand` order is untouched by how many
- * bosses are placed.
+ * Positions every boss of a multi-boss arena (issue #64, and the follow-up
+ * that removed the old 4-boss ceiling). Pure and draw-free — every call
+ * site's `ctx.bossRand` order is untouched by how many bosses are placed.
  *
  * One `topWall` boss (the dragon, unique — see `bosses.ts`) keeps its
  * historical spot: `(midX, topWallBossY(def))`. The centre-placed bosses are
@@ -119,13 +119,28 @@ export function coverPillarCount(density: number, width: number, height: number,
  * when there is no `topWall` boss to occupy the north side), each spaced by
  * the sum of the two footprints' half-widths/heights plus `BOSS_LAYOUT_GAP`.
  *
- * Returns `null` when a placement would not fit inside the interior, would
- * overlap the entrance rectangle, would overlap another boss's footprint, or
- * when there are more centre bosses than the three fixed offsets can hold —
- * `config/validation.ts` is the gate that keeps this from happening for a
- * validated parameter set.
+ * `ARENA_LAYOUT_SLOTS` (5: topWall + primary + the three offsets) is the
+ * number of DISTINCT positions this function ever computes. A centre boss
+ * beyond the three offsets does not get a sixth position — it STACKS,
+ * round-robin, onto the offset slot its index cycles back to (`i %
+ * offsets.length`). That is deliberate, not a bug: the engine pushes
+ * overlapping mobile actors apart at runtime, and the dragon/queen (the only
+ * bosses that could ever collide with themselves) are unique, so a stacked
+ * slot only ever holds ordinary, repeatable bosses. The mutual-overlap check
+ * below reflects this — two EXTRA (offset) placements are allowed to
+ * overlap each other; only a fixed placement (topWall, the primary) may
+ * never overlap anything.
+ *
+ * Returns `null` only when the FIXED placements — topWall and/or the primary
+ * centre boss — do not fit: outside the interior, overlapping the entrance,
+ * or overlapping each other. `config/validation.ts` is the gate that checks
+ * this for a validated parameter set, bounded by `ARENA_LAYOUT_SLOTS` rather
+ * than by how many bosses were actually asked for.
  */
 export const BOSS_LAYOUT_GAP = 3
+
+/** The number of distinct boss positions this function ever computes. */
+export const ARENA_LAYOUT_SLOTS = 5
 
 export interface BossPlacement {
   def: BossDef
@@ -200,15 +215,16 @@ export function arenaBossLayout(
 
     const rest = centreBosses.filter((_, i) => i !== primaryIndex)
     const offsets: Array<'W' | 'E' | 'S' | 'N'> = topWall !== undefined ? ['W', 'E', 'S'] : ['W', 'E', 'N']
-    if (rest.length > offsets.length) return null
 
+    // Bosses beyond the three fixed offsets cycle back and STACK onto a slot
+    // already in use, rather than being rejected — see the doc comment above.
     for (let i = 0; i < rest.length; i++) {
       const other = rest[i]
       const gapX = Math.ceil(primary.footprintWidth / 2 + other.footprintWidth / 2) + BOSS_LAYOUT_GAP
       const gapY = Math.ceil(primary.footprintHeight / 2 + other.footprintHeight / 2) + BOSS_LAYOUT_GAP
       let x = midX
       let y = midY
-      switch (offsets[i]) {
+      switch (offsets[i % offsets.length]) {
         case 'W':
           x = midX - gapX
           break
@@ -246,6 +262,12 @@ export function arenaBossLayout(
   for (let i = 0; i < placements.length; i++) {
     const ri = placementRect(placements[i])
     for (let j = i + 1; j < placements.length; j++) {
+      // Two EXTRA (offset) placements are allowed to overlap — intentional
+      // stacking for bosses beyond the three fixed offsets (see the doc
+      // comment above). Only a fixed placement (topWall, the primary centre
+      // boss) may never overlap anything, and an extra must still clear both
+      // of those.
+      if (extraPlacements.includes(placements[i]) && extraPlacements.includes(placements[j])) continue
       const rj = placementRect(placements[j])
       if (rectsOverlap(ri, rj)) return null
     }

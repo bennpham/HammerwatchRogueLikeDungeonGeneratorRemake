@@ -49,28 +49,51 @@ export function placeFloorBoss(
 }
 
 /**
- * Places `count` bosses on `spots` — issue #64 part 1. `spots[i]` is used for
- * the i-th placed boss (`map/level.ts` already chose one `ctx.reachTargets`
- * entry per spot, in the same fixed pattern spot 1 has always used).
+ * Places `count` bosses on `spots` — issue #64 part 1, plus the follow-up's
+ * exact lineups. `spots[i]` is used for the i-th placed boss (`map/level.ts`
+ * already chose one `ctx.reachTargets` entry per spot, in the same fixed
+ * pattern spot 1 has always used).
  *
- * `count = 1` calls `placeFloorBoss` exactly once, on `spots[0]`, so a
- * single-boss floor is byte-identical to before this function existed.
- * `count > 1` draws through `pickBosses` — MOBILE_BOSS_IDS holds no unique
- * boss, so every draw there behaves as an ordinary (non-unique) pick, but
- * `pickBosses` is still the single source of that logic.
+ * `lineup`, when given, is `bossSelection: 'lineup'`'s already-expanded id
+ * list (`expandLineup()` in `boss/bosses.ts`) — used verbatim, sliced to
+ * `spots.length`, with ZERO `ctx.floorBossRand` draws, even when
+ * `lineup.length <= 1`: a lineup floor never takes the single-draw shortcut
+ * below, because that shortcut draws and a lineup floor must not.
  *
- * Draws exactly `count` values from `ctx.floorBossRand` (one per boss), and
- * nothing when `pool` has no known boss or `spots` is shorter than `count` —
- * `config/validation.ts` is the gate that keeps the latter from happening for
- * a validated parameter set. Returns one actor per spot actually filled, in
- * spot order.
+ * Without a lineup: `count = 1` calls `placeFloorBoss` exactly once, on
+ * `spots[0]`, so a single-boss floor is byte-identical to before this
+ * function existed. `count > 1` draws through `pickBosses` — MOBILE_BOSS_IDS
+ * holds no unique boss, so every draw there behaves as an ordinary
+ * (non-unique) pick, but `pickBosses` is still the single source of that
+ * logic.
+ *
+ * Draws exactly `count` values from `ctx.floorBossRand` in random mode (one
+ * per boss), and nothing when `pool` has no known boss or `spots` is shorter
+ * than `count` — `config/validation.ts` is the gate that keeps the latter
+ * from happening for a validated parameter set. Returns one actor per spot
+ * actually filled, in spot order.
  */
 export function placeFloorBosses(
   ctx: GenerationContext,
   pool: readonly string[],
   spots: ReadonlyArray<{ x: number; y: number }>,
-  count: number
+  count: number,
+  lineup?: readonly BossId[]
 ): MonsterInstance[] {
+  if (lineup !== undefined) {
+    const ids = lineup.slice(0, spots.length)
+    return ids.map((id, i) => {
+      const def = BOSS_DEFS[id]
+      return Monster.create(
+        ctx,
+        spots[i].x,
+        spots[i].y,
+        { id: def.id, configKey: '', tiers: [def.actorPath], upgradeChance: 0, defaultMax: 0, group: 'Bosses' },
+        0
+      )
+    })
+  }
+
   if (count <= 1) {
     if (spots.length === 0) return []
     const actor = placeFloorBoss(ctx, pool, spots[0])

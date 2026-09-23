@@ -32,8 +32,11 @@ import {
   SURVIVAL_COUNTDOWN_NODE_WARN,
   MOBILE_BOSS_IDS,
   MAX_BOSS_COUNT,
+  BOSS_COUNT_WARN,
+  BOSS_SELECTIONS,
   arenaBossCount,
   floorBossCount,
+  bossSelection,
   isMultiBoss,
   arenaMode,
   survivalBuffs,
@@ -57,7 +60,7 @@ import {
   parseMonsterKey,
   resolveActorPath
 } from '../objects/monsterTypes'
-import { BOSS_DEFS, isMobileBoss, topWallBossClearance, topWallBossY, UNIQUE_BOSS_IDS } from '../boss/bosses'
+import { BOSS_DEFS, expandLineup, isMobileBoss, topWallBossClearance, topWallBossY, UNIQUE_BOSS_IDS } from '../boss/bosses'
 import type { BossDef } from '../boss/bosses'
 import { arenaBossLayout } from '../boss/geometry'
 import { anchors as computeAnchors, ENTRANCE_DEPTH, ENTRANCE_WIDTH } from '../boss/anchors'
@@ -70,7 +73,7 @@ import { LOBBY_PRESETS } from '../lobby/presets'
 import { ALL_LOBBY_CATEGORIES, isLobbyCategory, lobbyCategoryCounts, vendorOfCategory } from '../lobby/shops'
 import { DIAMOND_VALUE, MAX_DIAMOND_COUNT, UPGRADE_KINDS } from '../levelTemplate/surgery'
 import type { UpgradeCounts } from '../levelTemplate/surgery'
-import { ARENA_MIN_HEIGHT, ARENA_MIN_WIDTH, freeFloorArea } from '../boss/geometry'
+import { ARENA_LAYOUT_SLOTS, ARENA_MIN_HEIGHT, ARENA_MIN_WIDTH, freeFloorArea } from '../boss/geometry'
 import { wallCapacity } from '../boss/traps'
 import { floorTrapCapacity } from '../traps/floor'
 import { scaledMax } from '../boss/waves'
@@ -607,9 +610,15 @@ const MAX_WAVE_INTERVAL_MS = 60000
  * `minWidth` x `minHeight`, over EVERY combination the seed could actually
  * draw (issue #64 part 1). `pickBosses` never repeats a unique boss (dragon,
  * queen) within one pick, so the search only enumerates combinations that
- * respect that — a brute force over at most `pool.length ** count` combos,
- * bounded by `MAX_BOSS_COUNT` (4) and `BOSS_IDS.length` (7), so at most 2401
- * calls to the pure, draw-free `arenaBossLayout`.
+ * respect that. The enumeration depth is capped at `ARENA_LAYOUT_SLOTS` (5:
+ * topWall + primary + three offsets), NOT at `count` — `arenaBossLayout`
+ * never computes more than five distinct positions however large `count` is,
+ * since bosses beyond the fixed slots stack onto one already in use, so
+ * checking a combo longer than five would only re-check a slot assignment
+ * this function has already covered. That keeps the brute force at
+ * `pool.length ** min(count, 5)`, bounded by `BOSS_IDS.length` (7), so at
+ * most 16807 calls to the pure, draw-free `arenaBossLayout` — independent of
+ * `MAX_BOSS_COUNT` (issue #64 follow-up).
  *
  * The entrance rectangle and the 9 anchors are recomputed here with no boss
  * clearance, matching what a same-size arena with the SMALLEST legal boss
@@ -618,35 +627,48 @@ const MAX_WAVE_INTERVAL_MS = 60000
  * anchors get pushed further from a boss than this unclearanced set, which
  * only makes real placement strictly easier to fit than what this checks).
  */
-function bossLayoutFitsEveryCombo(minWidth: number, minHeight: number, pool: readonly string[], count: number): boolean {
-  const defs = pool.filter((id): id is (typeof BOSS_IDS)[number] => (BOSS_IDS as readonly string[]).includes(id)).map((id) => BOSS_DEFS[id])
-  if (defs.length === 0) return true // an empty/unknown pool is its own error, reported separately
-
+/**
+ * Whether ONE exact combo of bosses fits an arena of exactly `minWidth` x
+ * `minHeight` — the single-combo check `bossLayoutFitsEveryCombo`'s brute
+ * force repeats, and what a `'lineup'` fight or floor needs directly, since a
+ * lineup rolls no combinations at all: there is exactly one, and it is known
+ * up front.
+ *
+ * The anchor list needs the SAME clearance `arena.ts` gives it before ever
+ * calling `arenaBossLayout` — a topWall boss's northClearance and the primary
+ * centre boss's own footprint — or a legitimate combo would be flagged as not
+ * fitting purely because an unclearanced anchor sits on top of the very boss
+ * it was pushed clear of in the real arena.
+ */
+function bossLayoutFits(minWidth: number, minHeight: number, combo: readonly BossDef[]): boolean {
   const entrance = {
     x: Math.trunc(minWidth / 2) - Math.trunc(ENTRANCE_WIDTH / 2),
     y: minHeight - ENTRANCE_DEPTH,
     width: ENTRANCE_WIDTH,
     height: ENTRANCE_DEPTH
   }
+  const topWall = combo.find((d) => d.placement === 'topWall')
+  const centreDefs = combo.filter((d) => d.placement !== 'topWall')
+  const primary = centreDefs.find((d) => d.id === 'boss_queen') ?? centreDefs[0]
+  const anchorList = computeAnchors(minWidth, minHeight, {
+    ...(topWall !== undefined ? { northClearance: topWallBossClearance(topWall, topWallBossY(topWall)) } : {}),
+    ...(primary !== undefined ? { centreBoss: { width: primary.footprintWidth, height: primary.footprintHeight } } : {})
+  })
+  return arenaBossLayout(minWidth, minHeight, entrance, anchorList, combo) !== null
+}
 
+function bossLayoutFitsEveryCombo(minWidth: number, minHeight: number, pool: readonly string[], count: number): boolean {
+  const defs = pool.filter((id): id is (typeof BOSS_IDS)[number] => (BOSS_IDS as readonly string[]).includes(id)).map((id) => BOSS_DEFS[id])
+  if (defs.length === 0) return true // an empty/unknown pool is its own error, reported separately
+
+  // Capped at ARENA_LAYOUT_SLOTS, not `count` — see the doc comment above.
+  const targetLength = Math.min(count, ARENA_LAYOUT_SLOTS)
   const combo: BossDef[] = []
   let ok = true
   const recurse = (): void => {
     if (!ok) return
-    if (combo.length === count) {
-      // The anchor list needs the SAME clearance `arena.ts` gives it before
-      // ever calling `arenaBossLayout` — a topWall boss's northClearance and
-      // the primary centre boss's own footprint — or a legitimate combo would
-      // be flagged as not fitting purely because an unclearanced anchor sits
-      // on top of the very boss it was pushed clear of in the real arena.
-      const topWall = combo.find((d) => d.placement === 'topWall')
-      const centreDefs = combo.filter((d) => d.placement !== 'topWall')
-      const primary = centreDefs.find((d) => d.id === 'boss_queen') ?? centreDefs[0]
-      const anchorList = computeAnchors(minWidth, minHeight, {
-        ...(topWall !== undefined ? { northClearance: topWallBossClearance(topWall, topWallBossY(topWall)) } : {}),
-        ...(primary !== undefined ? { centreBoss: { width: primary.footprintWidth, height: primary.footprintHeight } } : {})
-      })
-      if (arenaBossLayout(minWidth, minHeight, entrance, anchorList, combo) === null) ok = false
+    if (combo.length === targetLength) {
+      if (!bossLayoutFits(minWidth, minHeight, combo)) ok = false
       return
     }
     for (const def of defs) {
@@ -659,6 +681,52 @@ function bossLayoutFitsEveryCombo(minWidth: number, minHeight: number, pool: rea
   }
   recurse()
   return ok
+}
+
+/**
+ * Every rule for a `bossLineup` object (issue #64 follow-up: exact lineups),
+ * shared by the arena and the dungeon floor so the two grammars cannot drift.
+ *
+ * `allowedIds` is `BOSS_IDS` for an arena (any end boss may be lined up) or
+ * `MOBILE_BOSS_IDS` for a floor — a stationary boss can never reach the party
+ * there, the same restriction `bossPool` already carries for a floor. An id
+ * that IS a real boss but outside `allowedIds` gets the floor's "cannot move"
+ * message (the only way that combination happens); anything else is simply
+ * unknown. `subject` labels the message ("Fight 2" / "Floor 3").
+ *
+ * Iterates `Object.keys(lineup)` — fine here, unlike in generation code: this
+ * only orders validation MESSAGES, never an RNG draw.
+ */
+function validateBossLineup(
+  lineup: Partial<Record<string, number>> | undefined,
+  field: string,
+  allowedIds: readonly string[],
+  errors: ValidationIssue[],
+  subject: string
+): void {
+  if (lineup === undefined) return
+  for (const id of Object.keys(lineup)) {
+    if (!allowedIds.includes(id)) {
+      if ((BOSS_IDS as readonly string[]).includes(id)) {
+        errors.push({
+          field,
+          message: `${subject}: "${id}" cannot move, so it can never reach the party on a dungeon floor. Pick one of: ${MOBILE_BOSS_IDS.join(', ')}.`
+        })
+      } else {
+        errors.push({ field, message: `${subject}: unknown boss "${id}" in the lineup.` })
+      }
+      continue
+    }
+    const count = lineup[id]
+    if (count === undefined) continue
+    if (!Number.isInteger(count) || count < 0) {
+      errors.push({ field, message: `${subject}: lineup count for "${id}" must be a whole number ≥ 0.` })
+      continue
+    }
+    if (count > 1 && (UNIQUE_BOSS_IDS as readonly string[]).includes(id)) {
+      errors.push({ field, message: `${subject}: "${id}" is unique — at most 1 in a lineup, not ${count}.` })
+    }
+  }
 }
 
 /**
@@ -773,49 +841,85 @@ function validateBossFight(
     })
   }
 
-  // bossPool must not be empty
-  if (arena.bossPool.length === 0) {
-    bossErrors.push({ field: af('bossPool'), message: 'At least one boss must be in the pool.' })
-  }
-  const knownPoolIds: string[] = []
-  for (const id of arena.bossPool) {
-    if (!BOSS_IDS.includes(id as typeof BOSS_IDS[number])) {
-      bossErrors.push({ field: af('bossPool'), message: `Unknown boss "${id}".` })
-    } else {
-      knownPoolIds.push(id)
-    }
+  // Selection mode (issue #64 follow-up: exact lineups). An unknown id is an
+  // error, not a silent fallback to 'random' — the same treatment every other
+  // "must be a known id" rule in this file gets.
+  if (arena.bossSelection !== undefined && !(BOSS_SELECTIONS as readonly string[]).includes(arena.bossSelection)) {
+    bossErrors.push({ field: af('bossSelection'), message: `Unknown boss selection mode "${arena.bossSelection}".` })
   }
 
-  // bossCount (issue #64 part 1): a whole number 1..MAX_BOSS_COUNT, and — if
-  // the pool holds only unique bosses (dragon, queen: at most one each) —
-  // never more than the pool can actually supply.
+  const selection = bossSelection(arena)
+  // arenaBossCount() already applies the lineup-aware rule, so both modes
+  // share this one read.
   const bossCount = arenaBossCount(arena)
-  if (!Number.isInteger(bossCount) || bossCount < 1 || bossCount > MAX_BOSS_COUNT) {
-    bossErrors.push({
-      field: af('bossCount'),
-      message: `Boss count must be a whole number from 1 to ${MAX_BOSS_COUNT}.`
-    })
-  } else {
-    if (knownPoolIds.length > 0 && knownPoolIds.every((id) => (UNIQUE_BOSS_IDS as readonly string[]).includes(id)) && bossCount > knownPoolIds.length) {
+
+  if (selection === 'lineup') {
+    // Lineup mode does not read bossPool at all, so it gets none of the pool
+    // errors below — only the lineup's own keys and counts are validated. Any
+    // BOSS_IDS id is allowed here — an arena is not restricted to mobile
+    // bosses the way a dungeon floor is.
+    validateBossLineup(arena.bossLineup, af('bossLineup'), BOSS_IDS, bossErrors, `Fight ${index + 1}`)
+
+    if (!Number.isInteger(bossCount) || bossCount < 1 || bossCount > MAX_BOSS_COUNT) {
       bossErrors.push({
-        field: af('bossCount'),
-        message: `Every boss in the pool is unique (at most one each) — a pool of ${knownPoolIds.length} cannot supply ${bossCount} bosses.`
+        field: af('bossLineup'),
+        message: `The lineup must total between 1 and ${MAX_BOSS_COUNT} bosses.`
       })
+    } else if (isMultiBoss(bossCount) && arena.minWidth >= ARENA_MIN_WIDTH && arena.minHeight >= ARENA_MIN_HEIGHT) {
+      // expandLineup only ever iterates BOSS_IDS itself, so every id it
+      // returns is already a known def — no filter needed.
+      const defs = expandLineup(arena.bossLineup).map((id) => BOSS_DEFS[id])
+      if (defs.length > 0 && !bossLayoutFits(arena.minWidth, arena.minHeight, defs)) {
+        bossErrors.push({
+          field: af('bossLineup'),
+          message: `This lineup does not fit the arena's minimum size (${arena.minWidth}×${arena.minHeight}). Raise the minimum size or trim the lineup.`
+        })
+      }
     }
-    // Layout fit: only meaningful once the pool and the minimum size are both
-    // sane — `isMultiBoss`'s single-boss case reuses the historical single
-    // draw and needs no layout check at all.
-    if (
-      isMultiBoss(bossCount) &&
-      knownPoolIds.length > 0 &&
-      arena.minWidth >= ARENA_MIN_WIDTH &&
-      arena.minHeight >= ARENA_MIN_HEIGHT &&
-      !bossLayoutFitsEveryCombo(arena.minWidth, arena.minHeight, knownPoolIds, bossCount)
-    ) {
+  } else {
+    // bossPool must not be empty
+    if (arena.bossPool.length === 0) {
+      bossErrors.push({ field: af('bossPool'), message: 'At least one boss must be in the pool.' })
+    }
+    const knownPoolIds: string[] = []
+    for (const id of arena.bossPool) {
+      if (!BOSS_IDS.includes(id as typeof BOSS_IDS[number])) {
+        bossErrors.push({ field: af('bossPool'), message: `Unknown boss "${id}".` })
+      } else {
+        knownPoolIds.push(id)
+      }
+    }
+
+    // bossCount (issue #64 part 1): a whole number 1..MAX_BOSS_COUNT, and — if
+    // the pool holds only unique bosses (dragon, queen: at most one each) —
+    // never more than the pool can actually supply.
+    if (!Number.isInteger(bossCount) || bossCount < 1 || bossCount > MAX_BOSS_COUNT) {
       bossErrors.push({
         field: af('bossCount'),
-        message: `At ${bossCount} bosses, this arena's minimum size (${arena.minWidth}×${arena.minHeight}) cannot fit some combination the pool could roll. Raise the minimum size, narrow the pool, or lower the boss count.`
+        message: `Boss count must be a whole number from 1 to ${MAX_BOSS_COUNT}.`
       })
+    } else {
+      if (knownPoolIds.length > 0 && knownPoolIds.every((id) => (UNIQUE_BOSS_IDS as readonly string[]).includes(id)) && bossCount > knownPoolIds.length) {
+        bossErrors.push({
+          field: af('bossCount'),
+          message: `Every boss in the pool is unique (at most one each) — a pool of ${knownPoolIds.length} cannot supply ${bossCount} bosses.`
+        })
+      }
+      // Layout fit: only meaningful once the pool and the minimum size are both
+      // sane — `isMultiBoss`'s single-boss case reuses the historical single
+      // draw and needs no layout check at all.
+      if (
+        isMultiBoss(bossCount) &&
+        knownPoolIds.length > 0 &&
+        arena.minWidth >= ARENA_MIN_WIDTH &&
+        arena.minHeight >= ARENA_MIN_HEIGHT &&
+        !bossLayoutFitsEveryCombo(arena.minWidth, arena.minHeight, knownPoolIds, bossCount)
+      ) {
+        bossErrors.push({
+          field: af('bossCount'),
+          message: `At ${bossCount} bosses, this arena's minimum size (${arena.minWidth}×${arena.minHeight}) cannot fit some combination the pool could roll. Raise the minimum size, narrow the pool, or lower the boss count.`
+        })
+      }
     }
   }
 
@@ -1144,6 +1248,16 @@ function validateBossFight(
         message: `The countdown adds ${tickNodes} script nodes (one per second, per window). Consider shorter windows, or turning the countdown off.`
       })
     }
+  }
+
+  // Advisory ceiling (issue #64 follow-up), in EITHER selection mode: legal at
+  // any count up to MAX_BOSS_COUNT, but past BOSS_COUNT_WARN a dungeon master
+  // is warned about a crowded arena and slower generation rather than blocked.
+  if (bossCount > BOSS_COUNT_WARN) {
+    bossWarnings.push({
+      field: selection === 'lineup' ? af('bossLineup') : af('bossCount'),
+      message: `${bossCount} bosses is a lot — expect a crowded, chaotic arena and slower generation.`
+    })
   }
 
   // Multi-boss (issue #64 part 1): the engine's `Boss 75/50/25%` events cannot
@@ -2185,45 +2299,69 @@ function validateLevelBoss(p: DungeonParameters, errors: ValidationIssue[], warn
 
     const bf = (suffix: string): string => `levelBoss.${i}.${suffix}`
 
-    if (boss.bossPool.length === 0) {
-      errors.push({ field: bf('bossPool'), message: `Floor ${i + 1}: at least one boss must be in the pool.` })
-    }
-    const knownFloorPoolIds: string[] = []
-    for (const id of boss.bossPool) {
-      if (!BOSS_IDS.includes(id as (typeof BOSS_IDS)[number])) {
-        errors.push({ field: bf('bossPool'), message: `Floor ${i + 1}: unknown boss "${id}".` })
-      } else if (!isMobileBoss(id)) {
-        // The floor's way out is sealed until the boss dies, so a boss that
-        // cannot cross the floor to reach the party is a floor that can never
-        // be finished. An arena confines the fight; a dungeon floor does not.
-        errors.push({
-          field: bf('bossPool'),
-          message: `Floor ${i + 1}: "${id}" cannot move, so it can never reach the party on a dungeon floor. Pick one of: ${MOBILE_BOSS_IDS.join(', ')}.`
-        })
-      } else {
-        knownFloorPoolIds.push(id)
-      }
+    // Selection mode (issue #64 follow-up: exact lineups) — same "unknown id
+    // is an error" treatment as the arena's.
+    if (boss.bossSelection !== undefined && !(BOSS_SELECTIONS as readonly string[]).includes(boss.bossSelection)) {
+      errors.push({ field: bf('bossSelection'), message: `Floor ${i + 1}: unknown boss selection mode "${boss.bossSelection}".` })
     }
 
-    // bossCount (issue #64 part 1): a whole number 1..MAX_BOSS_COUNT, and — if
-    // the pool holds only unique bosses — never more than the pool can
-    // actually supply. In practice MOBILE_BOSS_IDS has none, but the rule is
-    // the same one an arena's pool follows, not a floor-specific exemption.
+    const floorSelection = bossSelection(boss)
+    // floorBossCount() already applies the lineup-aware rule.
     const floorBossCountValue = floorBossCount(boss)
-    if (!Number.isInteger(floorBossCountValue) || floorBossCountValue < 1 || floorBossCountValue > MAX_BOSS_COUNT) {
-      errors.push({
-        field: bf('bossCount'),
-        message: `Floor ${i + 1}: boss count must be a whole number from 1 to ${MAX_BOSS_COUNT}.`
-      })
-    } else if (
-      knownFloorPoolIds.length > 0 &&
-      knownFloorPoolIds.every((id) => (UNIQUE_BOSS_IDS as readonly string[]).includes(id)) &&
-      floorBossCountValue > knownFloorPoolIds.length
-    ) {
-      errors.push({
-        field: bf('bossCount'),
-        message: `Floor ${i + 1}: every boss in the pool is unique (at most one each) — a pool of ${knownFloorPoolIds.length} cannot supply ${floorBossCountValue} bosses.`
-      })
+
+    if (floorSelection === 'lineup') {
+      // Lineup mode does not read bossPool at all — restricted to
+      // MOBILE_BOSS_IDS, same reason bossPool is. No layout-fit check: a
+      // floor boss is placed on an ordinary interior room tile, not laid out
+      // by arenaBossLayout, so there is nothing geometric to check here.
+      validateBossLineup(boss.bossLineup, bf('bossLineup'), MOBILE_BOSS_IDS, errors, `Floor ${i + 1}`)
+
+      if (!Number.isInteger(floorBossCountValue) || floorBossCountValue < 1 || floorBossCountValue > MAX_BOSS_COUNT) {
+        errors.push({
+          field: bf('bossLineup'),
+          message: `Floor ${i + 1}: the lineup must total between 1 and ${MAX_BOSS_COUNT} bosses.`
+        })
+      }
+    } else {
+      if (boss.bossPool.length === 0) {
+        errors.push({ field: bf('bossPool'), message: `Floor ${i + 1}: at least one boss must be in the pool.` })
+      }
+      const knownFloorPoolIds: string[] = []
+      for (const id of boss.bossPool) {
+        if (!BOSS_IDS.includes(id as (typeof BOSS_IDS)[number])) {
+          errors.push({ field: bf('bossPool'), message: `Floor ${i + 1}: unknown boss "${id}".` })
+        } else if (!isMobileBoss(id)) {
+          // The floor's way out is sealed until the boss dies, so a boss that
+          // cannot cross the floor to reach the party is a floor that can never
+          // be finished. An arena confines the fight; a dungeon floor does not.
+          errors.push({
+            field: bf('bossPool'),
+            message: `Floor ${i + 1}: "${id}" cannot move, so it can never reach the party on a dungeon floor. Pick one of: ${MOBILE_BOSS_IDS.join(', ')}.`
+          })
+        } else {
+          knownFloorPoolIds.push(id)
+        }
+      }
+
+      // bossCount (issue #64 part 1): a whole number 1..MAX_BOSS_COUNT, and — if
+      // the pool holds only unique bosses — never more than the pool can
+      // actually supply. In practice MOBILE_BOSS_IDS has none, but the rule is
+      // the same one an arena's pool follows, not a floor-specific exemption.
+      if (!Number.isInteger(floorBossCountValue) || floorBossCountValue < 1 || floorBossCountValue > MAX_BOSS_COUNT) {
+        errors.push({
+          field: bf('bossCount'),
+          message: `Floor ${i + 1}: boss count must be a whole number from 1 to ${MAX_BOSS_COUNT}.`
+        })
+      } else if (
+        knownFloorPoolIds.length > 0 &&
+        knownFloorPoolIds.every((id) => (UNIQUE_BOSS_IDS as readonly string[]).includes(id)) &&
+        floorBossCountValue > knownFloorPoolIds.length
+      ) {
+        errors.push({
+          field: bf('bossCount'),
+          message: `Floor ${i + 1}: every boss in the pool is unique (at most one each) — a pool of ${knownFloorPoolIds.length} cannot supply ${floorBossCountValue} bosses.`
+        })
+      }
     }
 
     if (boss.waves.length !== BOSS_WAVE_COUNT) {
@@ -2355,10 +2493,20 @@ function validateLevelBoss(p: DungeonParameters, errors: ValidationIssue[], warn
       })
     }
 
+    // Advisory ceiling (issue #64 follow-up), in EITHER selection mode — same
+    // "legal but expect chaos" warning the arena carries.
+    const floorEffectiveCount = floorBossCount(boss)
+    if (floorEffectiveCount > BOSS_COUNT_WARN) {
+      warnings.push({
+        field: bossSelection(boss) === 'lineup' ? bf('bossLineup') : bf('bossCount'),
+        message: `Floor ${i + 1}: ${floorEffectiveCount} bosses is a lot — expect a crowded, chaotic floor and slower generation.`
+      })
+    }
+
     // Multi-boss (issue #64 part 1): same ignored-settings warnings the arena
     // carries — the generator skips tiers 1-3 and invulnerability/checkpoints
     // outright, so content left on them will never run.
-    const floorMulti = isMultiBoss(floorBossCount(boss))
+    const floorMulti = isMultiBoss(floorEffectiveCount)
     if (floorMulti) {
       boss.waves.forEach((wave, tier) => {
         if (tier === 0 || tier === BOSS_WAVE_COUNT - 1) return

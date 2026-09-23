@@ -265,3 +265,24 @@ export function pickBosses(rand: Rand, pool: readonly string[], count: number): 
   }
   return picked
 }
+
+/**
+ * Every boss `lineup` describes, in `BOSS_IDS` order (never `Object.keys` —
+ * determinism, invariant 2), each id repeated `count` times — the exact-count
+ * sibling of `pickBosses` for `bossSelection: 'lineup'` (issue #64 follow-up).
+ *
+ * Draws NOTHING: no `ctx.bossRand`/`ctx.floorBossRand` value, unlike
+ * `pickBosses`. A missing, non-integer or non-positive count contributes
+ * nothing — `config/validation.ts` is the real gate for a malformed lineup,
+ * this is only defensive.
+ */
+export function expandLineup(lineup: Partial<Record<BossId, number>> | undefined): BossId[] {
+  if (lineup === undefined) return []
+  const ids: BossId[] = []
+  for (const id of BOSS_IDS) {
+    const count = lineup[id]
+    if (count === undefined || !Number.isInteger(count) || count <= 0) continue
+    for (let i = 0; i < count; i++) ids.push(id)
+  }
+  return ids
+}

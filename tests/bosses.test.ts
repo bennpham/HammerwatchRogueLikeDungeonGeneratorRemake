@@ -4,6 +4,7 @@ import {
   BOSS_DEF_LIST,
   BOSS_DEFS,
   UNIQUE_BOSS_IDS,
+  expandLineup,
   largestBossFootprintArea,
   pickBosses,
   topWallBossClearance,
@@ -157,5 +158,39 @@ describe('pickBosses (issue #64 part 1)', () => {
     const picked = pickBosses(rand, ['boss_dragon', 'boss_queen'], 4)
     expect(picked.length).toBeLessThanOrEqual(2)
     expect(new Set(picked).size).toBe(picked.length)
+  })
+})
+
+describe('expandLineup (issue #64 follow-up)', () => {
+  it('expands each count in BOSS_IDS order, never Object.keys order', () => {
+    // Inserted deliberately out of BOSS_IDS order (boss_worm, then boss_anubis,
+    // then boss_knight) — the result must still read anubis, knight, worm.
+    const lineup = { boss_worm: 1, boss_anubis: 2, boss_knight: 3 }
+    expect(expandLineup(lineup)).toEqual([
+      'boss_anubis', 'boss_anubis',
+      'boss_knight', 'boss_knight', 'boss_knight',
+      'boss_worm'
+    ])
+  })
+
+  it('repeats an id exactly its count, including a unique boss at count 1', () => {
+    // BOSS_IDS order is anubis, dragon, knight, krilith, lich, queen, worm —
+    // so dragon comes before lich, and lich before queen, in the result.
+    expect(expandLineup({ boss_dragon: 1, boss_queen: 1, boss_lich: 4 })).toEqual([
+      'boss_dragon',
+      'boss_lich', 'boss_lich', 'boss_lich', 'boss_lich',
+      'boss_queen'
+    ])
+  })
+
+  it('skips an id at 0, undefined, negative or non-integer — draws nothing to validate that', () => {
+    expect(expandLineup({ boss_knight: 0, boss_lich: undefined, boss_worm: -1, boss_anubis: 2.5, boss_krilith: 2 })).toEqual([
+      'boss_krilith', 'boss_krilith'
+    ])
+  })
+
+  it('returns an empty list for an undefined or empty lineup', () => {
+    expect(expandLineup(undefined)).toEqual([])
+    expect(expandLineup({})).toEqual([])
   })
 })

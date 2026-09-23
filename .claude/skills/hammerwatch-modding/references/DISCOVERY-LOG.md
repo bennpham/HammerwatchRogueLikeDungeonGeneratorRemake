@@ -8,6 +8,36 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-23 — playtest partially confirms the multi-boss rig: `ObjectEventTrigger(Destroyed)` fires on a boss actor; the guessed `Counter` shape is refuted
+**Tag:** [VERIFIED] (user playtest) for the trigger; [VERIFIED] refutation for
+the `Counter` shape below. The REAL `Counter` shape is still `[UNVERIFIED]` —
+this entry narrows the search, it does not close it.
+**Context:** The user's first multi-boss playtest. Both uploaded levels are
+4-boss levels: `boss0.xml` (arena — anubis, krilith, lich, anubis; actors
+223–226, `Counter` id 309 with `count` 4, `ObjectEventTrigger`s 310–313, seal
+`DestroyObject` 408) and `level0.xml` (dungeon floor — knight + 3× anubis,
+`Counter` id 3720 with `count` 4). Neither level contains a `Boss Died` (or any
+`Boss N%`) `GlobalEventTrigger`. Killing ONE boss opened the door.
+**Finding 1 — `ObjectEventTrigger(Destroyed, [actor])` DOES fire for a boss
+actor's death [VERIFIED].** With no `Boss Died` wiring on the level, the only
+path to the seal's `DestroyObject` is per-boss `ObjectEventTrigger` → `Counter`
+→ `DestroyObject`, so the trigger fired.
+**Finding 2 — the guessed `Counter` shape (`<dictionary
+name="parameters"><int name="count">N</int></dictionary>`) does NOT gate on N
+[VERIFIED refutation].** With N = 4 it passed the first `Destroyed` pulse
+straight through. Most likely the engine does not read a parameter named
+`count` and falls back to firing on every trigger. The real `Counter`
+parameter shape is still unknown; the user will capture a stock one saved from
+the Windows editor. Until then:
+- **Do not "fix" this by guessing a second shape.** `NodeCounter`
+  (`objects/nodes.ts`) is the single place to change once the real shape is
+  captured.
+- The 2+ boss "door stays shut until the LAST boss dies" test must be re-run
+  after that fix.
+**Impact:** Every multi-boss arena or floor currently opens its seal (and fires
+its death tier) on the FIRST boss killed. Invariant 6 in `CLAUDE.md` and
+`hammerwatch-crash-triage`'s constraint matrix both flag this as a known gap.
+
 ### 2026-09-23 — `Counter` and `ObjectEventTrigger` watching an actor are both invented, for multi-boss (issue #64 part 1)
 **Tag:** [UNVERIFIED] — neither shape has been placed or played; both are this
 port's best guess, and generation should not ship to players without a

@@ -10,6 +10,10 @@ import type { UpgradeCounts } from '../levelTemplate/surgery'
 import { removeKey } from '../tweak/chains'
 import type { ArenaMode, CampaignSlot } from '../campaign'
 import { ARENA_MODES } from '../campaign'
+// Type-only: boss/bosses.ts imports BOSS_IDS/MOBILE_BOSS_IDS FROM this file at
+// runtime, so a runtime import back here would cycle. `import type` is erased
+// at compile time and carries no such risk — see BossArenaOptions.bossLineup.
+import type { BossId } from '../boss/bosses'
 
 /** Ids of every theme the generator can emit — see themes.ts for the registry. */
 export const THEMES: readonly string[] = THEME_DEFS.map((t) => t.id)
@@ -260,6 +264,22 @@ export interface DungeonBoss {
    * `bossCount` — see that field's comment and `boss/tierSource.ts`. 1..MAX_BOSS_COUNT.
    */
   bossCount?: number
+  /**
+   * How this floor picks its bosses — the floor twin of
+   * `BossArenaOptions.bossSelection` (issue #64 follow-up). **Absent means
+   * `'random'`**, read through `bossSelection()`. `'lineup'` picks
+   * `bossLineup`'s exact per-boss counts with zero `ctx.floorBossRand` draws
+   * for the pick, and `bossPool` is not read in this mode.
+   */
+  bossSelection?: BossSelection
+  /**
+   * Exact per-boss counts for `bossSelection: 'lineup'` — the floor twin of
+   * `BossArenaOptions.bossLineup`. Every key must be a `MOBILE_BOSS_IDS` id
+   * (a stationary boss can never reach the party on a floor, same rule
+   * `bossPool` already follows); validated in `config/validation.ts`. Always
+   * iterated in `BOSS_IDS` order. Kept on the object across a mode flip.
+   */
+  bossLineup?: Partial<Record<BossId, number>>
 }
 
 /**
@@ -618,6 +638,29 @@ export interface BossArenaOptions {
    * simply unread, the same losslessness `arenaMode` already promises.
    */
   bossCount?: number
+  /**
+   * How this arena picks its bosses (issue #64 follow-up). **Absent means
+   * `'random'`** — the historical pick through `bossPool`/`bossCount`, read
+   * through `bossSelection()` never off this field directly, so every
+   * parameter object and `parameters.txt` written before this feature is
+   * byte-identical.
+   *
+   * `'lineup'` picks `bossLineup`'s exact per-boss counts instead of rolling
+   * `bossCount` random picks from `bossPool` — `expandLineup()` in
+   * `boss/bosses.ts` draws ZERO `ctx.bossRand` values for the pick, and
+   * `bossPool` is not read at all in this mode (no pool validation either).
+   */
+  bossSelection?: BossSelection
+  /**
+   * Exact per-boss counts for `bossSelection: 'lineup'`, e.g.
+   * `{ boss_knight: 3, boss_lich: 1 }`. Always iterated in `BOSS_IDS` order
+   * (never `Object.keys`, invariant 2) — see `expandLineup()`. Ignored in
+   * `'random'` mode but kept on the object regardless of which mode is
+   * active, so flipping `bossSelection` back and forth loses nothing — the
+   * same losslessness `arenaMode` already promises for a survival fight's
+   * boss-only fields.
+   */
+  bossLineup?: Partial<Record<BossId, number>>
 }
 
 /**
@@ -1056,23 +1099,70 @@ export const BOSS_IDS = [
 export const MOBILE_BOSS_IDS = ['boss_anubis', 'boss_knight', 'boss_krilith', 'boss_lich', 'boss_worm'] as const
 
 /**
- * Most bosses one arena or one dungeon floor may roll at once (issue #64
- * part 1). Four is a deliberate ceiling, not a measured ceiling: a fifth
- * mobile-boss slot would need a fifth fixed layout offset this port's arena
- * geometry does not have (see `boss/geometry.ts`'s `arenaBossLayout`), and a
- * floor's pool of `MOBILE_BOSS_IDS` is only five ids long, so four leaves the
- * "distinct bosses" case (no unique repeats) actually reachable.
+ * Most bosses one arena or one dungeon floor may roll at once (issue #64,
+ * raised in the follow-up that added stacking and exact lineups). Bounded so
+ * a malformed count cannot emit an unserializable pile of actors — each boss
+ * costs one actor and, in multi-boss mode, one `ObjectEventTrigger` — rather
+ * than for a geometry reason: `boss/geometry.ts`'s `arenaBossLayout` no
+ * longer caps how many bosses it can place at all, since bosses beyond its
+ * five fixed slots (topWall + primary + three offsets) stack round-robin
+ * onto a slot already in use. See `BOSS_COUNT_WARN` for the advisory
+ * threshold well below this hard ceiling.
  */
-export const MAX_BOSS_COUNT = 4
+export const MAX_BOSS_COUNT = 100
 
-/** `arena.bossCount`, with the absent-means-one default applied. */
-export function arenaBossCount(arena: BossArenaOptions): number {
-  return arena.bossCount ?? 1
+/**
+ * Past this many bosses, validation WARNS (never blocks) about performance
+ * and on-screen chaos — a huge stacked pile of bosses is legal, just probably
+ * not what was meant. Advisory only, in both `'random'` and `'lineup'` mode.
+ */
+export const BOSS_COUNT_WARN = 12
+
+/**
+ * How an arena or a dungeon floor picks the bosses it rolls (issue #64
+ * follow-up: exact lineups, alongside the historical random pool pick).
+ * `parameters.txt` stores the id directly, so these are on-disk vocabulary —
+ * never rename one without a `configFile.ts` migration.
+ */
+export const BOSS_SELECTIONS = ['random', 'lineup'] as const
+export type BossSelection = (typeof BOSS_SELECTIONS)[number]
+
+/**
+ * `x.bossSelection`, with the absent-means-`'random'` default applied. Shared
+ * by `BossArenaOptions` and `DungeonBoss`, which both carry the same field —
+ * read through this rather than off the field directly, the same discipline
+ * `arenaMode()` enforces for `BossFight.mode`.
+ */
+export function bossSelection(x: { bossSelection?: BossSelection }): BossSelection {
+  return x.bossSelection === 'lineup' ? 'lineup' : 'random'
 }
 
-/** `boss.bossCount`, with the absent-means-one default applied. */
+/**
+ * Sum of a `bossLineup`, in `BOSS_IDS` order (never `Object.keys` —
+ * determinism, invariant 2). An absent lineup, or one with no positive
+ * integer counts, sums to 0 — `config/validation.ts` is what turns that into
+ * an error for a fight or floor actually in `'lineup'` mode.
+ */
+export function lineupTotal(lineup: Partial<Record<BossId, number>> | undefined): number {
+  if (lineup === undefined) return 0
+  return BOSS_IDS.reduce((sum, id) => sum + (lineup[id] ?? 0), 0)
+}
+
+/**
+ * `arena.bossCount`, with the absent-means-one default applied — UNLESS
+ * `arena` is in `'lineup'` mode, in which case the effective count is the
+ * lineup's own total (`lineupTotal`), not `bossCount`. Every existing caller
+ * (rigs, validation, the GUI's greying) reads the fight's boss count through
+ * this function rather than off either field, so a lineup fight is treated
+ * as multi-boss exactly like a random one with the same total.
+ */
+export function arenaBossCount(arena: BossArenaOptions): number {
+  return bossSelection(arena) === 'lineup' ? lineupTotal(arena.bossLineup) : arena.bossCount ?? 1
+}
+
+/** `boss.bossCount`, with the same lineup-aware rule as `arenaBossCount`. */
 export function floorBossCount(boss: DungeonBoss): number {
-  return boss.bossCount ?? 1
+  return bossSelection(boss) === 'lineup' ? lineupTotal(boss.bossLineup) : boss.bossCount ?? 1
 }
 
 /**

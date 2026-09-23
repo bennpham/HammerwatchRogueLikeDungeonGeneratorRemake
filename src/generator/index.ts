@@ -70,10 +70,15 @@ export {
   survivalPickups,
   survivalTraps,
   MAX_BOSS_COUNT,
+  BOSS_COUNT_WARN,
+  BOSS_SELECTIONS,
+  bossSelection,
+  lineupTotal,
   arenaBossCount,
   floorBossCount,
   isMultiBoss
 } from './config/parameters'
+export type { BossSelection } from './config/parameters'
 export { BUFF_DEFS, BUFF_GROUPS, BUFF_HELPFUL_IDS, buffById } from './objects/buffTypes'
 export type { BuffDef } from './objects/buffTypes'
 export { PICKUP_DEFS, PICKUP_GROUPS, MAX_PICKUP_COUNT, pickupById } from './objects/pickupTypes'
@@ -116,8 +121,17 @@ export {
   upgradeItemPath
 } from './levelTemplate/surgery'
 export type { UpgradeCounts, UpgradeKind } from './levelTemplate/surgery'
-export type { BossDef, BossId } from './boss'
-export { BOSS_DEF_LIST, UNIQUE_BOSS_IDS } from './boss'
+export type { BossDef, BossId, BossPlacement } from './boss'
+export {
+  BOSS_DEF_LIST,
+  UNIQUE_BOSS_IDS,
+  ARENA_LAYOUT_SLOTS,
+  BOSS_LAYOUT_GAP,
+  arenaBossLayout,
+  expandLineup,
+  isMobileBoss,
+  pickBosses
+} from './boss'
 export { parseParametersTxt, serializeParametersTxt } from './config/configFile'
 export type { ParsedConfig } from './config/configFile'
 export {

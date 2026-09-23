@@ -249,6 +249,47 @@ describe('parameters.txt parsing', () => {
     expect(legacyParsed.params.boss.fights[0].arena.bossCount).toBeUndefined()
   })
 
+  it('writes boss<f>Selection/Lineup only in lineup mode, in BOSS_IDS order, and round-trips (issue #64 follow-up)', () => {
+    const stock = defaultParameters()
+    // 'random' is absent by default, so a stock export carries neither key.
+    const stockText = serializeParametersTxt(stock)
+    expect(stockText).not.toMatch(/boss0Selection=/)
+    expect(stockText).not.toMatch(/boss0Lineup=/)
+
+    const original = defaultParameters()
+    original.boss.fights[0].arena.bossSelection = 'lineup'
+    // Deliberately inserted out of BOSS_IDS order — the line must still come
+    // out in BOSS_IDS order (boss_knight before boss_lich).
+    original.boss.fights[0].arena.bossLineup = { boss_lich: 1, boss_knight: 3 }
+    const text = serializeParametersTxt(original)
+    expect(text).toContain('boss0Selection=lineup')
+    expect(text).toContain('boss0Lineup=boss_knight:3,boss_lich:1')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.boss.fights[0].arena.bossSelection).toBe('lineup')
+    expect(parsed.params.boss.fights[0].arena.bossLineup).toEqual({ boss_knight: 3, boss_lich: 1 })
+
+    // An old file with neither key parses to 'random' (absent), untouched.
+    const legacyText = stockText
+    const legacyParsed = parseParametersTxt(legacyText)
+    expect(legacyParsed.params.boss.fights[0].arena.bossSelection).toBeUndefined()
+    expect(legacyParsed.params.boss.fights[0].arena.bossLineup).toBeUndefined()
+  })
+
+  it('reports a malformed boss<f>Lineup entry as an unknown key, never fatal', () => {
+    const original = defaultParameters()
+    original.boss.fights[0].arena.bossSelection = 'lineup'
+    const text = serializeParametersTxt(original).replace(
+      /boss0Lineup=[^\n]*/,
+      'boss0Lineup=boss_knight:3,not_a_boss:1,boss_lich:oops'
+    )
+    const parsed = parseParametersTxt(text)
+    expect(parsed.unknownKeys.length).toBeGreaterThan(0)
+    // The one well-formed entry still parses.
+    expect(parsed.params.boss.fights[0].arena.bossLineup).toEqual({ boss_knight: 3 })
+  })
+
   it('round-trips per-monster interval overrides and a -1 (endless) monsterMax', () => {
     const original = defaultParameters()
     original.boss.fights[0].arena.waves[2] = {

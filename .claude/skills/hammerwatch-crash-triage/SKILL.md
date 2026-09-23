@@ -364,21 +364,34 @@ name, integers ≥ 1 for every `cover.*` / `spawn.*` spacing and cluster knob
 `spacing,ringSpacing,clusters,batchSize,batchIntervalMs`; the older three-field
 form still parses.
 
-### Multiple bosses (issue #64 part 1)
+### Multiple bosses (issue #64, and the follow-up: exact lineups, stacking, raised cap)
 
 `bossCount` (arena: `boss<i>Count`; floor: 4th field of `bossFloor<i>=`) —
 **absent means 1**. `isMultiBoss(count)` is the single gate every rig and
-validation rule reads.
+validation rule reads. `MAX_BOSS_COUNT` is **100** (raised from the original 4);
+`BOSS_COUNT_WARN` (12) is an *advisory* threshold above which validation warns
+about a crowded arena and slower generation, never blocks.
+
+**Two selection modes**, `bossSelection` (arena: `boss<i>Selection`; floor:
+`bossFloor<i>Selection`) — **absent means `'random'`**, the historical pool
+pick. `'lineup'` (`boss<i>Lineup` / `bossFloor<i>Lineup`, e.g.
+`boss_knight:3,boss_lich:1`) picks an EXACT roster instead: `bossPool` is not
+read at all in this mode, no pool errors apply, and the effective count
+(`arenaBossCount`/`floorBossCount`) is the lineup's own total, not `bossCount`.
+Read the mode through `bossSelection()`, never off the field.
 
 | Symptom | Cause |
 | --- | --- |
-| "Boss invulnerability windows never fire with 2+ bosses" | Working as designed. The engine's `Boss 75/50/25%` events can't say WHICH boss crossed a threshold, so invulnerability (and checkpoints) is skipped outright above `bossCount = 1` — validation only *warns* if the settings are still populated, never blocks. |
+| "Boss invulnerability windows never fire with 2+ bosses" | Working as designed. The engine's `Boss 75/50/25%` events can't say WHICH boss crossed a threshold, so invulnerability (and checkpoints) is skipped outright above effective count 1 — validation only *warns* if the settings are still populated, never blocks. |
 | "Wave tiers 75/50/25% never spawn anything with 2+ bosses" | Same reason — those tiers are skipped entirely, not fired for the wrong boss. Only tier 0 (100%, start) and the death tier run. Validation warns if a skipped tier still carries monsters/buffs/traps/drops. |
-| "The seal/alcove opened after only one of several bosses died" | That would be an `ObjectEventTrigger`/`Counter` wiring bug — escalate. It should open only once EVERY boss's own `Destroyed` event has reached the shared `Counter` (`boss/tierSource.ts`'s `buildAllBossesDied`). This whole rig is `[UNVERIFIED]` (2026-09-23 DISCOVERY-LOG entry) — if it never opens at all in game, that is the playtest finding the entry asks for, not a generator bug to patch blind. |
-| "bossCount rejected even though the pool has several bosses" | The pool may be all-unique (only `boss_dragon`/`boss_queen`) — each can appear at most once, so `bossCount` cannot exceed the pool's size. |
-| "bossCount rejected at a size that looks big enough" | `arenaBossLayout` (pure, no draws) could not fit every combination the pool could roll at `minWidth × minHeight` — raise the minimum size, narrow the pool, or lower the count. This is a real geometry check (footprints + a fixed gap + the entrance + the anchors), not a guess. |
-| "Two identical bosses picked for one fight" | Expected for anything except `boss_dragon`/`boss_queen` — `pickBosses` only removes a candidate from the pool once picked when `BossDef.unique` is true. |
-| "A boss floor's `invulnerability` + timer-mode error disappeared" | Working as designed — that error only applies to a single-boss floor (`bossCount = 1`); above that, invulnerability is already skipped, so it cannot compete with the timer. |
+| "The seal/alcove opened after only one of several bosses died" | **Known bug, not a new one.** [VERIFIED] by the user's own playtest (2026-09-23, DISCOVERY-LOG): two 4-boss levels with no `Boss Died` trigger at all opened their door on the first boss killed — `ObjectEventTrigger(Destroyed, [actor])` **does** fire for a boss actor. What is `[VERIFIED]`-**wrong** is the `Counter` shape this repo emits (`<dictionary name="parameters"><int name="count">N</int>`): it passed the first pulse straight through instead of gating at N. So a multi-boss floor or arena opening its seal on the FIRST kill, not the last, is the known bug — the fix is a single-line change to `NodeCounter` in `objects/nodes.ts` once a real `Counter`'s shape is captured from the Windows editor (not done yet — do not guess at a replacement shape). |
+| "bossCount rejected even though the pool has several bosses" | The pool may be all-unique (only `boss_dragon`/`boss_queen`) — each can appear at most once, so `bossCount` cannot exceed the pool's size. Switching to `'lineup'` mode sidesteps this: a lineup states the exact roster, so there is no "pool too small for a random pick" question — only "at most 1 dragon/queen" and "does it fit the arena". |
+| "bossCount rejected at a size that looks big enough" | `arenaBossLayout` (pure, no draws) could not fit every combination the pool could roll at `minWidth × minHeight` — raise the minimum size, narrow the pool, or lower the count. This is a real geometry check (footprints + a fixed gap + the entrance + the anchors), not a guess. The brute-force enumeration is capped at `ARENA_LAYOUT_SLOTS` (5), not at `bossCount` — a count of 50 costs the same validation work as a count of 5. |
+| "20+ bosses all bunched on top of each other" | Working as designed (the follow-up's stacking): `arenaBossLayout` only ever computes 5 distinct positions (topWall + primary + 3 offsets); bosses beyond that cycle round-robin onto a slot already in use and literally share a tile. The engine pushes overlapping mobile actors apart at runtime — only the dragon and queen (unique, capped at 1) can never be part of a stack. |
+| "A lineup with `boss_dragon: 2` (or `boss_queen: 2`) is rejected" | Working as designed — a lineup obeys the same "at most 1" rule `pickBosses` enforces for a random pick; the error names the field as `bossLineup`, not `bossCount`. |
+| "A floor lineup naming `boss_dragon`/`boss_queen` is rejected" | Working as designed — a floor boss must be able to chase the party (`MOBILE_BOSS_IDS`); neither is mobile, same restriction `bossPool` already carries for a floor. |
+| "Two identical bosses picked for one fight" | Expected for anything except `boss_dragon`/`boss_queen` — `pickBosses` only removes a candidate from the pool once picked when `BossDef.unique` is true. In `'lineup'` mode this is simply what was asked for. |
+| "A boss floor's `invulnerability` + timer-mode error disappeared" | Working as designed — that error only applies to a single-boss floor (effective count 1); above that, invulnerability is already skipped, so it cannot compete with the timer. |
 
 ## Where the logs and state live
 

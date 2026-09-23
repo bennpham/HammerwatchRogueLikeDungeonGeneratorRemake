@@ -72,7 +72,7 @@ import type { Gateway } from '../campaign'
 import type { BossArenaOptions, SurvivalOptions } from '../config/parameters'
 import type { LevelPreview, PreviewRoom } from '../index'
 import { ENTRANCE_DEPTH, ENTRANCE_WIDTH, anchors } from './anchors'
-import { BOSS_DEFS, pickBosses, topWallBossClearance, topWallBossY } from './bosses'
+import { BOSS_DEFS, expandLineup, pickBosses, topWallBossClearance, topWallBossY } from './bosses'
 import type { AlcoveWall, BossDef, BossId } from './bosses'
 import { isFree, placeCoverPillars, reachableMask } from './cover'
 import type { CoverArena, Rect } from './cover'
@@ -87,7 +87,7 @@ import { buildCheckpointRig } from './checkpoints'
 import { buildMusicRig } from '../music/rig'
 import { placeSpawnPoints } from './spawnPoints'
 import { buildSurvivalRig } from '../survival'
-import { arenaBossCount, isMultiBoss } from '../config/parameters'
+import { arenaBossCount, bossSelection, isMultiBoss } from '../config/parameters'
 import { buildAllBossesDied, multiBossTierSource, singleBossTierSource } from './tierSource'
 import type { TierSource } from './tierSource'
 
@@ -190,13 +190,21 @@ export function buildBossArena(
   // through pickBosses, IMMEDIATELY after where the single pick has always
   // drawn its one value — so a count-1 arena still draws exactly what it
   // always did, and only count > 1 (a strictly new configuration) adds draws.
+  //
+  // Exact lineups (issue #64 follow-up): 'lineup' mode takes expandLineup()
+  // instead of any pick at all — ZERO ctx.bossRand draws for the boss choice,
+  // whatever the lineup's total comes to. bossPool is not read in this mode.
+  // This is a new option, so it can only move THIS arena and the ones after
+  // it in fight order — 'random' mode's draw is completely untouched.
   const bossCount = isSurvival ? 0 : arenaBossCount(arena)
   const multi = isMultiBoss(bossCount)
   const pickedIds: BossId[] = isSurvival
     ? []
-    : multi
-      ? pickBosses(ctx.bossRand, arena.bossPool, bossCount)
-      : [arena.bossPool[ctx.bossRand.iRand(0, arena.bossPool.length)] as BossId]
+    : bossSelection(arena) === 'lineup'
+      ? expandLineup(arena.bossLineup)
+      : multi
+        ? pickBosses(ctx.bossRand, arena.bossPool, bossCount)
+        : [arena.bossPool[ctx.bossRand.iRand(0, arena.bossPool.length)] as BossId]
   const pickedDefs = pickedIds.map((id) => BOSS_DEFS[id])
   // Single-boss shorthand: the def every pre-existing call site below still
   // reads. Unused once `multi` is true.

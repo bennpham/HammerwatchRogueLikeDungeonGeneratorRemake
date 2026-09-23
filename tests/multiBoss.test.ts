@@ -1,5 +1,6 @@
 /**
- * Multiple bosses in one arena or on one dungeon floor (issue #64 part 1).
+ * Multiple bosses in one arena or on one dungeon floor (issue #64 part 1, and
+ * the follow-up that added exact lineups, stacking and the raised cap).
  *
  * `boss.test.ts` and `dungeonBoss.test.ts` already prove count = 1 is
  * byte-identical to the pre-feature output (their existing snapshots did not
@@ -11,9 +12,9 @@ import { GenerationContext } from '../src/generator/core/context'
 import { plainParameters } from './params'
 import type { BossArenaOptions, DungeonBoss } from '../src/generator/config/parameters'
 import { buildBossArena } from '../src/generator/boss/arena'
-import { BOSS_DEF_LIST } from '../src/generator/boss/bosses'
+import { BOSS_DEF_LIST, expandLineup } from '../src/generator/boss/bosses'
 import type { BossDef } from '../src/generator/boss/bosses'
-import { arenaBossLayout } from '../src/generator/boss/geometry'
+import { ARENA_LAYOUT_SLOTS, arenaBossLayout } from '../src/generator/boss/geometry'
 import { anchors } from '../src/generator/boss/anchors'
 import { generateDungeon } from '../src/generator'
 import type { DungeonParameters, DungeonResult } from '../src/generator'
@@ -239,5 +240,107 @@ describe('multi-boss dungeon floor (issue #64 part 1)', () => {
     expect(nodesOfType(level0, 'Checkpoint')).toHaveLength(0)
     const globalTriggers = nodesOfType(level0, 'GlobalEventTrigger')
     expect(globalTriggers.some((t) => t.body.includes('Boss Died'))).toBe(false)
+  })
+})
+
+describe('boss selection mode: exact lineups (issue #64 follow-up)', () => {
+  it('arena lineup mode emits exactly the lineup, not a random pick, and ignores bossPool entirely', () => {
+    const arena = multiArena(0, {
+      // Deliberately empty and unrelated to the lineup — lineup mode must not
+      // read bossPool at all.
+      bossPool: [],
+      bossSelection: 'lineup',
+      bossLineup: { boss_knight: 3, boss_lich: 1 }
+    })
+    const { xml } = buildBossArena(freshCtx(10), arena, 0)
+    const knightHits = xml.match(/actors\/boss_knight\//g)?.length ?? 0
+    const lichHits = xml.match(/actors\/boss_lich\//g)?.length ?? 0
+    expect(knightHits).toBe(3)
+    expect(lichHits).toBe(1)
+  })
+
+  it('draws zero ctx.bossRand values for the pick — arena geometry is identical for two different lineups of the same size', () => {
+    // Neither lineup includes the dragon, so the alcove-wall candidate pool
+    // (N/E/W) is the same size for both — the only way this test could
+    // otherwise legitimately diverge. If the pick drew anything at all, the
+    // alcove wall (the very next draw) would land differently and the wall
+    // bitmap and grid size below would differ.
+    function lineupArena(lineup: Record<string, number>): BossArenaOptions {
+      return multiArena(0, { minWidth: 50, maxWidth: 50, minHeight: 50, maxHeight: 50, bossSelection: 'lineup', bossLineup: lineup })
+    }
+    const a = buildBossArena(freshCtx(42), lineupArena({ boss_knight: 3 }), 0)
+    const b = buildBossArena(freshCtx(42), lineupArena({ boss_knight: 1, boss_lich: 2, boss_worm: 5 }), 0)
+    expect(a.preview.mapWidth).toBe(b.preview.mapWidth)
+    expect(a.preview.mapHeight).toBe(b.preview.mapHeight)
+    expect(a.preview.walls).toBe(b.preview.walls)
+  })
+
+  it('is deterministic: same seed and lineup produce identical XML', () => {
+    const arena = multiArena(0, { bossSelection: 'lineup', bossLineup: { boss_knight: 2, boss_lich: 2 } })
+    const xmlA = buildBossArena(freshCtx(11), arena, 0).xml
+    const xmlB = buildBossArena(freshCtx(11), arena, 0).xml
+    expect(xmlA).toBe(xmlB)
+  })
+
+  it('floor lineup places exactly the lineup', () => {
+    const params = plainParameters()
+    params.boss = { ...params.boss, enabled: false }
+    const boss: DungeonBoss = {
+      enabled: true,
+      bossPool: [], // deliberately empty and unread in lineup mode
+      bossSelection: 'lineup',
+      bossLineup: { boss_knight: 2, boss_lich: 1 },
+      waves: Array.from({ length: 5 }, () => ({ monsters: [], monsterMax: {}, defaultIntervalMs: 1500 })),
+      invulnerability: { enabled: false, seconds: [0, 0, 0], countdown: true },
+      checkpoints: { respawnPlayers: 'never', saveGame: 'never' },
+      monsterMultiplier: 1.0
+    }
+    params.levelBoss = Array.from({ length: params.levels }, () => ({ ...boss, enabled: false }))
+    params.levelBoss[0] = boss
+    params.minRoomCount = 14
+    params.maxRoomCount = 16
+
+    const result = generateOk(params, 24680)
+    const level0 = result.files.find((f) => f.path === 'levels/level0.xml')!.content
+    const knightHits = level0.match(/actors\/boss_knight\//g)?.length ?? 0
+    const lichHits = level0.match(/actors\/boss_lich\//g)?.length ?? 0
+    expect(knightHits).toBe(2)
+    expect(lichHits).toBe(1)
+  })
+})
+
+describe('bosses beyond the fixed layout slots stack instead of being rejected (issue #64 follow-up)', () => {
+  it('arenaBossLayout places 20 bosses, in bounds, stacking onto at most ARENA_LAYOUT_SLOTS distinct positions', () => {
+    const width = 50
+    const height = 50
+    const entrance = { x: 24, y: 48, width: 3, height: 2 }
+    const ids = Array.from({ length: 20 }, (_, i) => MULTI_POOL[i % MULTI_POOL.length])
+    const defs = ids.map((id) => BOSS_DEF_LIST.find((d) => d.id === id)!)
+    const primary = defs[0]
+    const anchorList = anchors(width, height, { centreBoss: { width: primary.footprintWidth, height: primary.footprintHeight } })
+
+    const placements = arenaBossLayout(width, height, entrance, anchorList, defs)
+    expect(placements).not.toBeNull()
+    expect(placements).toHaveLength(20)
+
+    for (const p of placements!) {
+      expect(p.x).toBeGreaterThanOrEqual(0)
+      expect(p.y).toBeGreaterThanOrEqual(0)
+      expect(p.x).toBeLessThan(width)
+      expect(p.y).toBeLessThan(height)
+    }
+
+    // More placements than there are distinct slots means at least two share
+    // a tile — the deliberate stacking this follow-up added.
+    const distinctPositions = new Set(placements!.map((p) => `${p.x},${p.y}`))
+    expect(distinctPositions.size).toBeLessThan(placements!.length)
+    expect(distinctPositions.size).toBeLessThanOrEqual(ARENA_LAYOUT_SLOTS)
+  })
+
+  it('a 20-boss random arena generates and places exactly 20 actors', () => {
+    const arena = multiArena(20, { minWidth: 50, maxWidth: 50, minHeight: 50, maxHeight: 50 })
+    const { xml } = buildBossArena(freshCtx(13), arena, 0)
+    const actorHits = MULTI_POOL.reduce((n, id) => n + (xml.match(new RegExp(`actors/${id}/`, 'g'))?.length ?? 0), 0)
+    expect(actorHits).toBe(20)
   })
 })

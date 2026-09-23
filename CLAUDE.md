@@ -75,24 +75,57 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    opener to "every boss's own death". `boss/tierSource.ts`'s
    `buildAllBossesDied` builds that rig once: one
    `ObjectEventTrigger(Destroyed, [actor], trigger-times 1)` per boss feeding
-   one shared `Counter(target = bossCount)` ([UNVERIFIED] node shape — see the
-   modding skill's DISCOVERY-LOG), and every rig connects to that Counter
-   exactly as it would to a single boss's `GlobalEventTrigger`. A count > 1
-   draws `bossCount` values through `boss/bosses.ts`'s `pickBosses` — dragon
-   and queen are `unique: true` and are removed from the candidate pool once
-   picked, every other boss may repeat — drawn on an arena from `ctx.bossRand`
-   immediately after the historical single pick (so `bossCount = 1` reproduces
-   that single draw exactly) and on a floor from `ctx.floorBossRand`.
+   one shared `Counter(target = bossCount)`, and every rig connects to that
+   Counter exactly as it would to a single boss's `GlobalEventTrigger`. The
+   trigger half is now `[VERIFIED]` (2026-09-23 DISCOVERY-LOG, user playtest):
+   `ObjectEventTrigger(Destroyed)` does fire for a boss actor's death. The
+   `Counter` shape this repo emits is **`[VERIFIED]`-WRONG** — the same
+   playtest showed it passes the first `Destroyed` pulse straight through
+   instead of gating at N, so a 2+-boss fight or floor opens its seal on the
+   FIRST kill, not the last. The real shape is still `[UNVERIFIED]` pending a
+   stock `Counter` captured from the Windows editor; `NodeCounter` in
+   `objects/nodes.ts` is the single place to fix it once that capture lands —
+   do not guess a second shape in the meantime.
    Invulnerability and checkpoints are skipped outright for `isMultiBoss`,
    never re-keyed: their settings stay on the object, unread, the same
    losslessness a survival fight's boss-only fields already get.
+
+   **Two selection modes** (issue #64 follow-up) pick which bosses fill that
+   count: `bossSelection` on both `BossArenaOptions` and `DungeonBoss` —
+   **absent means `'random'`**, read through `bossSelection()`, never off the
+   field. `'random'` is the historical pick: `count` values drawn through
+   `boss/bosses.ts`'s `pickBosses` — dragon and queen are `unique: true` and
+   are removed from the candidate pool once picked, every other boss may
+   repeat — drawn on an arena from `ctx.bossRand` immediately after the
+   historical single pick (so `bossCount = 1` reproduces that single draw
+   exactly) and on a floor from `ctx.floorBossRand`. `'lineup'`
+   (`bossLineup: Partial<Record<BossId, number>>`, always iterated in
+   `BOSS_IDS` order — never `Object.keys`, invariant 2) picks an EXACT roster
+   instead via `boss/bosses.ts`'s `expandLineup()`, drawing **zero** pick
+   values from either stream; `bossPool` is not read at all in this mode, and
+   `arenaBossCount`/`floorBossCount` return the lineup's own total rather than
+   `bossCount` when the mode is `'lineup'`. A lineup mode's own dragon/queen
+   cap (at most 1 each) is enforced the same way `UNIQUE_BOSS_IDS` gates the
+   random pick.
+
    `boss/geometry.ts`'s `arenaBossLayout` places every arena boss with **zero**
    extra draws — a topWall boss (the dragon) keeps its historical
    `topWallBossY` spot, the primary centre boss (queen if picked, else first
    in pick order) keeps the historical `(midX, midY)`, and every other boss
    gets a fixed offset (W, then E, then S/N) clear of the entrance and the
-   anchors; `validation.ts` rejects a `bossCount`/pool/size combination the
-   layout cannot fit before generation ever runs.
+   anchors. `MAX_BOSS_COUNT` is **100** (raised from 4 in the follow-up, since
+   stacking below removed the geometric reason for a low ceiling);
+   `BOSS_COUNT_WARN` (12) is an advisory-only threshold above which validation
+   warns about a crowded arena, never blocks. Bosses beyond the five fixed
+   slots (topWall + primary + three offsets — `ARENA_LAYOUT_SLOTS`) **stack**
+   round-robin onto a slot already in use rather than being rejected: the
+   engine pushes overlapping mobile actors apart at runtime, and only the
+   dragon/queen (unique, capped at 1) could ever collide with themselves, so a
+   stacked slot only ever holds ordinary, repeatable bosses. `arenaBossLayout`
+   now returns `null` only when the FIXED placements (topWall and/or the
+   primary) do not fit; `validation.ts`'s `bossLayoutFitsEveryCombo` mirrors
+   this by capping its brute-force enumeration at `ARENA_LAYOUT_SLOTS`, not at
+   `count` — the check's cost is independent of how large `bossCount` is.
 
 7. **A dungeon floor can host a boss, and that one layer DOES move the floor.**
    `levelBoss[i]` (`dungeonBoss/`, issue #61) is the one per-floor layer that is

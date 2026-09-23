@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { BOSS_COVER_DENSITY_MAX, BOSS_DEATH_WAVE, BOSS_WAVE_COUNT, defaultLobby, defaultParameters } from '../src/generator/config/parameters'
+import {
+  BOSS_COVER_DENSITY_MAX,
+  BOSS_DEATH_WAVE,
+  BOSS_WAVE_COUNT,
+  MAX_BOSS_COUNT,
+  BOSS_COUNT_WARN,
+  defaultLobby,
+  defaultParameters
+} from '../src/generator/config/parameters'
 import {
   GOLD_SAFETY_MAX,
   UPGRADE_COUNT_MAX,
@@ -947,9 +955,9 @@ describe('boss count validation (issue #64 part 1)', () => {
     return validateParameters(p)
   }
 
-  it('accepts every whole number from 1 to MAX_BOSS_COUNT', () => {
+  it('accepts every representative whole number from 1 to MAX_BOSS_COUNT', () => {
     const arena = defaultParameters().boss.fights[0].arena
-    for (let n = 1; n <= 4; n++) {
+    for (const n of [1, 2, 4, BOSS_COUNT_WARN, MAX_BOSS_COUNT]) {
       const result = withBoss({ arena: { ...arena, bossCount: n } })
       expect(fieldsOf(result.errors)).not.toContain('boss.fights.0.arena.bossCount')
     }
@@ -957,10 +965,17 @@ describe('boss count validation (issue #64 part 1)', () => {
 
   it('rejects 0, a negative number, a non-integer and anything above MAX_BOSS_COUNT', () => {
     const arena = defaultParameters().boss.fights[0].arena
-    for (const bad of [0, -1, 1.5, 5]) {
+    for (const bad of [0, -1, 1.5, MAX_BOSS_COUNT + 1]) {
       const result = withBoss({ arena: { ...arena, bossCount: bad } })
       expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.bossCount')
     }
+  })
+
+  it('warns, but does not error, above BOSS_COUNT_WARN', () => {
+    const arena = defaultParameters().boss.fights[0].arena
+    const result = withBoss({ arena: { ...arena, bossCount: BOSS_COUNT_WARN + 1 } })
+    expect(fieldsOf(result.errors)).not.toContain('boss.fights.0.arena.bossCount')
+    expect(fieldsOf(result.warnings)).toContain('boss.fights.0.arena.bossCount')
   })
 
   it('rejects a bossCount above an all-unique pool\'s size', () => {
@@ -1028,6 +1043,103 @@ describe('boss count validation (issue #64 part 1)', () => {
       }
     })
     expect(fieldsOf(result.warnings)).not.toContain('boss.fights.0.arena.invulnerability.enabled')
+  })
+})
+
+describe('boss lineup validation (issue #64 follow-up)', () => {
+  const withBoss = (
+    patch: Partial<ReturnType<typeof defaultParameters>['boss']['fights'][number]> & { enabled?: boolean }
+  ) => {
+    const p = defaultParameters()
+    const { enabled, ...fightPatch } = patch
+    p.boss = {
+      ...p.boss,
+      ...(enabled === undefined ? {} : { enabled }),
+      fights: p.boss.fights.map((f, i) => (i === 0 ? { ...f, ...fightPatch } : f))
+    }
+    return validateParameters(p)
+  }
+  const arena = defaultParameters().boss.fights[0].arena
+
+  it('rejects an unknown bossSelection value', () => {
+    const result = withBoss({ arena: { ...arena, bossSelection: 'wat' as never } })
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.bossSelection')
+  })
+
+  it('does not read bossPool at all in lineup mode — an empty/unknown pool is not an error', () => {
+    const result = withBoss({
+      arena: { ...arena, bossPool: [], bossSelection: 'lineup', bossLineup: { boss_knight: 2 } }
+    })
+    expect(fieldsOf(result.errors)).not.toContain('boss.fights.0.arena.bossPool')
+    expect(result.errors).toEqual([])
+  })
+
+  it('rejects an unknown boss id in the lineup', () => {
+    const result = withBoss({
+      arena: { ...arena, bossSelection: 'lineup', bossLineup: { not_a_boss: 1 } as never }
+    })
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.bossLineup')
+  })
+
+  it('rejects a negative or non-integer lineup count', () => {
+    for (const bad of [-1, 1.5]) {
+      const result = withBoss({ arena: { ...arena, bossSelection: 'lineup', bossLineup: { boss_knight: bad } } })
+      expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.bossLineup')
+    }
+  })
+
+  it('accepts a lineup count of 0 for a boss (simply contributes nothing)', () => {
+    const result = withBoss({
+      arena: { ...arena, bossSelection: 'lineup', bossLineup: { boss_knight: 0, boss_lich: 3 } }
+    })
+    expect(result.errors).toEqual([])
+  })
+
+  it('rejects more than one of a unique boss (dragon, queen) in the lineup', () => {
+    const result = withBoss({
+      arena: { ...arena, bossSelection: 'lineup', bossLineup: { boss_dragon: 2 } }
+    })
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.bossLineup')
+  })
+
+  it('accepts exactly one of a unique boss', () => {
+    const result = withBoss({
+      arena: { ...arena, bossSelection: 'lineup', bossLineup: { boss_dragon: 1, boss_knight: 2 } }
+    })
+    expect(result.errors).toEqual([])
+  })
+
+  it('rejects a lineup totaling 0, and anything above MAX_BOSS_COUNT', () => {
+    const empty = withBoss({ arena: { ...arena, bossSelection: 'lineup', bossLineup: {} } })
+    expect(fieldsOf(empty.errors)).toContain('boss.fights.0.arena.bossLineup')
+
+    const tooMany = withBoss({
+      arena: { ...arena, bossSelection: 'lineup', bossLineup: { boss_knight: MAX_BOSS_COUNT + 1 } }
+    })
+    expect(fieldsOf(tooMany.errors)).toContain('boss.fights.0.arena.bossLineup')
+  })
+
+  it('warns, but does not error, above BOSS_COUNT_WARN in lineup mode too', () => {
+    const result = withBoss({
+      arena: { ...arena, bossSelection: 'lineup', bossLineup: { boss_knight: BOSS_COUNT_WARN + 1 } }
+    })
+    expect(result.errors).toEqual([])
+    expect(fieldsOf(result.warnings)).toContain('boss.fights.0.arena.bossLineup')
+  })
+
+  it('rejects a lineup that cannot fit the arena minimum size', () => {
+    const result = withBoss({
+      arena: {
+        ...arena,
+        minWidth: 14,
+        maxWidth: 20,
+        minHeight: 18,
+        maxHeight: 24,
+        bossSelection: 'lineup',
+        bossLineup: { boss_queen: 1, boss_knight: 3 }
+      }
+    })
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.bossLineup')
   })
 })
 

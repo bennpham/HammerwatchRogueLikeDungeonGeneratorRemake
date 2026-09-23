@@ -33,12 +33,13 @@
 
 import type { GenerationContext } from '../core/context'
 import type { DungeonBoss } from '../config/parameters'
-import { floorBossCount, isMultiBoss } from '../config/parameters'
+import { bossSelection, floorBossCount, isMultiBoss } from '../config/parameters'
 import type { Level } from '../map/level'
 import { buildInvulnerabilityRig } from '../boss/invulnerability'
 import { buildCheckpointRig } from '../boss/checkpoints'
 import { buildWaveBuffRig } from '../boss/waveBuffs'
 import { buildAllBossesDied, multiBossTierSource, singleBossTierSource } from '../boss/tierSource'
+import { expandLineup } from '../boss/bosses'
 import { placeFloorBoss, placeFloorBosses } from './actor'
 import { floorInteriorSlots } from './placement'
 import { buildFloorBossWaveRig } from './waves'
@@ -82,7 +83,10 @@ export function buildFloorBossRig(
 
   const count = floorBossCount(boss)
   const multi = isMultiBoss(count)
-  const actors = placeFloorBosses(ctx, boss.bossPool, level.bossSpots, count)
+  // Exact lineups (issue #64 follow-up): zero ctx.floorBossRand draws for the
+  // pick, and boss.bossPool is not read at all — see placeFloorBosses.
+  const lineup = bossSelection(boss) === 'lineup' ? expandLineup(boss.bossLineup) : undefined
+  const actors = placeFloorBosses(ctx, boss.bossPool, level.bossSpots, count, lineup)
   if (actors.length === 0) return
 
   // Multi-boss (issue #64 part 1): the same "all bosses died" Counter every
