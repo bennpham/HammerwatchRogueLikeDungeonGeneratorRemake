@@ -1260,38 +1260,6 @@ function validateBossFight(
     })
   }
 
-  // Multi-boss (issue #64 part 1): the engine's `Boss 75/50/25%` events cannot
-  // tell which boss crossed a threshold, so the generator skips tiers 1-3 and
-  // invulnerability/checkpoints outright — but their settings stay on the
-  // object (lossless, same as a survival fight's boss-only fields), which
-  // means a dungeon master can configure something the generator will
-  // silently never build. Warn, don't block: the settings are legitimate to
-  // keep around for a later count-1 flip.
-  if (isMultiBoss(bossCount)) {
-    for (let i = 0; i < arena.waves.length; i++) {
-      if (i === 0 || i === BOSS_DEATH_WAVE) continue
-      const wave = arena.waves[i]
-      if (wave.monsters.length > 0 || waveBuffs(wave).length > 0 || waveTraps(wave).length > 0 || wavePickups(wave).length > 0) {
-        bossWarnings.push({
-          field: af(`waves.${i}`),
-          message: `${bossCount} bosses means the 75/50/25% health events can't tell them apart — wave ${i + 1}'s monsters, buffs, traps and drops will never run. Move them to the 100% or boss-death tier.`
-        })
-      }
-    }
-    if (invuln.enabled) {
-      bossWarnings.push({
-        field: af('invulnerability.enabled'),
-        message: `${bossCount} bosses means invulnerability windows are skipped entirely — the engine can't tell which boss crossed a threshold.`
-      })
-    }
-    if (arena.checkpoints.respawnPlayers !== 'never' || arena.checkpoints.saveGame !== 'never') {
-      bossWarnings.push({
-        field: af('checkpoints.respawnPlayers'),
-        message: `${bossCount} bosses means checkpoints are skipped entirely — the engine can't tell which boss crossed a threshold.`
-      })
-    }
-  }
-
   // per-wave warnings, same indexing as the errors above
   for (let i = 0; i < arena.waves.length; i++) {
     const wave = arena.waves[i]
@@ -2501,34 +2469,6 @@ function validateLevelBoss(p: DungeonParameters, errors: ValidationIssue[], warn
         field: bossSelection(boss) === 'lineup' ? bf('bossLineup') : bf('bossCount'),
         message: `Floor ${i + 1}: ${floorEffectiveCount} bosses is a lot — expect a crowded, chaotic floor and slower generation.`
       })
-    }
-
-    // Multi-boss (issue #64 part 1): same ignored-settings warnings the arena
-    // carries — the generator skips tiers 1-3 and invulnerability/checkpoints
-    // outright, so content left on them will never run.
-    const floorMulti = isMultiBoss(floorEffectiveCount)
-    if (floorMulti) {
-      boss.waves.forEach((wave, tier) => {
-        if (tier === 0 || tier === BOSS_WAVE_COUNT - 1) return
-        if (wave.monsters.length > 0 || waveBuffs(wave).length > 0 || waveTraps(wave).length > 0 || wavePickups(wave).length > 0) {
-          warnings.push({
-            field: bf(`waves.${tier}`),
-            message: `Floor ${i + 1}: with several bosses the 75/50/25% health events can't tell them apart — wave ${tier + 1}'s monsters, buffs, traps and drops will never run.`
-          })
-        }
-      })
-      if (boss.invulnerability.enabled) {
-        warnings.push({
-          field: bf('invulnerability'),
-          message: `Floor ${i + 1}: with several bosses, invulnerability windows are skipped entirely.`
-        })
-      }
-      if (boss.checkpoints.respawnPlayers !== 'never' || boss.checkpoints.saveGame !== 'never') {
-        warnings.push({
-          field: bf('checkpoints.respawnPlayers'),
-          message: `Floor ${i + 1}: with several bosses, checkpoints are skipped entirely.`
-        })
-      }
     }
 
     // Two rows of one item work — they just scatter separately — but one row

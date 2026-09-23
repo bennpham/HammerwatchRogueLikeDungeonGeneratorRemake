@@ -1014,7 +1014,13 @@ describe('boss count validation (issue #64 part 1)', () => {
     expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.bossCount')
   })
 
-  it('warns, but does not error, when a multi-boss fight still configures 75/50/25% content, invulnerability or checkpoints', () => {
+  // The "ignored settings still have content" warnings for a multi-boss fight
+  // (75/50/25% tiers, invulnerability, checkpoints) were removed: the renderer
+  // now HIDES those fields entirely once bossCount >= 2, so a warning pointing
+  // at an invisible field would be noise the user can't act on. Values still
+  // round-trip losslessly — validation just no longer comments on them. See
+  // the "Validation noise" section of the issue #64 UI follow-up plan.
+  it('does not error when a multi-boss fight still carries 75/50/25% content, invulnerability or checkpoints', () => {
     const arena = defaultParameters().boss.fights[0].arena
     const result = withBoss({
       arena: {
@@ -1027,22 +1033,6 @@ describe('boss count validation (issue #64 part 1)', () => {
       }
     })
     expect(result.errors).toEqual([])
-    expect(fieldsOf(result.warnings)).toContain('boss.fights.0.arena.waves.1')
-    expect(fieldsOf(result.warnings)).toContain('boss.fights.0.arena.invulnerability.enabled')
-    expect(fieldsOf(result.warnings)).toContain('boss.fights.0.arena.checkpoints.respawnPlayers')
-  })
-
-  it('does not warn about 75/50/25% content, invulnerability or checkpoints for a single-boss fight', () => {
-    const arena = defaultParameters().boss.fights[0].arena
-    const result = withBoss({
-      arena: {
-        ...arena,
-        bossCount: 1,
-        waves: arena.waves.map((w, i) => (i === 1 ? { ...w, monsters: ['bat1'], monsterMax: { bat1: 5 } } : w)),
-        invulnerability: { enabled: true, seconds: [30, 30, 30], countdown: true }
-      }
-    })
-    expect(fieldsOf(result.warnings)).not.toContain('boss.fights.0.arena.invulnerability.enabled')
   })
 })
 

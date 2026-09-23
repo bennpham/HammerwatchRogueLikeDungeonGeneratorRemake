@@ -558,7 +558,12 @@ describe('dungeon boss — validation', () => {
     expect(fields(result.warnings)).toContain(`levelBoss.${BOSS_FLOOR}.bossLineup`)
   })
 
-  it('warns, but does not error, when a multi-boss floor still configures 75/50/25% content or invulnerability', () => {
+  // The "ignored settings still have content" warning was removed: the
+  // renderer now hides 75/50/25% content and invulnerability entirely once a
+  // floor's boss count is >= 2, so a warning pointing at a hidden field would
+  // be noise. Values still round-trip losslessly. See the "Validation noise"
+  // section of the issue #64 UI follow-up plan.
+  it('does not error when a multi-boss floor still carries 75/50/25% content or invulnerability', () => {
     const waves = waveOn(1, { bat1: 5 })
     const result = validateParameters(
       withBoss({
@@ -569,8 +574,6 @@ describe('dungeon boss — validation', () => {
       })
     )
     expect(result.errors).toEqual([])
-    expect(fields(result.warnings)).toContain(`levelBoss.${BOSS_FLOOR}.waves.1`)
-    expect(fields(result.warnings)).toContain(`levelBoss.${BOSS_FLOOR}.invulnerability`)
   })
 })
 
