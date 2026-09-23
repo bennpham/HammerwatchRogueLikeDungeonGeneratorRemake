@@ -68,7 +68,11 @@ export {
   survivalWaves,
   survivalBuffs,
   survivalPickups,
-  survivalTraps
+  survivalTraps,
+  MAX_BOSS_COUNT,
+  arenaBossCount,
+  floorBossCount,
+  isMultiBoss
 } from './config/parameters'
 export { BUFF_DEFS, BUFF_GROUPS, BUFF_HELPFUL_IDS, buffById } from './objects/buffTypes'
 export type { BuffDef } from './objects/buffTypes'
@@ -113,7 +117,7 @@ export {
 } from './levelTemplate/surgery'
 export type { UpgradeCounts, UpgradeKind } from './levelTemplate/surgery'
 export type { BossDef, BossId } from './boss'
-export { BOSS_DEF_LIST } from './boss'
+export { BOSS_DEF_LIST, UNIQUE_BOSS_IDS } from './boss'
 export { parseParametersTxt, serializeParametersTxt } from './config/configFile'
 export type { ParsedConfig } from './config/configFile'
 export {

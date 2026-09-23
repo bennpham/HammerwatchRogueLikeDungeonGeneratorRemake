@@ -1,5 +1,16 @@
 import React, { useState } from 'react'
-import { BOSS_DEF_LIST, defaultDungeonBoss, pickupById, waveBuffs, wavePickups, waveTraps } from '../../generator'
+import {
+  BOSS_DEATH_WAVE,
+  BOSS_DEF_LIST,
+  MAX_BOSS_COUNT,
+  defaultDungeonBoss,
+  floorBossCount,
+  isMultiBoss,
+  pickupById,
+  waveBuffs,
+  wavePickups,
+  waveTraps
+} from '../../generator'
 import type { DungeonBoss, DungeonParameters, BossWave, ValidationIssue } from '../../generator'
 import { NumberField, Section, Subsection } from './fields'
 import { BuffListEditor } from './BuffListEditor'
@@ -222,14 +233,39 @@ function DungeonBossFloorEditor({
   onCopyWavePickupDown
 }: DungeonBossFloorEditorProps) {
   const fieldPrefix = `levelBoss.${level}`
+  const bossCount = floorBossCount(boss)
+  // Same multi-boss re-keying as an arena's bossCount (see isMultiBoss) — the
+  // generator skips the 75/50/25% tiers, invulnerability and checkpoints
+  // whenever this floor rolls more than one boss.
+  const multiBoss = isMultiBoss(bossCount)
+  const tierDisabled = (tier: number) => multiBoss && tier !== 0 && tier !== BOSS_DEATH_WAVE
 
   return (
     <>
       <Section title="Boss" badge={`${boss.bossPool.length}/${MOBILE_BOSS_DEFS.length}`}>
         <p className="hint">
-          The seed picks one boss from this pool for this floor. Only bosses that can move are
-          offered — a stationary one parked in a room could never reach the party on an open floor.
+          The seed picks {bossCount === 1 ? 'one boss' : `${bossCount} bosses`} from this pool for
+          this floor. Only bosses that can move are offered — a stationary one parked in a room
+          could never reach the party on an open floor.
         </p>
+        <NumberField
+          label="Number of bosses"
+          field={`${fieldPrefix}.bossCount`}
+          value={bossCount}
+          onChange={(v) => onChange({ bossCount: !Number.isFinite(v) || v === 1 ? undefined : v })}
+          issues={issues}
+          min={1}
+          max={MAX_BOSS_COUNT}
+          step={1}
+          title="How many bosses this floor rolls at once"
+        />
+        <p className="hint">Dragon and Queen can appear at most once.</p>
+        {multiBoss && (
+          <p className="hint">
+            Multiple bosses: health-threshold events can&apos;t tell bosses apart — only the 100%
+            (start) and all-bosses-dead tiers run; invulnerability and checkpoints are off.
+          </p>
+        )}
         <div className="pool-checkboxes">
           {MOBILE_BOSS_DEFS.map((def) => (
             <label key={def.id} className="pool-checkbox">
@@ -251,7 +287,7 @@ function DungeonBossFloorEditor({
           ))}
       </Section>
 
-      <Section title="Boss invulnerability" badge={invulnBadge(boss.invulnerability)}>
+      <Section title="Boss invulnerability" badge={invulnBadge(boss.invulnerability)} disabled={multiBoss}>
         {boss.invulnerability.enabled && (
           <p className="hint">
             Cannot run alongside this floor's own Timer mode — both would announce competing
@@ -281,7 +317,12 @@ function DungeonBossFloorEditor({
           there is no scatter mode on a dungeon floor.
         </p>
         {boss.waves.map((wave, i) => (
-          <Subsection key={i} title={WAVE_LABELS[i] ?? `Tier ${i + 1}`} badge={`${wave.monsters.length} monster(s)`}>
+          <Subsection
+            key={i}
+            title={WAVE_LABELS[i] ?? `Tier ${i + 1}`}
+            badge={`${wave.monsters.length} monster(s)`}
+            disabled={tierDisabled(i)}
+          >
             <WaveEditor
               wave={wave}
               index={i}
@@ -316,6 +357,7 @@ function DungeonBossFloorEditor({
               key={i}
               title={WAVE_LABELS[i] ?? `Tier ${i + 1}`}
               badge={buffs.length === 0 ? 'none' : buffs.map((b) => b.buff).join(', ')}
+              disabled={tierDisabled(i)}
             >
               <BuffListEditor
                 value={buffs}
@@ -358,6 +400,7 @@ function DungeonBossFloorEditor({
                   ? 'none'
                   : pickups.map((d) => `${d.count}× ${pickupById(d.item)?.label ?? d.item}`).join(', ')
               }
+              disabled={tierDisabled(i)}
             >
               <PickupListEditor
                 value={pickups}
@@ -391,7 +434,12 @@ function DungeonBossFloorEditor({
         {boss.waves.map((wave, i) => {
           const traps = waveTraps(wave)
           return (
-            <Subsection key={i} title={WAVE_LABELS[i] ?? `Tier ${i + 1}`} badge={traps.length === 0 ? 'none' : `${traps.length} row(s)`}>
+            <Subsection
+              key={i}
+              title={WAVE_LABELS[i] ?? `Tier ${i + 1}`}
+              badge={traps.length === 0 ? 'none' : `${traps.length} row(s)`}
+              disabled={tierDisabled(i)}
+            >
               <TrapListEditor
                 value={traps}
                 onChange={(next) => onWaveChange(i, { traps: next })}
@@ -415,7 +463,7 @@ function DungeonBossFloorEditor({
         })}
       </Section>
 
-      <Section title="Checkpoints / Save game" badge={checkpointBadge(boss.checkpoints)}>
+      <Section title="Checkpoints / Save game" badge={checkpointBadge(boss.checkpoints)} disabled={multiBoss}>
         <CheckpointsEditor
           checkpoints={boss.checkpoints}
           onChange={(checkpoints) => onChange({ checkpoints })}

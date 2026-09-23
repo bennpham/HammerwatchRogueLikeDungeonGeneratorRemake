@@ -3,17 +3,21 @@ import {
   ARENA_PATTERN_LABELS,
   BOSS_COVER_DENSITY_MAX,
   BOSS_COVER_PATTERNS,
+  BOSS_DEATH_WAVE,
   BOSS_DEF_LIST,
   BOSS_FLOOR_PATTERNS,
+  MAX_BOSS_COUNT,
   MAX_TRAP_COUNT,
   THEME_DEFS,
   buffById,
   pickupById,
+  arenaBossCount,
   arenaMode,
   defaultBossFight,
   defaultSurvivalOptions,
   getTheme,
   isDefaultOrder,
+  isMultiBoss,
   normalizeOrder,
   slotLabel,
   waveBuffs,
@@ -482,6 +486,14 @@ function BossOnlyArenaFields({ arena, fieldPrefix, issues, setArena, setWave }: 
     arena.waves.flatMap((wave) => wave.monsters.map((id) => waveSpawnMode(wave, id)).filter(isScatterMode))
   )
 
+  const bossCount = arenaBossCount(arena)
+  // With 2+ bosses the engine's Boss 75/50/25% events can't tell them apart,
+  // so the generator skips those three tiers, invulnerability and checkpoints
+  // entirely (see isMultiBoss's doc comment) — greyed out below, never hidden,
+  // because the settings stay on the object for a later single-boss flip.
+  const multiBoss = isMultiBoss(bossCount)
+  const tierDisabled = (tier: number) => multiBoss && tier !== 0 && tier !== BOSS_DEATH_WAVE
+
   /**
    * Gives every later tier this tier's buffs. Copying the *previous* tier is
    * the common setup — the buffs replace one another, so a fight that wants one
@@ -526,7 +538,25 @@ function BossOnlyArenaFields({ arena, fieldPrefix, issues, setArena, setWave }: 
   return (
     <>
       <Section title="Boss" badge={`${arena.bossPool.length}/${BOSS_DEF_LIST.length}`}>
-        <p className="hint">The seed picks one boss from this pool per campaign.</p>
+        <p className="hint">The seed picks {bossCount === 1 ? 'one boss' : `${bossCount} bosses`} from this pool per campaign.</p>
+        <NumberField
+          label="Number of bosses"
+          field={`${fieldPrefix}.bossCount`}
+          value={bossCount}
+          onChange={(v) => setArena({ bossCount: !Number.isFinite(v) || v === 1 ? undefined : v })}
+          issues={issues}
+          min={1}
+          max={MAX_BOSS_COUNT}
+          step={1}
+          title="How many bosses this arena rolls at once"
+        />
+        <p className="hint">Dragon and Queen can appear at most once.</p>
+        {multiBoss && (
+          <p className="hint">
+            Multiple bosses: health-threshold events can&apos;t tell bosses apart — only the 100%
+            (start) and all-bosses-dead tiers run; invulnerability and checkpoints are off.
+          </p>
+        )}
         <div className="pool-checkboxes">
           {BOSS_DEF_LIST.map((def) => (
             <label key={def.id} className="pool-checkbox">
@@ -548,7 +578,7 @@ function BossOnlyArenaFields({ arena, fieldPrefix, issues, setArena, setWave }: 
           ))}
       </Section>
 
-      <Section title="Boss invulnerability" badge={invulnBadge(arena.invulnerability)}>
+      <Section title="Boss invulnerability" badge={invulnBadge(arena.invulnerability)} disabled={multiBoss}>
         <InvulnerabilityEditor
           invuln={arena.invulnerability}
           fieldPrefix={fieldPrefix}
@@ -565,7 +595,12 @@ function BossOnlyArenaFields({ arena, fieldPrefix, issues, setArena, setWave }: 
           walk to the orb. It is empty unless you fill it.
         </p>
         {arena.waves.map((wave, i) => (
-          <Subsection key={i} title={WAVE_LABELS[i] ?? `Tier ${i + 1}`} badge={`${wave.monsters.length} monster(s)`}>
+          <Subsection
+            key={i}
+            title={WAVE_LABELS[i] ?? `Tier ${i + 1}`}
+            badge={`${wave.monsters.length} monster(s)`}
+            disabled={tierDisabled(i)}
+          >
             <WaveEditor
               wave={wave}
               index={i}
@@ -606,6 +641,7 @@ function BossOnlyArenaFields({ arena, fieldPrefix, issues, setArena, setWave }: 
                   ? 'none'
                   : buffs.map((b) => buffById(b.buff)?.label ?? b.buff).join(', ')
               }
+              disabled={tierDisabled(i)}
             >
               <BuffListEditor
                 value={buffs}
@@ -654,6 +690,7 @@ function BossOnlyArenaFields({ arena, fieldPrefix, issues, setArena, setWave }: 
                   ? 'none'
                   : pickups.map((d) => `${d.count}× ${pickupById(d.item)?.label ?? d.item}`).join(', ')
               }
+              disabled={tierDisabled(i)}
             >
               <PickupListEditor
                 value={pickups}
@@ -704,6 +741,7 @@ function BossOnlyArenaFields({ arena, fieldPrefix, issues, setArena, setWave }: 
               key={i}
               title={WAVE_LABELS[i] ?? `Tier ${i + 1}`}
               badge={traps.length === 0 ? 'none' : trapBadge(traps)}
+              disabled={tierDisabled(i)}
             >
               <TrapListEditor
                 value={traps}
@@ -728,7 +766,7 @@ function BossOnlyArenaFields({ arena, fieldPrefix, issues, setArena, setWave }: 
         })}
       </Section>
 
-      <Section title="Checkpoints / Save game" badge={checkpointBadge(arena.checkpoints)}>
+      <Section title="Checkpoints / Save game" badge={checkpointBadge(arena.checkpoints)} disabled={multiBoss}>
         <CheckpointsEditor
           checkpoints={arena.checkpoints}
           onChange={(checkpoints) => setArena({ checkpoints })}

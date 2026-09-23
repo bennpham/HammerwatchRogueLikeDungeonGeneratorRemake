@@ -712,6 +712,20 @@ button.primary {
   font-weight: 700;
 }
 
+/*
+ * A section/tier whose values are stored but not read right now (a
+ * multi-boss arena's 75/50/25% tiers, invulnerability, checkpoints). Greyed
+ * out via a native `<fieldset disabled>`, never hidden — the values stay
+ * visible and editable-looking so a dungeon master can see what they set
+ * for a later single-boss flip.
+ */
+fieldset.multiboss-disabled {
+  border: none;
+  margin: 0;
+  padding: 0;
+  opacity: 0.5;
+}
+
 button.primary:hover:not(:disabled) {
   background: #e0b54f;
 }

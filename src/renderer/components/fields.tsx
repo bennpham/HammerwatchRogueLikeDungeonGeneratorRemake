@@ -41,30 +41,54 @@ interface SectionProps {
   children: React.ReactNode
   defaultOpen?: boolean
   badge?: string
+  /**
+   * Greys out and disables every control inside (a native `<fieldset
+   * disabled>`) without hiding it — used where a setting is stored and edited
+   * normally but the generator will not read it right now, e.g. a multi-boss
+   * arena's 75/50/25% tiers. The section stays open and readable; it just
+   * cannot be typed into.
+   */
+  disabled?: boolean
 }
 
 /** Collapsible form section. */
-export function Section({ title, children, defaultOpen = false, badge }: SectionProps) {
+export function Section({ title, children, defaultOpen = false, badge, disabled }: SectionProps) {
   return (
     <details className="section" open={defaultOpen}>
       <summary>
         {title}
         {badge && <span className="section-badge">{badge}</span>}
       </summary>
-      <div className="section-body">{children}</div>
+      <div className="section-body">
+        {disabled ? (
+          <fieldset disabled className="multiboss-disabled">
+            {children}
+          </fieldset>
+        ) : (
+          children
+        )}
+      </div>
     </details>
   )
 }
 
 /** Collapsible group nested inside a {@link Section}. */
-export function Subsection({ title, children, defaultOpen = false, badge }: SectionProps) {
+export function Subsection({ title, children, defaultOpen = false, badge, disabled }: SectionProps) {
   return (
     <details className="subsection" open={defaultOpen}>
       <summary className="subsection-title">
         {title}
         {badge && <span className="section-badge">{badge}</span>}
       </summary>
-      <div className="subsection-body">{children}</div>
+      <div className="subsection-body">
+        {disabled ? (
+          <fieldset disabled className="multiboss-disabled">
+            {children}
+          </fieldset>
+        ) : (
+          children
+        )}
+      </div>
     </details>
   )
 }
