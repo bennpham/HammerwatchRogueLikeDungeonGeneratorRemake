@@ -87,7 +87,7 @@ import { buildCheckpointRig } from './checkpoints'
 import { buildMusicRig } from '../music/rig'
 import { placeSpawnPoints } from './spawnPoints'
 import { buildSurvivalRig } from '../survival'
-import { arenaBossCount, bossSelection, isMultiBoss } from '../config/parameters'
+import { arenaBossCount, bossSelection, isMultiBoss, arenaUsesBodyguards } from '../config/parameters'
 import { buildAllBossesDied, multiBossTierSource, singleBossTierSource } from './tierSource'
 import type { TierSource } from './tierSource'
 
@@ -551,7 +551,8 @@ export function buildBossArena(
       entranceShape,
       spawnPoints,
       arena.spawn.batchIntervalMs,
-      tierSource
+      tierSource,
+      arenaUsesBodyguards(arena)
     )
 
   // --- invulnerability windows: skipped outright for a multi-boss fight — the
@@ -695,7 +696,8 @@ export function buildBossArena(
       trap: trapArena,
       monsterMultiplier: arena.monsterMultiplier,
       markerX: entranceShape.x,
-      markerY: entranceShape.y
+      markerY: entranceShape.y,
+      useBodyguardTwins: arenaUsesBodyguards(arena)
     })
   } else {
     buildTrapRig(ctx, arena.waves, trapArena, tierSource)

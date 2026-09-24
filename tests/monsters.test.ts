@@ -3,17 +3,21 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 import { describe, expect, it } from 'vitest'
 import {
+  ARENA_BODYGUARD_TWINS,
   MONSTER_CATEGORIES,
   MONSTER_GROUPS,
   MONSTER_TYPES,
+  arenaActorPath,
   defaultParameters,
   generateDungeon,
   monsterCategories,
   monsterTypeById,
   monsterTypesInGroup,
   parseParametersTxt,
+  resolveActorPath,
   serializeParametersTxt
 } from '../src/generator'
+import { isKnownMonsterId } from '../src/generator/objects/monsterTypes'
 import type { DungeonResult } from '../src/generator'
 import { plainParameters } from './params'
 
@@ -90,6 +94,60 @@ describe('monster roster', () => {
         expect(path).toMatch(/^actors\/[a-z0-9_/]+\.xml$/)
         expect(KNOWN_ACTOR_PATHS, `${type.id} -> ${path}`).toContain(path)
       }
+    }
+  })
+})
+
+describe('arena bodyguard twins (issue #64 part 2)', () => {
+  it('lists the 7 bodyguards in their own group', () => {
+    const ids = monsterTypesInGroup('Bodyguards').map((t) => t.id)
+    expect(ids.sort()).toEqual(
+      [
+        'knight_guard',
+        'knight_guard_lich1',
+        'knight_guard_lich2',
+        'knight_guard_lich3',
+        'krilith_mb_skeleton',
+        'lich_guard_lich',
+        'lich_mirror'
+      ].sort()
+    )
+  })
+
+  it('maps every twin key to a roster tier and every value to a known boss_* path', () => {
+    for (const [from, to] of Object.entries(ARENA_BODYGUARD_TWINS)) {
+      const usedAsATier = MONSTER_TYPES.some((t) => t.tiers.includes(from))
+      expect(usedAsATier, `${from} is not any roster tier`).toBe(true)
+      expect(KNOWN_ACTOR_PATHS, to).toContain(to)
+      expect(to, to).toMatch(/^actors\/boss_/)
+    }
+  })
+
+  it('leaves a non-twin path unchanged', () => {
+    expect(arenaActorPath('actors/bat_1.xml')).toBe('actors/bat_1.xml')
+    expect(arenaActorPath(resolveActorPath('tick1'))).toBe(resolveActorPath('tick1'))
+  })
+
+  it('substitutes exactly the 5 twinned actors', () => {
+    for (const from of Object.keys(ARENA_BODYGUARD_TWINS)) {
+      expect(arenaActorPath(from)).toBe(ARENA_BODYGUARD_TWINS[from])
+    }
+  })
+
+  it('gives every bodyguard type a real, non-deprecated home', () => {
+    for (const id of [
+      'knight_guard',
+      'knight_guard_lich1',
+      'knight_guard_lich2',
+      'knight_guard_lich3',
+      'lich_guard_lich',
+      'lich_mirror',
+      'krilith_mb_skeleton'
+    ]) {
+      expect(isKnownMonsterId(id), id).toBe(true)
+      const type = monsterTypeById(id)
+      expect(type.group).toBe('Bodyguards')
+      expect(type.deprecated).toBeFalsy()
     }
   })
 })

@@ -1,6 +1,6 @@
 import React from 'react'
-import { SURVIVAL_COUNTDOWN_STYLES, SURVIVAL_SECONDS_MAX } from '../../generator'
-import type { SurvivalCountdown, SurvivalOptions, ValidationIssue } from '../../generator'
+import { SURVIVAL_COUNTDOWN_STYLES, SURVIVAL_SECONDS_MAX, arenaUsesBodyguards } from '../../generator'
+import type { BossArenaOptions, SurvivalCountdown, SurvivalOptions, ValidationIssue } from '../../generator'
 import { NumberField, Section, ToggleGroup } from './fields'
 import { formatSeconds } from './FloorTimerEditor'
 import { SurvivalWaveListEditor } from './SurvivalWaveListEditor'
@@ -26,6 +26,13 @@ const COUNTDOWN_TITLES: Record<SurvivalCountdown, string> = {
 
 interface SurvivalTabProps {
   survival: SurvivalOptions
+  /**
+   * This fight's arena — read only for `arenaUsesBodyguards`, so the wave
+   * editor's hover titles can show the bodyguard-twin path. The arena's own
+   * fields (size, theme, music, …) are edited by `SharedArenaFields` in
+   * BossForm, not here.
+   */
+  arena: BossArenaOptions
   /** validation field root for this fight's survival config, e.g. `boss.fights.0.survival` */
   fieldPrefix: string
   issues: ValidationIssue[]
@@ -42,7 +49,7 @@ interface SurvivalTabProps {
  * drop and a trap window each own their own timestamps, and none of them
  * replaces another the way a boss tier's buffs and traps do.
  */
-export function SurvivalTab({ survival, fieldPrefix, issues, onChange }: SurvivalTabProps) {
+export function SurvivalTab({ survival, arena, fieldPrefix, issues, onChange }: SurvivalTabProps) {
   return (
     <>
       <Section title="Timer" defaultOpen>
@@ -94,6 +101,7 @@ export function SurvivalTab({ survival, fieldPrefix, issues, onChange }: Surviva
           onChange={(waves) => onChange({ waves })}
           issuePrefix={`${fieldPrefix}.waves`}
           issues={issues}
+          arenaTwins={arenaUsesBodyguards(arena)}
         />
       </Section>
 

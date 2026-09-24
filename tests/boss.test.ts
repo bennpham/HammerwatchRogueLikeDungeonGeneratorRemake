@@ -1816,3 +1816,66 @@ describe('multiple boss fights (issue #43)', () => {
   // ("honours each fight's own prep-room settings", checking two lobbies'
   // independent gold) now lives in lobby.test.ts's table-driven suite.
 })
+
+describe('arena bodyguard twins (issue #64 part 2)', () => {
+  const levelOf = (r: DungeonResult, path: string) => r.files.find((f) => f.path === path)!.content
+
+  /** A wave 0 naming the 3 twinned actors this repo currently has, plus a bare bat for contrast. */
+  function withTwinnedWave(bodyguardVariants?: boolean): DungeonParameters {
+    const arena = plainParameters().boss.fights[0].arena
+    const waves: typeof arena.waves = arena.waves.map((w, i) =>
+      i === 0
+        ? {
+            ...w,
+            monsters: ['archer1', 'skeleton3', 'mummy_ranged#2', 'bat1'],
+            monsterMax: { archer1: 4, skeleton3: 4, 'mummy_ranged#2': 4, bat1: 4 } as Record<string, number>,
+            spawnMode: undefined
+          }
+        : { ...w, monsters: [] as string[], monsterMax: {} as Record<string, number> }
+    )
+    return withFight({ arena: { ...arena, waves, bodyguardVariants } })
+  }
+
+  it('substitutes the 3 twinned keys and leaves the untwinned one alone, with the toggle on (the default)', () => {
+    const xml = levelOf(generateOk(withTwinnedWave(undefined), 4242), 'levels/boss0.xml')
+    expect(xml).toContain('actors/boss_knight/archer_1.xml')
+    expect(xml).toContain('actors/boss_lich/lich_guard_skeleton.xml')
+    expect(xml).toContain('actors/boss_anubis/mummy_ranged_2_noloot.xml')
+    expect(xml).toContain('actors/bat_1.xml')
+    expect(xml).not.toContain('>actors/archer_1.xml<')
+    expect(xml).not.toContain('>actors/skeleton_3.xml<')
+    expect(xml).not.toContain('>actors/mummy_ranged_2.xml<')
+  }, 60_000)
+
+  it('emits the plain actors with the toggle off', () => {
+    const xml = levelOf(generateOk(withTwinnedWave(false), 4242), 'levels/boss0.xml')
+    expect(xml).toContain('actors/archer_1.xml')
+    expect(xml).toContain('actors/skeleton_3.xml')
+    expect(xml).toContain('actors/mummy_ranged_2.xml')
+    // Can't assert "no boss_knight/boss_lich/boss_anubis at all" here — the
+    // arena's OWN picked boss (from the stock pool: knight, lich, dragon,
+    // queen) legitimately carries one of those folder names regardless of
+    // this toggle. Assert the specific twin paths are absent instead.
+    expect(xml).not.toContain('actors/boss_knight/archer_1.xml')
+    expect(xml).not.toContain('actors/boss_lich/lich_guard_skeleton.xml')
+    expect(xml).not.toContain('actors/boss_anubis/mummy_ranged_2_noloot.xml')
+  }, 60_000)
+
+  it('is a pure path substitution — mapping the twin paths back makes the two arenas byte-identical', () => {
+    const on = levelOf(generateOk(withTwinnedWave(undefined), 4242), 'levels/boss0.xml')
+    const off = levelOf(generateOk(withTwinnedWave(false), 4242), 'levels/boss0.xml')
+    let mappedBack = on
+    mappedBack = mappedBack
+      .split('actors/boss_knight/archer_1.xml').join('actors/archer_1.xml')
+      .split('actors/boss_lich/lich_guard_skeleton.xml').join('actors/skeleton_3.xml')
+      .split('actors/boss_anubis/mummy_ranged_2_noloot.xml').join('actors/mummy_ranged_2.xml')
+    expect(mappedBack).toBe(off)
+  }, 60_000)
+
+  it('never moves any dungeon floor — draws no RNG', () => {
+    const on = generateOk(withTwinnedWave(undefined), 4242)
+    const off = generateOk(withTwinnedWave(false), 4242)
+    const floors = (r: DungeonResult) => r.files.filter((f) => /^levels\/level\d+\.xml$/.test(f.path))
+    expect(floors(on)).toEqual(floors(off))
+  }, 60_000)
+})

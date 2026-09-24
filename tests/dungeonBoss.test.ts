@@ -271,6 +271,14 @@ describe('dungeon boss — the tier rigs', () => {
     expect(spawns.every((s) => intParam(s.body, 'trigger-times') === 2)).toBe(true)
   }, 60_000)
 
+  it('never applies the arena bodyguard twins (issue #64 part 2) — a floor is not an arena', () => {
+    const params = withBoss({ waves: waveOn(0, { archer1: 18 }) })
+    const xml = floorXml(generateOk(params, SEED), BOSS_FLOOR)
+    const paths = nodesOfType(xml, 'SpawnObject').map((n) => stringParam(n.body, 'parameters'))
+    expect(new Set(paths)).toEqual(new Set(['actors/archer_1.xml']))
+    expect(xml).not.toContain('actors/boss_knight/archer_1.xml')
+  }, 60_000)
+
   it('keys a later tier to its Boss xx% event', () => {
     const params = withBoss({ waves: waveOn(2, { bat1: 9 }) })
     const xml = floorXml(generateOk(params, SEED), BOSS_FLOOR)

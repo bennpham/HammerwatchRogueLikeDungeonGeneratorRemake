@@ -596,3 +596,46 @@ describe('survival — parameters.txt', () => {
     expect(parsed.params.boss.fights[0].survival?.seconds).toBe(defaultSurvivalOptions().seconds)
   })
 })
+
+describe('survival — arena bodyguard twins (issue #64 part 2)', () => {
+  /** A single-fight survival campaign whose only wave row names 2 twinned actors. */
+  function withTwinnedRow(bodyguardVariants?: boolean): DungeonParameters {
+    const params = plainParameters()
+    const fight = params.boss.fights[0]
+    params.boss = {
+      ...params.boss,
+      fights: [
+        {
+          ...fight,
+          mode: 'survival',
+          arena: { ...fight.arena, bodyguardVariants },
+          survival: {
+            ...defaultSurvivalOptions(),
+            seconds: 60,
+            waves: [
+              { monster: 'archer1', count: 9, atSeconds: 0, intervalMs: 1000 },
+              { monster: 'skeleton3', count: 9, atSeconds: 0, intervalMs: 1000 }
+            ]
+          }
+        }
+      ]
+    }
+    return params
+  }
+
+  it('substitutes the twins by default', () => {
+    const xml = arenaXml(generateOk(withTwinnedRow(undefined), SEED), 0)
+    expect(xml).toContain('actors/boss_knight/archer_1.xml')
+    expect(xml).toContain('actors/boss_lich/lich_guard_skeleton.xml')
+    expect(xml).not.toContain('>actors/archer_1.xml<')
+    expect(xml).not.toContain('>actors/skeleton_3.xml<')
+  }, 60_000)
+
+  it('emits the plain actors with the toggle off', () => {
+    const xml = arenaXml(generateOk(withTwinnedRow(false), SEED), 0)
+    expect(xml).toContain('actors/archer_1.xml')
+    expect(xml).toContain('actors/skeleton_3.xml')
+    expect(xml).not.toContain('boss_knight')
+    expect(xml).not.toContain('boss_lich')
+  }, 60_000)
+})

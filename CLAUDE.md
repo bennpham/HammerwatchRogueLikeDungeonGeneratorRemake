@@ -170,7 +170,10 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    not empty any more: `defaultParameters()` ships two lobbies, the boss on,
    `player.shared.remove.life`, and the escape floor's timer, so a stock run
    emits two lobbies, an arena, exactly one tweak file, and one floor carrying
-   a hazard rig.
+   a hazard rig. The arena's bodyguard-twin swap (`arenaUsesBodyguards`,
+   `BossArenaOptions.bodyguardVariants` — absent means on) is the same kind of
+   no-draw path substitution: it changes which actor path a wave/row names,
+   arena-only, and never on a dungeon floor or a floor boss's own waves.
 9. **The campaign order changes links, never generation.** `levelOrder`
    (`campaign.ts`) decides where each level leads, what `levels.xml` lists and
    in what order, and which slot carries the victory orb — via `ctx.gateway`,

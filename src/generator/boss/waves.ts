@@ -56,11 +56,17 @@
  *
  * A pool entry is a monster VARIANT key, not a bare monster id — `bat1` is the
  * ordinary bat, `bat1#0` the bats spawner, `archer1#2` the elite archer (see
- * monsterTypes.ts). `resolveActorPath` turns the key into one actor path with
- * no RNG draw: the wave rig is deterministic structure, not a roll, so a key
- * always resolves to the same actor. That is the whole difference from the
+ * monsterTypes.ts). `resolveArenaActorPath` turns the key into one actor path
+ * with no RNG draw: the wave rig is deterministic structure, not a roll, so a
+ * key always resolves to the same actor. That is the whole difference from the
  * dungeon, which rolls tiers upward with `upgradeChance` in Monster.createRolled
  * and picks spawners separately in room.ts.
+ *
+ * `resolveArenaActorPath` additionally substitutes the arena's bodyguard
+ * twins (issue #64 part 2) for the handful of actors that have one — still no
+ * RNG draw, so `useBodyguardTwins` can never move an arena's layout, only
+ * which actor path a wave names. `dungeonBoss/waves.ts` deliberately stays on
+ * plain `resolveActorPath` — a boss floor is a dungeon floor, not an arena.
  *
  * This module draws no RNG at all, including for the scatter modes: the points
  * are placed by arena.ts (which owns the ctx.bossRand draw order) and passed in
@@ -70,7 +76,7 @@
 import type { GenerationContext } from '../core/context'
 import type { BossWave } from '../config/parameters'
 import { isScatterMode, waveSpawnMode } from '../config/parameters'
-import { resolveActorPath } from '../objects/monsterTypes'
+import { resolveArenaActorPath } from '../objects/monsterTypes'
 import {
   NodeAreaTrigger,
   NodeGlobalEventTrigger,
@@ -196,7 +202,11 @@ export function buildWaveRig(
   entranceShape: NodeRectangleShape,
   spawnPoints: SpawnPointMap = new Map(),
   batchIntervalMs: number = DEFAULT_BATCH_INTERVAL_MS,
-  tierSource: TierSource = singleBossTierSource()
+  tierSource: TierSource = singleBossTierSource(),
+  // issue #64 part 2. Defaults true to match the arena's own absent-means-on
+  // toggle (`arenaUsesBodyguards`) — every caller that does not think about
+  // this gets the arena's historical-plus-twins behaviour, not the dungeon's.
+  useBodyguardTwins: boolean = true
 ): void {
   let y = entranceShape.y
 
@@ -265,7 +275,7 @@ export function buildWaveRig(
 
       for (const id of ids) {
         const max = scaledMax(wave.monsterMax[id], monsterMultiplier)
-        const actorPath = resolveActorPath(id)
+        const actorPath = resolveArenaActorPath(id, useBodyguardTwins)
 
         if (max === -1) {
           // Endless: every anchor spawns this monster, unbounded, unchanged.
@@ -306,7 +316,7 @@ export function buildWaveRig(
     const oneShot = scattered.filter((entry) => entry.points.length >= entry.total)
 
     for (const { id, points } of oneShot) {
-      const actorPath = resolveActorPath(id)
+      const actorPath = resolveArenaActorPath(id, useBodyguardTwins)
       for (const point of points) {
         const spawn = new NodeSpawnObject(ctx, point.x, point.y, actorPath)
         spawn.triggerTimes = 1
@@ -325,7 +335,7 @@ export function buildWaveRig(
       triggerNode.connectTo(batchToggle)
 
       for (const { id, points, total } of batched) {
-        const actorPath = resolveActorPath(id)
+        const actorPath = resolveArenaActorPath(id, useBodyguardTwins)
         const shares = splitRoundRobin(total, points.length)
         for (let i = 0; i < points.length; i++) {
           if (shares[i] === 0) continue

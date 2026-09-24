@@ -31,7 +31,8 @@ import {
   arenaBossCount,
   floorBossCount,
   BOSS_SELECTIONS,
-  bossSelection
+  bossSelection,
+  arenaUsesBodyguards
 } from './parameters'
 import { UPGRADE_KINDS, noUpgrades } from '../levelTemplate/surgery'
 import type { UpgradeCounts } from '../levelTemplate/surgery'
@@ -866,6 +867,21 @@ function parseBossFightKey(
     const n = parseInt(value.trim(), 10)
     if (Number.isNaN(n)) unknownKeys.push(`${key} value "${value}"`)
     else arena.bossCount = n
+    return true
+  }
+  if (suffix === 'bodyguardvariants') {
+    // issue #64 part 2. Absent means on — see arenaUsesBodyguards — so this
+    // key is only ever written for a fight that switches the twins off.
+    // `true` leaves the field absent rather than writing it explicitly, which
+    // is what keeps a file round-tripping to the same (undefined) shape.
+    const text = value.trim().toLowerCase()
+    if (text === 'true') {
+      // absent already means on; nothing to set
+    } else if (text === 'false') {
+      arena.bodyguardVariants = false
+    } else {
+      unknownKeys.push(`${key} value "${value}"`)
+    }
     return true
   }
   // Selection mode and lineup (issue #64 follow-up: exact lineups), on their
@@ -1905,6 +1921,12 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
     // file written before the feature byte-identical.
     if (arenaBossCount(arena) !== 1) {
       lines.push(`boss${f}Count=${arenaBossCount(arena)}`)
+    }
+    // issue #64 part 2. Absent means on, so a fight that never touched this
+    // writes not one line, keeping every file written before the feature
+    // byte-identical.
+    if (!arenaUsesBodyguards(arena)) {
+      lines.push(`boss${f}BodyguardVariants=false`)
     }
     // Selection mode and lineup (issue #64 follow-up), only in lineup mode —
     // a random-mode fight writes neither, the same "not one of the six" rule

@@ -12,7 +12,7 @@ import type { CorpseCollision } from './actorCollision'
  * the thing the UI draws are the same list — a monster can't be defined into a
  * group that renders nowhere.
  */
-export const MONSTER_GROUPS = ['Classic', 'Desert', 'Towers', 'Special', 'Bosses', 'Bonus'] as const
+export const MONSTER_GROUPS = ['Classic', 'Desert', 'Towers', 'Special', 'Bosses', 'Bodyguards', 'Bonus'] as const
 
 export type MonsterGroup = (typeof MONSTER_GROUPS)[number]
 
@@ -151,6 +151,27 @@ export const MONSTER_TYPES: MonsterTypeDef[] = [
   // Append only — monsterTypeById falls back to MONSTER_TYPES[3].
   { id: 'bonus_skeleton1', configKey: 'maxBonus_Skeletons1', upgradeChance: 1.0, defaultMax: 300, group: 'Bonus', tiers: ['actors/spawners/bonus/skeleton_1.xml', 'actors/bonus/skeleton_1.xml'] },
   { id: 'bonus_archer1', configKey: 'maxBonus_Archers1', upgradeChance: 1.0, defaultMax: 60, group: 'Bonus', tiers: ['actors/bonus/archer_1.xml'] },
+
+  // Bodyguards — issue #64 part 2. Actors that live under `actors/boss_*`
+  // folders, sorted into "add to the roster" by the audit in
+  // https://github.com/bennpham/HammerwatchRogueLikeDungeonGeneratorRemake/issues/64#issuecomment-5786124801.
+  // Every one of them is a guard/summon that patrols a boss's own room, and
+  // none of them carries `boss-hp` — only the seven end bosses and the worm
+  // variants do, which is the evidence (still [UNVERIFIED] pending a
+  // playtest) that killing one does not fire the engine's `Boss ...` events.
+  // Single-tier, upgradeChance 1.0 like every other one-actor type — the
+  // value is inert for a one-element `tiers` array (see the field comment).
+  { id: 'knight_guard', configKey: 'maxKnight_Guards', upgradeChance: 1.0, defaultMax: 12, group: 'Bodyguards', acts: [2], tiers: ['actors/boss_knight/knight_guard.xml'] },
+  { id: 'knight_guard_lich1', configKey: 'maxKnight_Guard_Liches1', upgradeChance: 1.0, defaultMax: 6, group: 'Bodyguards', acts: [2], tiers: ['actors/boss_knight/knight_guard_lich_1.xml'] },
+  { id: 'knight_guard_lich2', configKey: 'maxKnight_Guard_Liches2', upgradeChance: 1.0, defaultMax: 6, group: 'Bodyguards', acts: [2], tiers: ['actors/boss_knight/knight_guard_lich_2.xml'] },
+  { id: 'knight_guard_lich3', configKey: 'maxKnight_Guard_Liches3', upgradeChance: 1.0, defaultMax: 6, group: 'Bodyguards', acts: [2], tiers: ['actors/boss_knight/knight_guard_lich_3.xml'] },
+  { id: 'lich_guard_lich', configKey: 'maxLich_Guard_Liches', upgradeChance: 1.0, defaultMax: 6, group: 'Bodyguards', acts: [3], tiers: ['actors/boss_lich/lich_guard_lich.xml'] },
+  { id: 'lich_mirror', configKey: 'maxLich_Mirrors', upgradeChance: 1.0, defaultMax: 4, group: 'Bodyguards', acts: [3], tiers: ['actors/boss_lich/boss_lich_mirror.xml'] },
+  // No `acts` — Krilith is not a castle-act boss (the stock arena pool files
+  // her under the ice caves, see defaultBossFight), so it lands in "Other" (like
+  // `spider`/`tower_empty`), the same way monsterCategories works for every
+  // untagged type.
+  { id: 'krilith_mb_skeleton', configKey: 'maxKrilith_MB_Skeletons', upgradeChance: 1.0, defaultMax: 6, group: 'Bodyguards', tiers: ['actors/boss_krilith/skeleton_1_mb.xml'] },
 
   //==============================================
   // Deprecated
@@ -360,9 +381,11 @@ export interface MonsterFamilyDef {
 }
 
 /**
- * The shipped families. Towers only for now: they are the group where the
- * roster splits one concept across many ids, so picking "some banners" meant
- * finding three separate checkboxes.
+ * The shipped families. Towers were the first group where the roster split
+ * one concept across many ids, so picking "some banners" meant finding three
+ * separate checkboxes; `knight_guard_lich` (issue #64 part 2) is the first
+ * family outside Towers, for exactly the same reason on the knight's three
+ * lich guards.
  *
  * `tower_empty` and `tower_static_frost` are deliberately absent — each is a
  * lone inert barrier rather than one of a set (see MONSTER_NOTES). So is
@@ -380,7 +403,11 @@ export const MONSTER_FAMILIES: MonsterFamilyDef[] = [
   { id: 'tower_banner', configKey: 'maxTowers_Banner', defaultMax: 4, group: 'Towers', members: ['tower_banner1', 'tower_banner2', 'tower_banner3'] },
   { id: 'tower_flower', configKey: 'maxTowers_Flower', defaultMax: 6, group: 'Towers', members: ['tower_flower1', 'tower_flower1_small', 'tower_flower2', 'tower_flower3'] },
   { id: 'tower_nova', configKey: 'maxTowers_Nova', defaultMax: 4, group: 'Towers', members: ['tower_nova1', 'tower_nova2'] },
-  { id: 'tower_tracking', configKey: 'maxTowers_Tracking', defaultMax: 2, group: 'Towers', members: ['tower_tracking1', 'tower_tracking2', 'tower_tracking3'] }
+  { id: 'tower_tracking', configKey: 'maxTowers_Tracking', defaultMax: 2, group: 'Towers', members: ['tower_tracking1', 'tower_tracking2', 'tower_tracking3'] },
+  // The first family outside Towers (issue #64 part 2): the knight's three
+  // lich guards are otherwise three separate checkboxes for "some lich
+  // guards", the exact gap the tower families exist to close.
+  { id: 'knight_guard_lich', configKey: 'maxKnight_Guard_Liches', defaultMax: 6, group: 'Bodyguards', members: ['knight_guard_lich1', 'knight_guard_lich2', 'knight_guard_lich3'] }
 ]
 
 const familyById = new Map(MONSTER_FAMILIES.map((f) => [f.id, f]))
@@ -596,7 +623,16 @@ export const MONSTER_NOTES: Record<string, string> = {
   // (actorCollision.ts — tower_battlement_empty 'passable',
   // tower_static_frost 'blocking', circle r=10).
   tower_empty: '450 HP battlement — blocks your way, never attacks',
-  tower_static_frost: 'inert barrier — blocks your way and does nothing else, like tower_empty, except its wreck stays solid'
+  tower_static_frost: 'inert barrier — blocks your way and does nothing else, like tower_empty, except its wreck stays solid',
+
+  // Bodyguards (issue #64 part 2) — none of these names says what it does.
+  knight_guard: '150 HP melee guard, 35 damage — 50% chance to drop a health potion',
+  knight_guard_lich1: '80 HP caster — fires an 8-way nova of lich projectiles, flees at range, drops no loot',
+  knight_guard_lich2: 'casts 3 homing seekers, flees at range, drops no loot',
+  knight_guard_lich3: 'summons 5 small skeletons every 1.75s, flees at range, drops no loot',
+  lich_guard_lich: 'necromancer guard — summons 2 lich-guard skeletons every 3.25s',
+  lich_mirror: "the Lich's 50 HP mirror image — summons small eyes and seekers, releases 7 bat_3 on death",
+  krilith_mb_skeleton: "Krilith's 400 HP mini-boss skeleton (the root mb_skeleton is 800) — its hits apply Krilith's wave debuff and it ignores traps"
 }
 
 /**
@@ -636,4 +672,62 @@ export function monsterVariantsInGroup(group: MonsterVariantGroup): MonsterVaria
     .flatMap(monsterVariants)
     .filter((v) => variantGroup(v) === group)
     .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+}
+
+//==============================================
+// Arena bodyguard twins (issue #64 part 2)
+//==============================================
+
+/**
+ * Near-duplicate actors that live under `actors/boss_*` folders and stand in
+ * for an ordinary roster actor when it is used INSIDE that boss's arena — an arena
+ * uses the boss-folder twin, a dungeon floor uses the regular actor. Keyed
+ * and valued by actor path, not by monster id, because the substitution
+ * happens after `resolveActorPath`/`resolveArenaActorPath` has already turned
+ * a pool key into one path — see `resolveArenaActorPath`.
+ *
+ * Diffed on disk (2026-09-23, see the modding skill's DISCOVERY-LOG):
+ *
+ * - `archer_1` / `skeleton_1` / `skeleton_1_small`: the knight's twins raise
+ *   aggro range from 10-12 to 30 (the archer's max-range goes 20 -> 30 too),
+ *   and drop no loot.
+ * - `skeleton_3` -> `lich_guard_skeleton`: same aggro as the root, but HP
+ *   20 -> 25, speed 1.1 -> 0.65, no loot, no gib.
+ * - `mummy_ranged_2` -> `mummy_ranged_2_noloot`: only loses the 20% health
+ *   drop — otherwise identical.
+ *
+ * None of the five twins drops loot, which matches every other bodyguard
+ * added alongside this table.
+ */
+export const ARENA_BODYGUARD_TWINS: Readonly<Record<string, string>> = {
+  'actors/archer_1.xml': 'actors/boss_knight/archer_1.xml',
+  'actors/skeleton_1.xml': 'actors/boss_knight/skeleton_1.xml',
+  'actors/skeleton_1_small.xml': 'actors/boss_knight/skeleton_1_small.xml',
+  'actors/skeleton_3.xml': 'actors/boss_lich/lich_guard_skeleton.xml',
+  'actors/mummy_ranged_2.xml': 'actors/boss_anubis/mummy_ranged_2_noloot.xml'
+}
+
+/**
+ * `actorPath`'s arena twin, or `actorPath` unchanged when it has none. A pure
+ * lookup — draws nothing from any stream. Uses `hasOwnProperty` rather than
+ * bracket-testing so no `Object.prototype` key (`toString`, `__proto__`, …)
+ * can leak through for a pathological input.
+ */
+export function arenaActorPath(actorPath: string): string {
+  return Object.prototype.hasOwnProperty.call(ARENA_BODYGUARD_TWINS, actorPath)
+    ? ARENA_BODYGUARD_TWINS[actorPath]
+    : actorPath
+}
+
+/**
+ * `resolveActorPath(key)`, substituted through the arena's bodyguard-twin
+ * table when `useTwins` is true (the default everywhere an arena calls this).
+ * A pure lookup on top of an already-pure lookup — still no RNG draw, so the
+ * toggle can never move an arena's or a floor's layout, only which actor path
+ * a wave/row names. `useTwins: false` (or a key with no twin) returns exactly
+ * what `resolveActorPath` would have.
+ */
+export function resolveArenaActorPath(key: string, useTwins: boolean): string {
+  const path = resolveActorPath(key)
+  return useTwins ? arenaActorPath(path) : path
 }

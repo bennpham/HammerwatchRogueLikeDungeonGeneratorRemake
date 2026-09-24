@@ -187,7 +187,9 @@ function bonusWaves(): BossWave[] {
         ['skeleton1#2', 60],
         ['tower_archer1', 16],
         ['skeleton1#0', 12],
-        ['archer1#0', 6]
+        ['archer1#0', 6],
+        // the knight's own guard (issue #64 part 2) — bodyguards.
+        ['knight_guard', 6]
       ],
       [],
       3000
@@ -204,7 +206,10 @@ function bonusWaves(): BossWave[] {
         ['mb_skeleton', 8],
         ['tower_archer3', 8],
         ['archer2#0', 6],
-        ['skeleton2#0', 12]
+        ['skeleton2#0', 12],
+        // bodyguards — Krilith's mini-boss skeleton and the lich's necromancer guard
+        ['krilith_mb_skeleton', 3],
+        ['lich_guard_lich', 3]
       ],
       [['tower_nova1', 4]],
       2000,
@@ -220,7 +225,11 @@ function bonusWaves(): BossWave[] {
         ['mb_eye', 4],
         ['mb_lich', 1],
         ['mb_doomspawn', 2],
-        ['tower_banner1', 8]
+        ['tower_banner1', 8],
+        // bodyguards
+        ['knight_guard_lich1', 2],
+        ['knight_guard_lich2', 2],
+        ['lich_mirror', 2]
       ],
       [
         ['tower_tracking2', 1],
@@ -243,7 +252,10 @@ function bonusWaves(): BossWave[] {
         ['mb_doomspawn', 2],
         ['tower_banner1', 8],
         ['wisp1', 19],
-        ['wisp1#2', 10]
+        ['wisp1#2', 10],
+        // bodyguards — the knight's summoner guard and a last pair of Krilith skeletons
+        ['knight_guard_lich3', 2],
+        ['krilith_mb_skeleton', 2]
       ],
       [
         ['tower_tracking2', 1],

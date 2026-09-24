@@ -123,9 +123,12 @@ describe('multi-boss arena (issue #64 part 1)', () => {
     const arena = multiArena(3)
     const ctx = freshCtx(1)
     const { xml } = buildBossArena(ctx, arena, 0)
-    // Every boss's own MonsterTypeDef id sits under actors/boss_*/ — count
-    // <actor> style dictionaries by matching the boss actor paths themselves.
-    const actorHits = MULTI_POOL.reduce((n, id) => n + (xml.match(new RegExp(`actors/${id}/`, 'g'))?.length ?? 0), 0)
+    // Every boss's own actor is `actors/<id>/<id>.xml` exactly — matching the
+    // whole `actors/<id>/` folder would also catch a bodyguard sharing that
+    // boss's folder (issue #64 part 2's stock death-tier bodyguards, e.g.
+    // knight_guard_lich3 under actors/boss_knight/), so match the boss's own
+    // file, not the folder.
+    const actorHits = MULTI_POOL.reduce((n, id) => n + (xml.match(new RegExp(`actors/${id}/${id}\\.xml`, 'g'))?.length ?? 0), 0)
     expect(actorHits).toBe(3)
   })
 
@@ -306,8 +309,10 @@ describe('boss selection mode: exact lineups (issue #64 follow-up)', () => {
       bossLineup: { boss_knight: 3, boss_lich: 1 }
     })
     const { xml } = buildBossArena(freshCtx(10), arena, 0)
-    const knightHits = xml.match(/actors\/boss_knight\//g)?.length ?? 0
-    const lichHits = xml.match(/actors\/boss_lich\//g)?.length ?? 0
+    // Match the boss's own actor file, not the whole folder — a bodyguard
+    // (issue #64 part 2) shares the same `actors/boss_<x>/` folder as its boss.
+    const knightHits = xml.match(/actors\/boss_knight\/boss_knight\.xml/g)?.length ?? 0
+    const lichHits = xml.match(/actors\/boss_lich\/boss_lich\.xml/g)?.length ?? 0
     expect(knightHits).toBe(3)
     expect(lichHits).toBe(1)
   })
@@ -393,7 +398,9 @@ describe('bosses beyond the fixed layout slots stack instead of being rejected (
   it('a 20-boss random arena generates and places exactly 20 actors', () => {
     const arena = multiArena(20, { minWidth: 50, maxWidth: 50, minHeight: 50, maxHeight: 50 })
     const { xml } = buildBossArena(freshCtx(13), arena, 0)
-    const actorHits = MULTI_POOL.reduce((n, id) => n + (xml.match(new RegExp(`actors/${id}/`, 'g'))?.length ?? 0), 0)
+    // Match the boss's own actor file, not the whole folder — see the same
+    // note on 'places exactly bossCount boss actors' above.
+    const actorHits = MULTI_POOL.reduce((n, id) => n + (xml.match(new RegExp(`actors/${id}/${id}\\.xml`, 'g'))?.length ?? 0), 0)
     expect(actorHits).toBe(20)
   })
 })

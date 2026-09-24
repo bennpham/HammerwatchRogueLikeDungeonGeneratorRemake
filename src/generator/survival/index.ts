@@ -81,6 +81,12 @@ export interface SurvivalArena {
   /** Marker column/row the cosmetic editor nodes walk down from. */
   markerX: number
   markerY: number
+  /**
+   * `arenaUsesBodyguards(fight.arena)` (issue #64 part 2) — the same
+   * bodyguard-twin path substitution `boss/waves.ts` applies, threaded
+   * through because survival's waves read it too. No RNG draw either way.
+   */
+  useBodyguardTwins: boolean
 }
 
 /** Builds the whole survival rig, in the fixed order documented above. */
@@ -103,7 +109,8 @@ export function buildSurvivalRig(ctx: GenerationContext, survival: SurvivalOptio
     clock,
     survival.seconds,
     markerX,
-    markerY
+    markerY,
+    arena.useBodyguardTwins
   )
 
   buildSurvivalBuffRig(ctx, survivalBuffs(survival), arena.width, arena.height, clock, markerX, markerY)

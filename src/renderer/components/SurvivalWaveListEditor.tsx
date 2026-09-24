@@ -1,5 +1,5 @@
 import React from 'react'
-import { MONSTER_VARIANT_GROUPS, monsterNote, monsterVariantsInGroup } from '../../generator'
+import { MONSTER_VARIANT_GROUPS, arenaActorPath, monsterNote, monsterVariantsInGroup } from '../../generator'
 import type { SurvivalWave, ValidationIssue } from '../../generator'
 import { InfoTip } from './InfoTip'
 import { MonsterFilterBar, useMonsterFilter } from './MonsterFilterBar'
@@ -9,6 +9,19 @@ import type { MonsterFilter as MonsterFilterState } from './MonsterFilterBar'
 function noteSuffix(key: string): string {
   const note = monsterNote(key)
   return note ? ` — ${note}` : ''
+}
+
+/**
+ * The actor path to show in an option's hover title. Twin of WaveEditor's
+ * `displayActorPath` — when `arenaTwins` is set (this fight's arena has
+ * bodyguard twins on) and `actorPath` has a twin in `ARENA_BODYGUARD_TWINS`,
+ * shows the twin path alongside the ordinary one it stands in for. Purely
+ * informational: the generator decides the real substitution at build time.
+ */
+function displayActorPath(actorPath: string, arenaTwins: boolean | undefined): string {
+  if (!arenaTwins) return actorPath
+  const twin = arenaActorPath(actorPath)
+  return twin === actorPath ? actorPath : `${twin} (arena bodyguard version of ${actorPath})`
 }
 
 /** The first variant in the first non-empty group — what a fresh row starts on. */
@@ -24,6 +37,13 @@ interface MonsterVariantSelectProps {
   value: string
   filter: MonsterFilterState
   onChange: (key: string) => void
+  /**
+   * True when this fight's arena has bodyguard twins on
+   * (`arenaUsesBodyguards`) — passed down from `SurvivalTab`, which reads it
+   * off the fight's own arena. Purely cosmetic, like WaveEditor's identical
+   * prop.
+   */
+  arenaTwins?: boolean
 }
 
 /**
@@ -33,7 +53,7 @@ interface MonsterVariantSelectProps {
  * stays in the list even when the filter would otherwise hide it, the same
  * "a pick stays reachable" rule the checkbox roster follows.
  */
-function MonsterVariantSelect({ value, filter, onChange }: MonsterVariantSelectProps) {
+function MonsterVariantSelect({ value, filter, onChange, arenaTwins }: MonsterVariantSelectProps) {
   return (
     <select className="buff-select" value={value} onChange={(e) => onChange(e.target.value)}>
       {MONSTER_VARIANT_GROUPS.map((group) => {
@@ -44,7 +64,11 @@ function MonsterVariantSelect({ value, filter, onChange }: MonsterVariantSelectP
         return (
           <optgroup key={group} label={group}>
             {members.map((v) => (
-              <option key={v.key} value={v.key} title={`${v.actorPath}${noteSuffix(v.key)}`}>
+              <option
+                key={v.key}
+                value={v.key}
+                title={`${displayActorPath(v.actorPath, arenaTwins)}${noteSuffix(v.key)}`}
+              >
                 {v.key}
               </option>
             ))}
@@ -61,6 +85,8 @@ interface SurvivalWaveListEditorProps {
   /** Issue-field prefix, e.g. `boss.fights.0.survival.waves`. */
   issuePrefix: string
   issues: ValidationIssue[]
+  /** True when this fight's arena has bodyguard twins on — see WaveEditor's identical prop. */
+  arenaTwins?: boolean
 }
 
 /**
@@ -70,7 +96,7 @@ interface SurvivalWaveListEditorProps {
  * minutes in" is two rows, both `bat3`, and this editor must never merge or
  * dedupe them.
  */
-export function SurvivalWaveListEditor({ value, onChange, issuePrefix, issues }: SurvivalWaveListEditorProps) {
+export function SurvivalWaveListEditor({ value, onChange, issuePrefix, issues, arenaTwins }: SurvivalWaveListEditorProps) {
   const filter = useMonsterFilter()
 
   const patch = (index: number, change: Partial<SurvivalWave>) => {
@@ -98,6 +124,7 @@ export function SurvivalWaveListEditor({ value, onChange, issuePrefix, issues }:
                 value={row.monster}
                 filter={filter}
                 onChange={(monster) => patch(index, { monster })}
+                arenaTwins={arenaTwins}
               />
               <InfoTip text="The same monster can appear on several rows — each row starts and trickles in independently, so nothing here replaces another row." />
               <button

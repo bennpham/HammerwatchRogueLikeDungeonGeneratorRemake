@@ -6,7 +6,8 @@ import {
   MAX_BOSS_COUNT,
   BOSS_COUNT_WARN,
   defaultLobby,
-  defaultParameters
+  defaultParameters,
+  defaultSurvivalOptions
 } from '../src/generator/config/parameters'
 import {
   GOLD_SAFETY_MAX,
@@ -1130,6 +1131,43 @@ describe('boss lineup validation (issue #64 follow-up)', () => {
       }
     })
     expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.bossLineup')
+  })
+})
+
+describe('bodyguard-twin toggle validation (issue #64 part 2)', () => {
+  const withBoss = (
+    patch: Partial<ReturnType<typeof defaultParameters>['boss']['fights'][number]> & { enabled?: boolean }
+  ) => {
+    const p = defaultParameters()
+    const { enabled, ...fightPatch } = patch
+    p.boss = {
+      ...p.boss,
+      ...(enabled === undefined ? {} : { enabled }),
+      fights: p.boss.fights.map((f, i) => (i === 0 ? { ...f, ...fightPatch } : f))
+    }
+    return validateParameters(p)
+  }
+  const arena = defaultParameters().boss.fights[0].arena
+
+  it('accepts absent, true and false', () => {
+    for (const value of [undefined, true, false]) {
+      const result = withBoss({ arena: { ...arena, bodyguardVariants: value } })
+      expect(fieldsOf(result.errors)).not.toContain('boss.fights.0.arena.bodyguardVariants')
+    }
+  })
+
+  it('rejects a non-boolean value', () => {
+    const result = withBoss({ arena: { ...arena, bodyguardVariants: 'yes' as never } })
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.bodyguardVariants')
+  })
+
+  it('applies in survival mode too', () => {
+    const result = withBoss({
+      mode: 'survival',
+      arena: { ...arena, bodyguardVariants: 1 as never },
+      survival: defaultSurvivalOptions()
+    })
+    expect(fieldsOf(result.errors)).toContain('boss.fights.0.arena.bodyguardVariants')
   })
 })
 

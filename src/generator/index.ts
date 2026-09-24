@@ -76,7 +76,8 @@ export {
   lineupTotal,
   arenaBossCount,
   floorBossCount,
-  isMultiBoss
+  isMultiBoss,
+  arenaUsesBodyguards
 } from './config/parameters'
 export type { BossSelection } from './config/parameters'
 export { BUFF_DEFS, BUFF_GROUPS, BUFF_HELPFUL_IDS, buffById } from './objects/buffTypes'
@@ -176,6 +177,9 @@ export {
   monsterVariantsInGroup,
   parseMonsterKey,
   resolveActorPath,
+  ARENA_BODYGUARD_TWINS,
+  arenaActorPath,
+  resolveArenaActorPath,
   variantGroup,
   variantKey
 } from './objects/monsterTypes'

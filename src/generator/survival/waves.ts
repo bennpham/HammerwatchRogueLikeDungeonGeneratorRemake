@@ -55,7 +55,7 @@ import type { GenerationContext } from '../core/context'
 import type { SurvivalWave } from '../config/parameters'
 import type { Anchor } from '../boss/anchors'
 import { scaledMax, splitRoundRobin } from '../boss/waves'
-import { isKnownMonsterKey, resolveActorPath } from '../objects/monsterTypes'
+import { isKnownMonsterKey, resolveArenaActorPath } from '../objects/monsterTypes'
 import { NodeGlobalEventTrigger, NodeSpawnObject, NodeTimerTrigger, NodeToggleElement } from '../objects/nodes'
 
 /**
@@ -77,7 +77,11 @@ export function buildSurvivalWaveRig(
   clock: NodeGlobalEventTrigger,
   seconds: number,
   x: number,
-  y: number
+  y: number,
+  // issue #64 part 2, same arena-twin substitution `boss/waves.ts` makes —
+  // still no RNG draw. Defaults true to match the arena's absent-means-on
+  // toggle.
+  useBodyguardTwins: boolean = true
 ): void {
   const usable = rows.filter((row) => isKnownMonsterKey(row.monster) && (row.count === -1 || row.count >= 1))
   if (usable.length === 0) return
@@ -112,7 +116,7 @@ export function buildSurvivalWaveRig(
     // Java original's verbatim `delays` copy would not be timed at all.
     clock.connectTo(arm, wave.atSeconds * 1000)
 
-    const actorPath = resolveActorPath(wave.monster)
+    const actorPath = resolveArenaActorPath(wave.monster, useBodyguardTwins)
     for (let i = 0; i < anchorList.length; i++) {
       if (!endless && shares[i] === 0) continue
       const anchor = anchorList[i]

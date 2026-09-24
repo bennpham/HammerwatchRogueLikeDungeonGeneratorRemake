@@ -249,6 +249,39 @@ describe('parameters.txt parsing', () => {
     expect(legacyParsed.params.boss.fights[0].arena.bossCount).toBeUndefined()
   })
 
+  it('writes boss<f>BodyguardVariants only when off, and round-trips it (issue #64 part 2)', () => {
+    const stock = defaultParameters()
+    // absent means ON, so a stock export carries no key at all.
+    expect(serializeParametersTxt(stock)).not.toMatch(/boss0BodyguardVariants=/)
+
+    const original = defaultParameters()
+    original.boss.fights[0].arena.bodyguardVariants = false
+    const text = serializeParametersTxt(original)
+    expect(text).toContain('boss0BodyguardVariants=false')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.params.boss.fights[0].arena.bodyguardVariants).toBe(false)
+    expect(parsed.unknownKeys).toEqual([])
+
+    // `true` round-trips to absent, the same shape a fresh fight has.
+    const onText = text.replace('boss0BodyguardVariants=false', 'boss0BodyguardVariants=true')
+    const onParsed = parseParametersTxt(onText)
+    expect(onParsed.params.boss.fights[0].arena.bodyguardVariants).toBeUndefined()
+    expect(onParsed.unknownKeys).toEqual([])
+
+    // A garbage value is reported, never thrown, and the key is recognized
+    // rather than falling into unknownKeys as an unrecognized key name.
+    const garbageText = text.replace('boss0BodyguardVariants=false', 'boss0BodyguardVariants=maybe')
+    const garbageParsed = parseParametersTxt(garbageText)
+    expect(garbageParsed.unknownKeys.some((k) => k.includes('boss0BodyguardVariants'))).toBe(true)
+    expect(garbageParsed.params.boss.fights[0].arena.bodyguardVariants).toBeUndefined()
+
+    // An old file with no key at all parses to "on" (absent).
+    const legacyText = text.replace(/\nboss0BodyguardVariants=false/, '')
+    const legacyParsed = parseParametersTxt(legacyText)
+    expect(legacyParsed.params.boss.fights[0].arena.bodyguardVariants).toBeUndefined()
+  })
+
   it('writes boss<f>Selection/Lineup only in lineup mode, in BOSS_IDS order, and round-trips (issue #64 follow-up)', () => {
     const stock = defaultParameters()
     // 'random' is absent by default, so a stock export carries neither key.

@@ -18,7 +18,8 @@ XML — a wrong path fails at load time, not at build time.
 
 ## Actors (monsters)
 
-Source of truth: `src/generator/objects/monsterTypes.ts` (51 types). Groups come
+Source of truth: `src/generator/objects/monsterTypes.ts` (58 types — issue #64
+part 2 added the 7 `Bodyguards` rows at the bottom). Groups come
 from `MONSTER_GROUPS` in the same file — the GUI iterates that list, so a group
 missing from it renders nowhere. **Append new types**: `monsterTypeById` falls
 back to the positional `MONSTER_TYPES[3]` for unknown ids.
@@ -90,6 +91,13 @@ default.
 | `bonus_archer1` | `maxBonus_Archers1` | Bonus | 60 | `actors/bonus/archer_1.xml` |
 | `skeleton3` | `maxSkeletons3` | Classic | 100 | `actors/skeleton_3.xml` |
 | `tower_empty` | `maxTowers_Empty` | Towers | 0 | `actors/tower_battlement_empty.xml` |
+| `knight_guard` | `maxKnight_Guards` | Bodyguards | 12 | `actors/boss_knight/knight_guard.xml` |
+| `knight_guard_lich1` | `maxKnight_Guard_Liches1` | Bodyguards | 6 | `actors/boss_knight/knight_guard_lich_1.xml` |
+| `knight_guard_lich2` | `maxKnight_Guard_Liches2` | Bodyguards | 6 | `actors/boss_knight/knight_guard_lich_2.xml` |
+| `knight_guard_lich3` | `maxKnight_Guard_Liches3` | Bodyguards | 6 | `actors/boss_knight/knight_guard_lich_3.xml` |
+| `lich_guard_lich` | `maxLich_Guard_Liches` | Bodyguards | 6 | `actors/boss_lich/lich_guard_lich.xml` |
+| `lich_mirror` | `maxLich_Mirrors` | Bodyguards | 4 | `actors/boss_lich/boss_lich_mirror.xml` |
+| `krilith_mb_skeleton` | `maxKrilith_MB_Skeletons` | Bodyguards | 6 | `actors/boss_krilith/skeleton_1_mb.xml` |
 
 `skeleton3` is `[VERIFIED]` — the fast swarm skeleton of stock
 `level_10`/`level_11` (20 HP, 8 dmg, speed 1.1), what `lich_3` summons, and
@@ -120,6 +128,30 @@ vs 40), which is where the scaled-up `defaultMax` comes from — except the skel
 capped at 300 by observed frame rate rather than by its HP. Neither is in
 `defaultParameters().levelMonsters`; they are opt-in via the pool editor so
 existing seeds are unaffected.
+
+### Bodyguards and their arena twins `[EMITTED]` (issue #64 part 2)
+
+The 7 `Bodyguards` rows above are new content from the `actors/boss_*`
+folders — none carries `boss-hp` (see the 2026-09-22/2026-09-23
+DISCOVERY-LOG entries on whether that matters for the `Boss …` events).
+
+Separately, 5 ordinary roster actors have a near-duplicate "twin" living in a
+boss folder, substituted in only inside a boss/survival arena
+(`ARENA_BODYGUARD_TWINS` in `monsterTypes.ts`, gated by
+`BossArenaOptions.bodyguardVariants` — absent means on):
+
+| plain actor | arena twin | diff (disk-diffed, not played) |
+| --- | --- | --- |
+| `actors/archer_1.xml` | `actors/boss_knight/archer_1.xml` | aggro 10-12 → 30 (max-range 20 → 30), no loot |
+| `actors/skeleton_1.xml` | `actors/boss_knight/skeleton_1.xml` | aggro 10-12 → 30, no loot |
+| `actors/skeleton_1_small.xml` | `actors/boss_knight/skeleton_1_small.xml` | aggro 10-12 → 30, no loot |
+| `actors/skeleton_3.xml` | `actors/boss_lich/lich_guard_skeleton.xml` | same aggro; HP 20 → 25, speed 1.1 → 0.65, no loot, no gib |
+| `actors/mummy_ranged_2.xml` | `actors/boss_anubis/mummy_ranged_2_noloot.xml` | loses only the 20% health drop |
+
+The substitution is a pure path lookup (`resolveArenaActorPath`) — it draws
+nothing from any RNG stream, so the toggle can never move an arena's layout,
+only which actor path a wave/row names. A dungeon floor and a floor boss's
+own waves (`dungeonBoss/waves.ts`) never apply it.
 
 ### A wall-mounted boss must clear the band by its collision `offset` `[VERIFIED 2026-08-16]`
 

@@ -274,7 +274,11 @@ reference/hammerwatch-tweak-stats.md
    Both lobby templates' **free upgrade pickups** and their two extra
    lights are on the RNG-free side of this line too: however many upgrades a
    room hands out, every `levels/level*.xml` stays byte-identical, and a kind
-   left at 0 emits no item array at all.
+   left at 0 emits no item array at all. The arena's bodyguard-twin swap
+   (`arenaUsesBodyguards`, `BossArenaOptions.bodyguardVariants` — absent
+   means on) is the same shape again: a no-draw path substitution
+   (`resolveArenaActorPath`) on which actor a wave/row names, arena-only,
+   never on a dungeon floor or a floor boss's own waves.
 9. **The campaign order changes links, never generation.** `levelOrder`
    (`campaign.ts`) decides where each level leads, what `levels.xml` lists and
    in what order, and which slot carries the victory orb — through

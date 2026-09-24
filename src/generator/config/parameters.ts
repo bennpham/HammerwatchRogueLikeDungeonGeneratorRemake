@@ -661,6 +661,24 @@ export interface BossArenaOptions {
    * boss-only fields.
    */
   bossLineup?: Partial<Record<BossId, number>>
+  /**
+   * Whether this arena spawns the `actors/boss_*` bodyguard twins for the 5
+   * near-duplicate actors that have one (issue #64 part 2) — `archer_1`,
+   * `skeleton_1`, `skeleton_1_small`, `skeleton_3` and `mummy_ranged_2`.
+   * **Absent means ON**, read through `arenaUsesBodyguards`, never off the
+   * field directly — the toggle's whole point is "the twins are the arena's
+   * default now", so a fresh fight and every parameter object built before
+   * this feature both get twins on without writing anything to
+   * `parameters.txt`.
+   *
+   * A pure path substitution (`resolveArenaActorPath` in monsterTypes.ts) —
+   * it draws nothing from `ctx.bossRand` or any other stream, so flipping it
+   * moves no arena's layout, only which actor path a wave/row names. Applies
+   * only to a key that names one of the 5 twinned actors directly; a spawner
+   * variant such as `skeleton1#0` still spawns the plain spawner prop,
+   * because the spawner has no boss-folder twin.
+   */
+  bodyguardVariants?: boolean
 }
 
 /**
@@ -1166,6 +1184,16 @@ export function floorBossCount(boss: DungeonBoss): number {
 }
 
 /**
+ * `arena.bodyguardVariants`, with the absent-means-on default applied (issue
+ * #64 part 2) — read every arena's toggle through this, never off the field.
+ * Dungeon floors (`dungeonBoss/`) never read this at all: the twin swap is
+ * arena-only.
+ */
+export function arenaUsesBodyguards(arena: BossArenaOptions): boolean {
+  return arena.bodyguardVariants !== false
+}
+
+/**
  * Whether `count` bosses means the engine's `Boss 75%/50%/25%/Died` events can
  * no longer be trusted to mean any one particular boss — the single gate every
  * multi-boss rig and validation rule reads, so "more than one" is decided in
@@ -1522,7 +1550,8 @@ export const SHOOTER_ARROW_TRAPS: BossTrap[] = [
  * the old table had spawned ~1140 monsters by the 50% threshold and the fight
  * was pathfinding-bound long before that. The `#0` spawner props are cut hardest
  * because they keep emitting for the rest of the fight — they are a rate, not a
- * quantity. Totals now: 152 / 137 / 117 / 38 / 21.
+ * quantity. Totals were 152 / 137 / 117 / 38 / 15; issue #64 part 2 added the
+ * knight's own bodyguards on top (4 / 4 / 4 / 1), giving 152 / 141 / 121 / 42 / 16.
  */
 function castleWaves(): BossWave[] {
   const drops = stockWavePickups()
@@ -1554,7 +1583,9 @@ function castleWaves(): BossWave[] {
         ['mb_maggot', 1],
         ['skeleton1#0', 2],
         ['archer1#0', 2],
-        ['slime#0', 6]
+        ['slime#0', 6],
+        // the knight's own guard (issue #64 part 2) — bodyguards.
+        ['knight_guard', 4]
       ],
       [],
       3000
@@ -1571,7 +1602,10 @@ function castleWaves(): BossWave[] {
         ['tower_flower2', 2],
         ['tower_flower3', 1],
         ['mb_skeleton', 4],
-        ['mb_eye', 1]
+        ['mb_eye', 1],
+        // bodyguards
+        ['lich_guard_lich', 2],
+        ['knight_guard_lich1', 2]
       ],
       [],
       2000,
@@ -1588,7 +1622,10 @@ function castleWaves(): BossWave[] {
         ['tower_archer3', 5],
         ['eye#0', 5],
         ['archer2#0', 4],
-        ['skeleton2#0', 4]
+        ['skeleton2#0', 4],
+        // bodyguards
+        ['knight_guard_lich2', 2],
+        ['lich_mirror', 2]
       ],
       [['tower_nova1', 3]],
       1000,
@@ -1605,7 +1642,9 @@ function castleWaves(): BossWave[] {
         ['lich', 2],
         ['lich#0', 2],
         ['mb_lich', 1],
-        ['mb_doomspawn', 2]
+        ['mb_doomspawn', 2],
+        // the knight's summoner guard, sent off with everything else — bodyguards.
+        ['knight_guard_lich3', 1]
       ],
       [['tower_nova2', 2]],
       1000,
