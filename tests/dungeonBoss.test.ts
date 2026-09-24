@@ -26,7 +26,7 @@
 import { describe, expect, it } from 'vitest'
 import { generateDungeon } from '../src/generator'
 import type { DungeonParameters, DungeonResult, DungeonBoss } from '../src/generator'
-import { defaultDungeonBoss, MOBILE_BOSS_IDS } from '../src/generator'
+import { defaultDungeonBoss, MOBILE_BOSS_IDS, MAX_BOSS_COUNT, BOSS_COUNT_WARN } from '../src/generator'
 import { validateParameters } from '../src/generator/config/validation'
 import { parseParametersTxt, serializeParametersTxt } from '../src/generator/config/configFile'
 import { BOSS_DEFS, BOSS_DEF_LIST } from '../src/generator/boss/bosses'
@@ -510,6 +510,71 @@ describe('dungeon boss — validation', () => {
       `levelBoss.${BOSS_FLOOR}.invulnerability`
     )
   })
+
+  it('accepts a multi-boss floor with both invulnerability and timer mode — the error is single-boss only (issue #64 part 1)', () => {
+    const params = withBoss({
+      bossCount: 2,
+      bossPool: ['boss_knight', 'boss_lich'],
+      invulnerability: { enabled: true, seconds: [10, 10, 10], countdown: true }
+    })
+    const timers = params.levelTimers as { enabled: boolean; seconds: number }[]
+    timers[BOSS_FLOOR] = { ...timers[BOSS_FLOOR], enabled: true }
+
+    expect(fields(validateParameters(params).errors)).not.toContain(`levelBoss.${BOSS_FLOOR}.invulnerability`)
+  })
+
+  it(`accepts bossCount 1..${MAX_BOSS_COUNT} and rejects out-of-range or non-integer values`, () => {
+    for (const n of [1, 2, 4, MAX_BOSS_COUNT]) {
+      expect(fields(validateParameters(withBoss({ bossCount: n })).errors)).not.toContain(`levelBoss.${BOSS_FLOOR}.bossCount`)
+    }
+    for (const bad of [0, -1, 2.5, MAX_BOSS_COUNT + 1]) {
+      expect(fields(validateParameters(withBoss({ bossCount: bad })).errors)).toContain(`levelBoss.${BOSS_FLOOR}.bossCount`)
+    }
+  })
+
+  it('lineup mode: does not read bossPool, restricts to MOBILE_BOSS_IDS, and totals 1..MAX_BOSS_COUNT (issue #64 follow-up)', () => {
+    const ok = withBoss({ bossPool: [], bossSelection: 'lineup', bossLineup: { boss_knight: 2, boss_lich: 1 } })
+    const okResult = validateParameters(ok)
+    expect(fields(okResult.errors)).not.toContain(`levelBoss.${BOSS_FLOOR}.bossPool`)
+    expect(fields(okResult.errors)).not.toContain(`levelBoss.${BOSS_FLOOR}.bossLineup`)
+
+    // Dragon and queen are not mobile — the same restriction bossPool already
+    // carries — so a lineup naming either is an error, not the "cannot repeat
+    // a unique boss" one.
+    const stationary = withBoss({ bossSelection: 'lineup', bossLineup: { boss_dragon: 1 } })
+    expect(fields(validateParameters(stationary).errors)).toContain(`levelBoss.${BOSS_FLOOR}.bossLineup`)
+
+    const empty = withBoss({ bossSelection: 'lineup', bossLineup: {} })
+    expect(fields(validateParameters(empty).errors)).toContain(`levelBoss.${BOSS_FLOOR}.bossLineup`)
+
+    const tooMany = withBoss({ bossSelection: 'lineup', bossLineup: { boss_knight: MAX_BOSS_COUNT + 1 } })
+    expect(fields(validateParameters(tooMany).errors)).toContain(`levelBoss.${BOSS_FLOOR}.bossLineup`)
+  })
+
+  it('warns, but does not error, above BOSS_COUNT_WARN in floor lineup mode', () => {
+    const params = withBoss({ bossSelection: 'lineup', bossLineup: { boss_knight: BOSS_COUNT_WARN + 1 } })
+    const result = validateParameters(params)
+    expect(fields(result.errors)).not.toContain(`levelBoss.${BOSS_FLOOR}.bossLineup`)
+    expect(fields(result.warnings)).toContain(`levelBoss.${BOSS_FLOOR}.bossLineup`)
+  })
+
+  // The "ignored settings still have content" warning was removed: the
+  // renderer now hides 75/50/25% content and invulnerability entirely once a
+  // floor's boss count is >= 2, so a warning pointing at a hidden field would
+  // be noise. Values still round-trip losslessly. See the "Validation noise"
+  // section of the issue #64 UI follow-up plan.
+  it('does not error when a multi-boss floor still carries 75/50/25% content or invulnerability', () => {
+    const waves = waveOn(1, { bat1: 5 })
+    const result = validateParameters(
+      withBoss({
+        bossCount: 2,
+        bossPool: ['boss_knight', 'boss_lich'],
+        waves,
+        invulnerability: { enabled: true, seconds: [10, 10, 10], countdown: true }
+      })
+    )
+    expect(result.errors).toEqual([])
+  })
 })
 
 describe('dungeon boss — parameters.txt', () => {
@@ -557,6 +622,48 @@ describe('dungeon boss — parameters.txt', () => {
     expect(back?.waves[1].traps).toEqual([
       { projectile: 'shooter_arrow', direction: 'up', spread: 0.5, spawnRateMs: 900, count: 3 }
     ])
+  })
+
+  it('writes the bossCount as a 4th field only when it differs from 1, and round-trips it (issue #64 part 1)', () => {
+    const stockText = serializeParametersTxt(withBoss({}))
+    expect(stockText).toMatch(/^bossFloor1=1\|[^|]*\|[^|]*$/m) // exactly 3 fields, no trailing |N
+
+    const params = withBoss({ bossCount: 3, bossPool: ['boss_knight', 'boss_lich'] })
+    const text = serializeParametersTxt(params)
+    expect(text).toMatch(/^bossFloor1=1\|boss_knight,boss_lich\|1\.000000\|3$/m)
+
+    const parsed = parseParametersTxt(text, bareParams())
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.levelBoss?.[BOSS_FLOOR].bossCount).toBe(3)
+
+    // An old 3-field line parses to bossCount undefined (absent = 1).
+    const legacy = text.replace('|3', '')
+    const legacyParsed = parseParametersTxt(legacy, bareParams())
+    expect(legacyParsed.params.levelBoss?.[BOSS_FLOOR].bossCount).toBeUndefined()
+  })
+
+  it('writes bossFloor<i>Selection/Lineup only in lineup mode, in BOSS_IDS order, and round-trips (issue #64 follow-up)', () => {
+    const stockText = serializeParametersTxt(withBoss({}))
+    expect(stockText).not.toMatch(/bossFloor1Selection=/)
+    expect(stockText).not.toMatch(/bossFloor1Lineup=/)
+
+    const params = withBoss({
+      bossSelection: 'lineup',
+      // Deliberately out of BOSS_IDS order in the source object.
+      bossLineup: { boss_worm: 1, boss_knight: 2 }
+    })
+    const text = serializeParametersTxt(params)
+    expect(text).toMatch(/^bossFloor1Selection=lineup$/m)
+    expect(text).toMatch(/^bossFloor1Lineup=boss_knight:2,boss_worm:1$/m)
+
+    const parsed = parseParametersTxt(text, bareParams())
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.levelBoss?.[BOSS_FLOOR].bossSelection).toBe('lineup')
+    expect(parsed.params.levelBoss?.[BOSS_FLOOR].bossLineup).toEqual({ boss_knight: 2, boss_worm: 1 })
+
+    // A legacy file with neither key parses to 'random' (absent).
+    const legacyParsed = parseParametersTxt(stockText, bareParams())
+    expect(legacyParsed.params.levelBoss?.[BOSS_FLOOR]?.bossSelection).toBeUndefined()
   })
 
   it('round-trips wave pickups, and writes none for a tier without them', () => {

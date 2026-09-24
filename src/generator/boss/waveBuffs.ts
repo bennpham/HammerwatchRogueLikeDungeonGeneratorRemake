@@ -35,8 +35,9 @@ import type { BossWave, BuffTarget } from '../config/parameters'
 import { BUFF_REFRESH_MS, BUFF_TARGET_TYPES, waveBuffs } from '../config/parameters'
 import type { BuffDef } from '../objects/buffTypes'
 import { buffById } from '../objects/buffTypes'
-import { NodeDangerArea, NodeGlobalEventTrigger, NodeRectangleShape, NodeToggleElement } from '../objects/nodes'
-import { TIER_EVENT_NAMES } from './waves'
+import { NodeDangerArea, NodeRectangleShape, NodeToggleElement } from '../objects/nodes'
+import type { TierSource } from './tierSource'
+import { singleBossTierSource } from './tierSource'
 
 /**
  * Slack added to the covering rectangle on each axis, so the field reaches the
@@ -59,7 +60,8 @@ export function buildWaveBuffRig(
   arenaWidth: number,
   arenaHeight: number,
   x: number,
-  y: number
+  y: number,
+  tierSource: TierSource = singleBossTierSource()
 ): void {
   const carried: { def: BuffDef; target: BuffTarget }[][] = waves.map((wave) =>
     waveBuffs(wave).flatMap((entry) => {
@@ -76,6 +78,9 @@ export function buildWaveBuffRig(
   for (let tier = 0; tier < carried.length; tier++) {
     const entries = carried[tier]
     if (entries.length === 0) continue
+    // Multi-boss (issue #64 part 1): tiers 75/50/25% skipped entirely, before
+    // building so much as a DangerArea for them.
+    if (tier > 0 && tierSource.skipTier(tier)) continue
 
     // Nodes are placed off the arena, one column per tier — cosmetic editor
     // markers only, nothing about the rig is positional.
@@ -107,7 +112,7 @@ export function buildWaveBuffRig(
 
     if (tier > 0) {
       row += 1
-      const trigger = new NodeGlobalEventTrigger(ctx, col, row, TIER_EVENT_NAMES[tier - 1])
+      const trigger = tierSource.tierTrigger(ctx, col, row, tier)
 
       for (const stale of previous) {
         row += 1

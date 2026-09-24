@@ -72,11 +72,12 @@ import type { Gateway } from '../campaign'
 import type { BossArenaOptions, SurvivalOptions } from '../config/parameters'
 import type { LevelPreview, PreviewRoom } from '../index'
 import { ENTRANCE_DEPTH, ENTRANCE_WIDTH, anchors } from './anchors'
-import { BOSS_DEFS, topWallBossClearance, topWallBossY } from './bosses'
-import type { AlcoveWall, BossId } from './bosses'
+import { BOSS_DEFS, expandLineup, pickBosses, topWallBossClearance, topWallBossY } from './bosses'
+import type { AlcoveWall, BossDef, BossId } from './bosses'
 import { isFree, placeCoverPillars, reachableMask } from './cover'
 import type { CoverArena, Rect } from './cover'
-import { buildWaveRig, scatterRequests } from './waves'
+import { arenaBossLayout } from './geometry'
+import { TIER_EVENT_NAMES, buildWaveRig, scatterRequests } from './waves'
 import { buildInvulnerabilityRig } from './invulnerability'
 import { buildWaveBuffRig } from './waveBuffs'
 import { buildWavePickupRig } from './wavePickups'
@@ -86,6 +87,9 @@ import { buildCheckpointRig } from './checkpoints'
 import { buildMusicRig } from '../music/rig'
 import { placeSpawnPoints } from './spawnPoints'
 import { buildSurvivalRig } from '../survival'
+import { arenaBossCount, bossSelection, isMultiBoss } from '../config/parameters'
+import { buildAllBossesDied, multiBossTierSource, singleBossTierSource } from './tierSource'
+import type { TierSource } from './tierSource'
 
 /**
  * Side of the square the arrival-respawn trigger watches, centred on the
@@ -181,23 +185,53 @@ export function buildBossArena(
   // runs. A survival arena skips the pick entirely rather than drawing and
   // discarding — the arena has no boss, and a draw made for nothing would be
   // exactly the "draw and discard" invariant 2 forbids.
-  const bossDef = isSurvival ? undefined : BOSS_DEFS[arena.bossPool[ctx.bossRand.iRand(0, arena.bossPool.length)] as BossId]
+  //
+  // Multi-boss (issue #64 part 1): bossCount > 1 draws bossCount candidates
+  // through pickBosses, IMMEDIATELY after where the single pick has always
+  // drawn its one value — so a count-1 arena still draws exactly what it
+  // always did, and only count > 1 (a strictly new configuration) adds draws.
+  //
+  // Exact lineups (issue #64 follow-up): 'lineup' mode takes expandLineup()
+  // instead of any pick at all — ZERO ctx.bossRand draws for the boss choice,
+  // whatever the lineup's total comes to. bossPool is not read in this mode.
+  // This is a new option, so it can only move THIS arena and the ones after
+  // it in fight order — 'random' mode's draw is completely untouched.
+  const bossCount = isSurvival ? 0 : arenaBossCount(arena)
+  const multi = isMultiBoss(bossCount)
+  const pickedIds: BossId[] = isSurvival
+    ? []
+    : bossSelection(arena) === 'lineup'
+      ? expandLineup(arena.bossLineup)
+      : multi
+        ? pickBosses(ctx.bossRand, arena.bossPool, bossCount)
+        : [arena.bossPool[ctx.bossRand.iRand(0, arena.bossPool.length)] as BossId]
+  const pickedDefs = pickedIds.map((id) => BOSS_DEFS[id])
+  // Single-boss shorthand: the def every pre-existing call site below still
+  // reads. Unused once `multi` is true.
+  const bossDef = pickedDefs[0]
+  // The topWall boss (dragon, if picked — at most one, it's unique) and the
+  // primary centre boss (queen if picked, else the first centre boss in pick
+  // order) — the two anchors() and arenaBossLayout need clearance for. For a
+  // single boss these are simply whichever one `bossDef` is, so this reduces
+  // to the historical single-boss computation.
+  const topWallDef = pickedDefs.find((d) => d.placement === 'topWall')
+  const centreDefs = pickedDefs.filter((d) => d.placement !== 'topWall')
+  const centrePrimaryDef = centreDefs.find((d) => d.id === 'boss_queen') ?? centreDefs[0]
 
   const midX = Math.trunc(width / 2)
   const midY = Math.trunc(height / 2)
   // A topWall boss is inset from the north wall, not flush against it: its
   // collider (offset included) has to clear the wall band or the engine leaves
   // it unreachable and unable to fire. bosses.ts owns that math.
-  const bossLocal =
-    bossDef !== undefined && bossDef.placement === 'topWall' ? { x: midX, y: topWallBossY(bossDef) } : { x: midX, y: midY }
+  const bossLocal = topWallDef !== undefined && centrePrimaryDef === undefined ? { x: midX, y: topWallBossY(topWallDef) } : { x: midX, y: midY }
 
-  // Seeded pick of N/E/W (S is always the entrance), filtered by the boss's
-  // own vetoes. Never empty: only the dragon forbids a wall (N), leaving at
+  // Seeded pick of N/E/W (S is always the entrance), filtered by the UNION of
+  // every picked boss's own vetoes. Never empty: only the dragon forbids a
+  // wall (N) and it is unique (at most one may ever be picked), leaving at
   // least 2 of the 3 candidates, so this needs no retry loop. A survival arena
   // has no boss to veto anything, so all three stay in.
-  const alcoveCandidates = (['N', 'E', 'W'] as AlcoveWall[]).filter(
-    (w) => bossDef === undefined || !bossDef.forbiddenAlcoveWalls.includes(w)
-  )
+  const forbiddenWalls = new Set<AlcoveWall>(pickedDefs.flatMap((d) => d.forbiddenAlcoveWalls))
+  const alcoveCandidates = (['N', 'E', 'W'] as AlcoveWall[]).filter((w) => !forbiddenWalls.has(w))
   const alcoveWall = alcoveCandidates[ctx.bossRand.iRand(0, alcoveCandidates.length)]
 
   const themeDef = getTheme(arena.theme) ?? THEME_DEFS[0]
@@ -364,26 +398,6 @@ export function buildBossArena(
   // `need-sync: true` must stay exactly identical — see the wiring below.
   const alcoveSeals = wallSeals
 
-  // --- boss actor: a bare actor placement, no rig of its own — the engine
-  // fires the "Boss ..." global events for any actor under actors/boss_*/. A
-  // one-off MonsterTypeDef (never added to MONSTER_TYPES) lets Monster's
-  // existing getXML() emit the {id, type, x, y} shape unchanged. ---
-  // The returned instance is kept for its id: the invulnerability rig's
-  // ToggleImmortality nodes target the boss ACTOR, not a script node.
-  // A survival arena places none: it is cleared by outlasting a clock, and the
-  // absence of the actor is exactly why the `Boss ...` events never fire and
-  // the time-keyed rig exists at all.
-  const bossActor =
-    bossDef === undefined
-      ? undefined
-      : Monster.create(
-          ctx,
-          bossLocal.x,
-          bossLocal.y,
-          { id: bossDef.id, configKey: '', tiers: [bossDef.actorPath], upgradeChance: 0, defaultMax: 0, group: 'Bosses' },
-          0
-        )
-
   // --- spawn anchors + entrance + cover pillars ---
   // Two anchors can end up inside the boss, one per placement. A wall-mounted
   // boss shares the N anchor's midX and can swallow it whole; a centre-placed
@@ -391,15 +405,17 @@ export function buildBossArena(
   // rather than spawning wave monsters inside the boss (playtest 2026-08-27).
   // A survival arena has no boss to displace an anchor, so all nine sit at
   // their plain insets.
-  const anchorList = anchors(
-    width,
-    height,
-    bossDef === undefined
-      ? {}
-      : bossDef.placement === 'topWall'
-        ? { northClearance: topWallBossClearance(bossDef, bossLocal.y) }
-        : { centreBoss: { width: bossDef.footprintWidth, height: bossDef.footprintHeight } }
-  )
+  // Both clearances are independent fields on `AnchorClearance`, so a fight
+  // carrying BOTH a topWall boss and a centre boss (multi-boss, issue #64
+  // part 1) supplies both at once — never one at the expense of the other,
+  // which reading a single `bossDef` would have done.
+  const anchorClearance = {
+    ...(topWallDef !== undefined ? { northClearance: topWallBossClearance(topWallDef, topWallBossY(topWallDef)) } : {}),
+    ...(centrePrimaryDef !== undefined
+      ? { centreBoss: { width: centrePrimaryDef.footprintWidth, height: centrePrimaryDef.footprintHeight } }
+      : {})
+  }
+  const anchorList = anchors(width, height, anchorClearance)
 
   const entranceRect: Rect = {
     x: midX - Math.trunc(ENTRANCE_WIDTH / 2),
@@ -408,18 +424,52 @@ export function buildBossArena(
     height: ENTRANCE_DEPTH
   }
 
+  // --- boss placement(s): a bare actor per boss, no rig of its own — the
+  // engine fires the "Boss ..." global events for any actor under
+  // actors/boss_*/. A one-off MonsterTypeDef (never added to MONSTER_TYPES)
+  // lets Monster's existing getXML() emit the {id, type, x, y} shape unchanged.
+  //
+  // Single boss (unchanged): one Monster.create at `bossLocal`, exactly as
+  // before this feature. Multi-boss (issue #64 part 1, draws NOTHING — pure
+  // `arenaBossLayout`): the primary centre boss sits at the same `bossLocal`
+  // a single centre boss always used; every other boss gets a fixed offset.
+  // A survival arena places none: it is cleared by outlasting a clock, and the
+  // absence of any actor is exactly why the `Boss ...` events never fire and
+  // the time-keyed rig exists at all.
+  const bossPlacements: Array<{ def: BossDef; x: number; y: number }> = isSurvival
+    ? []
+    : multi
+      ? (arenaBossLayout(width, height, entranceRect, anchorList, pickedDefs) ??
+        // Should never happen once validation gates arena size against the pool
+        // — see config/validation.ts. Falling back to the single-boss spot
+        // rather than crashing a generation pass that validation approved.
+        pickedDefs.map((def) => ({ def, x: bossLocal.x, y: bossLocal.y })))
+      : [{ def: bossDef!, x: bossLocal.x, y: bossLocal.y }]
+
+  const bossActors = bossPlacements.map((p) =>
+    Monster.create(
+      ctx,
+      p.x,
+      p.y,
+      { id: p.def.id, configKey: '', tiers: [p.def.actorPath], upgradeChance: 0, defaultMax: 0, group: 'Bosses' },
+      0
+    )
+  )
+  // Single-boss shorthand kept for the invulnerability/checkpoint rigs, which
+  // only ever run for exactly one boss (see below).
+  const bossActor = bossActors[0]
+
   const alcoveRect = boundingBox([...mouth, ...alcoveFloor])
 
   const coverArena: CoverArena = {
     width,
     height,
     theme: arena.theme,
-    // Absent in a survival arena — nothing is blocked out at the centre and
-    // the connectivity prune requires only the anchors and the alcove.
-    boss:
-      bossDef === undefined
-        ? undefined
-        : { x: bossLocal.x, y: bossLocal.y, footprintWidth: bossDef.footprintWidth, footprintHeight: bossDef.footprintHeight },
+    // Empty in a survival arena — nothing is blocked out at the centre and the
+    // connectivity prune requires only the anchors and the alcove. A
+    // single-entry list here produces identical results to the historical
+    // `boss` field (see cover.ts's `arenaBosses`).
+    bosses: bossPlacements.map((p) => ({ x: p.x, y: p.y, footprintWidth: p.def.footprintWidth, footprintHeight: p.def.footprintHeight })),
     anchors: anchorList,
     entrance: entranceRect,
     alcove: alcoveRect
@@ -477,6 +527,17 @@ export function buildBossArena(
     walkable
   )
 
+  // --- the "all bosses died" rig (issue #64 part 1), built once right after
+  // the boss actors are placed. Single boss: unused — every tier-keyed rig
+  // below keeps building its own `GlobalEventTrigger`, at the same call site
+  // it always has. Multi boss: each boss's ObjectEventTrigger(Destroyed)
+  // counts a shared Variable down and checks it for 0, and `tierSource` hands
+  // that check to every rig's death tier while skipping 75/50/25% entirely.
+  // Draws no RNG. ---
+  const tierSource = multi
+    ? multiBossTierSource(buildAllBossesDied(ctx, bossActors, entranceShape.x, entranceShape.y))
+    : singleBossTierSource()
+
   // Every rig from here to the gateway prefab listens for a `Boss ...` engine
   // event, which only a boss actor makes the game fire. In a survival arena
   // they would each emit a trigger nothing ever pulls, so none of them run —
@@ -489,18 +550,24 @@ export function buildBossArena(
       anchorList,
       entranceShape,
       spawnPoints,
-      arena.spawn.batchIntervalMs
+      arena.spawn.batchIntervalMs,
+      tierSource
     )
 
-  // --- invulnerability windows: independent of the wave tiers, but built after
-  // them so turning the feature on only ever APPENDS nodes — every wave-rig id
-  // stays where it was. Draws no random values. ---
-    buildInvulnerabilityRig(ctx, arena.invulnerability, bossActor.id, entranceShape.x, entranceShape.y)
+  // --- invulnerability windows: skipped outright for a multi-boss fight — the
+  // engine's `Boss 75/50/25%` events cannot tell which boss crossed a
+  // threshold, so a window keyed to one of them is meaningless with several.
+  // Independent of the wave tiers, but built after them so turning the
+  // feature on only ever APPENDS nodes — every wave-rig id stays where it
+  // was. Draws no random values. ---
+    if (!multi) {
+      buildInvulnerabilityRig(ctx, arena.invulnerability, bossActor.id, entranceShape.x, entranceShape.y)
+    }
 
   // --- per-tier buff fields: independent of both rigs above and built after
   // them, for the same reason — turning them on only ever APPENDS nodes, so no
   // existing arena seed moves. Draws no random values. ---
-    buildWaveBuffRig(ctx, arena.waves, width, height, entranceShape.x, entranceShape.y)
+    buildWaveBuffRig(ctx, arena.waves, width, height, entranceShape.x, entranceShape.y, tierSource)
 
   // --- per-tier item drops: last of the three optional rigs, for the same
   // append-only reason. Draws no random values — it only READS `walkable`, so
@@ -515,7 +582,8 @@ export function buildBossArena(
         entranceTop: entranceRect.y,
         walkable
       },
-      entranceShape
+      entranceShape,
+      tierSource
     )
   }
 
@@ -544,8 +612,13 @@ export function buildBossArena(
 
   // A survival arena's alcove comes down on the clock instead; its whole rig,
   // this opener included, is built below alongside the trap windows.
+  //
+  // Multi-boss (issue #64 part 1): the alcove opens on "every boss died",
+  // which is exactly the all-bosses-died CheckVariable rig `tierSource` already
+  // holds — reused here rather than building a second one, so the rig's own
+  // `buildAllBossesDied` call is the only place it is ever built for this fight.
   if (!isSurvival) {
-    const bossDied = new NodeGlobalEventTrigger(ctx, midX, midY, 'Boss Died')
+    const bossDied = multi ? tierSource.tierTrigger(ctx, midX, midY, TIER_EVENT_NAMES.length) : new NodeGlobalEventTrigger(ctx, midX, midY, 'Boss Died')
     const destroyWalls = new NodeDestroyObject(ctx, midX, midY)
     for (const seal of alcoveSeals) destroyWalls.connectDoodad(seal)
     bossDied.connectTo(destroyWalls)
@@ -625,13 +698,18 @@ export function buildBossArena(
       markerY: entranceShape.y
     })
   } else {
-    buildTrapRig(ctx, arena.waves, trapArena)
+    buildTrapRig(ctx, arena.waves, trapArena, tierSource)
 
     // --- checkpoints, for the same append-only reason as the ones above. Draws
     // no random values, so it cannot move the trap rig's bossRand draw or
     // anything laid out before it. Both checkboxes off, or an empty preset,
-    // emits nothing. Boss-only: it listens for the same `Boss ...` events. ---
-    buildCheckpointRig(ctx, arena.checkpoints, entranceShape.x, entranceShape.y)
+    // emits nothing. Boss-only: it listens for the same `Boss ...` events.
+    // Skipped outright for a multi-boss fight, for the same reason
+    // invulnerability is — a checkpoint keyed to one boss's health threshold
+    // is meaningless once the events could belong to any of several. ---
+    if (!multi) {
+      buildCheckpointRig(ctx, arena.checkpoints, entranceShape.x, entranceShape.y)
+    }
   }
 
   // --- music: the last of every optional rig. Draws no random values either,

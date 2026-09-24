@@ -17,12 +17,19 @@
 import type { GenerationContext } from '../core/context'
 import type { Doodad } from '../objects/doodad'
 import { NodeAnnounceText, NodeDestroyObject, NodeGlobalEventTrigger } from '../objects/nodes'
+import { ScriptNode } from '../objects/scriptNode'
 
 /** The engine event a boss actor fires on death. Shared with boss/waves.ts's tier names. */
 export const BOSS_DIED_EVENT = 'Boss Died'
 
 /** What the party is told when the wall comes down. */
 export const OPENED_TEXT = 'The boss is dead — the way onward has opened!'
+
+/**
+ * Pluralised for a multi-boss floor (issue #64 part 1) — the seal opens once
+ * every boss on the floor has died, not just one.
+ */
+export const OPENED_TEXT_MULTI = 'The bosses are dead — the way onward has opened!'
 
 /** How long that line stays on screen, in ms. */
 export const OPENED_ANNOUNCE_MS = 2500
@@ -38,11 +45,20 @@ export function buildFloorBossOpener(
   ctx: GenerationContext,
   seals: readonly Doodad[],
   x: number,
-  y: number
+  y: number,
+  /**
+   * The "all bosses died" CheckVariable, for a multi-boss floor (issue #64 part 1) —
+   * built once by `boss/tierSource.ts`'s `buildAllBossesDied` and passed in so
+   * this opener connects from it instead of its own `Boss Died`
+   * GlobalEventTrigger. Omitted (the default) reproduces exactly the
+   * single-boss wiring this rig has always built.
+   */
+  deathTrigger?: ScriptNode,
+  bossCount = 1
 ): void {
   if (seals.length === 0) return
 
-  const trigger = new NodeGlobalEventTrigger(ctx, x, y, BOSS_DIED_EVENT)
+  const trigger = deathTrigger ?? new NodeGlobalEventTrigger(ctx, x, y, BOSS_DIED_EVENT)
 
   // Cosmetic placement, on the wall it destroys — the same choice buttonSeal
   // makes for its own DestroyObject.
@@ -52,7 +68,7 @@ export function buildFloorBossOpener(
   trigger.connectTo(destroy)
 
   const announce = new NodeAnnounceText(ctx, x, y + 1)
-  announce.setText(OPENED_TEXT)
+  announce.setText(bossCount > 1 ? OPENED_TEXT_MULTI : OPENED_TEXT)
   announce.time = OPENED_ANNOUNCE_MS
   announce.textType = OPENED_TEXT_TYPE
   trigger.connectTo(announce)

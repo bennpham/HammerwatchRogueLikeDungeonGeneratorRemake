@@ -1,4 +1,5 @@
 import { BOSS_IDS, MOBILE_BOSS_IDS } from '../config/parameters'
+import type { Rand } from '../core/rand'
 
 /**
  * Which walls of the arena's sealed reward alcove a boss's presence rules out.
@@ -51,7 +52,21 @@ export interface BossDef {
    * issue names. Everything else chases.
    */
   mobile: boolean
+  /**
+   * Whether a campaign may only ever roll ONE of this boss — issue #64 part 1.
+   * True for exactly the dragon and the queen (`UNIQUE_BOSS_IDS`): both are
+   * one-of-a-kind set pieces (the dragon is welded to the top wall, the queen
+   * is the largest footprint by far), so a fight or a floor asking for several
+   * bosses may still only ever draw one of either. Every other boss may repeat
+   * — two liches guarding one arena is exactly what a dungeon master might
+   * want. AUTHORED, like `mobile`: nothing in the actor files answers this,
+   * it is a design call about how many of a kind belongs in one fight.
+   */
+  unique: boolean
 }
+
+/** `BossDef.unique` — see that field's comment. */
+export const UNIQUE_BOSS_IDS: readonly BossId[] = ['boss_dragon', 'boss_queen']
 
 /**
  * The seven end-boss actors and their real footprints.
@@ -88,7 +103,7 @@ export interface BossDef {
  * shallowest row whose collider clears the band; for the dragon that is row 3,
  * which is the hand-patched arena the fix was confirmed on.
  */
-const BOSS_DEFS_LIST: Omit<BossDef, 'mobile'>[] = [
+const BOSS_DEFS_LIST: Omit<BossDef, 'mobile' | 'unique'>[] = [
   {
     id: 'boss_anubis',
     actorPath: 'actors/boss_anubis/boss_anubis.xml',
@@ -166,7 +181,14 @@ const BOSS_DEFS_LIST: Omit<BossDef, 'mobile'>[] = [
 // from there and not the other way round, and one source of truth beats two
 // that a test has to keep agreeing.
 export const BOSS_DEFS: Readonly<Record<BossId, BossDef>> = Object.fromEntries(
-  BOSS_DEFS_LIST.map((d) => [d.id, { ...d, mobile: (MOBILE_BOSS_IDS as readonly string[]).includes(d.id) }])
+  BOSS_DEFS_LIST.map((d) => [
+    d.id,
+    {
+      ...d,
+      mobile: (MOBILE_BOSS_IDS as readonly string[]).includes(d.id),
+      unique: (UNIQUE_BOSS_IDS as readonly string[]).includes(d.id)
+    }
+  ])
 ) as Record<BossId, BossDef>
 
 /** `BOSS_DEFS` as a `BOSS_IDS`-ordered array, for callers that want to iterate. */
@@ -207,4 +229,60 @@ export function topWallBossClearance(def: BossDef, bossY: number): number {
 /** Whether `id` names a boss a dungeon floor may host — see MOBILE_BOSS_IDS. */
 export function isMobileBoss(id: string): boolean {
   return (MOBILE_BOSS_IDS as readonly string[]).includes(id)
+}
+
+/**
+ * Picks `count` bosses from `pool` (a subset of `BOSS_IDS`), one
+ * `iRand(0, candidates.length)` draw per pick — issue #64 part 1.
+ *
+ * Dragon and queen are unique: once picked, that id is removed from the
+ * candidate list so it can never be rolled a second time in the same fight or
+ * floor. Every other boss stays in the pool and may repeat.
+ *
+ * `count = 1` draws exactly the single `iRand(0, pool.length)` this port has
+ * always drawn for one boss — same call site inputs, same math — so a
+ * single-boss fight or floor built through this function is byte-identical to
+ * one built the old way. Callers with `count = 1` keep their historical code
+ * path anyway (see `arena.ts`/`dungeonBoss/actor.ts`); this function exists
+ * for `count > 1`, and is exercised at `count = 1` only by its own tests.
+ *
+ * Bounded: at most `count` draws, and the candidate list only ever shrinks, so
+ * this returns after at most `count` iterations — it never spins looking for
+ * a boss that cannot be drawn. A pool that runs out of unique candidates
+ * before `count` is reached (e.g. a two-entry, all-unique pool asked for four
+ * bosses) simply returns fewer than `count` ids; `config/validation.ts` is the
+ * gate that stops such a pool from reaching generation at all.
+ */
+export function pickBosses(rand: Rand, pool: readonly string[], count: number): BossId[] {
+  const candidates = [...pool] as BossId[]
+  const picked: BossId[] = []
+  for (let i = 0; i < count; i++) {
+    if (candidates.length === 0) break
+    const index = rand.iRand(0, candidates.length)
+    const id = candidates[index]
+    picked.push(id)
+    if (BOSS_DEFS[id].unique) candidates.splice(index, 1)
+  }
+  return picked
+}
+
+/**
+ * Every boss `lineup` describes, in `BOSS_IDS` order (never `Object.keys` —
+ * determinism, invariant 2), each id repeated `count` times — the exact-count
+ * sibling of `pickBosses` for `bossSelection: 'lineup'` (issue #64 follow-up).
+ *
+ * Draws NOTHING: no `ctx.bossRand`/`ctx.floorBossRand` value, unlike
+ * `pickBosses`. A missing, non-integer or non-positive count contributes
+ * nothing — `config/validation.ts` is the real gate for a malformed lineup,
+ * this is only defensive.
+ */
+export function expandLineup(lineup: Partial<Record<BossId, number>> | undefined): BossId[] {
+  if (lineup === undefined) return []
+  const ids: BossId[] = []
+  for (const id of BOSS_IDS) {
+    const count = lineup[id]
+    if (count === undefined || !Number.isInteger(count) || count <= 0) continue
+    for (let i = 0; i < count; i++) ids.push(id)
+  }
+  return ids
 }

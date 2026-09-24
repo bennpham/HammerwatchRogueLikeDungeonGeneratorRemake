@@ -8,6 +8,150 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-23 — the Variable-countdown multi-boss rig also works in arenas and drives every death-tier rig
+**Tag:** [VERIFIED] (user playtest). The playtest covered generated output from
+commit `f7bbdd2`.
+**Context:** This follows up the entry directly below, which left two things
+[EMITTED]. The user confirmed that everything works in game, including the
+"extra traps after the boss dies" settings.
+**Finding:** Two things are now confirmed [VERIFIED]:
+- The `Variable` / `ChangeVariable` / `CheckVariable` rig works in a multi-boss
+  **arena** as well as on a dungeon floor.
+- A `CheckVariable`'s `on-true` fires every kind of death-tier target this repo
+  wires there, not only `AnnounceText` and `DestroyObject`. That covers the
+  death-tier trap toggles and, per the user's "everything", the wave
+  `ToggleElement`s and pickup `SpawnObject`s too.
+**Still [UNVERIFIED]:** the connection-order question from the entry below.
+Nobody has tested it on purpose, and the generator's Change → Check order is
+correct either way.
+**Impact:** `ASSET-REGISTRY.md` § "Kill every boss" and the crash-triage matrix
+row no longer carry the [EMITTED] caveats.
+
+### 2026-09-23 — "kill every boss" works via `Variable` / `ChangeVariable` / `CheckVariable`; the `Counter` rig is abandoned
+**Tag:** [VERIFIED] (user playtest) for the node shapes and the rig on a
+dungeon floor; [EMITTED] for the arena and for non-seal `on-true` targets;
+[UNVERIFIED] for connection order (below).
+**Context:** The user took the generated 6-boss floor `level0.xml` (dungeon
+`dungeon1940427570`, `Counter` id 3675 with `count` 6, which opened the seal on
+the first kill; see the entry below) and rewired it by hand in the Windows
+editor. They saved it as `level0_fixed.xml`, and playing it confirmed the seal
+stays shut until the LAST of the 6 bosses dies. Its rig, which now replaces the
+`Counter`:
+- `Variable` id 3684: a bare `<int name="parameters">6</int>` (no dictionary)
+  holding the boss count. The editor saved it with `trigger-times` 1.
+- Per boss, an `ObjectEventTrigger(Destroyed, object static [actor],
+  trigger-times 1)` whose `connections` are that boss's own `ChangeVariable` and
+  its own `CheckVariable`, both at delay 0.
+- `ChangeVariable`: `<dictionary name="vars"><int-arr
+  name="static">[var id]</int-arr></dictionary>`, `<int name="mod">2</int>`,
+  `<int name="round">0</int>`, `<int name="value">1</int>`. **`mod` 2 =
+  subtract** [VERIFIED]: the countdown from 6 reached 0.
+- `CheckVariable`: `vars` as above, `<int name="cmp-func">0</int>`,
+  `<int name="cmp-val">0</int>`, `<dictionary name="on-true"><int-arr
+  name="static">[AnnounceText, DestroyObject]</int-arr></dictionary>`, and an
+  empty `<dictionary name="on-false"></dictionary>`. **`cmp-func` 0 =
+  equals** [VERIFIED]. **A CheckVariable fires its targets from `on-true`**. It
+  had no `connections` array, and an empty `on-false` loads fine [VERIFIED]. The
+  `AnnounceText` ("The bosses are dead — the way onward has opened!") and the
+  seal's `DestroyObject` both fired from `on-true` [VERIFIED].
+**Ported:** `NodeVariable`, `NodeChangeVariable` and `NodeCheckVariable` in
+`objects/nodes.ts`, wired by `boss/tierSource.ts`'s `buildAllBossesDied`.
+`NodeCounter` and the `Counter` type are deleted. Every boss's CheckVariable
+shares one `on-true` list, and `NodeCheckVariable.connectTo` appends to it,
+so every death-tier rig lands in every boss's `on-true`. An empty `on-true`
+ships as an empty dictionary rather than an empty `<int-arr>`, which would crash
+`LevelPacker.exe`.
+**Still [EMITTED], needs a playtest:**
+- the same rig in a multi-boss **arena** (the verified run was a floor);
+- `on-true` driving the other death-tier targets: waves' and buffs'
+  `ToggleElement`s, pickups' `SpawnObject`s, and trap toggles. So far only
+  `AnnounceText` and `DestroyObject` are proven there.
+**[UNVERIFIED] — does connection order matter?** In the editor save, boss 3669's
+trigger lists Check → Change and the other five list Change → Check, and the
+level still worked. Either the engine queues same-tick connections, or boss 3669
+simply was not the last to die in that run. We always emit Change → Check,
+which is correct under either reading.
+**Impact:** The "`Counter` shape is still `[UNVERIFIED]`" follow-up in the entry
+below is closed: we no longer need a `Counter`, and none should be added back.
+Invariant 6 in `CLAUDE.md`, `ASSET-REGISTRY.md` § Script node types and
+`hammerwatch-crash-triage`'s matrix row are updated.
+
+### 2026-09-23 — playtest partially confirms the multi-boss rig: `ObjectEventTrigger(Destroyed)` fires on a boss actor; the guessed `Counter` shape is refuted
+**Tag:** [VERIFIED] (user playtest) for the trigger; [VERIFIED] refutation for
+the `Counter` shape below. The REAL `Counter` shape is still `[UNVERIFIED]` —
+this entry narrows the search, it does not close it.
+**Context:** The user's first multi-boss playtest. Both uploaded levels are
+4-boss levels: `boss0.xml` (arena — anubis, krilith, lich, anubis; actors
+223–226, `Counter` id 309 with `count` 4, `ObjectEventTrigger`s 310–313, seal
+`DestroyObject` 408) and `level0.xml` (dungeon floor — knight + 3× anubis,
+`Counter` id 3720 with `count` 4). Neither level contains a `Boss Died` (or any
+`Boss N%`) `GlobalEventTrigger`. Killing ONE boss opened the door.
+**Finding 1 — `ObjectEventTrigger(Destroyed, [actor])` DOES fire for a boss
+actor's death [VERIFIED].** With no `Boss Died` wiring on the level, the only
+path to the seal's `DestroyObject` is per-boss `ObjectEventTrigger` → `Counter`
+→ `DestroyObject`, so the trigger fired.
+**Finding 2 — the guessed `Counter` shape (`<dictionary
+name="parameters"><int name="count">N</int></dictionary>`) does NOT gate on N
+[VERIFIED refutation].** With N = 4 it passed the first `Destroyed` pulse
+straight through. Most likely the engine does not read a parameter named
+`count` and falls back to firing on every trigger. The real `Counter`
+parameter shape is still unknown; the user will capture a stock one saved from
+the Windows editor. Until then:
+- **Do not "fix" this by guessing a second shape.** `NodeCounter`
+  (`objects/nodes.ts`) is the single place to change once the real shape is
+  captured.
+- The 2+ boss "door stays shut until the LAST boss dies" test must be re-run
+  after that fix.
+**Impact:** Every multi-boss arena or floor currently opens its seal (and fires
+its death tier) on the FIRST boss killed. Invariant 6 in `CLAUDE.md` and
+`hammerwatch-crash-triage`'s constraint matrix both flag this as a known gap.
+
+### 2026-09-23 — `Counter` and `ObjectEventTrigger` watching an actor are both invented, for multi-boss (issue #64 part 1)
+**Tag:** [UNVERIFIED] — neither shape has been placed or played; both are this
+port's best guess, and generation should not ship to players without a
+playtest confirming or refuting them.
+**Context:** Multiple bosses in one arena or on one dungeon floor. The engine
+fires `Boss 75%/50%/25%/Died` for the FIRST boss actor to cross a threshold or
+die and for nothing else, so with two or more bosses no rig can tell which one
+it saw — validated separately in the 2026-09-22 entry below, whose "folder"
+rule this feature otherwise relies on unchanged. The death tier is re-keyed to
+"every boss's own death": one `ObjectEventTrigger` per boss listens for that
+boss actor's own `Destroyed` event (not a doodad's or an item's — every
+verified `ObjectEventTrigger` use before this, the orb prefab included, watches
+an `Item`), each with `trigger-times: 1`, feeding one new `Counter` node whose
+`target` is the boss count. Every death-tier rig (waves, wave buffs, wave
+pickups, traps) and the alcove/seal opener connect FROM the Counter exactly as
+they would from a single boss's `GlobalEventTrigger`.
+**Node shapes chosen, and why:**
+- `NodeObjectEventTrigger` generalised to accept a raw id via `connectObject(o:
+  {id})`, alongside the existing `connectItem(Item)` — same underlying
+  `<int-arr name="object"><static>` array, just not restricted to `Item`
+  instances any more. Nothing evidences the engine accepts an ACTOR id here
+  rather than an item/doodad id; it is inferred from `Destroyed` being a
+  generic object-lifecycle event name, not proven.
+- `NodeCounter`: `<dictionary name="parameters"><int name="count">N</int>
+  </dictionary>`, modelled on every other node here with one numeric setting
+  (`NodeTimerTrigger`, `NodeToggleElement`). No assumption is made about
+  whether the count is a target to reach, a remaining budget, or something
+  else entirely — the field name `count` and its semantics (fire connections
+  once N `Destroyed` events have arrived) are this port's invention.
+**Playtest recipe to confirm or refute before this ships:** build a 2-boss
+arena (`boss<f>Count=2`), enter it, and kill both bosses. If the alcove opens
+and the death-tier drops appear, the `Counter` shape works as guessed — tag it
+[VERIFIED] and update this entry and `hammerwatch-project`'s invariant 6.
+If nothing happens after both bosses die, the party is stuck behind the seal:
+capture the level's exported XML, check the editor's own node palette (if
+`Counter` is not a real type there, that confirms it is fictional and this
+whole rig needs a different mechanism — candidates to try next: chaining N
+`ObjectEventTrigger`s so trigger *i*'s `Destroyed` is only reachable once
+trigger *i-1* has fired (no free-standing count), or wiring a `Boss Died` from
+each boss actor individually if `boss-hp`/the `Boss …` events turn out to be
+per-actor rather than per-level as this port assumed everywhere else).
+**Impact:** validation and the generator behave as if this rig works; the
+handback for issue #64 part 1 flags it explicitly as needing this playtest
+before merge to players, per the constraint matrix in
+`hammerwatch-crash-triage`.
+
 ### 2026-09-22 — the `actors/boss_*` folders hold bodyguards, not just bosses; `boss-hp` may be the real `Boss …` trigger
 **Tag:** [UNVERIFIED] — read from the extracted XML only; nothing placed or played.
 **Context:** Issue #64's "Bodyguards to Include" discovery phase. Full audit

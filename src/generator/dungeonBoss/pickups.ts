@@ -29,7 +29,8 @@ import type { Level } from '../map/level'
 import { pickupById } from '../objects/pickupTypes'
 import { NodeGlobalEventTrigger, NodeSpawnObject } from '../objects/nodes'
 import { LEVEL_LOADED_EVENT } from '../core/events'
-import { TIER_EVENT_NAMES } from '../boss/waves'
+import type { TierSource } from '../boss/tierSource'
+import { singleBossTierSource } from '../boss/tierSource'
 import type { Slot } from '../traps/slots'
 import { takeSlot } from '../traps/slots'
 import { floorInteriorSlots } from './placement'
@@ -43,7 +44,8 @@ export function buildFloorBossPickupRig(
   waves: readonly BossWave[],
   level: Level,
   x: number,
-  y: number
+  y: number,
+  tierSource: TierSource = singleBossTierSource()
 ): void {
   const carried: WavePickup[][] = waves.map((wave) =>
     wavePickups(wave).filter((entry) => pickupById(entry.item) !== undefined && entry.count > 0)
@@ -64,9 +66,11 @@ export function buildFloorBossPickupRig(
   for (let tier = 0; tier < carried.length; tier++) {
     const entries = carried[tier]
     if (entries.length === 0) continue
+    // Multi-boss (issue #64 part 1): tiers 75/50/25% skipped entirely.
+    if (tier > 0 && tierSource.skipTier(tier)) continue
 
     row += 1
-    const trigger = new NodeGlobalEventTrigger(ctx, x, row, tier === 0 ? LEVEL_LOADED_EVENT : TIER_EVENT_NAMES[tier - 1])
+    const trigger = tier === 0 ? new NodeGlobalEventTrigger(ctx, x, row, LEVEL_LOADED_EVENT) : tierSource.tierTrigger(ctx, x, row, tier)
 
     for (const entry of entries) {
       const def = pickupById(entry.item)!

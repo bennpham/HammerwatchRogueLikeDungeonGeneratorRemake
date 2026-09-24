@@ -34,10 +34,12 @@ import type { GenerationContext } from '../core/context'
 import type { BossWave } from '../config/parameters'
 import type { Slot } from '../traps/slots'
 import { takeSlot } from '../traps/slots'
-import { scaledMax, splitRoundRobin, TIER_EVENT_NAMES } from '../boss/waves'
+import { scaledMax, splitRoundRobin } from '../boss/waves'
 import { resolveActorPath } from '../objects/monsterTypes'
 import { LEVEL_LOADED_EVENT } from '../core/events'
 import { NodeGlobalEventTrigger, NodeSpawnObject, NodeTimerTrigger, NodeToggleElement } from '../objects/nodes'
+import type { TierSource } from '../boss/tierSource'
+import { singleBossTierSource } from '../boss/tierSource'
 
 /**
  * How many distinct points one tier's monster is dealt across.
@@ -63,7 +65,8 @@ export function buildFloorBossWaveRig(
   monsterMultiplier: number,
   pool: Slot[],
   x: number,
-  y: number
+  y: number,
+  tierSource: TierSource = singleBossTierSource()
 ): void {
   if (waves.every((wave) => wave.monsters.length === 0)) return
   if (pool.length === 0) return
@@ -73,6 +76,9 @@ export function buildFloorBossWaveRig(
   for (let tier = 0; tier < waves.length; tier++) {
     const wave = waves[tier]
     if (wave.monsters.length === 0) continue
+    // Multi-boss (issue #64 part 1): tiers 75/50/25% skipped entirely, before
+    // any point is drawn for them.
+    if (tier > 0 && tierSource.skipTier(tier)) continue
 
     // Each tier gets its own points, drawn once and shared by every monster in
     // it — so a tier arrives as one spread-out wave rather than each monster
@@ -85,9 +91,7 @@ export function buildFloorBossWaveRig(
 
     row += 1
     const triggerNode =
-      tier === 0
-        ? new NodeGlobalEventTrigger(ctx, x, row, LEVEL_LOADED_EVENT)
-        : new NodeGlobalEventTrigger(ctx, x, row, TIER_EVENT_NAMES[tier - 1])
+      tier === 0 ? new NodeGlobalEventTrigger(ctx, x, row, LEVEL_LOADED_EVENT) : tierSource.tierTrigger(ctx, x, row, tier)
 
     // Group by effective interval, preserving the order monsters first appear
     // in `wave.monsters` — Map iteration is insertion order, so this is

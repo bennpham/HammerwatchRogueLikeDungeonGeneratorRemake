@@ -1,6 +1,6 @@
 import { GenerationContext } from './core/context'
 import { Level } from './map/level'
-import { DungeonParameters, defaultParameters, bossFights, arenaMode, defaultSurvivalOptions, floorBoss } from './config/parameters'
+import { DungeonParameters, defaultParameters, bossFights, arenaMode, defaultSurvivalOptions, floorBoss, floorBossCount } from './config/parameters'
 import { validateParameters, ValidationResult } from './config/validation'
 import { emitTweakFiles } from './tweak/overrides'
 import { DEFAULT_LOBBY_PRESET_ID, buildLobby, lobbyPresetById } from './lobby'
@@ -68,8 +68,17 @@ export {
   survivalWaves,
   survivalBuffs,
   survivalPickups,
-  survivalTraps
+  survivalTraps,
+  MAX_BOSS_COUNT,
+  BOSS_COUNT_WARN,
+  BOSS_SELECTIONS,
+  bossSelection,
+  lineupTotal,
+  arenaBossCount,
+  floorBossCount,
+  isMultiBoss
 } from './config/parameters'
+export type { BossSelection } from './config/parameters'
 export { BUFF_DEFS, BUFF_GROUPS, BUFF_HELPFUL_IDS, buffById } from './objects/buffTypes'
 export type { BuffDef } from './objects/buffTypes'
 export { PICKUP_DEFS, PICKUP_GROUPS, MAX_PICKUP_COUNT, pickupById } from './objects/pickupTypes'
@@ -112,8 +121,17 @@ export {
   upgradeItemPath
 } from './levelTemplate/surgery'
 export type { UpgradeCounts, UpgradeKind } from './levelTemplate/surgery'
-export type { BossDef, BossId } from './boss'
-export { BOSS_DEF_LIST } from './boss'
+export type { BossDef, BossId, BossPlacement } from './boss'
+export {
+  BOSS_DEF_LIST,
+  UNIQUE_BOSS_IDS,
+  ARENA_LAYOUT_SLOTS,
+  BOSS_LAYOUT_GAP,
+  arenaBossLayout,
+  expandLineup,
+  isMobileBoss,
+  pickBosses
+} from './boss'
 export { parseParametersTxt, serializeParametersTxt } from './config/configFile'
 export type { ParsedConfig } from './config/configFile'
 export {
@@ -372,7 +390,7 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
     // out is a sealed portal room rather than a stairs room, which `Level` and
     // `Room.transform` decide while the floor is being built, not after.
     const levelBoss = floorBoss(params, i)
-    ctx.floorBoss = levelBoss !== undefined
+    ctx.floorBoss = levelBoss !== undefined ? floorBossCount(levelBoss) : 0
 
     let level: Level | null = null
     for (let attempt = 0; attempt < MAX_LEVEL_ATTEMPTS; attempt++) {

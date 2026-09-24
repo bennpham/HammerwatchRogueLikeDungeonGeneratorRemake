@@ -1,5 +1,16 @@
 import React, { useState } from 'react'
-import { BOSS_DEF_LIST, defaultDungeonBoss, pickupById, waveBuffs, wavePickups, waveTraps } from '../../generator'
+import {
+  BOSS_DEATH_WAVE,
+  BOSS_DEF_LIST,
+  bossSelection,
+  defaultDungeonBoss,
+  floorBossCount,
+  isMultiBoss,
+  pickupById,
+  waveBuffs,
+  wavePickups,
+  waveTraps
+} from '../../generator'
 import type { DungeonBoss, DungeonParameters, BossWave, ValidationIssue } from '../../generator'
 import { NumberField, Section, Subsection } from './fields'
 import { BuffListEditor } from './BuffListEditor'
@@ -8,6 +19,7 @@ import { PickupListEditor } from './PickupListEditor'
 import { WaveEditor, WAVE_LABELS } from './WaveEditor'
 import { InvulnerabilityEditor, invulnBadge } from './InvulnerabilityEditor'
 import { CheckpointsEditor, checkpointBadge } from './CheckpointsEditor'
+import { BossSelectionEditor } from './BossSelectionEditor'
 
 interface DungeonBossEditorProps {
   params: DungeonParameters
@@ -69,14 +81,6 @@ export function DungeonBossEditor({ params, issues, onChange }: DungeonBossEdito
   const active = Math.min(tabIndex, Math.max(0, enabledLevels.length - 1))
   const level = enabledLevels[active]
   const boss = level !== undefined ? list[level] : undefined
-
-  const toggleBoss = (level: number, id: string, on: boolean) => {
-    const current = list[level]
-    const next = new Set(current.bossPool)
-    if (on) next.add(id)
-    else next.delete(id)
-    setFloor(level, { bossPool: [...next] })
-  }
 
   const copyWaveBuffDown = (tier: number) => {
     if (level === undefined || boss === undefined) return
@@ -181,7 +185,6 @@ export function DungeonBossEditor({ params, issues, onChange }: DungeonBossEdito
             issues={issues}
             onChange={(patch) => setFloor(level, patch)}
             onWaveChange={(tier, patch) => setWave(level, tier, patch)}
-            onToggleBoss={(id, on) => toggleBoss(level, id, on)}
             onCopyWaveBuffDown={copyWaveBuffDown}
             onCopyWaveTrapDown={copyWaveTrapDown}
             onCopyWavePickupDown={copyWavePickupDown}
@@ -203,7 +206,6 @@ interface DungeonBossFloorEditorProps {
   issues: ValidationIssue[]
   onChange: (patch: Partial<DungeonBoss>) => void
   onWaveChange: (tier: number, patch: Partial<BossWave>) => void
-  onToggleBoss: (id: string, on: boolean) => void
   onCopyWaveBuffDown: (tier: number) => void
   onCopyWaveTrapDown: (tier: number) => void
   onCopyWavePickupDown: (tier: number) => void
@@ -216,82 +218,97 @@ function DungeonBossFloorEditor({
   issues,
   onChange,
   onWaveChange,
-  onToggleBoss,
   onCopyWaveBuffDown,
   onCopyWaveTrapDown,
   onCopyWavePickupDown
 }: DungeonBossFloorEditorProps) {
   const fieldPrefix = `levelBoss.${level}`
+  const bossCount = floorBossCount(boss)
+  // Same multi-boss re-keying as an arena's bossCount (see isMultiBoss) — the
+  // generator skips the 75/50/25% tiers, invulnerability and checkpoints
+  // whenever this floor rolls more than one boss. Hidden, not disabled — the
+  // values stay on the object untouched for a later single-boss flip.
+  const multiBoss = isMultiBoss(bossCount)
+  const tierHidden = (tier: number) => multiBoss && tier !== 0 && tier !== BOSS_DEATH_WAVE
+  const visibleWaves = multiBoss ? boss.waves.filter((_, i) => !tierHidden(i)) : boss.waves
 
   return (
     <>
       <Section title="Boss" badge={`${boss.bossPool.length}/${MOBILE_BOSS_DEFS.length}`}>
         <p className="hint">
-          The seed picks one boss from this pool for this floor. Only bosses that can move are
-          offered — a stationary one parked in a room could never reach the party on an open floor.
+          Only bosses that can move are offered — a stationary one parked in a room could never
+          reach the party on an open floor.
         </p>
-        <div className="pool-checkboxes">
-          {MOBILE_BOSS_DEFS.map((def) => (
-            <label key={def.id} className="pool-checkbox">
-              <input
-                type="checkbox"
-                checked={boss.bossPool.includes(def.id)}
-                onChange={(e) => onToggleBoss(def.id, e.target.checked)}
-              />
-              {bossLabel(def.id)}
-            </label>
-          ))}
-        </div>
-        {issues
-          .filter((i) => i.field === `${fieldPrefix}.bossPool`)
-          .map((issue, i) => (
-            <p key={i} className="field-message">
-              {issue.message}
-            </p>
-          ))}
-      </Section>
-
-      <Section title="Boss invulnerability" badge={invulnBadge(boss.invulnerability)}>
-        {boss.invulnerability.enabled && (
+        {multiBoss && (
           <p className="hint">
-            Cannot run alongside this floor's own Timer mode — both would announce competing
-            countdowns. Turning this on disables the Timer toggle for this floor.
+            Multiple bosses: 75/50/25% tiers, invulnerability and checkpoints are hidden — they
+            come back when you set 1 boss.
           </p>
         )}
-        <InvulnerabilityEditor
-          invuln={boss.invulnerability}
+        <BossSelectionEditor
+          selection={bossSelection(boss)}
+          bossPool={boss.bossPool}
+          bossCount={bossCount}
+          bossLineup={boss.bossLineup}
+          defs={MOBILE_BOSS_DEFS.map((def) => ({ id: def.id, label: bossLabel(def.id), unique: def.unique }))}
           fieldPrefix={fieldPrefix}
           issues={issues}
-          onChange={(invulnerability) => onChange({ invulnerability })}
+          onChange={(patch) => onChange(patch)}
         />
-        {issues
-          .filter((i) => i.field === `${fieldPrefix}.invulnerability`)
-          .map((issue, i) => (
-            <p key={i} className="field-message">
-              {issue.message}
-            </p>
-          ))}
       </Section>
+
+      {!multiBoss && (
+        <Section title="Boss invulnerability" badge={invulnBadge(boss.invulnerability)}>
+          {boss.invulnerability.enabled && (
+            <p className="hint">
+              Cannot run alongside this floor's own Timer mode — both would announce competing
+              countdowns. Turning this on disables the Timer toggle for this floor.
+            </p>
+          )}
+          <InvulnerabilityEditor
+            invuln={boss.invulnerability}
+            fieldPrefix={fieldPrefix}
+            issues={issues}
+            onChange={(invulnerability) => onChange({ invulnerability })}
+          />
+          {issues
+            .filter((i) => i.field === `${fieldPrefix}.invulnerability`)
+            .map((issue, i) => (
+              <p key={i} className="field-message">
+                {issue.message}
+              </p>
+            ))}
+        </Section>
+      )}
 
       <Section title="Waves" defaultOpen>
         <p className="hint">
-          Each health threshold switches its tier's spawners on and never off — by 25% health all
-          four are running at once. The last tier fires when the boss dies, spawning into the walk
-          to the sealed exit. Unlike the arena, monsters here always land on interior room tiles —
-          there is no scatter mode on a dungeon floor.
+          {multiBoss
+            ? 'With several bosses only the start tier and the all-bosses-dead tier run.'
+            : 'Each health threshold switches its tier\'s spawners on and never off — by 25% health all four are running at once.'}{' '}
+          The last tier fires when the boss dies, spawning into the walk to the sealed exit. Unlike
+          the arena, monsters here always land on interior room tiles — there is no scatter mode on
+          a dungeon floor.
         </p>
-        {boss.waves.map((wave, i) => (
-          <Subsection key={i} title={WAVE_LABELS[i] ?? `Tier ${i + 1}`} badge={`${wave.monsters.length} monster(s)`}>
-            <WaveEditor
-              wave={wave}
-              index={i}
-              fieldPrefix={fieldPrefix}
-              issues={issues}
-              onWaveChange={(patch) => onWaveChange(i, patch)}
-              hideSpawnMode
-            />
-          </Subsection>
-        ))}
+        {boss.waves.map((wave, i) => {
+          if (tierHidden(i)) return null
+          return (
+            <Subsection
+              key={i}
+              title={WAVE_LABELS[i] ?? `Tier ${i + 1}`}
+              badge={`${wave.monsters.length} monster(s)`}
+            >
+              <WaveEditor
+                wave={wave}
+                index={i}
+                fieldPrefix={fieldPrefix}
+                issues={issues}
+                onWaveChange={(patch) => onWaveChange(i, patch)}
+                hideSpawnMode
+              />
+            </Subsection>
+          )
+        })}
         {issues
           .filter((i) => i.field === `${fieldPrefix}.waves`)
           .map((issue, i) => (
@@ -303,13 +320,14 @@ function DungeonBossFloorEditor({
 
       <Section
         title="Wave buffs"
-        badge={boss.waves.some((w) => waveBuffs(w).length > 0) ? 'on' : undefined}
+        badge={visibleWaves.some((w) => waveBuffs(w).length > 0) ? 'on' : undefined}
       >
         <p className="hint">
           A tier's buffs cover the whole floor and <strong>replace</strong> the previous tier's, so
           only one tier's are ever live. No tier carries one by default.
         </p>
         {boss.waves.map((wave, i) => {
+          if (tierHidden(i)) return null
           const buffs = waveBuffs(wave)
           return (
             <Subsection
@@ -339,7 +357,7 @@ function DungeonBossFloorEditor({
         })}
       </Section>
 
-      <Section title="Wave pickups" badge={boss.waves.some((w) => wavePickups(w).length > 0) ? 'on' : undefined}>
+      <Section title="Wave pickups" badge={visibleWaves.some((w) => wavePickups(w).length > 0) ? 'on' : undefined}>
         <p className="hint">
           A tier's drops appear <strong>scattered across the floor's rooms</strong> the moment its
           threshold fires, each copy on its own tile, and stay until somebody walks over them — so
@@ -348,6 +366,7 @@ function DungeonBossFloorEditor({
           default.
         </p>
         {boss.waves.map((wave, i) => {
+          if (tierHidden(i)) return null
           const pickups = wavePickups(wave)
           return (
             <Subsection
@@ -381,7 +400,7 @@ function DungeonBossFloorEditor({
         })}
       </Section>
 
-      <Section title="Traps" badge={boss.waves.some((w) => waveTraps(w).length > 0) ? 'on' : undefined}>
+      <Section title="Traps" badge={visibleWaves.some((w) => waveTraps(w).length > 0) ? 'on' : undefined}>
         <p className="hint">
           These are the same wall spewers as this floor's ordinary traps — the difference is that
           they switch on and off by the boss's health instead of being live from the moment the
@@ -389,9 +408,14 @@ function DungeonBossFloorEditor({
           by default.
         </p>
         {boss.waves.map((wave, i) => {
+          if (tierHidden(i)) return null
           const traps = waveTraps(wave)
           return (
-            <Subsection key={i} title={WAVE_LABELS[i] ?? `Tier ${i + 1}`} badge={traps.length === 0 ? 'none' : `${traps.length} row(s)`}>
+            <Subsection
+              key={i}
+              title={WAVE_LABELS[i] ?? `Tier ${i + 1}`}
+              badge={traps.length === 0 ? 'none' : `${traps.length} row(s)`}
+            >
               <TrapListEditor
                 value={traps}
                 onChange={(next) => onWaveChange(i, { traps: next })}
@@ -415,21 +439,23 @@ function DungeonBossFloorEditor({
         })}
       </Section>
 
-      <Section title="Checkpoints / Save game" badge={checkpointBadge(boss.checkpoints)}>
-        <CheckpointsEditor
-          checkpoints={boss.checkpoints}
-          onChange={(checkpoints) => onChange({ checkpoints })}
-        />
-        {issues
-          .filter(
-            (i) => i.field === `${fieldPrefix}.checkpoints.respawnPlayers` || i.field === `${fieldPrefix}.checkpoints.saveGame`
-          )
-          .map((issue, i) => (
-            <p key={i} className="field-message">
-              {issue.message}
-            </p>
-          ))}
-      </Section>
+      {!multiBoss && (
+        <Section title="Checkpoints / Save game" badge={checkpointBadge(boss.checkpoints)}>
+          <CheckpointsEditor
+            checkpoints={boss.checkpoints}
+            onChange={(checkpoints) => onChange({ checkpoints })}
+          />
+          {issues
+            .filter(
+              (i) => i.field === `${fieldPrefix}.checkpoints.respawnPlayers` || i.field === `${fieldPrefix}.checkpoints.saveGame`
+            )
+            .map((issue, i) => (
+              <p key={i} className="field-message">
+                {issue.message}
+              </p>
+            ))}
+        </Section>
+      )}
 
       <Section title="Chances & multipliers">
         <div className="field-grid">

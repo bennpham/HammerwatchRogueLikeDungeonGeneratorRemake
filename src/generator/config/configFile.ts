@@ -27,7 +27,11 @@ import {
   DEFAULT_SURVIVAL_INTERVAL_MS,
   SURVIVAL_COUNTDOWN_STYLES,
   SURVIVAL_SECONDS_MAX,
-  defaultSurvivalOptions
+  defaultSurvivalOptions,
+  arenaBossCount,
+  floorBossCount,
+  BOSS_SELECTIONS,
+  bossSelection
 } from './parameters'
 import { UPGRADE_KINDS, noUpgrades } from '../levelTemplate/surgery'
 import type { UpgradeCounts } from '../levelTemplate/surgery'
@@ -50,7 +54,8 @@ import type {
   SurvivalPickup,
   SurvivalTrap,
   SurvivalWave,
-  DungeonBoss
+  DungeonBoss,
+  BossSelection
 } from './parameters'
 import { MONSTER_FAMILIES, MONSTER_TYPES, isKnownMonsterKey } from '../objects/monsterTypes'
 import { buffById } from '../objects/buffTypes'
@@ -195,6 +200,55 @@ function newBossFightParseState(): BossFightParseState {
  * like any other key this parser no longer recognizes (invariant #5: never
  * fatal). There is no alias to a lobby index; the break is deliberately loud.
  */
+/**
+ * Parses a `<bossId>:<count>,<bossId>:<count>` value into a `bossLineup`
+ * object (issue #64 follow-up: exact lineups). Shared by the arena's
+ * `boss<f>Lineup` and the floor's `bossFloor<i>Lineup`, for the same no-drift
+ * reason `parseTrapRows` and `parsePickupRows` below are shared — the floor
+ * validates the result against `MOBILE_BOSS_IDS` itself, same as it already
+ * does for `bossPool`, so this parser accepts any `BOSS_IDS` id.
+ *
+ * A bare id with no count is one copy, the same friendliest-reading rule
+ * `parsePickupRows` uses. An unknown id or a non-numeric count is reported
+ * through `unknownKeys` and skipped, never thrown on (invariant #5); the rest
+ * of the line still parses.
+ */
+function parseLineupLine(key: string, value: string, unknownKeys: string[]): Partial<Record<string, number>> {
+  const lineup: Partial<Record<string, number>> = {}
+  for (const segment of value.split(',')) {
+    const trimmed = segment.trim()
+    if (trimmed === '') continue
+    const colon = trimmed.indexOf(':')
+    const id = (colon === -1 ? trimmed : trimmed.slice(0, colon)).trim()
+    const countText = colon === -1 ? '1' : trimmed.slice(colon + 1).trim()
+
+    if (!BOSS_IDS.includes(id as (typeof BOSS_IDS)[number])) {
+      unknownKeys.push(`${key} boss "${id}"`)
+      continue
+    }
+    const count = parseInt(countText, 10)
+    if (Number.isNaN(count)) {
+      unknownKeys.push(`${key} count "${countText}"`)
+      continue
+    }
+    lineup[id] = count
+  }
+  return lineup
+}
+
+/**
+ * Serializes a `bossLineup` object back to the `<bossId>:<count>,…` grammar
+ * `parseLineupLine` reads, always in `BOSS_IDS` order (never `Object.keys` —
+ * determinism, invariant 2) and only the positive integer counts a real
+ * lineup carries.
+ */
+function lineupLine(lineup: Partial<Record<string, number>> | undefined): string {
+  if (lineup === undefined) return ''
+  return BOSS_IDS.filter((id) => (lineup[id] ?? 0) > 0)
+    .map((id) => `${id}:${lineup[id]}`)
+    .join(',')
+}
+
 /**
  * Parses an `<item>:<count>|…` value into drop rows. Shared by the arena's
  * `boss<f>WavePickupN` and the floor's `bossFloor<i>WavePickupN`, for the same
@@ -342,7 +396,10 @@ function parseFloorBossKey(
   boss: DungeonBoss,
   unknownKeys: string[]
 ): boolean {
-  // bossFloorN=<enabled>|<bossIds>|<monsterMultiplier>
+  // bossFloorN=<enabled>|<bossIds>|<monsterMultiplier>|<bossCount>
+  // The 4th field is issue #64 part 1's boss count — only present when the
+  // file was written with more than one, so an old three-field line parses to
+  // count 1 (the field's own default) exactly as before this feature existed.
   if (suffix === '') {
     const parts = value.split('|').map((v) => v.trim())
     boss.enabled = parts[0] === '1' || parts[0]?.toLowerCase() === 'true'
@@ -362,6 +419,29 @@ function parseFloorBossKey(
       if (Number.isNaN(multiplier)) unknownKeys.push(`${key} multiplier "${parts[2]}"`)
       else boss.monsterMultiplier = multiplier
     }
+    if (parts[3] !== undefined && parts[3] !== '') {
+      const count = parseInt(parts[3], 10)
+      if (Number.isNaN(count)) unknownKeys.push(`${key} count "${parts[3]}"`)
+      else boss.bossCount = count
+    }
+    return true
+  }
+
+  // Selection mode and lineup (issue #64 follow-up), on their own keys for the
+  // same byte-compatibility reason survival's keys are — a floor that never
+  // touches lineup mode writes not one of them.
+  if (suffix === 'selection') {
+    const text = value.trim().toLowerCase()
+    if (!(BOSS_SELECTIONS as readonly string[]).includes(text)) {
+      unknownKeys.push(`${key} value "${value}"`)
+    } else {
+      boss.bossSelection = text as BossSelection
+    }
+    return true
+  }
+
+  if (suffix === 'lineup') {
+    boss.bossLineup = parseLineupLine(key, value, unknownKeys)
     return true
   }
 
@@ -778,6 +858,30 @@ function parseBossFightKey(
   }
   if (suffix === 'pool') {
     arena.bossPool = value.split(',').map((s) => s.trim()).filter((s) => s !== '')
+    return true
+  }
+  if (suffix === 'count') {
+    // issue #64 part 1. Absent means 1 — see arenaBossCount — so this key is
+    // only ever written for a fight that rolls more than one boss.
+    const n = parseInt(value.trim(), 10)
+    if (Number.isNaN(n)) unknownKeys.push(`${key} value "${value}"`)
+    else arena.bossCount = n
+    return true
+  }
+  // Selection mode and lineup (issue #64 follow-up: exact lineups), on their
+  // own keys for the same byte-compatibility reason survival's keys are — a
+  // fight that never touches lineup mode writes not one of them.
+  if (suffix === 'selection') {
+    const text = value.trim().toLowerCase()
+    if (!(BOSS_SELECTIONS as readonly string[]).includes(text)) {
+      unknownKeys.push(`${key} value "${value}"`)
+    } else {
+      arena.bossSelection = text as BossSelection
+    }
+    return true
+  }
+  if (suffix === 'lineup') {
+    arena.bossLineup = parseLineupLine(key, value, unknownKeys)
     return true
   }
   if (suffix === 'cover') {
@@ -1633,7 +1737,19 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
       // exported before the feature byte-identical.
       ;(params.levelBoss ?? []).forEach((boss, i) => {
         if (!boss.enabled) return
-        lines.push(`bossFloor${i}=1|${boss.bossPool.join(',')}|${boss.monsterMultiplier.toFixed(6)}`)
+        // The 4th field is only written when the count differs from 1 (issue
+        // #64 part 1), so a single-boss floor's line is byte-identical to
+        // before this feature existed.
+        const countSuffix = floorBossCount(boss) !== 1 ? `|${floorBossCount(boss)}` : ''
+        lines.push(`bossFloor${i}=1|${boss.bossPool.join(',')}|${boss.monsterMultiplier.toFixed(6)}${countSuffix}`)
+        // Selection mode and lineup (issue #64 follow-up), only in lineup
+        // mode — a random-mode floor writes neither, the same "not one of the
+        // six" rule survival's keys follow, so every file written before this
+        // feature round-trips byte for byte.
+        if (bossSelection(boss) === 'lineup') {
+          lines.push(`bossFloor${i}Selection=lineup`)
+          lines.push(`bossFloor${i}Lineup=${lineupLine(boss.bossLineup)}`)
+        }
         lines.push(
           `bossFloor${i}Invuln=${boss.invulnerability.enabled ? boss.invulnerability.seconds.join(',') : 'off'}`
         )
@@ -1784,6 +1900,20 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
     lines.push(`boss${f}Width=${arena.minWidth},${arena.maxWidth}`)
     lines.push(`boss${f}Height=${arena.minHeight},${arena.maxHeight}`)
     lines.push(`boss${f}Pool=${arena.bossPool.join(',')}`)
+    // Only when more than one — issue #64 part 1. Absent means 1, so a fight
+    // that never touched this rolls not one boss count line, keeping every
+    // file written before the feature byte-identical.
+    if (arenaBossCount(arena) !== 1) {
+      lines.push(`boss${f}Count=${arenaBossCount(arena)}`)
+    }
+    // Selection mode and lineup (issue #64 follow-up), only in lineup mode —
+    // a random-mode fight writes neither, the same "not one of the six" rule
+    // survival's keys follow, so every file written before this feature
+    // round-trips byte for byte.
+    if (bossSelection(arena) === 'lineup') {
+      lines.push(`boss${f}Selection=lineup`)
+      lines.push(`boss${f}Lineup=${lineupLine(arena.bossLineup)}`)
+    }
     lines.push(
       `boss${f}Cover=${arena.cover.pattern},${arena.cover.density},${arena.cover.ringSpacing},${arena.cover.clusters}`
     )

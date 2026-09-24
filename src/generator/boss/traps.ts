@@ -93,9 +93,10 @@ import type { BossTrap, BossTrapDirection, BossWave } from '../config/parameters
 import { waveTraps } from '../config/parameters'
 import type { ProjectileDef } from '../objects/projectileTypes'
 import { projectileById } from '../objects/projectileTypes'
-import { NodeGlobalEventTrigger, NodeProjectileSpewer, NodeToggleElement } from '../objects/nodes'
+import { NodeProjectileSpewer, NodeToggleElement } from '../objects/nodes'
 import { OVERHANG_ROWS, overhangRows } from '../map/reachability'
-import { TIER_EVENT_NAMES } from './waves'
+import type { TierSource } from './tierSource'
+import { singleBossTierSource } from './tierSource'
 import type { Slot } from '../traps/slots'
 import {
   SPEWER_DIRECTION,
@@ -151,7 +152,12 @@ const ALCOVE_MOUTH_HALF = 1
  * A row naming an unknown projectile, or asking for no spewers, is skipped
  * rather than thrown on; config/validation.ts is the gate.
  */
-export function buildTrapRig(ctx: GenerationContext, waves: readonly BossWave[], arena: TrapArena): void {
+export function buildTrapRig(
+  ctx: GenerationContext,
+  waves: readonly BossWave[],
+  arena: TrapArena,
+  tierSource: TierSource = singleBossTierSource()
+): void {
   const carried: { def: ProjectileDef; row: BossTrap }[][] = waves.map((wave) =>
     waveTraps(wave).flatMap((row) => {
       const def = projectileById(row.projectile)
@@ -170,6 +176,9 @@ export function buildTrapRig(ctx: GenerationContext, waves: readonly BossWave[],
   for (let tier = 0; tier < carried.length; tier++) {
     const entries = carried[tier]
     if (entries.length === 0) continue
+    // Multi-boss (issue #64 part 1): tiers 75/50/25% skipped entirely — no
+    // spewer for that tier is placed and no draw is made for it.
+    if (tier > 0 && tierSource.skipTier(tier)) continue
 
     const spewers: NodeProjectileSpewer[] = []
     for (const { def, row } of entries) {
@@ -211,7 +220,7 @@ export function buildTrapRig(ctx: GenerationContext, waves: readonly BossWave[],
       const col = arena.width + 1 + tier
       let markerRow = 0
 
-      const trigger = new NodeGlobalEventTrigger(ctx, col, markerRow, TIER_EVENT_NAMES[tier - 1])
+      const trigger = tierSource.tierTrigger(ctx, col, markerRow, tier)
 
       for (const stale of previous) {
         markerRow += 1

@@ -3,11 +3,15 @@ import { BOSS_IDS } from '../src/generator/config/parameters'
 import {
   BOSS_DEF_LIST,
   BOSS_DEFS,
+  UNIQUE_BOSS_IDS,
+  expandLineup,
   largestBossFootprintArea,
+  pickBosses,
   topWallBossClearance,
   topWallBossY
 } from '../src/generator/boss/bosses'
 import { ARENA_MIN_HEIGHT } from '../src/generator/boss/geometry'
+import { Rand } from '../src/generator/core/rand'
 
 describe('boss defs', () => {
   it('has exactly one entry per BOSS_IDS id, in order', () => {
@@ -100,5 +104,93 @@ describe('topWall boss placement', () => {
       if (def.placement === 'topWall') continue
       expect(def.collisionOffsetY ?? 0).toBe(0)
     }
+  })
+
+  it('is unique for exactly the dragon and the queen', () => {
+    for (const def of BOSS_DEF_LIST) {
+      expect(def.unique).toBe((UNIQUE_BOSS_IDS as readonly string[]).includes(def.id))
+    }
+    expect([...UNIQUE_BOSS_IDS].sort()).toEqual(['boss_dragon', 'boss_queen'])
+  })
+})
+
+describe('pickBosses (issue #64 part 1)', () => {
+  it('draws exactly count values, in order, for count = 1', () => {
+    // The single-draw contract every existing single-boss call site relies
+    // on: pickBosses(rand, pool, 1) must be indistinguishable from
+    // pool[rand.iRand(0, pool.length)].
+    const pool = [...BOSS_IDS]
+    const a = new Rand(42)
+    const b = new Rand(42)
+    const picked = pickBosses(a, pool, 1)
+    const expected = pool[b.iRand(0, pool.length)]
+    expect(picked).toEqual([expected])
+  })
+
+  it('draws exactly count values for count > 1', () => {
+    const rand = new Rand(7)
+    const picked = pickBosses(rand, [...BOSS_IDS], 4)
+    expect(picked).toHaveLength(4)
+    for (const id of picked) expect(BOSS_IDS).toContain(id)
+  })
+
+  it('never repeats a unique boss (dragon, queen) within one pick', () => {
+    // Every seed in a wide sweep, over the full pool, at the max count.
+    for (let seed = 0; seed < 500; seed++) {
+      const rand = new Rand(seed)
+      const picked = pickBosses(rand, [...BOSS_IDS], 4)
+      for (const uniqueId of UNIQUE_BOSS_IDS) {
+        expect(picked.filter((id) => id === uniqueId).length).toBeLessThanOrEqual(1)
+      }
+    }
+  })
+
+  it('allows a non-unique boss to repeat', () => {
+    // A pool of one non-unique boss, asked for several — every pick must
+    // succeed (no unique-removal shrinks the candidate list).
+    const rand = new Rand(3)
+    const picked = pickBosses(rand, ['boss_knight'], 4)
+    expect(picked).toEqual(['boss_knight', 'boss_knight', 'boss_knight', 'boss_knight'])
+  })
+
+  it('stops early rather than looping when the pool of unique bosses runs out', () => {
+    const rand = new Rand(1)
+    const picked = pickBosses(rand, ['boss_dragon', 'boss_queen'], 4)
+    expect(picked.length).toBeLessThanOrEqual(2)
+    expect(new Set(picked).size).toBe(picked.length)
+  })
+})
+
+describe('expandLineup (issue #64 follow-up)', () => {
+  it('expands each count in BOSS_IDS order, never Object.keys order', () => {
+    // Inserted deliberately out of BOSS_IDS order (boss_worm, then boss_anubis,
+    // then boss_knight) — the result must still read anubis, knight, worm.
+    const lineup = { boss_worm: 1, boss_anubis: 2, boss_knight: 3 }
+    expect(expandLineup(lineup)).toEqual([
+      'boss_anubis', 'boss_anubis',
+      'boss_knight', 'boss_knight', 'boss_knight',
+      'boss_worm'
+    ])
+  })
+
+  it('repeats an id exactly its count, including a unique boss at count 1', () => {
+    // BOSS_IDS order is anubis, dragon, knight, krilith, lich, queen, worm —
+    // so dragon comes before lich, and lich before queen, in the result.
+    expect(expandLineup({ boss_dragon: 1, boss_queen: 1, boss_lich: 4 })).toEqual([
+      'boss_dragon',
+      'boss_lich', 'boss_lich', 'boss_lich', 'boss_lich',
+      'boss_queen'
+    ])
+  })
+
+  it('skips an id at 0, undefined, negative or non-integer — draws nothing to validate that', () => {
+    expect(expandLineup({ boss_knight: 0, boss_lich: undefined, boss_worm: -1, boss_anubis: 2.5, boss_krilith: 2 })).toEqual([
+      'boss_krilith', 'boss_krilith'
+    ])
+  })
+
+  it('returns an empty list for an undefined or empty lineup', () => {
+    expect(expandLineup(undefined)).toEqual([])
+    expect(expandLineup({})).toEqual([])
   })
 })

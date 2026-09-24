@@ -52,14 +52,18 @@ export class Level {
   seals: Doodad[] = []
 
   /**
-   * Where this floor's boss stands, when it has one (issue #61).
+   * Where this floor's boss(es) stand, when it has any (issue #61, and issue
+   * #64 part 1 for more than one). One entry per boss `ctx.floorBoss` calls
+   * for — spot 0 is drawn with exactly the pattern a single-boss floor has
+   * always used; each further spot repeats the same (room, x, y) draw.
    *
-   * Chosen HERE rather than in the post-pass that places the actor, because it
-   * is pushed to `ctx.reachTargets` and so has to exist before reachability
-   * runs at the end of this constructor. A boss the party cannot walk to is a
-   * floor that can never be finished — its sealed way out would never open.
+   * Chosen HERE rather than in the post-pass that places the actors, because
+   * each is pushed to `ctx.reachTargets` and so has to exist before
+   * reachability runs at the end of this constructor. A boss the party cannot
+   * walk to is a floor that can never be finished — its sealed way out would
+   * never open.
    */
-  bossSpot: { x: number; y: number } | null = null
+  bossSpots: Array<{ x: number; y: number }> = []
 
   private ctx: GenerationContext
 
@@ -336,17 +340,23 @@ export class Level {
       if (eligible.length === 0) {
         this.levelValid = false
       } else {
-        const room = eligible[rand.iRand(0, eligible.length)]
-        // The original's Lair-spawner box, not the bare room: a boss on the
-        // tile beside a wall is inside that wall's collision and cannot walk
-        // out. The worm burrows, which is why it got away with this.
-        const box = roomSpawnBox(room)
-        const spot = {
-          x: Math.trunc(rand.fRand(box.x0, box.x1)),
-          y: Math.trunc(rand.fRand(box.y0, box.y1))
+        // One (room, x, y) draw per boss the floor hosts. `ctx.floorBoss` is 1
+        // for the pre-#64-part-1 shape, so this loop runs exactly once and
+        // spot 0 draws exactly what a single-boss floor has always drawn —
+        // every further spot repeats the identical pattern.
+        for (let i = 0; i < ctx.floorBoss; i++) {
+          const room = eligible[rand.iRand(0, eligible.length)]
+          // The original's Lair-spawner box, not the bare room: a boss on the
+          // tile beside a wall is inside that wall's collision and cannot walk
+          // out. The worm burrows, which is why it got away with this.
+          const box = roomSpawnBox(room)
+          const spot = {
+            x: Math.trunc(rand.fRand(box.x0, box.x1)),
+            y: Math.trunc(rand.fRand(box.y0, box.y1))
+          }
+          this.bossSpots.push(spot)
+          ctx.reachTargets.push(spot)
         }
-        this.bossSpot = spot
-        ctx.reachTargets.push(spot)
       }
     }
 
