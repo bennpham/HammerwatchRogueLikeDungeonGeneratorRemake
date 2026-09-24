@@ -707,9 +707,10 @@ CheckVariable's `on-true` lists the seal's `DestroyObject` and the "bosses are
 dead" `AnnounceText`. The seal stays shut until the last boss dies. An empty
 `on-false` dictionary is accepted. There is no working `Counter` shape — the
 one this repo guessed fired on the first kill (DISCOVERY-LOG 2026-09-23).
-Still `[EMITTED]` only: the same rig in an **arena**, and `on-true` driving the
-other death-tier targets (wave `ToggleElement`s, pickup `SpawnObject`s, trap
-toggles).
+The same rig also works in a multi-boss **arena**. `on-true` also drives the
+other death-tier targets: wave `ToggleElement`s, pickup `SpawnObject`s, and the
+after-death trap toggles. All of that is `[VERIFIED]` by the user's follow-up
+playtest on 2026-09-23.
 
 ## Projectiles `[VERIFIED 2026-09-01, curated 2026-09-02]`
 

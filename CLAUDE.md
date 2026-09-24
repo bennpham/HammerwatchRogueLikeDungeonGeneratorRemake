@@ -81,8 +81,9 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    the returned CheckVariable exactly as it would to a single boss's
    `GlobalEventTrigger` — `NodeCheckVariable.connectTo` appends to `on-true`,
    not `connections`. The whole rig is **`[VERIFIED]`** (2026-09-23
-   DISCOVERY-LOG, user playtest of an editor-fixed 6-boss floor): the seal
-   stays shut until the LAST boss dies. The earlier `Counter` node was
+   DISCOVERY-LOG, user playtests on floors and arenas): the seal stays shut
+   until the LAST boss dies, and `on-true` drives every death-tier rig,
+   including the after-death traps. The earlier `Counter` node was
    `[VERIFIED]`-wrong (it fired on the first kill) and is gone — do not bring
    it back.
    Invulnerability and checkpoints are skipped outright for `isMultiBoss`,

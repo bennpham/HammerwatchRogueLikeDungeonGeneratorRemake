@@ -8,6 +8,25 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-23 — the Variable-countdown multi-boss rig also works in arenas and drives every death-tier rig
+**Tag:** [VERIFIED] (user playtest). The playtest covered generated output from
+commit `f7bbdd2`.
+**Context:** This follows up the entry directly below, which left two things
+[EMITTED]. The user confirmed that everything works in game, including the
+"extra traps after the boss dies" settings.
+**Finding:** Two things are now confirmed [VERIFIED]:
+- The `Variable` / `ChangeVariable` / `CheckVariable` rig works in a multi-boss
+  **arena** as well as on a dungeon floor.
+- A `CheckVariable`'s `on-true` fires every kind of death-tier target this repo
+  wires there, not only `AnnounceText` and `DestroyObject`. That covers the
+  death-tier trap toggles and, per the user's "everything", the wave
+  `ToggleElement`s and pickup `SpawnObject`s too.
+**Still [UNVERIFIED]:** the connection-order question from the entry below.
+Nobody has tested it on purpose, and the generator's Change → Check order is
+correct either way.
+**Impact:** `ASSET-REGISTRY.md` § "Kill every boss" and the crash-triage matrix
+row no longer carry the [EMITTED] caveats.
+
 ### 2026-09-23 — "kill every boss" works via `Variable` / `ChangeVariable` / `CheckVariable`; the `Counter` rig is abandoned
 **Tag:** [VERIFIED] (user playtest) for the node shapes and the rig on a
 dungeon floor; [EMITTED] for the arena and for non-seal `on-true` targets;
