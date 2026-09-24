@@ -530,9 +530,10 @@ export function buildBossArena(
   // --- the "all bosses died" rig (issue #64 part 1), built once right after
   // the boss actors are placed. Single boss: unused — every tier-keyed rig
   // below keeps building its own `GlobalEventTrigger`, at the same call site
-  // it always has. Multi boss: one ObjectEventTrigger(Destroyed) per boss
-  // feeds one shared Counter, and `tierSource` hands that Counter to every
-  // rig's death tier while skipping 75/50/25% entirely. Draws no RNG. ---
+  // it always has. Multi boss: each boss's ObjectEventTrigger(Destroyed)
+  // counts a shared Variable down and checks it for 0, and `tierSource` hands
+  // that check to every rig's death tier while skipping 75/50/25% entirely.
+  // Draws no RNG. ---
   const tierSource = multi
     ? multiBossTierSource(buildAllBossesDied(ctx, bossActors, entranceShape.x, entranceShape.y))
     : singleBossTierSource()
@@ -613,9 +614,9 @@ export function buildBossArena(
   // this opener included, is built below alongside the trap windows.
   //
   // Multi-boss (issue #64 part 1): the alcove opens on "every boss died",
-  // which is exactly the shared Counter `tierSource` already holds — reused
-  // here rather than building a second one, so the rig's own `buildAllBossesDied`
-  // call is the only place a Counter is ever constructed for this fight.
+  // which is exactly the all-bosses-died CheckVariable rig `tierSource` already
+  // holds — reused here rather than building a second one, so the rig's own
+  // `buildAllBossesDied` call is the only place it is ever built for this fight.
   if (!isSurvival) {
     const bossDied = multi ? tierSource.tierTrigger(ctx, midX, midY, TIER_EVENT_NAMES.length) : new NodeGlobalEventTrigger(ctx, midX, midY, 'Boss Died')
     const destroyWalls = new NodeDestroyObject(ctx, midX, midY)

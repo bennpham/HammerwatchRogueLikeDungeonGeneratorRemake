@@ -18,7 +18,8 @@ import { ARENA_LAYOUT_SLOTS, arenaBossLayout } from '../src/generator/boss/geome
 import { anchors } from '../src/generator/boss/anchors'
 import { generateDungeon } from '../src/generator'
 import type { DungeonParameters, DungeonResult } from '../src/generator'
-import { nodesOfType } from './xmlHelpers'
+import { badIntArray, nodesOfType } from './xmlHelpers'
+import { OPENED_TEXT_MULTI } from '../src/generator/dungeonBoss/opener'
 
 function freshCtx(seed: number): GenerationContext {
   return new GenerationContext(plainParameters(), seed)
@@ -42,6 +43,73 @@ function multiArena(count: number, overrides: Partial<BossArenaOptions> = {}): B
     checkpoints: { respawnPlayers: '75-50-25-dead', saveGame: '50' },
     ...overrides
   })
+}
+
+function intArr(body: string, name: string): number[] {
+  const m = new RegExp(`<int-arr name="${name}">([^<]*)</int-arr>`).exec(body)
+  return m === null ? [] : m[1].split(' ').map(Number)
+}
+
+/** The ids a `<dictionary name="{dict}">`'s `static` array holds inside `body`. */
+function staticIn(body: string, dict: string): number[] {
+  const m = new RegExp(`<dictionary name="${dict}">\\s*(?:<int-arr name="static">([^<]*)</int-arr>)?`).exec(body)
+  return m?.[1] === undefined ? [] : m[1].split(' ').map(Number)
+}
+
+/**
+ * Asserts the "all bosses died" rig matches the user's playtested
+ * `level0_fixed.xml` (2026-09-23 DISCOVERY-LOG): one Variable holding the boss
+ * count; per boss, an `ObjectEventTrigger(Destroyed, trigger-times 1)` whose
+ * connections are its own ChangeVariable (subtract 1) THEN its own
+ * CheckVariable (== 0); every CheckVariable with the same `on-true` list.
+ * Returns the death triggers and that shared `on-true` list.
+ */
+function allBossesDiedRig(xml: string): { deathTriggers: { id: number; body: string }[]; onTrue: number[] } {
+  // The orb/portal prefab's own trigger uses ObjectEventTrigger too, so filter
+  // to the ones firing "Destroyed" with trigger-times 1 — this rig's signature.
+  const deathTriggers = nodesOfType(xml, 'ObjectEventTrigger').filter(
+    (t) => /<int name="trigger-times">1<\/int>/.test(t.body) && t.body.includes('Destroyed')
+  )
+  const variables = nodesOfType(xml, 'Variable')
+  const changes = nodesOfType(xml, 'ChangeVariable')
+  const checks = nodesOfType(xml, 'CheckVariable')
+  const n = deathTriggers.length
+
+  expect(variables).toHaveLength(1)
+  expect(variables[0].body).toContain(`<int name="parameters">${n}</int>`)
+  expect(changes).toHaveLength(n)
+  expect(checks).toHaveLength(n)
+
+  const varId = variables[0].id
+  for (const c of changes) {
+    expect(staticIn(c.body, 'vars')).toEqual([varId])
+    expect(c.body).toContain('<int name="mod">2</int>')
+    expect(c.body).toContain('<int name="value">1</int>')
+  }
+  const onTrue = staticIn(checks[0].body, 'on-true')
+  expect(onTrue.length).toBeGreaterThan(0)
+  for (const c of checks) {
+    expect(staticIn(c.body, 'vars')).toEqual([varId])
+    expect(c.body).toContain('<int name="cmp-func">0</int>')
+    expect(c.body).toContain('<int name="cmp-val">0</int>')
+    expect(staticIn(c.body, 'on-true')).toEqual(onTrue)
+    // A CheckVariable fires through on-true only.
+    expect(c.body).not.toContain('name="connections"')
+  }
+
+  const changeIds = new Set(changes.map((c) => c.id))
+  const checkIds = new Set(checks.map((c) => c.id))
+  const used = new Set<number>()
+  for (const t of deathTriggers) {
+    const [change, check] = intArr(t.body, 'connections')
+    expect(changeIds.has(change)).toBe(true)
+    expect(checkIds.has(check)).toBe(true)
+    used.add(change).add(check)
+  }
+  // Each boss has its own pair — none shared.
+  expect(used.size).toBe(2 * n)
+
+  return { deathTriggers, onTrue }
 }
 
 function generateOk(params: DungeonParameters, seed: number): DungeonResult {
@@ -77,51 +145,25 @@ describe('multi-boss arena (issue #64 part 1)', () => {
     expect(nodesOfType(xml, 'Checkpoint')).toHaveLength(0)
   })
 
-  it('wires N ObjectEventTriggers into one shared Counter, with no empty connections', () => {
+  it('wires the playtested Variable / ChangeVariable / CheckVariable rig, one per boss, with no empty int arrays', () => {
     const arena = multiArena(4)
     const ctx = freshCtx(3)
     const { xml } = buildBossArena(ctx, arena, 0)
 
-    const objectTriggers = nodesOfType(xml, 'ObjectEventTrigger')
-    // The orb/portal prefab's own trigger uses this node type too, so filter
-    // to the ones actually firing "Destroyed" with trigger-times 1 pointed at
-    // an actor id, which is this rig's signature.
-    const deathTriggers = objectTriggers.filter((t) => /<int name="trigger-times">1<\/int>/.test(t.body) && t.body.includes('Destroyed'))
-    expect(deathTriggers).toHaveLength(4)
-
-    const counters = nodesOfType(xml, 'Counter')
-    expect(counters).toHaveLength(1)
-    expect(counters[0].body).toContain('<int name="count">4</int>')
-
-    // Every death trigger connects to the one Counter.
-    for (const t of deathTriggers) {
-      const connections = /<int-arr name="connections">([^<]*)<\/int-arr>/.exec(t.body)
-      expect(connections).not.toBeNull()
-      expect(connections![1].split(' ').map(Number)).toContain(counters[0].id)
-    }
-
-    // No node anywhere ships an empty <int-arr name="connections">.
-    expect(xml).not.toMatch(/<int-arr name="connections"><\/int-arr>/)
+    const rig = allBossesDiedRig(xml)
+    expect(rig.deathTriggers).toHaveLength(4)
+    expect(nodesOfType(xml, 'Counter')).toHaveLength(0)
+    expect(badIntArray(xml)).toBeNull()
   })
 
-  it('the Counter is wired to the seal-destroying DestroyObject', () => {
+  it('every CheckVariable fires the seal-destroying DestroyObject from on-true', () => {
     const arena = multiArena(2)
     const ctx = freshCtx(4)
     const { xml } = buildBossArena(ctx, arena, 0)
 
-    const counters = nodesOfType(xml, 'Counter')
-    expect(counters).toHaveLength(1)
+    const { onTrue } = allBossesDiedRig(xml)
     const destroyObjects = nodesOfType(xml, 'DestroyObject')
-    // At least one DestroyObject must be reachable from the Counter's own id
-    // via some connections array in the document — simplest check: the
-    // Counter's id appears inside some node's connections that leads to a
-    // DestroyObject. We check indirectly: the Counter must itself have
-    // outgoing connections (it is not a dead end).
-    const counterHeader = new RegExp(`<int name="id">${counters[0].id}</int>[\\s\\S]*?<string name="type">Counter</string>[\\s\\S]*?<int-arr name="connections">([^<]*)</int-arr>`)
-    const m = counterHeader.exec(xml)
-    expect(m).not.toBeNull()
-    const targets = m![1].split(' ').map(Number)
-    expect(destroyObjects.some((d) => targets.includes(d.id))).toBe(true)
+    expect(destroyObjects.some((d) => onTrue.includes(d.id))).toBe(true)
   })
 
   it('layout has no boss/boss, boss/anchor or boss/entrance overlap for every pool combination', () => {
@@ -180,11 +222,13 @@ describe('multi-boss arena (issue #64 part 1)', () => {
     // bossCount = 1 must take the SAME branch as an arena that never set
     // bossCount at all — asserted structurally: exactly one boss actor, and
     // the ordinary single-boss GlobalEventTrigger("Boss Died") is present
-    // (not a Counter).
+    // (not the all-bosses-died Variable rig).
     const arena = multiArena(1)
     const ctx = freshCtx(5)
     const { xml } = buildBossArena(ctx, arena, 0)
-    expect(nodesOfType(xml, 'Counter')).toHaveLength(0)
+    for (const type of ['Variable', 'ChangeVariable', 'CheckVariable']) {
+      expect(nodesOfType(xml, type)).toHaveLength(0)
+    }
     const globalTriggers = nodesOfType(xml, 'GlobalEventTrigger')
     expect(globalTriggers.some((t) => t.body.includes('Boss Died'))).toBe(true)
   })
@@ -231,11 +275,20 @@ describe('multi-boss dungeon floor (issue #64 part 1)', () => {
     expect(a.files).toEqual(b.files)
   })
 
-  it('wires the seal opener off the shared Counter, not a Boss Died trigger, and no invuln/checkpoint nodes', () => {
+  it('wires the seal opener off the all-bosses-died check, not a Boss Died trigger, and no invuln/checkpoint nodes', () => {
     const params = multiFloorParams(2)
     const result = generateOk(params, 777)
     const level0 = result.files.find((f) => f.path === 'levels/level0.xml')!.content
-    expect(nodesOfType(level0, 'Counter')).toHaveLength(1)
+    // The shape the user's playtested `level0_fixed.xml` uses: every boss's
+    // CheckVariable destroys the seal and announces the opening.
+    const { deathTriggers, onTrue } = allBossesDiedRig(level0)
+    expect(deathTriggers).toHaveLength(2)
+    const destroy = nodesOfType(level0, 'DestroyObject')
+    expect(destroy.some((d) => onTrue.includes(d.id))).toBe(true)
+    const announce = nodesOfType(level0, 'AnnounceText').find((a) => a.body.includes(OPENED_TEXT_MULTI))
+    expect(announce).toBeDefined()
+    expect(onTrue).toContain(announce!.id)
+    expect(badIntArray(level0)).toBeNull()
     expect(nodesOfType(level0, 'ToggleImmortality')).toHaveLength(0)
     expect(nodesOfType(level0, 'Checkpoint')).toHaveLength(0)
     const globalTriggers = nodesOfType(level0, 'GlobalEventTrigger')

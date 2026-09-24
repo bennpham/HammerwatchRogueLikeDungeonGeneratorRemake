@@ -16,9 +16,10 @@
  *     node for them (`skipTier`) — not "fires them for nobody in particular",
  *     skipped;
  *   - re-keys the death tier (tier 4, `Boss Died`) to "every boss's own
- *     death": one `ObjectEventTrigger(Destroyed)` per boss actor feeds a
- *     shared `Counter`, and every death-tier rig — and the alcove/seal opener
- *     — connects off that Counter exactly as it would off a single boss's
+ *     death": a shared `Variable` starts at the boss count, and each boss's
+ *     `ObjectEventTrigger(Destroyed)` subtracts one from it and then checks it
+ *     for 0. Every death-tier rig — and the alcove/seal opener — connects off
+ *     that check exactly as it would off a single boss's
  *     `GlobalEventTrigger` (`buildAllBossesDied`).
  *
  * Invulnerability and checkpoints are not threaded through this at all: they
@@ -30,7 +31,7 @@
 
 import type { GenerationContext } from '../core/context'
 import { ScriptNode } from '../objects/scriptNode'
-import { NodeCounter, NodeObjectEventTrigger } from '../objects/nodes'
+import { CHANGE_VAR_SUB, NodeChangeVariable, NodeCheckVariable, NodeObjectEventTrigger, NodeVariable } from '../objects/nodes'
 import { NodeGlobalEventTrigger } from '../objects/nodes'
 import { TIER_EVENT_NAMES } from './waves'
 import { BOSS_WAVE_COUNT } from '../config/parameters'
@@ -72,38 +73,50 @@ const DEATH_TIER = BOSS_WAVE_COUNT - 1
 
 /**
  * Two or more bosses: tiers 1-3 are skipped, and the death tier fires off
- * `counter` (built once by `buildAllBossesDied` and shared by every tier-keyed
+ * `allDied` (built once by `buildAllBossesDied` and shared by every tier-keyed
  * rig this fight or floor builds, plus the alcove/seal opener).
  */
-export function multiBossTierSource(counter: ScriptNode): TierSource {
+export function multiBossTierSource(allDied: ScriptNode): TierSource {
   return {
     skipTier: (tier) => tier !== DEATH_TIER,
-    tierTrigger: () => counter
+    tierTrigger: () => allDied
   }
 }
 
 /**
- * The "all bosses died" rig: one `ObjectEventTrigger(Destroyed, [actor],
- * trigger-times 1)` per boss actor, each feeding one shared `Counter(target =
- * actors.length)`. Returns the Counter — every death-tier rig and the
- * alcove/seal opener connect FROM it, exactly as they would from a single
- * boss's `GlobalEventTrigger`.
+ * The "all bosses died" rig, [VERIFIED 2026-09-23] by the user's playtest of
+ * an editor-fixed 6-boss floor (`level0_fixed.xml`, see DISCOVERY-LOG):
+ *
+ *   Variable(N)
+ *   per boss i:  ObjectEventTrigger(Destroyed, [actor i], trigger-times 1)
+ *                  → ChangeVariable(var -= 1)
+ *                  → CheckVariable(var == 0, on-true: the death-tier targets)
+ *
+ * so whichever boss dies last is the one whose check passes. The
+ * CheckVariables share one `on-true` list (see `NodeCheckVariable`); the first
+ * of them is returned, and every death-tier rig and the alcove/seal opener
+ * connect FROM it exactly as they would from a single boss's
+ * `GlobalEventTrigger` — which puts them in every boss's `on-true`.
+ *
+ * Each trigger connects to its ChangeVariable before its CheckVariable so the
+ * subtraction lands first. Draws no RNG.
  *
  * `(x, y)` is a cosmetic origin for the editor markers only, like every other
  * rig in this repo — nothing about the wiring is positional.
- *
- * Node shape for both `ObjectEventTrigger`-on-an-actor and `Counter` is
- * [UNVERIFIED] — see the modding skill's DISCOVERY-LOG for the playtest
- * recipe that would confirm or refute them.
  */
 export function buildAllBossesDied(ctx: GenerationContext, actors: ReadonlyArray<{ id: number }>, x: number, y: number): ScriptNode {
-  const counter = new NodeCounter(ctx, x, y, actors.length)
-  actors.forEach((actor, i) => {
+  const remaining = new NodeVariable(ctx, x, y, actors.length)
+  const onTrue: ScriptNode[] = []
+  const checks = actors.map((actor, i) => {
     const trigger = new NodeObjectEventTrigger(ctx, x, y + 1 + i)
     trigger.event = 'Destroyed'
     trigger.connectObject(actor)
     trigger.triggerTimes = 1
-    trigger.connectTo(counter)
+    const change = new NodeChangeVariable(ctx, x + 1, y + 1 + i, remaining, CHANGE_VAR_SUB, 1)
+    const check = new NodeCheckVariable(ctx, x + 2, y + 1 + i, remaining, 0, onTrue)
+    trigger.connectTo(change)
+    trigger.connectTo(check)
+    return check
   })
-  return counter
+  return checks[0]
 }

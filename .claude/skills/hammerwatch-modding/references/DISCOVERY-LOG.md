@@ -8,6 +8,55 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-23 — "kill every boss" works via `Variable` / `ChangeVariable` / `CheckVariable`; the `Counter` rig is abandoned
+**Tag:** [VERIFIED] (user playtest) for the node shapes and the rig on a
+dungeon floor; [EMITTED] for the arena and for non-seal `on-true` targets;
+[UNVERIFIED] for connection order (below).
+**Context:** The user took the generated 6-boss floor `level0.xml` (dungeon
+`dungeon1940427570`, `Counter` id 3675 with `count` 6, which opened the seal on
+the first kill; see the entry below) and rewired it by hand in the Windows
+editor. They saved it as `level0_fixed.xml`, and playing it confirmed the seal
+stays shut until the LAST of the 6 bosses dies. Its rig, which now replaces the
+`Counter`:
+- `Variable` id 3684: a bare `<int name="parameters">6</int>` (no dictionary)
+  holding the boss count. The editor saved it with `trigger-times` 1.
+- Per boss, an `ObjectEventTrigger(Destroyed, object static [actor],
+  trigger-times 1)` whose `connections` are that boss's own `ChangeVariable` and
+  its own `CheckVariable`, both at delay 0.
+- `ChangeVariable`: `<dictionary name="vars"><int-arr
+  name="static">[var id]</int-arr></dictionary>`, `<int name="mod">2</int>`,
+  `<int name="round">0</int>`, `<int name="value">1</int>`. **`mod` 2 =
+  subtract** [VERIFIED]: the countdown from 6 reached 0.
+- `CheckVariable`: `vars` as above, `<int name="cmp-func">0</int>`,
+  `<int name="cmp-val">0</int>`, `<dictionary name="on-true"><int-arr
+  name="static">[AnnounceText, DestroyObject]</int-arr></dictionary>`, and an
+  empty `<dictionary name="on-false"></dictionary>`. **`cmp-func` 0 =
+  equals** [VERIFIED]. **A CheckVariable fires its targets from `on-true`**. It
+  had no `connections` array, and an empty `on-false` loads fine [VERIFIED]. The
+  `AnnounceText` ("The bosses are dead — the way onward has opened!") and the
+  seal's `DestroyObject` both fired from `on-true` [VERIFIED].
+**Ported:** `NodeVariable`, `NodeChangeVariable` and `NodeCheckVariable` in
+`objects/nodes.ts`, wired by `boss/tierSource.ts`'s `buildAllBossesDied`.
+`NodeCounter` and the `Counter` type are deleted. Every boss's CheckVariable
+shares one `on-true` list, and `NodeCheckVariable.connectTo` appends to it,
+so every death-tier rig lands in every boss's `on-true`. An empty `on-true`
+ships as an empty dictionary rather than an empty `<int-arr>`, which would crash
+`LevelPacker.exe`.
+**Still [EMITTED], needs a playtest:**
+- the same rig in a multi-boss **arena** (the verified run was a floor);
+- `on-true` driving the other death-tier targets: waves' and buffs'
+  `ToggleElement`s, pickups' `SpawnObject`s, and trap toggles. So far only
+  `AnnounceText` and `DestroyObject` are proven there.
+**[UNVERIFIED] — does connection order matter?** In the editor save, boss 3669's
+trigger lists Check → Change and the other five list Change → Check, and the
+level still worked. Either the engine queues same-tick connections, or boss 3669
+simply was not the last to die in that run. We always emit Change → Check,
+which is correct under either reading.
+**Impact:** The "`Counter` shape is still `[UNVERIFIED]`" follow-up in the entry
+below is closed: we no longer need a `Counter`, and none should be added back.
+Invariant 6 in `CLAUDE.md`, `ASSET-REGISTRY.md` § Script node types and
+`hammerwatch-crash-triage`'s matrix row are updated.
+
 ### 2026-09-23 — playtest partially confirms the multi-boss rig: `ObjectEventTrigger(Destroyed)` fires on a boss actor; the guessed `Counter` shape is refuted
 **Tag:** [VERIFIED] (user playtest) for the trigger; [VERIFIED] refutation for
 the `Counter` shape below. The REAL `Counter` shape is still `[UNVERIFIED]` —

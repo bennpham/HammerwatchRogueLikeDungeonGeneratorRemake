@@ -234,7 +234,8 @@ export class NodeShopArea extends ScriptNode {
  * Ported from NodeObjectEventTrigger.java.
  *
  * Generalised (issue #64 part 1) to watch any object by raw id — an ACTOR's,
- * for the "all bosses died" Counter feed (`boss/tierSource.ts`) — not only an
+ * for the "all bosses died" rig (`boss/tierSource.ts`), [VERIFIED 2026-09-23]
+ * to fire on a boss actor's death — not only an
  * `Item`. `itemConnections` and `connectItem` are unchanged so the orb's
  * existing wiring (`objects/objectSet.ts`) emits exactly what it always did;
  * `connectObject` is the same underlying array under a name that does not
@@ -545,33 +546,117 @@ export class NodeProjectileSpewer extends ScriptNode {
 }
 
 /**
- * Counts incoming triggers and fires its own `connections` once `target` of
- * them have arrived — the "all bosses died" mechanism for a multi-boss fight
- * or floor (issue #64 part 1, `boss/tierSource.ts`). One
- * `ObjectEventTrigger(Destroyed)` per boss actor feeds this node; once every
- * one has fired, the death-tier rigs and the alcove/seal opener run exactly as
- * they would off a single boss's `GlobalEventTrigger("Boss Died")`.
+ * An integer script variable, read and written by `ChangeVariable` and
+ * `CheckVariable` — the counter of the "all bosses died" rig
+ * (`boss/tierSource.ts`), initialised to the boss count.
  *
- * [UNVERIFIED] — no shipped level or editor-saved file demonstrates a Counter
- * node; this shape (a `<dictionary name="parameters">` holding one
- * `<int name="count">`) is this port's best guess, modelled on every other
- * node here that carries a single numeric setting (`NodeTimerTrigger`,
- * `NodeToggleElement`). See the modding skill's DISCOVERY-LOG for the playtest
- * recipe that would confirm or refute it before this reaches players.
+ * [VERIFIED 2026-09-23] — shape copied from the user's editor-saved, playtested
+ * `level0_fixed.xml`: the initial value is a bare `<int name="parameters">`
+ * (hence the scalar seam, like `NodeGlobalEventTrigger`), and the editor saved
+ * it with `trigger-times` 1, which is kept here.
  */
-export class NodeCounter extends ScriptNode {
+export class NodeVariable extends ScriptNode {
   constructor(
     ctx: GenerationContext,
     x: number,
     y: number,
-    public target: number
+    public initial: number
   ) {
-    super(ctx, x, y, 'Counter')
+    super(ctx, x, y, 'Variable')
+    this.triggerTimes = 1
+  }
+
+  protected getParametersXML(): string {
+    return new XMLInt('parameters', this.initial).getXML()
+  }
+}
+
+/** `ChangeVariable`'s `mod` for "subtract `value`" — [VERIFIED 2026-09-23]. */
+export const CHANGE_VAR_SUB = 2
+
+/**
+ * Applies `mod` with `value` to a `NodeVariable` each time it is triggered.
+ *
+ * [VERIFIED 2026-09-23] — shape from `level0_fixed.xml`: `vars` wraps the
+ * variable's id in a `static` array, then `mod`, `round` and `value`. Only
+ * `mod` 2 (subtract) is known; `round` is always 0 there.
+ */
+export class NodeChangeVariable extends ScriptNode {
+  constructor(
+    ctx: GenerationContext,
+    x: number,
+    y: number,
+    public variable: NodeVariable,
+    public mod: number,
+    public value: number
+  ) {
+    super(ctx, x, y, 'ChangeVariable')
   }
 
   protected getParametersDict(): XMLDictionary {
     const d = new XMLDictionary('parameters')
-    d.addData(new XMLInt('count', this.target))
+    const vars = new XMLDictionary('vars')
+    vars.addData(new XMLIntArray('static', [this.variable.id]))
+    d.addData(vars)
+    d.addData(new XMLInt('mod', this.mod))
+    d.addData(new XMLInt('round', 0))
+    d.addData(new XMLInt('value', this.value))
+    return d
+  }
+}
+
+/** `CheckVariable`'s `cmp-func` for "equals `cmp-val`" — [VERIFIED 2026-09-23]. */
+export const CHECK_VAR_EQUAL = 0
+
+/**
+ * Compares a `NodeVariable` against `cmpVal` each time it is triggered and
+ * fires its `on-true` targets when the comparison holds. It has no
+ * `connections` of its own.
+ *
+ * [VERIFIED 2026-09-23] — shape from `level0_fixed.xml`, where `on-true`
+ * listed the seal's `DestroyObject` and the "bosses are dead" `AnnounceText`
+ * and an empty `on-false` dictionary loaded fine.
+ *
+ * `connectTo` appends to `onTrue` instead of `connections`, so a rig that
+ * "connects from" this node — as every death-tier rig does from a
+ * `TierSource` trigger — lands in `on-true` without knowing the difference.
+ * `on-true` carries no per-target delay, so a delayed connection is refused.
+ * The array is taken by reference: the all-bosses-died rig hands the same one
+ * to every boss's CheckVariable, so wiring one wires them all.
+ */
+export class NodeCheckVariable extends ScriptNode {
+  constructor(
+    ctx: GenerationContext,
+    x: number,
+    y: number,
+    public variable: NodeVariable,
+    public cmpVal: number,
+    public onTrue: ScriptNode[] = []
+  ) {
+    super(ctx, x, y, 'CheckVariable')
+  }
+
+  connectTo(n: ScriptNode, delayMs?: number): void {
+    if (delayMs !== undefined && delayMs !== 0) {
+      throw new Error('CheckVariable on-true targets cannot carry a delay')
+    }
+    this.onTrue.push(n)
+  }
+
+  protected getParametersDict(): XMLDictionary {
+    const d = new XMLDictionary('parameters')
+    const vars = new XMLDictionary('vars')
+    vars.addData(new XMLIntArray('static', [this.variable.id]))
+    d.addData(vars)
+    d.addData(new XMLInt('cmp-func', CHECK_VAR_EQUAL))
+    d.addData(new XMLInt('cmp-val', this.cmpVal))
+    // An empty `<int-arr>` crashes LevelPacker.exe, so an `on-true` with
+    // nothing wired to it ships as an empty dictionary — the same shape the
+    // editor itself saved for `on-false`.
+    const onTrue = new XMLDictionary('on-true')
+    if (this.onTrue.length > 0) onTrue.addData(new XMLIntArray('static', this.onTrue.map((n) => n.id)))
+    d.addData(onTrue)
+    d.addData(new XMLDictionary('on-false'))
     return d
   }
 }

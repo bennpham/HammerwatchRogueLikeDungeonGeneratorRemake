@@ -47,7 +47,7 @@ export function buildFloorBossOpener(
   x: number,
   y: number,
   /**
-   * The "all bosses died" Counter, for a multi-boss floor (issue #64 part 1) —
+   * The "all bosses died" CheckVariable, for a multi-boss floor (issue #64 part 1) —
    * built once by `boss/tierSource.ts`'s `buildAllBossesDied` and passed in so
    * this opener connects from it instead of its own `Boss Died`
    * GlobalEventTrigger. Omitted (the default) reproduces exactly the

@@ -89,7 +89,7 @@ export function buildFloorBossRig(
   const actors = placeFloorBosses(ctx, boss.bossPool, level.bossSpots, count, lineup)
   if (actors.length === 0) return
 
-  // Multi-boss (issue #64 part 1): the same "all bosses died" Counter every
+  // Multi-boss (issue #64 part 1): the same "all bosses died" rig every
   // arena builds, built once right after the actors are placed. Single boss:
   // unused — every tier-keyed rig below keeps building its own
   // `GlobalEventTrigger`, exactly as it always has.
@@ -124,7 +124,7 @@ export function buildFloorBossRig(
     markerX,
     markerY,
     // `multiBossTierSource.tierTrigger` ignores its tier argument and always
-    // returns the shared Counter, so any value reaches it — the opener just
+    // returns the shared all-bosses-died check, so any value reaches it — the opener just
     // wants the same node every death-tier rig above connected from.
     multi ? tierSource.tierTrigger(ctx, markerX, markerY, 0) : undefined,
     count

@@ -633,7 +633,7 @@ export interface BossArenaOptions {
    * can tell whose threshold it saw. So above 1, every tier-keyed rig (waves,
    * wave buffs, wave pickups, traps) skips the 75/50/25% tiers entirely and
    * re-keys the death tier and the alcove opener to "every boss's own death",
-   * counted by a shared Counter — see `boss/tierSource.ts`. Invulnerability and
+   * counted down on a shared Variable — see `boss/tierSource.ts`. Invulnerability and
    * checkpoints are skipped outright; their settings stay on the object,
    * simply unread, the same losslessness `arenaMode` already promises.
    */

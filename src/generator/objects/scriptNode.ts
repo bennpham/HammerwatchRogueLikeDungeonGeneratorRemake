@@ -23,7 +23,9 @@ export type NodeTypeName =
   | 'ChangeDoodadState'
   | 'ProjectileSpewer'
   | 'Checkpoint'
-  | 'Counter'
+  | 'Variable'
+  | 'ChangeVariable'
+  | 'CheckVariable'
 
 /**
  * Base scripting node (ported from ScriptNode.java). Most subclasses override

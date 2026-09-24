@@ -662,6 +662,9 @@ and the four `_v2` corners.
 | `PlaySound` | plays one cue | `sound` (`sound/<bank>.xml:<cue>`), `loop`, `play3d`, `range3d` |
 | `PlayMusic` | swaps the level's music track | `sound` (`sound/<bank>.xml:<cue>`), `loop` — no `play3d`/`range3d`, music is not positional |
 | `ProjectileSpewer` | fires a projectile stream in one cardinal direction, forever | `direction` (0 up, 1 down, 2 left, 3 right), `projectile` (path), `spread` (float 0..2), `spawn-rate` (ms) |
+| `Variable` | an integer script variable | bare `<int name="parameters">` = initial value |
+| `ChangeVariable` | applies an operation to a variable | `vars` dict → `static [variable id]`, `mod` (2 = subtract), `round` (0), `value` |
+| `CheckVariable` | compares a variable; fires `on-true` / `on-false` targets, **no `connections`** | `vars` dict → `static [variable id]`, `cmp-func` (0 = equals), `cmp-val`, `on-true` / `on-false` dicts → `static [node ids]` |
 
 `ProjectileSpewer` is the boss arena’s wall traps (`src/generator/boss/traps.ts`).
 The whole contract above is `[VERIFIED]` **in game from generated output**,
@@ -693,6 +696,20 @@ Bit 1 is `[VERIFIED]` (timer mode ships it and monsters take no damage); bit 2
 is `[UNVERIFIED]` — inferred from shipped content, see DISCOVERY-LOG 2026-08-23
 and 2026-08-24. `BUFF_TARGET_TYPES` in `config/parameters.ts` is the mapping the
 buff feature uses.
+
+### "Kill every boss" — Variable countdown `[VERIFIED 2026-09-23]`
+
+The multi-boss death rig (`boss/tierSource.ts`'s `buildAllBossesDied`), copied
+from the user's editor-fixed, playtested 6-boss floor: one `Variable(N)`; per
+boss one `ObjectEventTrigger(Destroyed, [boss actor], trigger-times 1)` →
+its own `ChangeVariable(-1)` then its own `CheckVariable(== 0)`; every
+CheckVariable's `on-true` lists the seal's `DestroyObject` and the "bosses are
+dead" `AnnounceText`. The seal stays shut until the last boss dies. An empty
+`on-false` dictionary is accepted. There is no working `Counter` shape — the
+one this repo guessed fired on the first kill (DISCOVERY-LOG 2026-09-23).
+Still `[EMITTED]` only: the same rig in an **arena**, and `on-true` driving the
+other death-tier targets (wave `ToggleElement`s, pickup `SpawnObject`s, trap
+toggles).
 
 ## Projectiles `[VERIFIED 2026-09-01, curated 2026-09-02]`
 

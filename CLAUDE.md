@@ -73,19 +73,18 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    buffs, wave pickups, traps) skips tiers 75/50/25% entirely — **before**
    allocating a node for them — and re-keys the death tier and the alcove/seal
    opener to "every boss's own death". `boss/tierSource.ts`'s
-   `buildAllBossesDied` builds that rig once: one
-   `ObjectEventTrigger(Destroyed, [actor], trigger-times 1)` per boss feeding
-   one shared `Counter(target = bossCount)`, and every rig connects to that
-   Counter exactly as it would to a single boss's `GlobalEventTrigger`. The
-   trigger half is now `[VERIFIED]` (2026-09-23 DISCOVERY-LOG, user playtest):
-   `ObjectEventTrigger(Destroyed)` does fire for a boss actor's death. The
-   `Counter` shape this repo emits is **`[VERIFIED]`-WRONG** — the same
-   playtest showed it passes the first `Destroyed` pulse straight through
-   instead of gating at N, so a 2+-boss fight or floor opens its seal on the
-   FIRST kill, not the last. The real shape is still `[UNVERIFIED]` pending a
-   stock `Counter` captured from the Windows editor; `NodeCounter` in
-   `objects/nodes.ts` is the single place to fix it once that capture lands —
-   do not guess a second shape in the meantime.
+   `buildAllBossesDied` builds that rig once: one `Variable` initialised to
+   the boss count, then per boss an
+   `ObjectEventTrigger(Destroyed, [actor], trigger-times 1)` connected to its
+   own `ChangeVariable` (subtract 1) and THEN its own `CheckVariable` (== 0).
+   Every CheckVariable shares one `on-true` list, and every rig connects to
+   the returned CheckVariable exactly as it would to a single boss's
+   `GlobalEventTrigger` — `NodeCheckVariable.connectTo` appends to `on-true`,
+   not `connections`. The whole rig is **`[VERIFIED]`** (2026-09-23
+   DISCOVERY-LOG, user playtest of an editor-fixed 6-boss floor): the seal
+   stays shut until the LAST boss dies. The earlier `Counter` node was
+   `[VERIFIED]`-wrong (it fired on the first kill) and is gone — do not bring
+   it back.
    Invulnerability and checkpoints are skipped outright for `isMultiBoss`,
    never re-keyed: their settings stay on the object, unread, the same
    losslessness a survival fight's boss-only fields already get.
