@@ -54,8 +54,11 @@ because the files exist on disk; that list is not an allow-list of safe actors.
 **Do not re-add these three actors** without a campaign-side copy that adds
 `sound` to every skill block.
 **Also:** bodyguard default caps were raised toward main-roster levels,
-weighted by HP: knight_guard 30, lich_guard_lich 15, krilith_mb_skeleton 12,
-mirror 4. The user's own run (fully upgraded) is comfortable at knight_guard 60.
+first weighted by HP (knight_guard 30, lich_guard_lich 15), then raised after
+the user's playtest to knight_guard 60 (they went down quickly) and
+lich_guard_lich 30 (its lich-guard skeletons are weaker and slower than
+skeleton_3, so they die easily). krilith_mb_skeleton stays at 12 and mirror
+at 4.
 **Rule:** before adding any `caster` actor, check that EVERY skill block
 (`summon`, `nova`, `seeker`, `blink`, `healing`) has a `sound`.
 **Still open:** a custom campaign copy of these actors with `sound` added

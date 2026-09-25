@@ -161,8 +161,8 @@ export const MONSTER_TYPES: MonsterTypeDef[] = [
   // ([VERIFIED] 2026-09-24 playtest; the worm decoy, which has `boss-hp`, does).
   // Single-tier, upgradeChance 1.0 like every other one-actor type — the
   // value is inert for a one-element `tiers` array (see the field comment).
-  { id: 'knight_guard', configKey: 'maxKnight_Guards', upgradeChance: 1.0, defaultMax: 30, group: 'Bodyguards', acts: [2], tiers: ['actors/boss_knight/knight_guard.xml'] },
-  { id: 'lich_guard_lich', configKey: 'maxLich_Guard_Liches', upgradeChance: 1.0, defaultMax: 15, group: 'Bodyguards', acts: [3], tiers: ['actors/boss_lich/lich_guard_lich.xml'] },
+  { id: 'knight_guard', configKey: 'maxKnight_Guards', upgradeChance: 1.0, defaultMax: 60, group: 'Bodyguards', acts: [2], tiers: ['actors/boss_knight/knight_guard.xml'] },
+  { id: 'lich_guard_lich', configKey: 'maxLich_Guard_Liches', upgradeChance: 1.0, defaultMax: 30, group: 'Bodyguards', acts: [3], tiers: ['actors/boss_lich/lich_guard_lich.xml'] },
   { id: 'lich_mirror', configKey: 'maxLich_Mirrors', upgradeChance: 1.0, defaultMax: 4, group: 'Bodyguards', acts: [3], tiers: ['actors/boss_lich/boss_lich_mirror.xml'] },
   // No `acts` — Krilith is not a castle-act boss (the stock arena pool files
   // her under the ice caves, see defaultBossFight), so it lands in "Other" (like
