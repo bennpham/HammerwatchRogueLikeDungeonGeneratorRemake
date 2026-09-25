@@ -841,6 +841,13 @@ function validateBossFight(
     })
   }
 
+  // Bodyguard-twin toggle (issue #64 part 2). Applies in BOTH modes — it is a
+  // path substitution on whatever wave/row names an actor, not a boss-only
+  // setting, so unlike bossPool/waves/etc it is not gated behind `bossErrors`.
+  if (arena.bodyguardVariants !== undefined && typeof arena.bodyguardVariants !== 'boolean') {
+    errors.push({ field: af('bodyguardVariants'), message: 'Bodyguard variants must be true or false.' })
+  }
+
   // Selection mode (issue #64 follow-up: exact lineups). An unknown id is an
   // error, not a silent fallback to 'random' — the same treatment every other
   // "must be a known id" rule in this file gets.

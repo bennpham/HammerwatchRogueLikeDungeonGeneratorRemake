@@ -28,6 +28,13 @@
  * brawl.
  *
  * Draws one value per spawn point taken, from `ctx.floorBossRand`.
+ *
+ * Deliberately stays on plain `resolveActorPath`, never
+ * `resolveArenaActorPath` — the bodyguard-twin swap (issue #64 part 2) is an
+ * ARENA substitution (`arenaUsesBodyguards`/`BossArenaOptions.bodyguardVariants`),
+ * and a boss floor is a dungeon floor, not an arena: it has no such field to
+ * read and its actors are the regular roster ones, same as everything else on
+ * the floor.
  */
 
 import type { GenerationContext } from '../core/context'

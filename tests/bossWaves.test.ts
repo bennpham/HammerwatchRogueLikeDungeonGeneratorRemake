@@ -19,11 +19,22 @@ function buildRig(
   waves: BossWave[],
   monsterMultiplier = 1.0,
   spawnPoints?: SpawnPointMap,
-  batchIntervalMs?: number
+  batchIntervalMs?: number,
+  useBodyguardTwins?: boolean
 ) {
   const anchorList = anchors(30, 40)
   const entranceShape = new NodeRectangleShape(ctx, 15, 38)
-  buildWaveRig(ctx, waves, monsterMultiplier, anchorList, entranceShape, spawnPoints, batchIntervalMs)
+  buildWaveRig(
+    ctx,
+    waves,
+    monsterMultiplier,
+    anchorList,
+    entranceShape,
+    spawnPoints,
+    batchIntervalMs,
+    undefined,
+    useBodyguardTwins
+  )
   return { anchorList, entranceShape }
 }
 
@@ -320,8 +331,11 @@ describe('boss wave rig — variant keys (issue #20)', () => {
 
   it('a single-tier id still spawns its only actor', () => {
     const ctx = freshCtx()
+    // actors/skeleton_3.xml has an arena bodyguard twin (issue #64 part 2),
+    // and the default is twins ON — see 'the bodyguard-twin toggle' below for
+    // the off case that gets the plain actor.
     buildRig(ctx, [wave(['skeleton3'], { skeleton3: 9 })])
-    expect(new Set(spawnPaths(ctx))).toEqual(new Set(['actors/skeleton_3.xml']))
+    expect(new Set(spawnPaths(ctx))).toEqual(new Set(['actors/boss_lich/lich_guard_skeleton.xml']))
   })
 
   it('#0 spawns the spawner prop the arena could not reach before', () => {
@@ -344,10 +358,34 @@ describe('boss wave rig — variant keys (issue #20)', () => {
     expect(paths).toHaveLength(27)
     // bare `skeleton1` is tiers[1], the SMALL skeleton — the full-size
     // skeleton_1 is tiers[2] and needs its own key, which is exactly the gap
-    // issue #20 is about.
+    // issue #20 is about. actors/skeleton_1_small.xml has an arena twin
+    // (issue #64 part 2), on by default; the spawner and the elite do not.
     expect(new Set(paths)).toEqual(
-      new Set(['actors/spawners/skeleton_1.xml', 'actors/skeleton_1_small.xml', 'actors/skeleton_1_elite.xml'])
+      new Set(['actors/spawners/skeleton_1.xml', 'actors/boss_knight/skeleton_1_small.xml', 'actors/skeleton_1_elite.xml'])
     )
+  })
+
+  describe('the bodyguard-twin toggle (issue #64 part 2)', () => {
+    it('substitutes the arena twin by default', () => {
+      const ctx = freshCtx()
+      buildRig(ctx, [wave(['skeleton3'], { skeleton3: 9 })])
+      expect(new Set(spawnPaths(ctx))).toEqual(new Set(['actors/boss_lich/lich_guard_skeleton.xml']))
+    })
+
+    it('emits the plain actor when the toggle is explicitly off', () => {
+      const ctx = freshCtx()
+      buildRig(ctx, [wave(['skeleton3'], { skeleton3: 9 })], 1.0, undefined, undefined, false)
+      expect(new Set(spawnPaths(ctx))).toEqual(new Set(['actors/skeleton_3.xml']))
+    })
+
+    it('leaves a key with no twin unchanged either way', () => {
+      const on = freshCtx()
+      buildRig(on, [wave(['bat1'], { bat1: 9 })], 1.0, undefined, undefined, true)
+      const off = freshCtx()
+      buildRig(off, [wave(['bat1'], { bat1: 9 })], 1.0, undefined, undefined, false)
+      expect(new Set(spawnPaths(on))).toEqual(new Set(['actors/bat_1.xml']))
+      expect(new Set(spawnPaths(off))).toEqual(new Set(['actors/bat_1.xml']))
+    })
   })
 
   it('treats a variant key as its own pool slot, with its own max and interval', () => {

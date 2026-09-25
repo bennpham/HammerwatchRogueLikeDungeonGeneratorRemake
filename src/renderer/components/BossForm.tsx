@@ -12,6 +12,7 @@ import {
   pickupById,
   arenaBossCount,
   arenaMode,
+  arenaUsesBodyguards,
   bossSelection,
   defaultBossFight,
   defaultSurvivalOptions,
@@ -42,7 +43,8 @@ import type {
   SurvivalOptions,
   ValidationIssue
 } from '../../generator'
-import { NumberField, Section, Subsection, ToggleGroup } from './fields'
+import { BoolField, NumberField, Section, Subsection, ToggleGroup } from './fields'
+import { InfoTip } from './InfoTip'
 import { MusicPicker } from './MusicPicker'
 import { BuffListEditor } from './BuffListEditor'
 import { PickupListEditor } from './PickupListEditor'
@@ -232,6 +234,7 @@ export function BossForm({ params, issues, onChange }: BossFormProps) {
           {arenaMode(fight) === 'survival' ? (
             <SurvivalTab
               survival={fight.survival ?? defaultSurvivalOptions()}
+              arena={fight.arena}
               fieldPrefix={`boss.fights.${active}.survival`}
               issues={issues}
               onChange={setSurvival}
@@ -312,6 +315,30 @@ function SharedArenaFields({ arena, fieldPrefix, issues, setArena }: SharedArena
             min={1}
           />
         </div>
+        <BoolField
+          className="field-grid-footer"
+          label="Use bodyguard versions in this arena"
+          checked={arenaUsesBodyguards(arena)}
+          onChange={(checked) => setArena({ bodyguardVariants: checked ? undefined : false })}
+          title="Swaps five roster actors for their boss-folder twins whenever this arena's waves name them"
+        />
+        <p className="hint">
+          On by default. When on, this arena's waves swap five roster actors for their boss-folder
+          twins: the boss-folder archer1, skeleton1 (small and ordinary), skeleton3 and the ranged
+          mummy (mummy_ranged#2) replace them here.
+          <InfoTip
+            text={
+              'None of the five twins drops loot. The knight\'s archer and skeletons aggro from 30 tiles instead of 10-12. The lich\'s skeleton is slower (0.65 vs 1.1 speed) with 25 HP instead of 20. Spawner buildings (#0) still spawn the ordinary monsters — only the creature actors themselves are swapped. Dungeon floors always use the ordinary monsters; this only ever affects an arena.'
+            }
+          />
+        </p>
+        {issues
+          .filter((i) => i.field === `${fieldPrefix}.bodyguardVariants`)
+          .map((issue, i) => (
+            <p key={i} className="field-message">
+              {issue.message}
+            </p>
+          ))}
       </Section>
 
       <Section title="Chances & multipliers">
@@ -587,6 +614,7 @@ function BossOnlyArenaFields({ arena, fieldPrefix, issues, setArena, setWave }: 
                 fieldPrefix={fieldPrefix}
                 issues={issues}
                 onWaveChange={(patch) => setWave(i, patch)}
+                arenaTwins={arenaUsesBodyguards(arena)}
               />
             </Subsection>
           )

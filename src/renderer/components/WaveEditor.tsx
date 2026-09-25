@@ -3,6 +3,7 @@ import {
   BOSS_SPAWN_MODES,
   DEFAULT_WAVE_MONSTER_MAX,
   MONSTER_VARIANT_GROUPS,
+  arenaActorPath,
   corpseCollision,
   defaultTier,
   isScatterMode,
@@ -34,6 +35,21 @@ function noteSuffix(key: string): string {
   return note ? ` — ${note}` : ''
 }
 
+/**
+ * The actor path to show in a hover title. When `arenaTwins` is set (this
+ * wave belongs to an arena with bodyguard twins on) and `actorPath` has a twin
+ * in `ARENA_BODYGUARD_TWINS`, shows the twin path the arena will actually spawn
+ * alongside the ordinary path it stands in for — the substitution itself is
+ * decided by the generator at build time (`resolveArenaActorPath`), this is
+ * purely informational. Otherwise (a dungeon floor's boss, or no twin) returns
+ * `actorPath` unchanged.
+ */
+function displayActorPath(actorPath: string, arenaTwins: boolean | undefined): string {
+  if (!arenaTwins) return actorPath
+  const twin = arenaActorPath(actorPath)
+  return twin === actorPath ? actorPath : `${twin} (arena bodyguard version of ${actorPath})`
+}
+
 interface WaveEditorProps {
   wave: BossWave
   index: number
@@ -48,10 +64,19 @@ interface WaveEditorProps {
    * arena's business alone. Default false (the arena keeps its current shape).
    */
   hideSpawnMode?: boolean
+  /**
+   * True when this wave's arena has bodyguard twins on (`arenaUsesBodyguards`)
+   * — a boss-arena-only setting, never passed from `DungeonBossEditor`, since
+   * a floor boss's waves always name the ordinary actor (issue #64 part 2).
+   * Purely cosmetic: it only changes what a checkbox's hover title says, never
+   * which actor the wave actually names — that substitution happens in the
+   * generator at build time, off the arena's own flag.
+   */
+  arenaTwins?: boolean
 }
 
 /** One health-tier's monster pool, max-count table and spawn interval — the MonsterPoolsEditor/MonsterMaxTable idiom, but scoped to a single wave instead of the whole dungeon. */
-export function WaveEditor({ wave, index, fieldPrefix, issues, onWaveChange, hideSpawnMode }: WaveEditorProps) {
+export function WaveEditor({ wave, index, fieldPrefix, issues, onWaveChange, hideSpawnMode, arenaTwins }: WaveEditorProps) {
   const filter = useMonsterFilter()
   // Session-only, like the act filter — nothing here reaches DungeonParameters,
   // so hiding an option can never change generated output.
@@ -176,8 +201,8 @@ export function WaveEditor({ wave, index, fieldPrefix, issues, onWaveChange, hid
                         off
                           ? 'In this wave, but hidden by the current filter'
                           : v.tier === defaultTier(v.type)
-                            ? `${v.actorPath} — the ordinary ${v.type.id}${noteSuffix(v.key)}`
-                            : `${v.actorPath} — tier ${v.tier} of ${v.type.id}, ${
+                            ? `${displayActorPath(v.actorPath, arenaTwins)} — the ordinary ${v.type.id}${noteSuffix(v.key)}`
+                            : `${displayActorPath(v.actorPath, arenaTwins)} — tier ${v.tier} of ${v.type.id}, ${
                                 v.role === 'spawner' ? 'a spawner building' : 'a creature'
                               }${noteSuffix(v.key)}`
                       }

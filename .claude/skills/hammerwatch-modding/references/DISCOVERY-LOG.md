@@ -8,6 +8,123 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-24 — killing a bodyguard does NOT fire `Boss …`; `boss-hp` is the trigger, not the folder
+**Tag:** [VERIFIED] (user playtest, Linux). This settles the open question in
+the two entries below.
+**Evidence:** the user killed bodyguards from `actors/boss_*` folders while
+the boss was still alive. No wave tier fired early, no alcove or seal opened,
+and no `Boss Died` event fired. The one exception is `boss_worm_decoy`:
+killing it DOES fire the event. It is the only non-boss actor carrying
+`boss-hp: true`, which matches the 2026-09-22 audit (point 4).
+**Rule:** the engine's `Boss 75%/50%/25%/Died` events key on `boss-hp: true`,
+not on the `actors/boss_*` folder. Bodyguards are safe on boss floors and in
+arenas. Never place `boss_worm_decoy` as a non-boss monster.
+**Follow-up:** `hammerwatch-project` and CLAUDE.md invariant 6 still say
+"an actor in the `actors/boss_*` folders"; that wording should become
+"an actor with `boss-hp`".
+
+### 2026-09-24 — all three `boss_knight/knight_guard_lich_*.xml` crash the game; removed
+**Tag:** [VERIFIED] crash for lich_3 and lich_1 (user playtests, Linux,
+`hw_test_params2.txt`). [UNVERIFIED] for lich_2: it has the same XML shape
+but was never seen to crash. Cause **inferred** from an XML diff, not
+isolated by a bisecting run.
+**Evidence:**
+1. `System.NullReferenceException at ARPGGame.Behaviors.CasterActorBehavior.SummonActor ()`
+   fired as the player left the start room, with `knight_guard_lich_3` groups
+   ~18 tiles away (aggro range 20).
+2. After lich3 was repointed at lich_2, the boss room crashed in
+   `CasterActorBehavior.ShootNova ()`. `knight_guard_lich1` (nova) was in
+   that arena's waves.
+3. A dump of every skill block shows the three knight lich guards have **no
+   `sound` entry on any skill**: lich_1 `nova parts timer projectile`,
+   lich_2 `seeker timer projectile parts span ttl ang-speed`, lich_3
+   `summon actor timer parts effect`. Every working stock caster (`lich_1`,
+   `lich_1_elite`, `lich_3`, `boss_lich/lich_guard_lich`,
+   `boss_lich/boss_lich_mirror`) has `sound` on every skill block. No stock
+   asset references the knight lich guards, so the bug never shows in vanilla.
+**Action:** the three types (`knight_guard_lich1/2/3`,
+`maxKnight_Guard_Liches1/2/3`) and their `knight_guard_lich` family
+(`maxKnight_Guard_Liches`) are **deleted outright**, not retired. Nothing had
+shipped, so there were no saved files to keep parsing. Those keys are now
+unknown: `parameters.txt` reports them, and a pool naming them fails
+validation. Default and preset waves use `lich_guard_lich` in their place.
+`tests/monsters.test.ts` asserts that no tier ever names a
+`knight_guard_lich_*` path. The paths stay in `tests/fixtures/actor-paths.txt`
+because the files exist on disk; that list is not an allow-list of safe actors.
+**Do not re-add these three actors** without a campaign-side copy that adds
+`sound` to every skill block.
+**Also:** bodyguard default caps were raised toward main-roster levels,
+first weighted by HP (knight_guard 30, lich_guard_lich 15), then raised after
+the user's playtest to knight_guard 60 (they went down quickly) and
+lich_guard_lich 30 (its lich-guard skeletons are weaker and slower than
+skeleton_3, so they die easily). krilith_mb_skeleton stays at 12 and mirror
+at 4.
+**Rule:** before adding any `caster` actor, check that EVERY skill block
+(`summon`, `nova`, `seeker`, `blink`, `healing`) has a `sound`.
+**Still open:** a custom campaign copy of these actors with `sound` added
+would probably work, but custom actors are out of scope (see the lobby entry).
+
+### 2026-09-23 — bodyguards wired into the roster (#64 part 2)
+**Tag:** [EMITTED] for the paths and the toggle; the "does killing a boss-folder
+actor fire `Boss …`?" question from the entry below (2026-09-22) is still
+**[UNVERIFIED]**, pending the user's own playtest — nothing here settles it.
+**Context:** issue #64 part 2. The audit in that 2026-09-22 entry sorted the
+`actors/boss_*` files into three buckets; this change wires the first two
+into the generator.
+**What shipped:**
+1. **7 new bodyguard monster types**, group `Bodyguards`, all single-tier,
+   `upgradeChance: 1.0` (inert for a one-actor type): `knight_guard`,
+   `knight_guard_lich1/2/3`, `lich_guard_lich`, `lich_mirror`,
+   `krilith_mb_skeleton`. A `knight_guard_lich` family groups the three
+   knight liches (`MONSTER_FAMILIES`, monsterTypes.ts) the same way the
+   tower families do. All 7 paths are now **[EMITTED]** (confirmed on disk
+   with `find`, not yet played):
+   - `actors/boss_knight/knight_guard.xml`
+   - `actors/boss_knight/knight_guard_lich_1.xml`
+   - `actors/boss_knight/knight_guard_lich_2.xml`
+   - `actors/boss_knight/knight_guard_lich_3.xml`
+   - `actors/boss_lich/lich_guard_lich.xml`
+   - `actors/boss_lich/boss_lich_mirror.xml`
+   - `actors/boss_krilith/skeleton_1_mb.xml`
+   None of the 7 carries `boss-hp` (confirmed against the same audit), so
+   the 2026-09-22 entry's open question is unaffected either way by adding
+   them.
+2. **5 arena "bodyguard twin" actors**, substituted in for their plain
+   counterpart ONLY inside a boss/survival arena (`ARENA_BODYGUARD_TWINS` in
+   monsterTypes.ts), also **[EMITTED]**:
+   - `actors/archer_1.xml` → `actors/boss_knight/archer_1.xml` (aggro
+     10-12 → 30, archer max-range 20 → 30, no loot)
+   - `actors/skeleton_1.xml` → `actors/boss_knight/skeleton_1.xml` (aggro
+     10-12 → 30, no loot)
+   - `actors/skeleton_1_small.xml` → `actors/boss_knight/skeleton_1_small.xml`
+     (aggro 10-12 → 30, no loot)
+   - `actors/skeleton_3.xml` → `actors/boss_lich/lich_guard_skeleton.xml`
+     (same aggro as the root; HP 20 → 25, speed 1.1 → 0.65, no loot, no gib)
+   - `actors/mummy_ranged_2.xml` → `actors/boss_anubis/mummy_ranged_2_noloot.xml`
+     (loses only the 20% health drop, otherwise identical)
+   All twin facts are from a direct disk diff of the two XML pairs, not from
+   play — same [EMITTED] confidence as the paths above.
+3. **The toggle is per-arena, `BossArenaOptions.bodyguardVariants`, absent
+   means ON.** `arenaUsesBodyguards()` reads it; `resolveArenaActorPath(key,
+   useTwins)` is the pure substitution point, called from `boss/waves.ts`
+   and `survival/waves.ts`. `dungeonBoss/waves.ts` deliberately keeps calling
+   plain `resolveActorPath` — the twin swap is arena-only, never a dungeon
+   floor's or a floor boss's waves, and it draws nothing from any RNG stream
+   either way (a path substitution, not a roll).
+4. **Krilith's mini-boss skeleton references stock assets that exist on
+   disk**: `buffs/enemy_boss_krilith_wave.xml` (the wave debuff its hits
+   apply) and `enemy_boss_krilith_v2.xml` are both present under
+   `assetsExtract/` — confirmed with `find`, not yet fired in game.
+**Impact:** the roster and the arena twin toggle are ready for a playtest.
+The load-bearing open question is unchanged: does killing ANY of these 7
+bodyguards (all live in `actors/boss_*` folders, none carries `boss-hp`)
+fire the engine's `Boss 75/50/25/Died` events? If it does, a bodyguard on a
+boss floor (`dungeonBoss/`) would open that floor's sealed portal early and
+misfire every tier rig; if it doesn't, `boss-hp` (not the folder) is the
+right rule and `hammerwatch-project`'s invariant 6 wording should be
+revisited once confirmed. See the 2026-09-22 entry immediately below for
+the full audit this change is based on.
+
 ### 2026-09-23 — the Variable-countdown multi-boss rig also works in arenas and drives every death-tier rig
 **Tag:** [VERIFIED] (user playtest). The playtest covered generated output from
 commit `f7bbdd2`.

@@ -29,6 +29,20 @@ actors/bat_2.xml
 actors/bat_3.xml
 actors/bonus/archer_1.xml
 actors/bonus/skeleton_1.xml
+# added 2026-09-23: the 7 boss-folder bodyguards + 5 arena-twin actors
+# (issue #64 part 2 audit, see the modding skill's DISCOVERY-LOG).
+actors/boss_anubis/mummy_ranged_2_noloot.xml
+actors/boss_knight/archer_1.xml
+actors/boss_knight/knight_guard.xml
+actors/boss_knight/knight_guard_lich_1.xml
+actors/boss_knight/knight_guard_lich_2.xml
+actors/boss_knight/knight_guard_lich_3.xml
+actors/boss_knight/skeleton_1.xml
+actors/boss_knight/skeleton_1_small.xml
+actors/boss_krilith/skeleton_1_mb.xml
+actors/boss_lich/boss_lich_mirror.xml
+actors/boss_lich/lich_guard_lich.xml
+actors/boss_lich/lich_guard_skeleton.xml
 actors/eye_1.xml
 actors/eye_1_mb.xml
 actors/eye_1_small.xml
