@@ -126,6 +126,30 @@ const configKeyToMonsterId = new Map(
 )
 
 /**
+ * Structural equality, ignoring object key order — `JSON.stringify` is not
+ * enough here because the same logical `FloorTrap`/`FloorTimer`/`CampaignSlot`
+ * can be produced by two different code paths (a preset literal vs.
+ * `defaultParameters()`) with keys inserted in a different order. Used only to
+ * decide whether the SERIALIZER needs to write an explicit line — never to
+ * decide generator output, so it carries no determinism risk of its own.
+ */
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (typeof a !== typeof b || a === null || b === null || a === undefined || b === undefined) return false
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false
+    return a.every((v, i) => deepEqual(v, b[i]))
+  }
+  if (typeof a === 'object') {
+    const ak = Object.keys(a as Record<string, unknown>)
+    const bk = Object.keys(b as Record<string, unknown>)
+    if (ak.length !== bk.length) return false
+    return ak.every((k) => deepEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]))
+  }
+  return false
+}
+
+/**
  * Parse the original tool's parameters.txt format (key=value per line).
  * Anything present overrides the defaults; anything missing keeps them —
  * the same semantics the Java ConfigFile had.
@@ -812,7 +836,14 @@ function parseBossFightKey(
     return true
   }
   if (suffix === 'music') {
-    if (isKnownMusicId(value)) arena.music = value
+    // The sentinel and "unset" are the same state everywhere else in the
+    // codebase (`?? MUSIC_DEFAULT`), so parse `default` back to `undefined`
+    // rather than the literal string — that is what makes an object whose
+    // `arena.music` was genuinely `undefined` (never touched) round-trip to
+    // itself once the serializer starts writing an explicit line to CLEAR an
+    // inherited base track.
+    if (value === MUSIC_DEFAULT) arena.music = undefined
+    else if (isKnownMusicId(value)) arena.music = value
     else unknownKeys.push(`${key} value "${value}"`)
     return true
   }
@@ -1300,7 +1331,10 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
         continue
       }
       if (suffix === 'music') {
-        if (isKnownMusicId(value)) lobby.music = value
+        // Same "default parses back to undefined" rule as the arena's music
+        // key — see its comment.
+        if (value === MUSIC_DEFAULT) lobby.music = undefined
+        else if (isKnownMusicId(value)) lobby.music = value
         else result.unknownKeys.push(`${key} value "${value}"`)
         continue
       }
@@ -1484,7 +1518,13 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       const n = parseFloat(value)
       if (field === undefined || Number.isNaN(n)) {
         result.unknownKeys.push(key)
-      } else if (n !== field.stock) {
+      } else if (n === field.stock) {
+        // An explicit stock value is how the serializer clears an override the
+        // base object inherited (e.g. castle's stock `player.shared.remove.life`)
+        // — without this, a file naming the key back at stock would silently
+        // leave the base's non-stock value in place rather than removing it.
+        delete params.playerTweaks[keyLower]
+      } else {
         params.playerTweaks[keyLower] = field.type === 'int' ? Math.trunc(n) : n
       }
       continue
@@ -1658,8 +1698,41 @@ function upgradeCountsLine(upgrades: UpgradeCounts | undefined): string {
   return UPGRADE_KINDS.map((kind) => counts[kind] ?? 0).join(' ')
 }
 
+/**
+ * Writes a `<keyPrefix>=<track>` line whenever it is needed to reproduce
+ * `desired` on re-import — not just whenever `desired` is a real track.
+ *
+ * The historical rule ("only write when non-default") is lossy the moment the
+ * BASE `parseParametersTxt` overlays onto (`defaultParameters()`) carries a
+ * non-default track at this same slot: omitting the line does not mean
+ * "unset", it means "inherit whatever the base already had here" — castle's
+ * per-floor tracks, its `boss_1` second lobby, its `boss_final` arena cue.
+ * So a campaign that explicitly wants `default` where the base does not
+ * still needs an explicit `<keyPrefix>=default` line to override it, while a
+ * campaign that already agrees with the base writes nothing, exactly as
+ * before (byte-identical for castle/desert/bonus, whose own tracks already
+ * clear the old "!= default" bar on every slot they use).
+ */
+function writeMusicLine(lines: string[], keyPrefix: string, desired: string | undefined, baseValue: string | undefined): void {
+  const track = desired ?? MUSIC_DEFAULT
+  const inherited = baseValue ?? MUSIC_DEFAULT
+  if (track === MUSIC_DEFAULT) {
+    if (inherited === MUSIC_DEFAULT) return
+    lines.push(`${keyPrefix}=${MUSIC_DEFAULT}`)
+    return
+  }
+  lines.push(`${keyPrefix}=${track}`)
+}
+
 export function serializeParametersTxt(params: DungeonParameters, path?: string, cleanupFiles = true): string {
   const lines: string[] = []
+  // `parseParametersTxt(content)` (no base) overlays onto this exact object,
+  // so it is the reference every "only write when it differs" check below
+  // must diff against — not some hardcoded sentinel — or a field the base
+  // ships non-default (the escape floor's timer/traps, its per-floor music,
+  // its stock `player.shared.remove.life` tweak, its shipped `levelOrder`)
+  // silently leaks back in on re-import the moment a campaign turns it off.
+  const base = defaultParameters()
 
   for (const key of PARAMETER_ORDER) {
     if (key === 'path') {
@@ -1717,34 +1790,59 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
         lines.push(`${t.configKey}=${params.monsterMax[t.id] ?? 0}`)
       }
     } else if (key === 'buff') {
-      // Only floors carrying at least one buff get a line. Keeps
-      // parameters.default.txt and every file exported before buffs existed
-      // byte-identical.
-      ;(params.levelBuffs ?? []).forEach((buffs, i) => {
-        if (buffs.length === 0) return
-        lines.push(`buff${i}=${buffs.map((b) => `${b.buff}:${b.target}`).join('|')}`)
-      })
+      // A floor carrying at least one buff always gets a line (the historical
+      // rule — keeps parameters.default.txt and every file exported before
+      // buffs existed byte-identical) OR the floor differs from what omitting
+      // the line would reconstruct (the base's own buffs at that index —
+      // always `[]` today, but read through `base` rather than hardcoded so
+      // this stays correct if that ever changes).
+      if (params.levelBuffs !== undefined) {
+        for (let i = 0; i < params.levels; i++) {
+          const buffs = params.levelBuffs[i] ?? defaultFloorBuffs()
+          const baseBuffs = base.levelBuffs?.[i] ?? defaultFloorBuffs()
+          if (buffs.length === 0 && deepEqual(buffs, baseBuffs)) continue
+          lines.push(`buff${i}=${buffs.map((b) => `${b.buff}:${b.target}`).join('|')}`)
+        }
+      }
     } else if (key === 'trap') {
-      // Only floors running at least one trap get a line. Keeps
-      // parameters.default.txt and every file exported before floor traps
-      // existed byte-identical.
-      ;(params.levelTraps ?? []).forEach((rows, i) => {
-        if (rows.length === 0) return
-        lines.push(
-          `trap${i}=${rows
-            .map((t) => `${t.projectile}:${t.direction}:${t.spread}:${t.spawnRateMs}:${t.count}`)
-            .join('|')}`
-        )
-      })
+      // A floor running at least one trap always gets a line (the historical
+      // rule — keeps parameters.default.txt and every file exported before
+      // floor traps existed byte-identical: castle's escape floor is already
+      // non-empty, so it is written exactly as before) OR the floor differs
+      // from what omitting the line would reconstruct — the base's own traps
+      // at that index. Without the second clause, a campaign that clears the
+      // escape floor's stock fireball rig (base index 7) back to empty would
+      // silently get it back on re-import, since an empty array used to mean
+      // "nothing to write" rather than "explicitly none".
+      if (params.levelTraps !== undefined) {
+        for (let i = 0; i < params.levels; i++) {
+          const rows = params.levelTraps[i] ?? defaultFloorTraps()
+          const baseRows = base.levelTraps?.[i] ?? defaultFloorTraps()
+          if (rows.length === 0 && deepEqual(rows, baseRows)) continue
+          lines.push(
+            `trap${i}=${rows
+              .map((t) => `${t.projectile}:${t.direction}:${t.spread}:${t.spawnRateMs}:${t.count}`)
+              .join('|')}`
+          )
+        }
+      }
     } else if (key === 'timer') {
-      // Only floors with the timer ON get a line. Keeps parameters.default.txt
-      // and every file exported before timer mode existed byte-identical.
-      ;(params.levelTimers ?? []).forEach((timer, i) => {
-        if (!timer.enabled) return
-        lines.push(
-          `timer${i}=1|${timer.seconds}|${timer.damage}|${timer.freqMs}|${timer.countdown ? 1 : 0}`
-        )
-      })
+      // A floor whose timer is ON always gets a line (the historical rule) OR
+      // the floor differs from what omitting the line would reconstruct — the
+      // base's own timer at that index (the escape floor's is ON). The full
+      // state (enabled bit included) is always written, never just the three
+      // numeric fields the old "only when enabled" rule assumed, so a floor
+      // explicitly turned OFF where the base's is ON can say so.
+      if (params.levelTimers !== undefined) {
+        for (let i = 0; i < params.levels; i++) {
+          const timer = params.levelTimers[i] ?? defaultFloorTimer()
+          const baseTimer = base.levelTimers?.[i] ?? defaultFloorTimer()
+          if (!timer.enabled && deepEqual(timer, baseTimer)) continue
+          lines.push(
+            `timer${i}=${timer.enabled ? 1 : 0}|${timer.seconds}|${timer.damage}|${timer.freqMs}|${timer.countdown ? 1 : 0}`
+          )
+        }
+      }
     } else if (key === 'bossFloor') {
       // Only floors with a boss ON get lines — and then the whole block, so
       // clearing a wave tier in the form and re-importing really does clear it
@@ -1809,18 +1907,38 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
         })
       })
     } else if (key === 'music') {
-      // Only floors with a track actually set get a line. Keeps
-      // parameters.default.txt and every file exported before music existed
-      // byte-identical.
-      ;(params.floorMusic ?? []).forEach((track, i) => {
-        if (track === undefined || track === MUSIC_DEFAULT) return
-        lines.push(`music${i}=${track}`)
-      })
+      // A real (non-default) track always gets a line, same as before — that
+      // alone keeps castle/desert/bonus byte-identical, since none of their
+      // floors use the `default` sentinel. What is new is the other
+      // direction: a floor explicitly reset to `default` where the base's
+      // own track at that index is NOT `default` (pre-alpha clearing
+      // castle's act1..act4) also needs a line, or the base's track leaks
+      // back in on re-import — `writeMusicLine` is exactly the "only write
+      // when it differs from the base at this slot" rule the rest of this
+      // function now follows.
+      if (params.floorMusic !== undefined) {
+        for (let i = 0; i < params.floorMusic.length; i++) {
+          writeMusicLine(lines, `music${i}`, params.floorMusic[i], base.floorMusic?.[i])
+        }
+      }
     } else if (key === 'playerTweaks') {
       const tweaks = pruneTweaks(params.playerTweaks ?? {})
-      for (const tweakKey of Object.keys(tweaks).sort()) {
+      const baseTweaks = pruneTweaks(base.playerTweaks ?? {})
+      // Every key the BASE overrides (non-stock) that this campaign does not
+      // override the same way must be written back to its stock value
+      // explicitly, or omitting the line — which now means "delete the
+      // inherited override" (see the parser change above) — would still
+      // leave nothing to delete only because nothing said to. Without this a
+      // campaign that clears castle's stock `player.shared.remove.life`
+      // tweak (an empty `playerTweaks: {}`) would silently get it back.
+      const explicitStock = new Set<string>()
+      for (const baseKey of Object.keys(baseTweaks)) {
+        if (tweaks[baseKey] === undefined) explicitStock.add(baseKey)
+      }
+      const allKeys = new Set([...Object.keys(tweaks), ...explicitStock])
+      for (const tweakKey of Array.from(allKeys).sort()) {
         const field = TWEAK_FIELD_MAP.get(tweakKey)
-        const value = tweaks[tweakKey]
+        const value = tweaks[tweakKey] ?? field?.stock ?? 0
         lines.push(`${tweakKey}=${field?.type === 'float' ? value.toFixed(6) : value}`)
       }
     }
@@ -1840,11 +1958,13 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
     lines.push(`lobby${i}Gold=${lobby.startingGold}`)
     lines.push(`lobby${i}Shops=${lobby.shopCategories.join(' ')}`)
     lines.push(`lobby${i}Upgrades=${upgradeCountsLine(lobby.upgrades)}`)
-    // Only when set and not the default sentinel, so a lobby that never chose
-    // a track round-trips byte-identical to before this option existed.
-    if (lobby.music !== undefined && lobby.music !== MUSIC_DEFAULT) {
-      lines.push(`lobby${i}Music=${lobby.music}`)
-    }
+    // Written whenever it differs from what omitting the line would
+    // reconstruct — the base's own lobby at this index. `defaultParameters()`
+    // ships lobby 1 (`BETA-boss-prep`) with `music: 'boss_1'`, so a campaign
+    // that puts a DIFFERENT lobby at index 1 and leaves its own music on
+    // `default` must say so explicitly, or the stale `boss_1` leaks back in
+    // on re-import.
+    writeMusicLine(lines, `lobby${i}Music`, lobby.music, base.lobbies[i]?.music)
   })
 
   // Add boss params after the lobby params.
@@ -1859,11 +1979,29 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
   // of the `lobby<i>*` blocks above, not as part of the fight.
   const fights = params.boss.fights ?? []
 
-  // Written only when the campaign was actually rearranged, so a stock export
-  // gains no line and still round-trips byte for byte against one written
-  // before floors could be reordered.
-  const order = campaignOrder({ levels: params.levels, fights: fights.length, lobbies: lobbies.length }, params.levelOrder)
-  if (!isDefaultOrder(order, { levels: params.levels, fights: fights.length, lobbies: lobbies.length })) {
+  // Written when the campaign was actually rearranged (the historical rule —
+  // keeps every stock export byte-identical to one written before floors
+  // could be reordered) OR when OMITTING the line would reconstruct the
+  // wrong thing. The two are different questions: `defaultParameters()`
+  // itself ships the shipped order (`L1,1..7,L2,B1,8`), not the naive
+  // "lobbies, then floors, then fights" default, so a campaign with fewer
+  // lobbies or no boss whose OWN order genuinely IS that naive shape (e.g.
+  // pre-alpha) still needs an explicit line — omitting it would have
+  // `parseParametersTxt` repair the base's shipped order against this
+  // campaign's own counts instead, which is not the same thing.
+  const counts = { levels: params.levels, fights: fights.length, lobbies: lobbies.length }
+  const order = campaignOrder(counts, params.levelOrder)
+  const isRearranged = !isDefaultOrder(order, counts)
+  const absentOrder =
+    base.levelOrder === undefined
+      ? undefined
+      : (() => {
+          const repaired = normalizeOrder(base.levelOrder, counts)
+          return isDefaultOrder(repaired, counts) ? undefined : repaired
+        })()
+  const omittingWouldReconstructCorrectly =
+    absentOrder === undefined ? isDefaultOrder(order, counts) : deepEqual(order, absentOrder)
+  if (isRearranged || !omittingWouldReconstructCorrectly) {
     const label = slotLabeller(fights.map(arenaMode))
     lines.push(`levelOrder=${order.map(label).join(',')}`)
   }
@@ -1907,11 +2045,13 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
     }
 
     lines.push(`boss${f}Theme=${arena.theme}`)
-    // Only when set and not the default sentinel, so a fight that never chose
-    // a track round-trips byte-identical to before this option existed.
-    if (arena.music !== undefined && arena.music !== MUSIC_DEFAULT) {
-      lines.push(`boss${f}Music=${arena.music}`)
-    }
+    // Written whenever it differs from what omitting the line would
+    // reconstruct: `defaultBossFight()` ships `music: 'boss_final'` — both on
+    // `defaultParameters()`'s own fight 0 AND on whatever fresh fight the
+    // parser pads the array out to — so a campaign that wants NO arena music
+    // must say `default` explicitly, at any fight index, or `boss_final`
+    // leaks back in on re-import.
+    writeMusicLine(lines, `boss${f}Music`, arena.music, (base.boss.fights?.[f] ?? defaultBossFight()).arena.music)
     lines.push(`boss${f}FloorPattern=${arena.floorPattern}`)
     lines.push(`boss${f}Width=${arena.minWidth},${arena.maxWidth}`)
     lines.push(`boss${f}Height=${arena.minHeight},${arena.maxHeight}`)

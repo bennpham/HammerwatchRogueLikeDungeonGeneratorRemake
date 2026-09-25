@@ -43,6 +43,73 @@ describe('parameters.default.txt', () => {
   })
 })
 
+describe('reference/original-java/parameters.txt — the Java tool\'s own file', () => {
+  // The original, unedited Java tool's export: pre-remake monster names
+  // (`bat`, `army1`, `lich2`, …), no lobbies/boss/traps/timers/buffs/music/
+  // player tweaks/levelOrder keys at all — everything this port added after
+  // the port existed. It must keep importing exactly as it always has: an
+  // overlay onto `defaultParameters()` (invariant 5/6, CLAUDE.md "old files
+  // must still parse exactly as they do today"). None of this fix's changes
+  // touch a code path this file exercises — the explicit-stock-clear rule
+  // only fires on a `player.*` line naming the stock value, and the
+  // default-parses-to-undefined rule only fires on a `music`/`lobbyMusic`/
+  // `bossMusic` line — so this is a straight regression guard, not a new
+  // behaviour.
+  const content = readFileSync(
+    fileURLToPath(new URL('../reference/original-java/parameters.txt', import.meta.url)),
+    'utf8'
+  )
+
+  it('overlays its legacy keys onto defaultParameters(), leaving everything it never mentions untouched', () => {
+    const parsed = parseParametersTxt(content)
+    const base = defaultParameters()
+
+    // Legacy monster names the port renamed (`bat`->`bat1`, `army1`/`army2`/
+    // `lich2` folded away entirely) are not validated at parse time — that is
+    // validation.ts's job — so they come through as literal pool strings,
+    // same as any other floor pool key.
+    expect(parsed.params.levelMonsters).toEqual([
+      ['bat', 'tick', 'maggot'],
+      ['bat', 'tick', 'slime', 'maggot'],
+      ['slime', 'skeleton1', 'maggot'],
+      ['eye', 'skeleton1', 'archer', 'archer'],
+      ['wisp', 'skeleton1', 'archer', 'eye', 'army1'],
+      ['skeleton1', 'archer', 'army1', 'skeleton2', 'wisp'],
+      ['skeleton2', 'archer', 'lich', 'army1'],
+      ['skeleton2', 'army2', 'lich2']
+    ])
+    // The renamed `max*` keys (`maxBats`, `maxArmy`, `maxLiches1`, …) no
+    // longer match any current configKey and are reported, never fatal.
+    expect(parsed.unknownKeys).toEqual([
+      'maxBats',
+      'maxTicks',
+      'maxWisps',
+      'maxArmy',
+      'maxArmy2',
+      'maxLiches1',
+      'maxLiches2'
+    ])
+
+    expect(parsed.path).toBe('C:/Program Files (x86)/Steam/steamapps/common/Hammerwatch')
+    expect(parsed.cleanupFiles).toBe(true)
+    expect(parsed.params.levels).toBe(8)
+    expect(parsed.params.themes).toEqual(['a', 'a', 'b', 'b', 'c', 'c', 'd', 'd'])
+
+    // Nothing this file is silent about drifts from the base it overlays
+    // onto: no `boss=`/`lobbies=`/`levelOrder=`/`player.*`/`musicN=` line
+    // anywhere in it, so all four stay exactly `defaultParameters()`'s own —
+    // the shipped two lobbies, the boss on with the shipped order, the stock
+    // `player.shared.remove.life` tweak, and the 070 per-floor music.
+    expect(parsed.params.boss.enabled).toBe(base.boss.enabled)
+    expect(parsed.params.lobbies).toEqual(base.lobbies)
+    expect(parsed.params.levelOrder).toEqual(base.levelOrder)
+    expect(parsed.params.playerTweaks).toEqual(base.playerTweaks)
+    expect(parsed.params.floorMusic).toEqual(base.floorMusic)
+    expect(parsed.params.levelTraps).toEqual(base.levelTraps)
+    expect(parsed.params.levelTimers).toEqual(base.levelTimers)
+  })
+})
+
 describe('parameters.txt parsing', () => {
   it('overrides only the keys present in the file', () => {
     const parsed = parseParametersTxt('levels=4\nmapWidth=100\nthemes=a,b,c,d\n')
@@ -506,12 +573,20 @@ describe('parameters.txt parsing', () => {
     expect(parsed.unknownKeys).toEqual([])
   })
 
-  it('writes no player.* lines when every tweak is cleared', () => {
-    // defaultParameters() now ships the extra-life removal, so "nothing
-    // tweaked" has to be stated explicitly rather than assumed
+  it('explicitly clears the stock tweak when every tweak is cleared', () => {
+    // defaultParameters() ships the extra-life removal (`player.shared.remove.life=1`)
+    // — omitting every `player.*` line no longer means "nothing tweaked", it
+    // means "inherit whatever the base object parseParametersTxt overlays
+    // onto already has", so clearing the stock tweak has to say so explicitly
+    // (`=0`, its stock value) or it silently comes back on re-import.
     const params = defaultParameters()
     params.playerTweaks = {}
-    expect(serializeParametersTxt(params)).not.toContain('player.')
+    const text = serializeParametersTxt(params)
+    expect(text).toContain('player.shared.remove.life=0')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.params.playerTweaks).toEqual({})
+    expect(parsed.unknownKeys).toEqual([])
   })
 
   it('round-trips player tweaks', () => {
@@ -575,14 +650,13 @@ describe('parameters.txt parsing', () => {
       expect(round[key], key).toBe(value)
     }
 
-    // The one asymmetry, called out rather than hidden: applyCostPolicy clears
-    // every remove.* flag for any policy but 'removed' (bulk.ts), so the
-    // roster above has no remove.life — but absence in parameters.txt means
-    // "keep the default", and the default now sets it. A file therefore
-    // cannot express "extra lives are back on".
-    expect(Object.keys(round).filter((k) => !(k in pruneTweaks(original.playerTweaks)))).toEqual([
-      'player.shared.remove.life'
-    ])
+    // No more asymmetry: applyCostPolicy clears every remove.* flag for any
+    // policy but 'removed' (bulk.ts), so the roster above has no remove.life
+    // override — but the serializer now writes an explicit
+    // `player.shared.remove.life=0` whenever the base it will be re-parsed
+    // against (defaultParameters()) carries a non-stock value the campaign no
+    // longer wants, so "extra lives are back on" really does round-trip.
+    expect(round).toEqual(pruneTweaks(original.playerTweaks))
   })
 
   it('drops player values that equal the stock game', () => {
@@ -1053,6 +1127,24 @@ describe('timerN — per-floor timer mode', () => {
     expect(parsed.unknownKeys).toEqual([])
   })
 
+  it('explicitly clears castle\'s escape-floor timer when it is turned off, and round-trips it', () => {
+    // The bug this guards: the base `parseParametersTxt(content)` (no base)
+    // overlays onto — `defaultParameters()` — arms its LAST floor (the escape
+    // floor) with a 90s timer. Turning that floor's timer off used to write
+    // nothing (the old "only when enabled" rule), so re-importing silently
+    // turned it back on.
+    const params = defaultParameters()
+    params.levelTimers![params.levels - 1].enabled = false
+
+    const text = serializeParametersTxt(params)
+    expect(text).toMatch(new RegExp(`^timer${params.levels - 1}=0\\|`, 'm'))
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.levelTimers?.[params.levels - 1].enabled).toBe(false)
+    expect(parsed.params.levelTimers).toEqual(params.levelTimers)
+  })
+
   it('reports a malformed segment and keeps only that field at its default', () => {
     const parsed = parseParametersTxt('levels=2\ntimer0=1|nope|5|250|1')
     expect(parsed.params.levelTimers?.[0]).toEqual({
@@ -1073,9 +1165,20 @@ describe('timerN — per-floor timer mode', () => {
 })
 
 describe('musicN — per-floor music', () => {
-  it('writes no music line at all while every floor is unset', () => {
-    const text = serializeParametersTxt(plainParameters())
-    expect(text).not.toMatch(/^music\d+=/m)
+  it('explicitly clears every floor\'s inherited base track when they are all reset to default', () => {
+    // plainParameters() resets floorMusic to `default` at every floor, but
+    // the base parseParametersTxt(content) (no base) overlays onto —
+    // defaultParameters() — carries a real act1..act4 track at all 7 of
+    // these indices. Omitting the line would silently inherit those back, so
+    // every floor needs its own explicit `musicN=default` line — the same
+    // fix pre-alpha's round trip needs.
+    const params = plainParameters()
+    const text = serializeParametersTxt(params)
+    expect(text.match(/^music\d+=default$/gm)).toHaveLength(params.levels)
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.floorMusic).toEqual(params.floorMusic)
   })
 
   it('a stock export carries one music line per floor — the 070 parameter set', () => {
@@ -1083,7 +1186,7 @@ describe('musicN — per-floor music', () => {
     expect(text.match(/^music\d+=/gm)).toHaveLength(8)
   })
 
-  it('writes one line per floor with a track set, and round-trips it', () => {
+  it('writes one line per floor whenever it differs from the inherited base track, and round-trips it', () => {
     const params = defaultParameters()
     params.floorMusic = params.themes.map(() => 'default')
     params.floorMusic[0] = 'act1'
@@ -1092,7 +1195,12 @@ describe('musicN — per-floor music', () => {
     const text = serializeParametersTxt(params)
     expect(text).toContain('music0=act1')
     expect(text).toContain('music3=boss_final')
-    expect(text).not.toContain('music1=')
+    // Every other floor is explicitly cleared to `default` too: the base
+    // (defaultParameters() itself here) carries a real track at each of
+    // these indices, so omitting the line would silently inherit it back.
+    for (const i of [1, 2, 4, 5, 6, 7]) {
+      expect(text).toContain(`music${i}=default`)
+    }
 
     const reparsed = parseParametersTxt(text)
     expect(reparsed.unknownKeys).toEqual([])
@@ -1276,20 +1384,28 @@ describe('parameters.txt — lobbies (issue #48)', () => {
     expect(parsed.unknownKeys).toEqual(['lobby0Shops value "nonsense"'])
   })
 
-  it('writes no lobby music line while unset, and round-trips one that is set', () => {
+  it('explicitly clears an inherited lobby music line when unset, and round-trips one that is set', () => {
     const original = defaultParameters()
-    // the stock boss-prep lobby now carries its own music (070 parameter
-    // set) — clear it to exercise the "unset" side of the round trip
+    // the stock boss-prep lobby (index 1) already carries its own music
+    // ('boss_1', the 070 parameter set) — clearing it back to unset has to
+    // say so explicitly, or `parseParametersTxt(content)` (no base) — which
+    // overlays onto defaultParameters(), the same object `original` started
+    // from — would silently inherit that stock 'boss_1' back.
     original.lobbies[1].music = undefined
     let text = serializeParametersTxt(original)
-    expect(text).not.toMatch(/^lobby\d+Music=/m)
+    expect(text).toMatch(/^lobby1Music=default$/m)
+    expect(text).not.toMatch(/^lobby0Music=/m)
+
+    let parsed = parseParametersTxt(text)
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.lobbies).toEqual(original.lobbies)
 
     original.lobbies[1].music = 'boss_1'
     text = serializeParametersTxt(original)
     expect(text).toContain('lobby1Music=boss_1')
     expect(text).not.toMatch(/^lobby0Music=/m)
 
-    const parsed = parseParametersTxt(text)
+    parsed = parseParametersTxt(text)
     expect(parsed.unknownKeys).toEqual([])
     expect(parsed.params.lobbies).toEqual(original.lobbies)
   })
@@ -1376,19 +1492,26 @@ describe('parameters.txt — multiple boss fights (issue #43)', () => {
     expect(parsed.unknownKeys).toEqual(['bossGold'])
   })
 
-  it('writes no boss music line while unset, and round-trips one that is set', () => {
+  it('explicitly clears an inherited boss music line when unset, and round-trips one that is set', () => {
     const original = defaultParameters()
-    // the stock default now carries its own arena music (070 parameter set) —
-    // clear it to exercise the "unset" side of the round trip
+    // the stock default already carries its own arena music (070 parameter
+    // set, 'boss_final') — clearing it back to unset has to say so
+    // explicitly, or `parseParametersTxt(content)` (no base) — which overlays
+    // onto defaultParameters(), the same object `original` started from —
+    // would silently inherit that stock 'boss_final' back.
     original.boss.fights[0].arena.music = undefined
     let text = serializeParametersTxt(original)
-    expect(text).not.toMatch(/^boss\d*Music=/m)
+    expect(text).toMatch(/^boss0Music=default$/m)
+
+    let parsed = parseParametersTxt(text)
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.boss).toEqual(original.boss)
 
     original.boss.fights[0].arena.music = 'boss_final'
     text = serializeParametersTxt(original)
     expect(text).toContain('boss0Music=boss_final')
 
-    const parsed = parseParametersTxt(text)
+    parsed = parseParametersTxt(text)
     expect(parsed.unknownKeys).toEqual([])
     expect(parsed.params.boss).toEqual(original.boss)
   })
@@ -1447,6 +1570,31 @@ describe('parameters.txt — levelOrder (issue #43)', () => {
   // right before the fight, and the escape floor is played after it.
   it('writes the shipped order, escape floor last', () => {
     expect(serializeParametersTxt(defaultParameters())).toMatch(/^levelOrder=L1,1,2,3,4,5,6,7,L2,AB1,8$/m)
+  })
+
+  // The bug this guards: with no lobbies and the boss off, the campaign's own
+  // order genuinely IS the plain "every floor, then the (disabled) fight"
+  // default shape — but OMITTING the line does not reconstruct that. The
+  // base `parseParametersTxt(content)` (no base) overlays onto —
+  // `defaultParameters()` — ships the SHIPPED order (`L1,1..7,L2,B1,8`), and
+  // repairing THAT against a lobby-less, boss-off campaign's own counts drops
+  // the lobbies but keeps the escape floor played AFTER the fight, which is
+  // not the same as the naive default (every floor, then the fight) this
+  // campaign actually wants. An explicit `levelOrder=` line naming the true
+  // default is the only way to say so.
+  it('writes an explicit default order when the base\'s own shipped order would repair to something else', () => {
+    const params = defaultParameters()
+    params.boss.enabled = false
+    params.lobbies = []
+    params.levelOrder = undefined
+
+    const text = serializeParametersTxt(params)
+    expect(text).toMatch(/^levelOrder=1,2,3,4,5,6,7,8,AB1$/m)
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.levelOrder).toBeUndefined()
+    expect(parsed.params).toEqual(params)
   })
 
   // Every case below parses with no `base`, so it starts from
@@ -1579,6 +1727,23 @@ describe('trapN — per-floor wall traps', () => {
     // fireball spewer on all four walls; every other floor stays unarmed.
     const text = serializeParametersTxt(defaultParameters())
     expect(text.match(/^trap\d+=/gm)).toEqual(['trap7='])
+  })
+
+  it('explicitly clears castle\'s escape-floor traps when they are cleared, and round-trips it', () => {
+    // Same bug as the timer test above: `defaultParameters()`'s last floor
+    // (the escape floor) ships a four-wall fireball rig. Clearing it back to
+    // empty used to write nothing (the old "only when non-empty" rule), so
+    // re-importing silently restored the stock rig.
+    const params = defaultParameters()
+    params.levelTraps![params.levels - 1] = []
+
+    const text = serializeParametersTxt(params)
+    expect(text).toMatch(new RegExp(`^trap${params.levels - 1}=$`, 'm'))
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.levelTraps?.[params.levels - 1]).toEqual([])
+    expect(parsed.params.levelTraps).toEqual(params.levelTraps)
   })
 
   it('writes one line per trapped floor and round-trips it', () => {
