@@ -14,6 +14,20 @@ import {
 import { oneOfEachUpgrade } from '../levelTemplate/surgery'
 import type { BossTrap, BossWave, DungeonParameters, FloorTrap } from './parameters'
 import { MUSIC_DEFAULT } from '../music/tracks'
+import { CLAUDE_PRESETS } from './claudePresets'
+
+/**
+ * The two headers the preset dropdown groups presets under — rendered as
+ * greyed, unselectable `<optgroup>` labels in the renderer. `label` is the
+ * only user-visible text; the id is what a preset's `group` field carries and
+ * is never shown.
+ */
+export type PresetGroupId = 'classic' | 'claude'
+
+export const PRESET_GROUPS: readonly { id: PresetGroupId; label: string }[] = [
+  { id: 'classic', label: 'Beta Classic' },
+  { id: 'claude', label: 'Claude Generated' }
+]
 
 /**
  * A named starting point for a campaign: length, themes and per-floor monster
@@ -32,6 +46,8 @@ export interface CampaignPreset {
   label: string
   /** one-line description of what the preset is for */
   description: string
+  /** which `PRESET_GROUPS` header this preset's dropdown entry sits under */
+  group: PresetGroupId
   /** a fresh parameter object every call — never a shared mutable one */
   build(): DungeonParameters
 }
@@ -272,12 +288,13 @@ function bonusWaves(): BossWave[] {
  * The presets, in dropdown order. `castle` is `defaultParameters()` verbatim,
  * so the first entry is always what the app opens with.
  */
-export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
+const CLASSIC_PRESETS: readonly CampaignPreset[] = [
   {
     id: 'castle',
     label: 'Castle (default)',
     description:
       '7 floors through the mixed castle themes — four act floors, then three boss rushes.',
+    group: 'classic',
     build: () => defaultParameters()
   },
   {
@@ -285,6 +302,7 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
     label: 'Desert',
     description:
       '7 floors from the outdoor bug swarms through Temple of the Sun mobs and a mummy mini-boss rush, then Anubis or the worm.',
+    group: 'classic',
     // Floor 0 is an outdoor bug/beast floor ahead of the desert proper. The
     // two guard floors mob the party in numbers but barely scratch it, so the
     // opening reads as busy rather than dangerous. The mummies arrive with
@@ -424,6 +442,7 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
     label: 'Bonus Gauntlet',
     description:
       '5 floors of the bonus tilesets, escalating from bonus mobs to a mixed boss floor.',
+    group: 'classic',
     build: () => ({
       ...defaultParameters(),
       levels: 6,
@@ -535,6 +554,14 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
     })
   }
 ]
+
+/**
+ * Every campaign preset the dropdown offers: the three classics first, then
+ * the eight Claude-generated ones — see `claudePresets.ts`. `PRESET_GROUPS`
+ * is what the renderer groups them by; this array's order is the fallback
+ * within each group.
+ */
+export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [...CLASSIC_PRESETS, ...CLAUDE_PRESETS]
 
 /** The preset the app opens with — `defaultParameters()` by another name. */
 export const DEFAULT_PRESET_ID = 'castle'

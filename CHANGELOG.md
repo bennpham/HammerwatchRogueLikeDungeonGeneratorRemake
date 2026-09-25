@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Grouped preset dropdown.** The preset picker now has two greyed section headers. **Beta Classic** holds Castle, Desert and Bonus Gauntlet. **Claude Generated** holds eight new campaigns.
+- **Eight Claude Generated presets** built on the newer features:
+  - **Lunch Break**: 3 small floors and one arena, a ~20-minute run.
+  - **Beat the Clock**: every floor is timed, and the clock shrinks floor by floor.
+  - **Boss Rush**: every floor is sealed by a boss, with a dragon + queen finale.
+  - **Arena Marathon**: survival rounds and boss fights back to back.
+  - **Trap Gauntlet**: fewer monsters and escalating wall traps.
+  - **Frozen Descent**: an ice-cave run ending on Krilith.
+  - **Pandemonium**: several bosses on every floor and six in the finale.
+  - **The Long Haul**: a 13-floor, multi-act epic with two arenas and an escape floor.
+
+### Notes
+
+- **Survival arenas verified in game.** A user playtest confirmed that the `LevelLoaded` clock fires and the alcove opens.
+
 ## [0.8.0]
 
 ### Fixed

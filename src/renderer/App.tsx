@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CAMPAIGN_PRESETS,
+  PRESET_GROUPS,
   arenaMode,
   campaignPresetById,
   defaultParameters,
@@ -217,10 +218,15 @@ export function App() {
               }}
             >
               <option value="">Load a preset…</option>
-              {CAMPAIGN_PRESETS.map((preset) => (
-                <option key={preset.id} value={preset.id} title={preset.description}>
-                  {preset.label}
-                </option>
+              {/* one greyed, unselectable header per group — native optgroup */}
+              {PRESET_GROUPS.map((group) => (
+                <optgroup key={group.id} label={group.label}>
+                  {CAMPAIGN_PRESETS.filter((preset) => preset.group === group.id).map((preset) => (
+                    <option key={preset.id} value={preset.id} title={preset.description}>
+                      {preset.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </label>

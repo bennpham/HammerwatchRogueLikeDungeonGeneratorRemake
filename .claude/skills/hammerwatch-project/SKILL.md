@@ -37,6 +37,7 @@ src/
 │   │   ├── parameters.ts DungeonParameters + defaultParameters() + THEMES
 │   │   ├── presets.ts    CAMPAIGN_PRESETS — castle (== the default) / desert /
 │   │   │                 bonus. Each build() returns a full fresh parameter set
+│   │   ├── claudePresets.ts CLAUDE_PRESETS — the 8 "Claude Generated" presets
 │   │   ├── themes.ts     THEME_DEFS — tileset path, tile count, doodad token
 │   │   ├── configFile.ts parameters.txt parse/serialize (original format)
 │   │   └── validation.ts every crash path of the original, as a rule
@@ -370,6 +371,19 @@ enabled, **no upper bound** (mirrors `levels`), written as `bossFights` in
 | `arena.foodMultiplier` | 1.2 | scales the arena's health/mana pickup clusters; `boss<i>FoodMultiplier` in `parameters.txt` |
 
 ### Campaign presets
+
+**Two groups.** Every `CampaignPreset` carries a `group`. The dropdown renders
+one native `<optgroup>` per `PRESET_GROUPS` entry, which shows as a greyed,
+unselectable header. `classic` ("Beta Classic") holds castle / desert / bonus
+and always comes first. `claude` ("Claude Generated") holds the eight presets in
+`config/claudePresets.ts`: Lunch Break, Beat the Clock, Boss Rush, Arena
+Marathon, Trap Gauntlet, Frozen Descent, Pandemonium and The Long Haul. They
+show off floor bosses, multi-boss lineups, survival arenas, chained arenas and
+per-floor traps, timers and buffs. The header text lives only in
+`PRESET_GROUPS`. The escape-floor / shared-arena-size tests in
+`tests/presets.test.ts` apply to the `classic` group only. Every preset in either
+group must validate, generate, stay deterministic and round-trip through
+`parameters.txt`.
 
 `config/presets.ts` holds `CAMPAIGN_PRESETS` — `castle` (8 floors,
 `a_mixed`–`g_mixed` then `f_mixed`; identical to `defaultParameters()`),
