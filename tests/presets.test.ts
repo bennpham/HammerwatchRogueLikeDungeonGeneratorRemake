@@ -62,6 +62,11 @@ describe('campaign presets', () => {
     }
   })
 
+  it('lists the Claude-generated presets alphabetically by label', () => {
+    const labels = CAMPAIGN_PRESETS.filter((p) => p.group === 'claude').map((p) => p.label)
+    expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)))
+  })
+
   it('gives every PRESET_GROUPS entry at least one preset', () => {
     for (const group of PRESET_GROUPS) {
       expect(CAMPAIGN_PRESETS.some((p) => p.group === group.id), group.id).toBe(true)

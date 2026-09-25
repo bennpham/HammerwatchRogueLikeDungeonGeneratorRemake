@@ -18,6 +18,7 @@ import { FloorOrderEditor } from './components/FloorOrderEditor'
 import { LevelPreview } from './components/LevelPreview'
 import { LoadoutSheet } from './components/LoadoutSheet'
 import { OutputPanel } from './components/OutputPanel'
+import { PresetGuide } from './components/PresetGuide'
 
 interface Toast {
   kind: 'ok' | 'error' | 'info'
@@ -207,6 +208,7 @@ export function App() {
           <p className="subtitle">Rogue-like campaign generator — remake of the classic forum tool</p>
         </div>
         <div className="header-actions">
+          <PresetGuide onLoad={applyPreset} disabled={busy} />
           <label className="preset-picker">
             <span className="field-label">Preset</span>
             <select

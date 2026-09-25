@@ -734,13 +734,14 @@ function longHaul(): DungeonParameters {
 
 // --- registry ----------------------------------------------------------------
 
+/** In alphabetical order by label, which is the order the dropdown and the preset guide list them in. */
 export const CLAUDE_PRESETS: readonly CampaignPreset[] = [
   {
-    id: 'claude-lunch-break',
-    label: 'Lunch Break',
-    description: '3 short floors into one boss fight — about 15-20 minutes.',
+    id: 'claude-arena-marathon',
+    label: 'Arena Marathon',
+    description: 'One warm-up floor, then four chained arenas — survival, boss, survival, a 3-boss finale — about 40 minutes.',
     group: 'claude',
-    build: lunchBreak
+    build: arenaMarathon
   },
   {
     id: 'claude-beat-the-clock',
@@ -757,25 +758,18 @@ export const CLAUDE_PRESETS: readonly CampaignPreset[] = [
     build: bossRush
   },
   {
-    id: 'claude-arena-marathon',
-    label: 'Arena Marathon',
-    description: 'One warm-up floor, then four chained arenas — survival, boss, survival, a 3-boss finale — about 40 minutes.',
-    group: 'claude',
-    build: arenaMarathon
-  },
-  {
-    id: 'claude-trap-gauntlet',
-    label: 'Trap Gauntlet',
-    description: 'Wall traps escalate every floor, from arrows to dragonfire — about 45 minutes.',
-    group: 'claude',
-    build: trapGauntlet
-  },
-  {
     id: 'claude-frozen-descent',
     label: 'Frozen Descent',
     description: 'A five-floor descent through the ice caves, ending on Krilith — about 45 minutes.',
     group: 'claude',
     build: frozenDescent
+  },
+  {
+    id: 'claude-lunch-break',
+    label: 'Lunch Break',
+    description: '3 short floors into one boss fight — about 15-20 minutes.',
+    group: 'claude',
+    build: lunchBreak
   },
   {
     id: 'claude-pandemonium',
@@ -790,5 +784,12 @@ export const CLAUDE_PRESETS: readonly CampaignPreset[] = [
     description: 'A 13-floor campaign across four acts and two boss arenas, ending in an escape floor — 2-3 hours.',
     group: 'claude',
     build: longHaul
+  },
+  {
+    id: 'claude-trap-gauntlet',
+    label: 'Trap Gauntlet',
+    description: 'Wall traps escalate every floor, from arrows to dragonfire — about 45 minutes.',
+    group: 'claude',
+    build: trapGauntlet
   }
 ]

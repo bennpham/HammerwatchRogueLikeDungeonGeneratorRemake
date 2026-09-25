@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Frozen Descent**: an ice-cave run ending on Krilith.
   - **Pandemonium**: several bosses on every floor and six in the finale.
   - **The Long Haul**: a 13-floor, multi-act epic with two arenas and an escape floor.
+- **Preset guide.** An (i) button left of the preset dropdown opens a list of every preset and its description, each with a **Load** button. Claude Generated presets are listed alphabetically.
 - **Pre-Alpha preset** under its own greyed **Pre-Alpha** header: the original Java tool's `parameters.txt`. It has 8 floors of themes a–d, the Java monster caps, and no lobbies, bosses or extras. Java's `army1`/`army2`/`lich2` pools are split into today's skeleton, archer and lich types.
 
 ### Fixed
