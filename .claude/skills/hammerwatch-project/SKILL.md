@@ -372,10 +372,13 @@ enabled, **no upper bound** (mirrors `levels`), written as `bossFights` in
 
 ### Campaign presets
 
-**Two groups.** Every `CampaignPreset` carries a `group`. The dropdown renders
-one native `<optgroup>` per `PRESET_GROUPS` entry, which shows as a greyed,
-unselectable header. `classic` ("Beta Classic") holds castle / desert / bonus
-and always comes first. `claude` ("Claude Generated") holds the eight presets in
+**Three groups.** Every `CampaignPreset` carries a `group`. The dropdown renders
+one native `<optgroup>` per `PRESET_GROUPS` entry, in that array's order, and
+each shows as a greyed, unselectable header. `preAlpha` ("Pre-Alpha") holds
+`pre-alpha`: the Java original's `parameters.txt` with every remake layer off,
+and `army1`/`army2`/`lich2` split into today's types. `classic`
+("Beta Classic") holds castle / desert / bonus. Castle stays at index 0 of
+`CAMPAIGN_PRESETS` because it is the app default. `claude` ("Claude Generated") holds the eight presets in
 `config/claudePresets.ts`: Lunch Break, Beat the Clock, Boss Rush, Arena
 Marathon, Trap Gauntlet, Frozen Descent, Pandemonium and The Long Haul. They
 show off floor bosses, multi-boss lineups, survival arenas, chained arenas and

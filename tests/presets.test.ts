@@ -331,4 +331,43 @@ describe('campaign presets', () => {
       expect(finalArena).toContain('<string name="level">12</string>')
     })
   })
+
+  // The original Java tool's parameters.txt — reference/original-java/ — with
+  // none of the remake's layers on top.
+  describe('Pre-Alpha', () => {
+    const params = campaignPresetById('pre-alpha')!.build()
+
+    it("matches the Java file's campaign shape", () => {
+      expect(params.levels).toBe(8)
+      expect(params.themes).toEqual(['a', 'a', 'b', 'b', 'c', 'c', 'd', 'd'])
+      expect([params.minRoomSize, params.maxRoomSize, params.minRoomCount, params.maxRoomCount]).toEqual([6, 20, 12, 15])
+      expect([params.mapWidth, params.mapHeight]).toEqual([80, 60])
+      expect([params.goldMultiplier, params.foodMultiplier, params.vaultChance]).toEqual([1.1, 1.2, 0.3])
+      expect(params.monsterMax.lich).toBe(20)
+    })
+
+    it('carries no lobby, boss, per-floor layer or player tweak', () => {
+      expect(params.lobbies).toEqual([])
+      expect(bossFights(params.boss)).toEqual([])
+      expect(params.levelOrder).toBeUndefined()
+      expect(params.lockFinalRoom).toBe(false)
+      expect(params.playerTweaks).toEqual({})
+      for (let i = 0; i < params.levels; i++) {
+        expect(params.levelBuffs![i], `floor ${i + 1}`).toEqual([])
+        expect(params.levelTraps![i], `floor ${i + 1}`).toEqual([])
+        expect(params.levelTimers![i].enabled, `floor ${i + 1}`).toBe(false)
+        expect(floorBossAt(params, i), `floor ${i + 1}`).toBeUndefined()
+      }
+    })
+
+    it('generates dungeon floors only, ending on the orb', () => {
+      const result = generateDungeon(params, 4242)
+      expect(result.ok, result.ok ? '' : result.errors.join(' ')).toBe(true)
+      if (!result.ok) return
+      const levelFiles = result.files.map((f) => f.path).filter((p) => p.startsWith('levels/'))
+      expect(levelFiles).toEqual(Array.from({ length: 8 }, (_, i) => `levels/level${i}.xml`))
+      expect(result.files.some((f) => f.path.startsWith('tweak/'))).toBe(false)
+      expect(result.files.find((f) => f.path === 'levels/level7.xml')!.content).toContain('>GameEnd<')
+    })
+  })
 })
