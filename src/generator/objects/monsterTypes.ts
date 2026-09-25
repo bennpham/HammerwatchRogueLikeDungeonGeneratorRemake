@@ -161,17 +161,22 @@ export const MONSTER_TYPES: MonsterTypeDef[] = [
   // playtest) that killing one does not fire the engine's `Boss ...` events.
   // Single-tier, upgradeChance 1.0 like every other one-actor type — the
   // value is inert for a one-element `tiers` array (see the field comment).
-  { id: 'knight_guard', configKey: 'maxKnight_Guards', upgradeChance: 1.0, defaultMax: 12, group: 'Bodyguards', acts: [2], tiers: ['actors/boss_knight/knight_guard.xml'] },
-  { id: 'knight_guard_lich1', configKey: 'maxKnight_Guard_Liches1', upgradeChance: 1.0, defaultMax: 6, group: 'Bodyguards', acts: [2], tiers: ['actors/boss_knight/knight_guard_lich_1.xml'] },
-  { id: 'knight_guard_lich2', configKey: 'maxKnight_Guard_Liches2', upgradeChance: 1.0, defaultMax: 6, group: 'Bodyguards', acts: [2], tiers: ['actors/boss_knight/knight_guard_lich_2.xml'] },
-  { id: 'knight_guard_lich3', configKey: 'maxKnight_Guard_Liches3', upgradeChance: 1.0, defaultMax: 6, group: 'Bodyguards', acts: [2], tiers: ['actors/boss_knight/knight_guard_lich_3.xml'] },
-  { id: 'lich_guard_lich', configKey: 'maxLich_Guard_Liches', upgradeChance: 1.0, defaultMax: 6, group: 'Bodyguards', acts: [3], tiers: ['actors/boss_lich/lich_guard_lich.xml'] },
+  { id: 'knight_guard', configKey: 'maxKnight_Guards', upgradeChance: 1.0, defaultMax: 30, group: 'Bodyguards', acts: [2], tiers: ['actors/boss_knight/knight_guard.xml'] },
+  { id: 'knight_guard_lich1', configKey: 'maxKnight_Guard_Liches1', upgradeChance: 1.0, defaultMax: 10, group: 'Bodyguards', acts: [2], tiers: ['actors/boss_knight/knight_guard_lich_1.xml'] },
+  { id: 'knight_guard_lich2', configKey: 'maxKnight_Guard_Liches2', upgradeChance: 1.0, defaultMax: 10, group: 'Bodyguards', acts: [2], tiers: ['actors/boss_knight/knight_guard_lich_2.xml'] },
+  // Retired (2026-09-24 playtest): knight_guard_lich_3.xml is the only stock
+  // caster whose `summon` block has no `sound`, and its first summon crashes
+  // the engine (NullReferenceException in CasterActorBehavior.SummonActor).
+  // Repointed at the seeker lich rather than deleted, so saved pools and
+  // arena waves naming it keep validating and generate a safe actor.
+  { id: 'knight_guard_lich3', configKey: 'maxKnight_Guard_Liches3', upgradeChance: 1.0, defaultMax: 0, group: 'Bodyguards', acts: [2], deprecated: true, tiers: ['actors/boss_knight/knight_guard_lich_2.xml'] },
+  { id: 'lich_guard_lich', configKey: 'maxLich_Guard_Liches', upgradeChance: 1.0, defaultMax: 15, group: 'Bodyguards', acts: [3], tiers: ['actors/boss_lich/lich_guard_lich.xml'] },
   { id: 'lich_mirror', configKey: 'maxLich_Mirrors', upgradeChance: 1.0, defaultMax: 4, group: 'Bodyguards', acts: [3], tiers: ['actors/boss_lich/boss_lich_mirror.xml'] },
   // No `acts` — Krilith is not a castle-act boss (the stock arena pool files
   // her under the ice caves, see defaultBossFight), so it lands in "Other" (like
   // `spider`/`tower_empty`), the same way monsterCategories works for every
   // untagged type.
-  { id: 'krilith_mb_skeleton', configKey: 'maxKrilith_MB_Skeletons', upgradeChance: 1.0, defaultMax: 6, group: 'Bodyguards', tiers: ['actors/boss_krilith/skeleton_1_mb.xml'] },
+  { id: 'krilith_mb_skeleton', configKey: 'maxKrilith_MB_Skeletons', upgradeChance: 1.0, defaultMax: 12, group: 'Bodyguards', tiers: ['actors/boss_krilith/skeleton_1_mb.xml'] },
 
   //==============================================
   // Deprecated
@@ -407,7 +412,7 @@ export const MONSTER_FAMILIES: MonsterFamilyDef[] = [
   // The first family outside Towers (issue #64 part 2): the knight's three
   // lich guards are otherwise three separate checkboxes for "some lich
   // guards", the exact gap the tower families exist to close.
-  { id: 'knight_guard_lich', configKey: 'maxKnight_Guard_Liches', defaultMax: 6, group: 'Bodyguards', members: ['knight_guard_lich1', 'knight_guard_lich2', 'knight_guard_lich3'] }
+  { id: 'knight_guard_lich', configKey: 'maxKnight_Guard_Liches', defaultMax: 20, group: 'Bodyguards', members: ['knight_guard_lich1', 'knight_guard_lich2'] }
 ]
 
 const familyById = new Map(MONSTER_FAMILIES.map((f) => [f.id, f]))
@@ -629,7 +634,7 @@ export const MONSTER_NOTES: Record<string, string> = {
   knight_guard: '150 HP melee guard, 35 damage — 50% chance to drop a health potion',
   knight_guard_lich1: '80 HP caster — fires an 8-way nova of lich projectiles, flees at range, drops no loot',
   knight_guard_lich2: 'casts 3 homing seekers, flees at range, drops no loot',
-  knight_guard_lich3: 'summons 5 small skeletons every 1.75s, flees at range, drops no loot',
+  knight_guard_lich3: 'retired — its summon crashes the game; now spawns the seeker lich (knight_guard_lich2)',
   lich_guard_lich: 'necromancer guard — summons 2 lich-guard skeletons every 3.25s',
   lich_mirror: "the Lich's 50 HP mirror image — summons small eyes and seekers, releases 7 bat_3 on death",
   krilith_mb_skeleton: "Krilith's 400 HP mini-boss skeleton (the root mb_skeleton is 800) — its hits apply Krilith's wave debuff and it ignores traps"

@@ -8,6 +8,29 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-24 — `boss_knight/knight_guard_lich_3.xml` crashes the game; retired
+**Tag:** [VERIFIED] crash (user playtest, Linux, `hw_test_params2.txt`);
+the cause is **inferred** from an XML diff, not isolated by a bisecting run.
+**Evidence:** the game died with `System.NullReferenceException at
+ARPGGame.Behaviors.CasterActorBehavior.SummonActor ()` as the player left
+the start room. The nearest casters were `knight_guard_lich_3` groups ~18
+tiles away (aggro range 20). Every stock `caster` with a `summon` block
+(`lich_1`, `lich_3`, `boss_lich/lich_guard_lich`, `boss_lich/boss_lich_mirror`)
+lists `actor timer parts effect sound`; `knight_guard_lich_3` is the only one
+with **no `sound` entry**, and no stock asset references it. It is dead vanilla
+content, which is why the engine bug never shows in the campaign.
+**Action:** `knight_guard_lich3` is retired using the `tower_archer2` pattern:
+`deprecated: true`, `defaultMax: 0`, tiers repointed at
+`knight_guard_lich_2.xml`, removed from the `knight_guard_lich` family.
+Default and preset waves now use `knight_guard_lich2`. The key still parses.
+**Also:** bodyguard default caps were raised toward main-roster levels,
+weighted by HP: knight_guard 30, family 20, lich1/2 10, lich_guard_lich 15,
+krilith_mb_skeleton 12, mirror 4.
+**Rule:** before adding any `caster` actor, check that its `summon` block has
+a `sound`.
+**Still open:** a custom campaign copy of lich_3 with a `sound` added would
+probably work, but custom actors are out of scope (see the lobby entry).
+
 ### 2026-09-23 — bodyguards wired into the roster (#64 part 2)
 **Tag:** [EMITTED] for the paths and the toggle; the "does killing a boss-folder
 actor fire `Boss …`?" question from the entry below (2026-09-22) is still

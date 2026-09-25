@@ -253,8 +253,8 @@ function bonusWaves(): BossWave[] {
         ['tower_banner1', 8],
         ['wisp1', 19],
         ['wisp1#2', 10],
-        // bodyguards — the knight's summoner guard and a last pair of Krilith skeletons
-        ['knight_guard_lich3', 2],
+        // bodyguards — the knight's seeker guard and a last pair of Krilith skeletons
+        ['knight_guard_lich2', 2],
         ['krilith_mb_skeleton', 2]
       ],
       [

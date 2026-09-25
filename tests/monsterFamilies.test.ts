@@ -166,13 +166,12 @@ describe('a family rolls between whole types', () => {
 })
 
 describe('the knight_guard_lich family (issue #64 part 2)', () => {
-  it('resolves to its 3 members', () => {
+  it('resolves to its 2 live members', () => {
     const family = monsterFamilyById('knight_guard_lich')!
     expect(family).toBeDefined()
     expect(familyMembers(family).map((t) => t.id)).toEqual([
       'knight_guard_lich1',
-      'knight_guard_lich2',
-      'knight_guard_lich3'
+      'knight_guard_lich2'
     ])
   })
 

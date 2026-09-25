@@ -1643,8 +1643,8 @@ function castleWaves(): BossWave[] {
         ['lich#0', 2],
         ['mb_lich', 1],
         ['mb_doomspawn', 2],
-        // the knight's summoner guard, sent off with everything else — bodyguards.
-        ['knight_guard_lich3', 1]
+        // the knight's seeker guard, sent off with everything else — bodyguards.
+        ['knight_guard_lich2', 1]
       ],
       [['tower_nova2', 2]],
       1000,
