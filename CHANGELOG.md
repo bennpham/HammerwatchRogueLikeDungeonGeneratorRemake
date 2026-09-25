@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Grouped preset dropdown.** The preset picker now has two greyed section headers. **Beta Classic** holds Castle, Desert and Bonus Gauntlet. **Claude Generated** holds eight new campaigns.
+- **Eight Claude Generated presets** built on the newer features:
+  - **Lunch Break**: 3 small floors and one arena, a ~20-minute run.
+  - **Beat the Clock**: every floor is timed, and the clock shrinks floor by floor.
+  - **Boss Rush**: every floor is sealed by a boss, with a dragon + queen finale.
+  - **Arena Marathon**: survival rounds and boss fights back to back.
+  - **Trap Gauntlet**: fewer monsters and escalating wall traps.
+  - **Frozen Descent**: an ice-cave run ending on Krilith.
+  - **Pandemonium**: several bosses on every floor and six in the finale.
+  - **The Long Haul**: a 13-floor, multi-act epic with two arenas and an escape floor.
+- **Preset guide.** An (i) button left of the preset dropdown opens a list of every preset and its description, each with a **Load** button. Claude Generated presets are listed alphabetically.
+- **Pre-Alpha preset** under its own greyed **Pre-Alpha** header: the original Java tool's `parameters.txt`. It has 8 floors of themes a–d, the Java monster caps, and no lobbies, bosses or extras. Java's `army1`/`army2`/`lich2` pools are split into today's skeleton, archer and lich types.
+
+### Fixed
+
+- **`parameters.txt` export no longer loses switched-off settings.** Importing overlays the file onto the Castle defaults, and the export used to skip any setting that was off. So if you turned off something Castle has on, it came back on re-import: the escape-floor timer or traps, per-floor, lobby or arena music, or the no-extra-lives tweak. The level order could also come back as Castle's. Exports now write an explicit line (`timer7=0|…`, an empty `trapN=`, `musicN=default`, the tweak at its stock value, `levelOrder=`) wherever the value differs from Castle's. Old files import exactly as before. This also fixes Desert's escape floor, which picked up Castle's `act4` music after an export/re-import.
+
+### Notes
+
+- **Survival arenas verified in game.** A user playtest confirmed that the `LevelLoaded` clock fires and the alcove opens.
+
 ## [0.8.0]
 
 ### Fixed

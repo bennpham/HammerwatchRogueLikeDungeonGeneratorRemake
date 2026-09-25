@@ -741,6 +741,17 @@ other death-tier targets: wave `ToggleElement`s, pickup `SpawnObject`s, and the
 after-death trap toggles. All of that is `[VERIFIED]` by the user's follow-up
 playtest on 2026-09-23.
 
+### Survival clock — `GlobalEventTrigger("LevelLoaded")` `[VERIFIED 2026-09-24]`
+
+A survival arena (`src/generator/survival/`) has no boss actor, so no `Boss …`
+event ever fires. Every timed event hangs off one
+`GlobalEventTrigger("LevelLoaded")` with its own `connection-delays` offset,
+including the alcove's `DestroyObject` at `seconds * 1000`. The user played a
+survival round through (their Colosseum preset): the clock ran and the alcove
+opened. The per-rig windows (buffs, traps, pickups) and the countdown styles
+were not confirmed one by one and stay `[EMITTED]`. See DISCOVERY-LOG
+2026-09-24.
+
 ## Projectiles `[VERIFIED 2026-09-01, curated 2026-09-02]`
 
 Source of truth: `src/generator/objects/projectileTypes.ts` — **45 of the 68**

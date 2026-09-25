@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CAMPAIGN_PRESETS,
+  PRESET_GROUPS,
   arenaMode,
   campaignPresetById,
   defaultParameters,
@@ -17,6 +18,7 @@ import { FloorOrderEditor } from './components/FloorOrderEditor'
 import { LevelPreview } from './components/LevelPreview'
 import { LoadoutSheet } from './components/LoadoutSheet'
 import { OutputPanel } from './components/OutputPanel'
+import { PresetGuide } from './components/PresetGuide'
 
 interface Toast {
   kind: 'ok' | 'error' | 'info'
@@ -206,6 +208,7 @@ export function App() {
           <p className="subtitle">Rogue-like campaign generator — remake of the classic forum tool</p>
         </div>
         <div className="header-actions">
+          <PresetGuide onLoad={applyPreset} disabled={busy} />
           <label className="preset-picker">
             <span className="field-label">Preset</span>
             <select
@@ -217,10 +220,15 @@ export function App() {
               }}
             >
               <option value="">Load a preset…</option>
-              {CAMPAIGN_PRESETS.map((preset) => (
-                <option key={preset.id} value={preset.id} title={preset.description}>
-                  {preset.label}
-                </option>
+              {/* one greyed, unselectable header per group — native optgroup */}
+              {PRESET_GROUPS.map((group) => (
+                <optgroup key={group.id} label={group.label}>
+                  {CAMPAIGN_PRESETS.filter((preset) => preset.group === group.id).map((preset) => (
+                    <option key={preset.id} value={preset.id} title={preset.description}>
+                      {preset.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </label>

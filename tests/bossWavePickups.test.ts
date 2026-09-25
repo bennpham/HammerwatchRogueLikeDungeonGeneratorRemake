@@ -449,7 +449,10 @@ describe('boss wave pickups — determinism and invariant 6', () => {
 
 describe('boss wave pickups — stock defaults', () => {
   it('every preset resupplies at 50%, potions at 25% and doubles after the kill', () => {
-    for (const preset of CAMPAIGN_PRESETS) {
+    // Only the three beta-classic presets share this exact stock table — it
+    // comes from `withBoss()` spreading the same arena unchanged, a shape the
+    // Claude-generated presets (config/claudePresets.ts) are not bound to.
+    for (const preset of CAMPAIGN_PRESETS.filter((p) => p.group === 'classic')) {
       const waves = preset.build().boss.fights[0].arena.waves
       expect(wavePickups(waves[0]), `${preset.id} 100%`).toEqual([])
       expect(wavePickups(waves[1]), `${preset.id} 75%`).toEqual([])

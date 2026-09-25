@@ -14,6 +14,21 @@ import {
 import { oneOfEachUpgrade } from '../levelTemplate/surgery'
 import type { BossTrap, BossWave, DungeonParameters, FloorTrap } from './parameters'
 import { MUSIC_DEFAULT } from '../music/tracks'
+import { CLAUDE_PRESETS } from './claudePresets'
+
+/**
+ * The headers the preset dropdown groups presets under — rendered as greyed,
+ * unselectable `<optgroup>` labels in the renderer, in this order (oldest
+ * campaign style first). `label` is the only user-visible text; the id is what
+ * a preset's `group` field carries and is never shown.
+ */
+export type PresetGroupId = 'preAlpha' | 'classic' | 'claude'
+
+export const PRESET_GROUPS: readonly { id: PresetGroupId; label: string }[] = [
+  { id: 'preAlpha', label: 'Pre-Alpha' },
+  { id: 'classic', label: 'Beta Classic' },
+  { id: 'claude', label: 'Claude Generated' }
+]
 
 /**
  * A named starting point for a campaign: length, themes and per-floor monster
@@ -32,6 +47,8 @@ export interface CampaignPreset {
   label: string
   /** one-line description of what the preset is for */
   description: string
+  /** which `PRESET_GROUPS` header this preset's dropdown entry sits under */
+  group: PresetGroupId
   /** a fresh parameter object every call — never a shared mutable one */
   build(): DungeonParameters
 }
@@ -272,12 +289,13 @@ function bonusWaves(): BossWave[] {
  * The presets, in dropdown order. `castle` is `defaultParameters()` verbatim,
  * so the first entry is always what the app opens with.
  */
-export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
+const CLASSIC_PRESETS: readonly CampaignPreset[] = [
   {
     id: 'castle',
     label: 'Castle (default)',
     description:
       '7 floors through the mixed castle themes — four act floors, then three boss rushes.',
+    group: 'classic',
     build: () => defaultParameters()
   },
   {
@@ -285,6 +303,7 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
     label: 'Desert',
     description:
       '7 floors from the outdoor bug swarms through Temple of the Sun mobs and a mummy mini-boss rush, then Anubis or the worm.',
+    group: 'classic',
     // Floor 0 is an outdoor bug/beast floor ahead of the desert proper. The
     // two guard floors mob the party in numbers but barely scratch it, so the
     // opening reads as busy rather than dangerous. The mummies arrive with
@@ -316,7 +335,9 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
       ] satisfies FloorTrap[][],
       levelTimers: escapeTimers(7),
       // floors 5-6 have no musicN line in the 070 parameter set, so 6 (the
-      // escape floor) is left on the MUSIC_DEFAULT sentinel
+      // escape floor) is left on the MUSIC_DEFAULT sentinel. An export writes
+      // `music6=default` for it explicitly, since castle's floor 6 is `act4`
+      // and an absent line would inherit that on re-import.
       floorMusic: [
         'desert_temple',
         'desert_temple',
@@ -424,6 +445,7 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
     label: 'Bonus Gauntlet',
     description:
       '5 floors of the bonus tilesets, escalating from bonus mobs to a mixed boss floor.',
+    group: 'classic',
     build: () => ({
       ...defaultParameters(),
       levels: 6,
@@ -534,6 +556,91 @@ export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
       ]
     })
   }
+]
+
+/**
+ * The original Java tool's own `parameters.txt`, as it shipped before any of
+ * the remake's edits (`reference/original-java/parameters.txt`): eight floors
+ * of themes a-d, the Java monster caps, and nothing else — no lobbies, no boss,
+ * no traps, timers, buffs, music or player tweaks, and no barred final room.
+ *
+ * Every per-floor layer is spelled out as an all-off array rather than left
+ * absent: `parseParametersTxt` overlays onto `defaultParameters()`, so this is
+ * the shape a re-imported export comes back as.
+ *
+ * Three Java pool names no longer exist and are split into today's types:
+ * `army1` (skeleton_1 + archer_1 tiers) -> `skeleton1`, `archer1`; `army2`
+ * (skeleton_2, archer_2, lich_1/2) -> `skeleton2`, `archer2`, `lich`; and
+ * `lich2` (the lich ladder at a 0.5 upgrade chance) -> `lich`. The plain
+ * renames are `bat` -> `bat1`, `tick` -> `tick1`, `archer` -> `archer1`,
+ * `wisp` -> `wisp1`. `maxLiches2` folds into `lich`'s cap, which keeps
+ * `maxLiches1`'s 20.
+ */
+function preAlpha(): DungeonParameters {
+  const base = defaultParameters()
+  const levels = 8
+  return {
+    ...base,
+    levels,
+    themes: ['a', 'a', 'b', 'b', 'c', 'c', 'd', 'd'],
+    lockFinalRoom: false,
+    levelMonsters: [
+      ['bat1', 'tick1', 'maggot'],
+      ['bat1', 'tick1', 'slime', 'maggot'],
+      ['slime', 'skeleton1', 'maggot'],
+      ['eye', 'skeleton1', 'archer1', 'archer1'],
+      ['wisp1', 'skeleton1', 'archer1', 'eye', 'skeleton1', 'archer1'],
+      ['skeleton1', 'archer1', 'skeleton1', 'archer1', 'skeleton2', 'wisp1'],
+      ['skeleton2', 'archer1', 'lich', 'skeleton1', 'archer1'],
+      ['skeleton2', 'skeleton2', 'archer2', 'lich', 'lich']
+    ],
+    levelBuffs: Array.from({ length: levels }, () => defaultFloorBuffs()),
+    levelTraps: Array.from({ length: levels }, () => defaultFloorTraps()),
+    levelTimers: Array.from({ length: levels }, () => defaultFloorTimer()),
+    floorMusic: Array.from({ length: levels }, () => MUSIC_DEFAULT),
+    levelOrder: undefined,
+    monsterMax: {
+      ...base.monsterMax,
+      bat1: 200,
+      tick1: 100,
+      maggot: 80,
+      slime: 300,
+      skeleton1: 100,
+      skeleton2: 80,
+      archer1: 40,
+      archer2: 30,
+      eye: 50,
+      wisp1: 25,
+      lich: 20
+    },
+    playerTweaks: {},
+    lobbies: [],
+    boss: { ...base.boss, enabled: false }
+  }
+}
+
+const PRE_ALPHA_PRESETS: readonly CampaignPreset[] = [
+  {
+    id: 'pre-alpha',
+    label: 'Pre-Alpha',
+    description:
+      "The original Java tool's parameters.txt: 8 floors of themes a-d, no lobbies, no boss, no extras.",
+    group: 'preAlpha',
+    build: preAlpha
+  }
+]
+
+/**
+ * Every campaign preset the dropdown offers: the three classics first (castle
+ * is the app's default and stays at index 0), then the eight Claude-generated
+ * ones — see `claudePresets.ts` — then Pre-Alpha. `PRESET_GROUPS` is what the
+ * renderer groups and orders them by; this array's order is the fallback
+ * within each group.
+ */
+export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
+  ...CLASSIC_PRESETS,
+  ...CLAUDE_PRESETS,
+  ...PRE_ALPHA_PRESETS
 ]
 
 /** The preset the app opens with — `defaultParameters()` by another name. */

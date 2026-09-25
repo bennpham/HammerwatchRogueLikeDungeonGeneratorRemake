@@ -8,6 +8,23 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-24 — a survival arena works in game: `LevelLoaded` fires and the alcove opens on the clock
+**Tag:** [VERIFIED] for the round as a whole (user playtest). The individual
+timed rigs (buff windows, trap windows, pickup drops, countdown style) were not
+reported one by one and stay [EMITTED].
+**Context:** the user built a "Colosseum" preset, modelled on a Hammerwatch
+custom map, around an Arena → Survival fight and played it through. They
+reported that it works.
+**Evidence:** the survival rig hangs every timed event, including the alcove's
+`DestroyObject`, off one `GlobalEventTrigger("LevelLoaded")` with a
+per-connection delay (2026-09-21 entry). A round that finishes and lets the
+party out means the event fired and the delays ran. That closes the open
+question the 2026-09-21 entry flagged as the first thing to check.
+**Impact:** `LEVEL_LOADED_EVENT` (`src/generator/core/events.ts`) is no longer
+[UNVERIFIED]. It is safe to ship survival arenas in presets: the "Claude
+Generated" presets (`config/claudePresets.ts`) use them. Promoted in
+`ASSET-REGISTRY.md` under *Script node types*.
+
 ### 2026-09-24 — killing a bodyguard does NOT fire `Boss …`; `boss-hp` is the trigger, not the folder
 **Tag:** [VERIFIED] (user playtest, Linux). This settles the open question in
 the two entries below.

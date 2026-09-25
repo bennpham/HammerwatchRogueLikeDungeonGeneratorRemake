@@ -110,8 +110,8 @@ export {
   slotLabel
 } from './campaign'
 export type { CampaignCounts, CampaignSlot, Gateway } from './campaign'
-export { CAMPAIGN_PRESETS, DEFAULT_PRESET_ID, campaignPresetById } from './config/presets'
-export type { CampaignPreset } from './config/presets'
+export { CAMPAIGN_PRESETS, DEFAULT_PRESET_ID, PRESET_GROUPS, campaignPresetById } from './config/presets'
+export type { CampaignPreset, PresetGroupId } from './config/presets'
 export { validateParameters } from './config/validation'
 export type { ValidationResult, ValidationIssue } from './config/validation'
 export { GOLD_SAFETY_MAX, UPGRADE_COUNT_MAX } from './config/validation'
