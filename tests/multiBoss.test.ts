@@ -126,7 +126,7 @@ describe('multi-boss arena (issue #64 part 1)', () => {
     // Every boss's own actor is `actors/<id>/<id>.xml` exactly — matching the
     // whole `actors/<id>/` folder would also catch a bodyguard sharing that
     // boss's folder (issue #64 part 2's stock death-tier bodyguards, e.g.
-    // knight_guard_lich3 under actors/boss_knight/), so match the boss's own
+    // knight_guard under actors/boss_knight/), so match the boss's own
     // file, not the folder.
     const actorHits = MULTI_POOL.reduce((n, id) => n + (xml.match(new RegExp(`actors/${id}/${id}\\.xml`, 'g'))?.length ?? 0), 0)
     expect(actorHits).toBe(3)

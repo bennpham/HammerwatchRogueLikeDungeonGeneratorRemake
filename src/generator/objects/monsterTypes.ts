@@ -157,19 +157,11 @@ export const MONSTER_TYPES: MonsterTypeDef[] = [
   // https://github.com/bennpham/HammerwatchRogueLikeDungeonGeneratorRemake/issues/64#issuecomment-5786124801.
   // Every one of them is a guard/summon that patrols a boss's own room, and
   // none of them carries `boss-hp` — only the seven end bosses and the worm
-  // variants do, which is the evidence (still [UNVERIFIED] pending a
-  // playtest) that killing one does not fire the engine's `Boss ...` events.
+  // variants do, and killing one does not fire the engine's `Boss ...` events
+  // ([VERIFIED] 2026-09-24 playtest; the worm decoy, which has `boss-hp`, does).
   // Single-tier, upgradeChance 1.0 like every other one-actor type — the
   // value is inert for a one-element `tiers` array (see the field comment).
   { id: 'knight_guard', configKey: 'maxKnight_Guards', upgradeChance: 1.0, defaultMax: 30, group: 'Bodyguards', acts: [2], tiers: ['actors/boss_knight/knight_guard.xml'] },
-  { id: 'knight_guard_lich1', configKey: 'maxKnight_Guard_Liches1', upgradeChance: 1.0, defaultMax: 10, group: 'Bodyguards', acts: [2], tiers: ['actors/boss_knight/knight_guard_lich_1.xml'] },
-  { id: 'knight_guard_lich2', configKey: 'maxKnight_Guard_Liches2', upgradeChance: 1.0, defaultMax: 10, group: 'Bodyguards', acts: [2], tiers: ['actors/boss_knight/knight_guard_lich_2.xml'] },
-  // Retired (2026-09-24 playtest): knight_guard_lich_3.xml is the only stock
-  // caster whose `summon` block has no `sound`, and its first summon crashes
-  // the engine (NullReferenceException in CasterActorBehavior.SummonActor).
-  // Repointed at the seeker lich rather than deleted, so saved pools and
-  // arena waves naming it keep validating and generate a safe actor.
-  { id: 'knight_guard_lich3', configKey: 'maxKnight_Guard_Liches3', upgradeChance: 1.0, defaultMax: 0, group: 'Bodyguards', acts: [2], deprecated: true, tiers: ['actors/boss_knight/knight_guard_lich_2.xml'] },
   { id: 'lich_guard_lich', configKey: 'maxLich_Guard_Liches', upgradeChance: 1.0, defaultMax: 15, group: 'Bodyguards', acts: [3], tiers: ['actors/boss_lich/lich_guard_lich.xml'] },
   { id: 'lich_mirror', configKey: 'maxLich_Mirrors', upgradeChance: 1.0, defaultMax: 4, group: 'Bodyguards', acts: [3], tiers: ['actors/boss_lich/boss_lich_mirror.xml'] },
   // No `acts` — Krilith is not a castle-act boss (the stock arena pool files
@@ -388,9 +380,7 @@ export interface MonsterFamilyDef {
 /**
  * The shipped families. Towers were the first group where the roster split
  * one concept across many ids, so picking "some banners" meant finding three
- * separate checkboxes; `knight_guard_lich` (issue #64 part 2) is the first
- * family outside Towers, for exactly the same reason on the knight's three
- * lich guards.
+ * separate checkboxes.
  *
  * `tower_empty` and `tower_static_frost` are deliberately absent — each is a
  * lone inert barrier rather than one of a set (see MONSTER_NOTES). So is
@@ -408,11 +398,7 @@ export const MONSTER_FAMILIES: MonsterFamilyDef[] = [
   { id: 'tower_banner', configKey: 'maxTowers_Banner', defaultMax: 4, group: 'Towers', members: ['tower_banner1', 'tower_banner2', 'tower_banner3'] },
   { id: 'tower_flower', configKey: 'maxTowers_Flower', defaultMax: 6, group: 'Towers', members: ['tower_flower1', 'tower_flower1_small', 'tower_flower2', 'tower_flower3'] },
   { id: 'tower_nova', configKey: 'maxTowers_Nova', defaultMax: 4, group: 'Towers', members: ['tower_nova1', 'tower_nova2'] },
-  { id: 'tower_tracking', configKey: 'maxTowers_Tracking', defaultMax: 2, group: 'Towers', members: ['tower_tracking1', 'tower_tracking2', 'tower_tracking3'] },
-  // The first family outside Towers (issue #64 part 2): the knight's three
-  // lich guards are otherwise three separate checkboxes for "some lich
-  // guards", the exact gap the tower families exist to close.
-  { id: 'knight_guard_lich', configKey: 'maxKnight_Guard_Liches', defaultMax: 20, group: 'Bodyguards', members: ['knight_guard_lich1', 'knight_guard_lich2'] }
+  { id: 'tower_tracking', configKey: 'maxTowers_Tracking', defaultMax: 2, group: 'Towers', members: ['tower_tracking1', 'tower_tracking2', 'tower_tracking3'] }
 ]
 
 const familyById = new Map(MONSTER_FAMILIES.map((f) => [f.id, f]))
@@ -632,9 +618,6 @@ export const MONSTER_NOTES: Record<string, string> = {
 
   // Bodyguards (issue #64 part 2) — none of these names says what it does.
   knight_guard: '150 HP melee guard, 35 damage — 50% chance to drop a health potion',
-  knight_guard_lich1: '80 HP caster — fires an 8-way nova of lich projectiles, flees at range, drops no loot',
-  knight_guard_lich2: 'casts 3 homing seekers, flees at range, drops no loot',
-  knight_guard_lich3: 'retired — its summon crashes the game; now spawns the seeker lich (knight_guard_lich2)',
   lich_guard_lich: 'necromancer guard — summons 2 lich-guard skeletons every 3.25s',
   lich_mirror: "the Lich's 50 HP mirror image — summons small eyes and seekers, releases 7 bat_3 on death",
   krilith_mb_skeleton: "Krilith's 400 HP mini-boss skeleton (the root mb_skeleton is 800) — its hits apply Krilith's wave debuff and it ignores traps"

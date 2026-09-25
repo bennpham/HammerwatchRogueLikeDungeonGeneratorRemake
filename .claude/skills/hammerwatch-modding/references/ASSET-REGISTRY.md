@@ -92,9 +92,6 @@ default.
 | `skeleton3` | `maxSkeletons3` | Classic | 100 | `actors/skeleton_3.xml` |
 | `tower_empty` | `maxTowers_Empty` | Towers | 0 | `actors/tower_battlement_empty.xml` |
 | `knight_guard` | `maxKnight_Guards` | Bodyguards | 30 | `actors/boss_knight/knight_guard.xml` |
-| `knight_guard_lich1` | `maxKnight_Guard_Liches1` | Bodyguards | 10 | `actors/boss_knight/knight_guard_lich_1.xml` |
-| `knight_guard_lich2` | `maxKnight_Guard_Liches2` | Bodyguards | 10 | `actors/boss_knight/knight_guard_lich_2.xml` |
-| `knight_guard_lich3` | `maxKnight_Guard_Liches3` | Bodyguards | 0 (deprecated) | `actors/boss_knight/knight_guard_lich_2.xml` — **retired**: `knight_guard_lich_3.xml` crashes the game (see DISCOVERY-LOG 2026-09-24) |
 | `lich_guard_lich` | `maxLich_Guard_Liches` | Bodyguards | 15 | `actors/boss_lich/lich_guard_lich.xml` |
 | `lich_mirror` | `maxLich_Mirrors` | Bodyguards | 4 | `actors/boss_lich/boss_lich_mirror.xml` |
 | `krilith_mb_skeleton` | `maxKrilith_MB_Skeletons` | Bodyguards | 12 | `actors/boss_krilith/skeleton_1_mb.xml` |

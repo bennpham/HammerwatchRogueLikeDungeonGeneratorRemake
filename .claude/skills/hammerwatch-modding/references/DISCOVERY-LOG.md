@@ -8,28 +8,58 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
-### 2026-09-24 — `boss_knight/knight_guard_lich_3.xml` crashes the game; retired
-**Tag:** [VERIFIED] crash (user playtest, Linux, `hw_test_params2.txt`);
-the cause is **inferred** from an XML diff, not isolated by a bisecting run.
-**Evidence:** the game died with `System.NullReferenceException at
-ARPGGame.Behaviors.CasterActorBehavior.SummonActor ()` as the player left
-the start room. The nearest casters were `knight_guard_lich_3` groups ~18
-tiles away (aggro range 20). Every stock `caster` with a `summon` block
-(`lich_1`, `lich_3`, `boss_lich/lich_guard_lich`, `boss_lich/boss_lich_mirror`)
-lists `actor timer parts effect sound`; `knight_guard_lich_3` is the only one
-with **no `sound` entry**, and no stock asset references it. It is dead vanilla
-content, which is why the engine bug never shows in the campaign.
-**Action:** `knight_guard_lich3` is retired using the `tower_archer2` pattern:
-`deprecated: true`, `defaultMax: 0`, tiers repointed at
-`knight_guard_lich_2.xml`, removed from the `knight_guard_lich` family.
-Default and preset waves now use `knight_guard_lich2`. The key still parses.
+### 2026-09-24 — killing a bodyguard does NOT fire `Boss …`; `boss-hp` is the trigger, not the folder
+**Tag:** [VERIFIED] (user playtest, Linux). This settles the open question in
+the two entries below.
+**Evidence:** the user killed bodyguards from `actors/boss_*` folders while
+the boss was still alive. No wave tier fired early, no alcove or seal opened,
+and no `Boss Died` event fired. The one exception is `boss_worm_decoy`:
+killing it DOES fire the event. It is the only non-boss actor carrying
+`boss-hp: true`, which matches the 2026-09-22 audit (point 4).
+**Rule:** the engine's `Boss 75%/50%/25%/Died` events key on `boss-hp: true`,
+not on the `actors/boss_*` folder. Bodyguards are safe on boss floors and in
+arenas. Never place `boss_worm_decoy` as a non-boss monster.
+**Follow-up:** `hammerwatch-project` and CLAUDE.md invariant 6 still say
+"an actor in the `actors/boss_*` folders"; that wording should become
+"an actor with `boss-hp`".
+
+### 2026-09-24 — all three `boss_knight/knight_guard_lich_*.xml` crash the game; removed
+**Tag:** [VERIFIED] crash for lich_3 and lich_1 (user playtests, Linux,
+`hw_test_params2.txt`). [UNVERIFIED] for lich_2: it has the same XML shape
+but was never seen to crash. Cause **inferred** from an XML diff, not
+isolated by a bisecting run.
+**Evidence:**
+1. `System.NullReferenceException at ARPGGame.Behaviors.CasterActorBehavior.SummonActor ()`
+   fired as the player left the start room, with `knight_guard_lich_3` groups
+   ~18 tiles away (aggro range 20).
+2. After lich3 was repointed at lich_2, the boss room crashed in
+   `CasterActorBehavior.ShootNova ()`. `knight_guard_lich1` (nova) was in
+   that arena's waves.
+3. A dump of every skill block shows the three knight lich guards have **no
+   `sound` entry on any skill**: lich_1 `nova parts timer projectile`,
+   lich_2 `seeker timer projectile parts span ttl ang-speed`, lich_3
+   `summon actor timer parts effect`. Every working stock caster (`lich_1`,
+   `lich_1_elite`, `lich_3`, `boss_lich/lich_guard_lich`,
+   `boss_lich/boss_lich_mirror`) has `sound` on every skill block. No stock
+   asset references the knight lich guards, so the bug never shows in vanilla.
+**Action:** the three types (`knight_guard_lich1/2/3`,
+`maxKnight_Guard_Liches1/2/3`) and their `knight_guard_lich` family
+(`maxKnight_Guard_Liches`) are **deleted outright**, not retired. Nothing had
+shipped, so there were no saved files to keep parsing. Those keys are now
+unknown: `parameters.txt` reports them, and a pool naming them fails
+validation. Default and preset waves use `lich_guard_lich` in their place.
+`tests/monsters.test.ts` asserts that no tier ever names a
+`knight_guard_lich_*` path. The paths stay in `tests/fixtures/actor-paths.txt`
+because the files exist on disk; that list is not an allow-list of safe actors.
+**Do not re-add these three actors** without a campaign-side copy that adds
+`sound` to every skill block.
 **Also:** bodyguard default caps were raised toward main-roster levels,
-weighted by HP: knight_guard 30, family 20, lich1/2 10, lich_guard_lich 15,
-krilith_mb_skeleton 12, mirror 4.
-**Rule:** before adding any `caster` actor, check that its `summon` block has
-a `sound`.
-**Still open:** a custom campaign copy of lich_3 with a `sound` added would
-probably work, but custom actors are out of scope (see the lobby entry).
+weighted by HP: knight_guard 30, lich_guard_lich 15, krilith_mb_skeleton 12,
+mirror 4. The user's own run (fully upgraded) is comfortable at knight_guard 60.
+**Rule:** before adding any `caster` actor, check that EVERY skill block
+(`summon`, `nova`, `seeker`, `blink`, `healing`) has a `sound`.
+**Still open:** a custom campaign copy of these actors with `sound` added
+would probably work, but custom actors are out of scope (see the lobby entry).
 
 ### 2026-09-23 — bodyguards wired into the roster (#64 part 2)
 **Tag:** [EMITTED] for the paths and the toggle; the "does killing a boss-folder

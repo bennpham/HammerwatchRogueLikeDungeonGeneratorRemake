@@ -165,38 +165,6 @@ describe('a family rolls between whole types', () => {
   })
 })
 
-describe('the knight_guard_lich family (issue #64 part 2)', () => {
-  it('resolves to its 2 live members', () => {
-    const family = monsterFamilyById('knight_guard_lich')!
-    expect(family).toBeDefined()
-    expect(familyMembers(family).map((t) => t.id)).toEqual([
-      'knight_guard_lich1',
-      'knight_guard_lich2'
-    ])
-  })
-
-  it('is a legal floor pool key, and rejects a tier on it', () => {
-    expect(isKnownFloorPoolKey('knight_guard_lich')).toBe(true)
-    expect(isKnownFloorPoolKey('knight_guard_lich#1')).toBe(false)
-  })
-
-  it('a dungeon floor pooling it accepts the family and rejects a stray tier', () => {
-    const params = plainParameters()
-    params.levels = 1
-    params.themes = ['a']
-    params.levelMonsters = [['knight_guard_lich']]
-    params.monsterMax = { ...params.monsterMax, knight_guard_lich: 40 }
-    const result = generateDungeon(params, 4242)
-    expect(result.ok).toBe(true)
-
-    const bad = validateParameters({
-      ...plainParameters(),
-      levelMonsters: plainParameters().levelMonsters.map((p, i) => (i === 0 ? ['knight_guard_lich#1'] : p))
-    })
-    expect(bad.errors.some((e) => e.field === 'levelMonsters')).toBe(true)
-  })
-})
-
 describe('family pool keys', () => {
   it('accepts a bare family id and rejects a tier on it', () => {
     expect(isKnownFloorPoolKey('tower_banner')).toBe(true)

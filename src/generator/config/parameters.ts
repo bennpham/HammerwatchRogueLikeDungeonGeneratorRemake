@@ -1604,8 +1604,7 @@ function castleWaves(): BossWave[] {
         ['mb_skeleton', 4],
         ['mb_eye', 1],
         // bodyguards
-        ['lich_guard_lich', 2],
-        ['knight_guard_lich1', 2]
+        ['lich_guard_lich', 4]
       ],
       [],
       2000,
@@ -1624,7 +1623,7 @@ function castleWaves(): BossWave[] {
         ['archer2#0', 4],
         ['skeleton2#0', 4],
         // bodyguards
-        ['knight_guard_lich2', 2],
+        ['lich_guard_lich', 2],
         ['lich_mirror', 2]
       ],
       [['tower_nova1', 3]],
@@ -1643,8 +1642,8 @@ function castleWaves(): BossWave[] {
         ['lich#0', 2],
         ['mb_lich', 1],
         ['mb_doomspawn', 2],
-        // the knight's seeker guard, sent off with everything else — bodyguards.
-        ['knight_guard_lich2', 1]
+        // the Lich's necromancer guard, sent off with everything else — bodyguards.
+        ['lich_guard_lich', 1]
       ],
       [['tower_nova2', 2]],
       1000,

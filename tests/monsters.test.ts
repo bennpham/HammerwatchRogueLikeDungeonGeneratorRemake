@@ -99,13 +99,11 @@ describe('monster roster', () => {
 })
 
 describe('arena bodyguard twins (issue #64 part 2)', () => {
-  it('lists the 6 live bodyguards in their own group', () => {
+  it('lists the 4 live bodyguards in their own group', () => {
     const ids = monsterTypesInGroup('Bodyguards').map((t) => t.id)
     expect(ids.sort()).toEqual(
       [
         'knight_guard',
-        'knight_guard_lich1',
-        'knight_guard_lich2',
         'krilith_mb_skeleton',
         'lich_guard_lich',
         'lich_mirror'
@@ -127,13 +125,12 @@ describe('arena bodyguard twins (issue #64 part 2)', () => {
     expect(arenaActorPath(resolveActorPath('tick1'))).toBe(resolveActorPath('tick1'))
   })
 
-  it('retires knight_guard_lich3: its summon has no sound and crashes the engine', () => {
-    const type = monsterTypeById('knight_guard_lich3')
-    expect(isKnownMonsterId('knight_guard_lich3')).toBe(true)
-    expect(type.deprecated).toBe(true)
-    expect(type.defaultMax).toBe(0)
-    expect(type.tiers).toEqual(['actors/boss_knight/knight_guard_lich_2.xml'])
-    expect(MONSTER_TYPES.some((t) => t.tiers.includes('actors/boss_knight/knight_guard_lich_3.xml'))).toBe(false)
+  it('never emits a knight lich guard: every skill lacks a sound and crashes the engine', () => {
+    for (const n of [1, 2, 3]) {
+      const crasher = `actors/boss_knight/knight_guard_lich_${n}.xml`
+      expect(MONSTER_TYPES.some((t) => t.tiers.includes(crasher)), crasher).toBe(false)
+    }
+    expect(isKnownMonsterId('knight_guard_lich1')).toBe(false)
   })
 
   it('substitutes exactly the 5 twinned actors', () => {
@@ -145,8 +142,6 @@ describe('arena bodyguard twins (issue #64 part 2)', () => {
   it('gives every bodyguard type a real, non-deprecated home', () => {
     for (const id of [
       'knight_guard',
-      'knight_guard_lich1',
-      'knight_guard_lich2',
       'lich_guard_lich',
       'lich_mirror',
       'krilith_mb_skeleton'
