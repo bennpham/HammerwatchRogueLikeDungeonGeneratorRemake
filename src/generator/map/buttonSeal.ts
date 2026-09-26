@@ -28,8 +28,8 @@ export const SEAL_SOUND = 'sound/misc.xml:button_hatch'
  * The state the button is switched to when it fires.
  *
  * `activate` — what the hand-edited level6 that swapped the plate for
- * `boss_door_button.xml` switches it to. [EMITTED] — see the 2026-09-25
- * DISCOVERY-LOG entry. The old `trigger_button_floor.xml` plate was driven to
+ * `boss_door_button.xml` switches it to. [VERIFIED 2026-09-26] in game — see
+ * the DISCOVERY-LOG. The old `trigger_button_floor.xml` plate was driven to
  * `pressed`; that belongs to the old asset, do not carry it back.
  */
 const SEAL_BUTTON_STATE = 'activate'
@@ -164,6 +164,7 @@ export function buttonsRemainingText(remaining: number): string {
  * multi-boss rig's (`boss/tierSource.ts`); the checks are shared across the
  * buttons rather than one set per button, since each only tests the value.
  * Which button is pressed first does not matter — the count does.
+ * [VERIFIED 2026-09-26] in game, on its own and feeding a boss floor's seal.
  *
  * Returns the `== 0` check. Draws no RNG. The nodes are editor markers only,
  * placed just past the map's east edge, clear of the boss rig's column.

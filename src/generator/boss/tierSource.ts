@@ -137,7 +137,8 @@ export function buildAllBossesDied(ctx: GenerationContext, actors: ReadonlyArray
  * button trigger is one-shot, and both boss sources fire once per floor.
  *
  * Returns the first check; connect FROM it to reach every check's `on-true`.
- * Draws no RNG. `(x, y)` is a cosmetic editor origin, like every rig here.
+ * [VERIFIED 2026-09-26] in game, on single- and multi-boss floors, either
+ * order. Draws no RNG. `(x, y)` is a cosmetic editor origin, like every rig here.
  */
 export function buildCountdown(ctx: GenerationContext, decrementers: readonly ScriptNode[], x: number, y: number): ScriptNode {
   const remaining = new NodeVariable(ctx, x, y, decrementers.length)

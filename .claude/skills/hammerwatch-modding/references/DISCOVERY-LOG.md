@@ -8,8 +8,26 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-26 — the locked-room rigs work in game: several buttons, boss + button, the new plate
+**Tag:** [VERIFIED] (user playtest). It settles the three 2026-09-25 entries below.
+**Context:** the user played the issue #69 build (PR #70) and confirmed each
+piece one by one:
+- `boss_door_button.xml` switched to `activate` visibly presses.
+- Several buttons: "2 buttons remain", then "1 button remains", then the wall
+  opens, in any press order. So a `CheckVariable` with a non-zero `cmp-val`
+  works, and so does one `CheckVariable` fired by several sources.
+- Boss + button on a single-boss floor: the wall waits for both, in either
+  order. So a `GlobalEventTrigger("Boss Died")` or an `AreaTrigger` works as a
+  countdown decrementer.
+- Multi-boss + button: the same. So a `CheckVariable`'s `on-true` running
+  `ChangeVariable` then `CheckVariable` in list order works, just as
+  `connections` does.
+
+**Impact:** promoted in `ASSET-REGISTRY.md`, under the special doodads and
+*"All of them" — Variable countdowns*.
+
 ### 2026-09-25 — several buttons: shared `CheckVariable(== k)` nodes announce how many remain
-**Tag:** [EMITTED] — not playtested yet.
+**Tag:** [EMITTED] when written — now [VERIFIED], see the 2026-09-26 entry above.
 **Context:** issue #69 part 2 lets a locked floor hide N buttons, all of
 which must be pressed. `buttonSeal.ts`'s `buildButtonCountdown` builds one
 `Variable(N)` and one `ChangeVariable(-1)` per button. It also builds N
@@ -25,7 +43,7 @@ countdown below.
 remain", then "1 button remains", then the wall opens, in any press order.
 
 ### 2026-09-25 — a boss + button seal: a Variable countdown fed by a `CheckVariable`'s `on-true`
-**Tag:** [EMITTED] — not playtested yet.
+**Tag:** [EMITTED] when written — now [VERIFIED], see the 2026-09-26 entry above.
 **Context:** issue #69 part 1 lets a floor be locked AND host a boss. Its wall
 must wait for both, so the boss-death node and the button's one-shot
 `AreaTrigger` each connect to their own `ChangeVariable(-1)` then
@@ -44,7 +62,8 @@ after killing the boss: the wall should open only on the second event either
 way. Test on a single-boss floor and a multi-boss floor.
 
 ### 2026-09-25 — the button seal's plate is now `boss_door_button.xml`, driven to `activate`
-**Tag:** [EMITTED] (taken from a hand-edited level; no in-game press reported yet).
+**Tag:** [EMITTED] when written (taken from a hand-edited level) — now [VERIFIED],
+see the 2026-09-26 entry above.
 **Context:** the user hand-edited a generated `level6.xml`, replacing the
 seal button's `doodads/special/trigger_button_floor.xml` with
 `doodads/special/boss_door_button.xml` and its `ChangeDoodadState` state from
@@ -59,7 +78,7 @@ seal button's `doodads/special/trigger_button_floor.xml` with
 for a later puzzle feature. `SEAL_BUTTON_STATE`
 (`map/buttonSeal.ts`) is `activate`. Still treated as collision-free by
 `map/sealCheck.ts`; if the asset turns out to carry a collider, revisit that.
-Open: whether `activate` settles on a pressed frame for this asset.
+(`activate` does show the press — settled 2026-09-26.)
 
 ### 2026-09-24 — a survival arena works in game: `LevelLoaded` fires and the alcove opens on the clock
 **Tag:** [VERIFIED] for the round as a whole (user playtest). The individual

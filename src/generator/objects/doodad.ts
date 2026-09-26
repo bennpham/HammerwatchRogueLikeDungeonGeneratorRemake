@@ -51,8 +51,8 @@ export const DoodadType = {
   TriggerButton: { path: 'doodads/special/trigger_button_floor.xml', xOffset: 0.5, yOffset: 0.5, themeSubs: 0 },
   // The plate the button seal (map/buttonSeal.ts) hides on the floor. Same
   // anchoring as TriggerButton above; driven to `activate` rather than
-  // `pressed`. [EMITTED] — taken from a hand-edited level6 that swapped it in
-  // for trigger_button_floor.
+  // `pressed`. [VERIFIED 2026-09-26] in game — first taken from a hand-edited
+  // level6 that swapped it in for trigger_button_floor.
   BossDoorButton: { path: 'doodads/special/boss_door_button.xml', xOffset: 0.5, yOffset: 0.5, themeSubs: 0 },
   Torch: { path: 'doodads/generic/lamp_torch.xml', xOffset: 0.5, yOffset: 1, themeSubs: 0 },
   TorchOff: { path: 'doodads/generic/lamp_torch_off.xml', xOffset: 0.5, yOffset: 1, themeSubs: 0 },
