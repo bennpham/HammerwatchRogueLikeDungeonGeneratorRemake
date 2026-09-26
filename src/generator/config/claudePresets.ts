@@ -23,6 +23,7 @@ import type {
   BossWave,
   DungeonBoss,
   DungeonParameters,
+  FloorLock,
   SurvivalBuff,
   SurvivalOptions,
   SurvivalPickup,
@@ -86,6 +87,19 @@ function campaign(levels: number, overrides: Partial<DungeonParameters>): Dungeo
     boss: { enabled: true, fights: [] }
   }
   return { ...params, ...overrides }
+}
+
+/**
+ * Per-floor button counts as `levelLock` (issue #69): 0 unlocks a floor, 1 is
+ * the stock single button (no count stored), n > 1 needs every one of n.
+ *
+ * The presets that set this are built WITHOUT `withGatewayLocks` (see the
+ * registry), which would otherwise overwrite it. A count on a floor that
+ * would lead on by stairs swaps them for the blue teleport — a deliberate
+ * content change that re-rolls that floor and every floor after it.
+ */
+function buttonLocks(counts: readonly number[]): FloorLock[] {
+  return counts.map((n) => (n === 0 ? { enabled: false } : n === 1 ? { enabled: true } : { enabled: true, buttons: n }))
 }
 
 /** `{kind:'lobby',index:i}` / `{kind:'floor',index:i}` / `{kind:'boss',index:i}` shorthands. */
@@ -307,6 +321,9 @@ function beatTheClock(): DungeonParameters {
   const seconds = [150, 120, 100, 80, 60]
   const freqMs = [250, 212, 175, 137, 100]
   params.levelTimers = seconds.map((s, i) => ({ enabled: true, seconds: s, damage: 2, freqMs: freqMs[i], countdown: true }))
+  // No sprinting for the stairs: the middle floors hide two buttons each, but
+  // the 60-second last floor stays at one — two there is a coin flip.
+  params.levelLock = buttonLocks([1, 2, 2, 2, 1])
   return params
 }
 
@@ -328,6 +345,9 @@ function bossRush(): DungeonParameters {
       floorBoss({ boss_krilith: 1 }, floorTierAndDeathWaves([['wisp1', 8]], [['wisp1', 4]])),
       floorBoss({ boss_anubis: 1 }, floorTierAndDeathWaves([['mummy_desert', 10]], [['mummy_desert', 5]]))
     ],
+    // one button on every boss floor, so the way out needs the boss dead AND
+    // the floor searched — the boss stays the main event
+    levelLock: buttonLocks([1, 1, 1, 1]),
     floorMusic: ['act2', 'bonus_1', 'act3', 'desert_temple'],
     lobbies: [lobby('BETA-dungeon-prep'), lobby('BETA-boss-prep', { startingGold: 25000, upgrades: oneOfEachUpgrade(), music: 'boss_1' })],
     levelOrder: actOrder(levels),
@@ -465,6 +485,9 @@ function trapGauntlet(): DungeonParameters {
         { projectile: 'enemy_boss_dragon_fireball', direction: 'right', spread: 0.5, spawnRateMs: 900, count: 3 }
       ]
     ],
+    // buttons rise with the traps, so the trapped rooms have to be crossed
+    // rather than run past
+    levelLock: buttonLocks([1, 1, 2, 2, 3]),
     floorMusic: ['act1', 'act2', 'act3', 'act4', 'act4'],
     lobbies: [lobby('BETA-dungeon-prep'), lobby('BETA-boss-prep', { music: 'boss_1' })],
     levelOrder: actOrder(levels),
@@ -544,6 +567,9 @@ function frozenDescent(): DungeonParameters {
       defaultDungeonBoss(),
       floorBoss({ boss_krilith: 1 }, floorTierAndDeathWaves([['wisp2', 8]], [['wisp2', 4]]))
     ],
+    // the deeper caves become a scavenger hunt: two buttons from floor 3 on,
+    // and on Krilith's floor the wall waits for her too
+    levelLock: buttonLocks([0, 0, 2, 2, 2]),
     lobbies: [lobby('BETA-dungeon-prep'), lobby('BETA-boss-prep', { music: 'boss_1' })],
     levelOrder: actOrder(levels),
     boss: {
@@ -730,6 +756,10 @@ function longHaul(): DungeonParameters {
   // tower_empty.
   params.levelTimers![levels - 1] = escapeFloorTimer()
   params.levelTraps![levels - 1] = escapeFloorTraps()
+  // Buttons escalate by act: one through the first act, two from the second
+  // on (the knight/Krilith/Anubis floors need their boss too), and three on
+  // the escape floor, against its 90-second clock.
+  params.levelLock = buttonLocks([1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3])
   return params
 }
 
@@ -747,23 +777,23 @@ export const CLAUDE_PRESETS: readonly CampaignPreset[] = [
   {
     id: 'claude-beat-the-clock',
     label: 'Beat the Clock',
-    description: 'Every floor runs on a shrinking hazard timer — about 30 minutes.',
+    description: 'Every floor runs on a shrinking hazard timer, with hidden buttons to find before it hits — about 30 minutes.',
     group: 'claude',
-    build: () => withGatewayLocks(beatTheClock())
+    build: beatTheClock
   },
   {
     id: 'claude-boss-rush',
     label: 'Boss Rush',
-    description: 'A mobile boss seals the way out of every floor, then a two-boss finale — about 40 minutes.',
+    description: 'A mobile boss and a hidden button seal the way out of every floor, then a two-boss finale — about 40 minutes.',
     group: 'claude',
-    build: () => withGatewayLocks(bossRush())
+    build: bossRush
   },
   {
     id: 'claude-frozen-descent',
     label: 'Frozen Descent',
-    description: 'A five-floor descent through the ice caves, ending on Krilith — about 45 minutes.',
+    description: 'A five-floor descent through the ice caves, hunting buttons in the deeper ones, ending on Krilith — about 45 minutes.',
     group: 'claude',
-    build: () => withGatewayLocks(frozenDescent())
+    build: frozenDescent
   },
   {
     id: 'claude-lunch-break',
@@ -782,15 +812,15 @@ export const CLAUDE_PRESETS: readonly CampaignPreset[] = [
   {
     id: 'claude-long-haul',
     label: 'The Long Haul',
-    description: 'A 13-floor campaign across four acts and two boss arenas, ending in an escape floor — 2-3 hours.',
+    description: 'A 13-floor campaign across four acts and two boss arenas, with more buttons to find each act, ending in an escape floor — 2-3 hours.',
     group: 'claude',
-    build: () => withGatewayLocks(longHaul())
+    build: longHaul
   },
   {
     id: 'claude-trap-gauntlet',
     label: 'Trap Gauntlet',
-    description: 'Wall traps escalate every floor, from arrows to dragonfire — about 45 minutes.',
+    description: 'Wall traps escalate every floor, from arrows to dragonfire, and so do the buttons hidden under them — about 45 minutes.',
     group: 'claude',
-    build: () => withGatewayLocks(trapGauntlet())
+    build: trapGauntlet
   }
 ]

@@ -30,6 +30,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Every button must be pressed to open the wall. Each press announces how many buttons remain.
   - 0 leaves a floor unlocked. A boss floor with 0 buttons is opened by the boss alone.
   - `parameters.txt` writes a count other than one as `floor:buttons`, e.g. `lockFloors=2:3,7`.
+- **Five Claude presets now make you explore for buttons.** Running straight to the stairs no longer works. Their seeds produce different dungeons from before.
+  - **Trap Gauntlet:** 1 → 3 buttons, rising with the traps.
+  - **Beat the Clock:** up to 2 buttons against the timer; the 60-second last floor keeps 1.
+  - **Frozen Descent:** 2 buttons from floor 3 on, including Krilith's floor.
+  - **The Long Haul:** 1 button in the first act, 2 after that, 3 on the escape floor.
+  - **Boss Rush:** 1 button on each boss floor, on top of the boss.
+  - Lunch Break, Pandemonium and Arena Marathon are unchanged.
 
 ### Fixed
 

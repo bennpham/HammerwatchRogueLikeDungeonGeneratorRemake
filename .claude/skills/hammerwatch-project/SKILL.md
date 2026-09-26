@@ -382,7 +382,10 @@ and `army1`/`army2`/`lich2` split into today's types. `classic`
 `config/claudePresets.ts`: Lunch Break, Beat the Clock, Boss Rush, Arena
 Marathon, Trap Gauntlet, Frozen Descent, Pandemonium and The Long Haul. They
 show off floor bosses, multi-boss lineups, survival arenas, chained arenas and
-per-floor traps, timers and buffs. The header text lives only in
+per-floor traps, timers and buffs. Beat the Clock, Boss Rush, Frozen Descent,
+The Long Haul and Trap Gauntlet also hide extra lock buttons (`buttonLocks`) and
+are registered WITHOUT `withGatewayLocks`, which would overwrite them. The other
+three keep the derived single-button locks. The header text lives only in
 `PRESET_GROUPS`. The escape-floor / shared-arena-size tests in
 `tests/presets.test.ts` apply to the `classic` group only. Every preset in either
 group must validate, generate, stay deterministic and round-trip through
