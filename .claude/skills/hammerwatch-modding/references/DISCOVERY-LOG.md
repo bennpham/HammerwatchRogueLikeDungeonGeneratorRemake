@@ -8,6 +8,24 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-25 — the button seal's plate is now `boss_door_button.xml`, driven to `activate`
+**Tag:** [EMITTED] (taken from a hand-edited level; no in-game press reported yet).
+**Context:** the user hand-edited a generated `level6.xml`, replacing the
+seal button's `doodads/special/trigger_button_floor.xml` with
+`doodads/special/boss_door_button.xml` and its `ChangeDoodadState` state from
+`pressed` to `activate`.
+**Evidence:** the edited level keeps the rig's geometry unchanged — doodad at
+`43 28` (`need-sync` True), w1 h1 `RectangleShape` at `43.5 28.5`, one-shot
+`AreaTrigger`, `PlaySound` `sound/misc.xml:button_hatch`, `ChangeDoodadState`
+`activate` targeting the doodad id.
+**Impact:** the seal now places a new `DoodadType.BossDoorButton`
+(`objects/doodad.ts`, `boss_door_button.xml`, same 0.5/0.5 offset);
+`TriggerButton` keeps `trigger_button_floor.xml`, unused for now and reserved
+for a later puzzle feature. `SEAL_BUTTON_STATE`
+(`map/buttonSeal.ts`) is `activate`. Still treated as collision-free by
+`map/sealCheck.ts`; if the asset turns out to carry a collider, revisit that.
+Open: whether `activate` settles on a pressed frame for this asset.
+
 ### 2026-09-24 — a survival arena works in game: `LevelLoaded` fires and the alcove opens on the clock
 **Tag:** [VERIFIED] for the round as a whole (user playtest). The individual
 timed rigs (buff windows, trap windows, pickup drops, countdown style) were not

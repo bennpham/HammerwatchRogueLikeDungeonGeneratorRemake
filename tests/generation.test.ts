@@ -189,7 +189,7 @@ describe('generateDungeon', () => {
           expect(itemsOfType(xml, 'items/key_gold.xml').length).toBeGreaterThanOrEqual(goldSealed)
 
           // and one button, wired to a one-shot trigger
-          expect(doodadsOfType(xml, 'doodads/special/trigger_button_floor.xml')).toHaveLength(1)
+          expect(doodadsOfType(xml, 'doodads/special/boss_door_button.xml')).toHaveLength(1)
           expect(xml).toContain('<string name="type">PlaySound</string>')
           expect(xml).toContain('<string name="sound">sound/misc.xml:button_hatch</string>')
           expect(xml).toContain('<string name="type">DestroyObject</string>')
@@ -198,9 +198,9 @@ describe('generateDungeon', () => {
           // button's own doodad id, fired by the same one-shot trigger
           const press = nodesOfType(xml, 'ChangeDoodadState')
           expect(press, `seed ${seed}`).toHaveLength(1)
-          expect(press[0].body).toContain('<string name="state">pressed</string>')
+          expect(press[0].body).toContain('<string name="state">activate</string>')
 
-          const plate = /<int name="id">(\d+)<\/int>\s*<string name="type">doodads\/special\/trigger_button_floor\.xml<\/string>/.exec(
+          const plate = /<int name="id">(\d+)<\/int>\s*<string name="type">doodads\/special\/boss_door_button\.xml<\/string>/.exec(
             xml
           )!
           expect(press[0].body, `seed ${seed}`).toContain(
@@ -231,7 +231,7 @@ describe('generateDungeon', () => {
           ].map((m) => ({ id: m[1], path: m[2] }))
 
           const buttons = synced.filter(
-            (d) => d.path === 'doodads/special/trigger_button_floor.xml'
+            (d) => d.path === 'doodads/special/boss_door_button.xml'
           )
           expect(buttons, `seed ${seed}`).toHaveLength(1)
 
@@ -250,7 +250,7 @@ describe('generateDungeon', () => {
           const orb = last.rooms.find((r) => r.type === 'Orb')!
           const button = doodadsOfType(
             lastLevelXML(result),
-            'doodads/special/trigger_button_floor.xml'
+            'doodads/special/boss_door_button.xml'
           )[0]
 
           const inside =
@@ -326,7 +326,7 @@ describe('generateDungeon', () => {
               )
             ]
               .map((m) => ({ path: m[1], x: parseFloat(m[2]), y: parseFloat(m[3]) }))
-              .filter((d) => d.path !== 'doodads/special/trigger_button_floor.xml')
+              .filter((d) => d.path !== 'doodads/special/boss_door_button.xml')
             expect(seal.length, `${theme} seed ${seed}`).toBeGreaterThan(0)
             expect(new Set(seal.map((s) => s.path)).size).toBe(1)
 
@@ -563,7 +563,7 @@ describe('generateDungeon', () => {
           const last = result.levels[finalFloorIndex]
           const button = doodadsOfType(
             lastLevelXML(result),
-            'doodads/special/trigger_button_floor.xml'
+            'doodads/special/boss_door_button.xml'
           )[0]
 
           // the doodad carries a half-tile art offset, so undo it to get the draw
@@ -590,7 +590,7 @@ describe('generateDungeon', () => {
         // own rig (campaign/levels/level_1.xml) offsets them by exactly 0.5.
         for (const seed of [4, 555, 90210]) {
           const xml = lastLevelXML(generateOk(seed))
-          const button = doodadsOfType(xml, 'doodads/special/trigger_button_floor.xml')[0]
+          const button = doodadsOfType(xml, 'doodads/special/boss_door_button.xml')[0]
           expect(button).toBeDefined()
 
           // the seal's trigger is the one-shot one; its shape id names the box

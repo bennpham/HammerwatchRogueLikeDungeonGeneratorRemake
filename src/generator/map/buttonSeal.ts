@@ -22,14 +22,12 @@ export const SEAL_SOUND = 'sound/misc.xml:button_hatch'
 /**
  * The state the button is switched to when it fires.
  *
- * `trigger_button_floor.xml` declares three sprites — `raised` (its default),
- * `activate` (two frames, 50ms each) and `pressed` — plus
- * `<transition from="activate" to="pressed"/>`. So `activate` would animate the
- * press and land on `pressed` by itself, which is what the shipped
- * campaign/levels/level_1.xml node 2180 does. `pressed` snaps straight to the
- * final frame instead. That is deliberate, not an oversight — do not "fix" it.
+ * `activate` — what the hand-edited level6 that swapped the plate for
+ * `boss_door_button.xml` switches it to. [EMITTED] — see the 2026-09-25
+ * DISCOVERY-LOG entry. The old `trigger_button_floor.xml` plate was driven to
+ * `pressed`; that belongs to the old asset, do not carry it back.
  */
-const SEAL_BUTTON_STATE = 'pressed'
+const SEAL_BUTTON_STATE = 'activate'
 
 /** How long the "it opened" banner stays up, in ms. */
 const SEAL_ANNOUNCE_MS = 2500
@@ -221,7 +219,7 @@ function buildButtonRig(
   // False (7111). It is NOT part of the barrier — the asset declares no
   // collision element at all — so anything treating `need-sync` as "blocks the
   // player" has to exclude it (see map/sealCheck.ts).
-  const plate = Doodad.create(ctx, button.x, button.y, 'TriggerButton', room.theme)
+  const plate = Doodad.create(ctx, button.x, button.y, 'BossDoorButton', room.theme)
   plate.needSync = true
 
   // A button the party cannot walk to is as fatal as an unreachable key, and
@@ -239,8 +237,10 @@ function buildButtonRig(
   // campaign's button rigs use: campaign/levels/level_1.xml has a
   // trigger_button_floor at `-20 -25` driven by a w1 h1 RectangleShape at
   // `-19.5 -24.5`. [VERIFIED] 2026-08-24 — the previous code anchored the shape
-  // at the raw tile and the box landed diagonally off the button.
-  const art = doodadOffset('TriggerButton', room.theme)
+  // at the raw tile and the box landed diagonally off the button. The
+  // hand-edited level6 that swapped in boss_door_button kept the same
+  // relationship (doodad `43 28`, shape `43.5 28.5`).
+  const art = doodadOffset('BossDoorButton', room.theme)
   const nodeX = button.x + art.x + 0.5
   const nodeY = button.y + art.y + 0.5
 
