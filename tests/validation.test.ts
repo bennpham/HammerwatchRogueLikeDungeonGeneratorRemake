@@ -4,6 +4,7 @@ import {
   BOSS_DEATH_WAVE,
   BOSS_WAVE_COUNT,
   MAX_BOSS_COUNT,
+  MAX_LOCK_BUTTONS,
   BOSS_COUNT_WARN,
   defaultLobby,
   defaultParameters,
@@ -53,6 +54,21 @@ describe('parameter validation', () => {
     // no floor locked — nothing to warn about
     p.levelLock = p.levelLock?.map(() => ({ enabled: false }))
     expect(fieldsOf(validateParameters(p).warnings)).not.toContain('minRoomCount')
+  })
+
+  it('accepts 0..MAX_LOCK_BUTTONS buttons on a lock and rejects anything else', () => {
+    const p = defaultParameters()
+    for (const ok of [0, 1, 5, MAX_LOCK_BUTTONS]) {
+      p.levelLock![0] = { enabled: true, buttons: ok }
+      expect(fieldsOf(validateParameters(p).errors), `${ok}`).not.toContain('levelLock.0.buttons')
+    }
+    for (const bad of [-1, 1.5, MAX_LOCK_BUTTONS + 1, NaN]) {
+      p.levelLock![0] = { enabled: true, buttons: bad }
+      expect(fieldsOf(validateParameters(p).errors), `${bad}`).toContain('levelLock.0.buttons')
+    }
+    // a disabled lock's count is not read
+    p.levelLock![0] = { enabled: false, buttons: -1 }
+    expect(fieldsOf(validateParameters(p).errors)).not.toContain('levelLock.0.buttons')
   })
 
   it('rejects rooms that cannot fit on the map (the original crashed here)', () => {

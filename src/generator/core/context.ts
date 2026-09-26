@@ -108,6 +108,12 @@ export class GenerationContext {
    */
   floorLocked = false
 
+  /**
+   * How many buttons that lock needs (issue #69 part 2) — 0 when the floor
+   * is not locked. Set alongside `floorLocked`.
+   */
+  floorLockButtons = 0
+
   monsters: Monster[] = []
   items: Item[] = []
   doodads: Doodad[] = []

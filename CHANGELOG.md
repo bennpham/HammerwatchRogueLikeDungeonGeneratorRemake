@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - On a floor that also has a boss, the wall opens only once the boss (or every boss) is dead **and** the button has been pressed.
   - Every preset locks the same floors the old checkbox did, so existing seeds are unchanged. Pre-Alpha stays unlocked.
   - `parameters.txt` writes `lockFloors=6,7` (0-based floor list) instead of `lockFinalRoom=`. An old `lockFinalRoom=1` still imports, as the floors it used to lock.
+- **Several buttons per locked floor (issue #69, part 2).** Each floor in **Locked rooms** now takes a button count (0–20) instead of a checkbox.
+  - Every button must be pressed to open the wall. Each press announces how many buttons remain.
+  - 0 leaves a floor unlocked. A boss floor with 0 buttons is opened by the boss alone.
+  - `parameters.txt` writes a count other than one as `floor:buttons`, e.g. `lockFloors=2:3,7`.
 
 ### Fixed
 

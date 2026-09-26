@@ -233,6 +233,24 @@ describe('parameters.txt parsing', () => {
     expect(parseParametersTxt(text).params.levelLock).toBeUndefined()
   })
 
+  it('writes a button count other than one as floor:count, and round-trips it', () => {
+    const original = defaultParameters()
+    original.levelLock = original.levelLock!.map((_, i) =>
+      i === 2 ? { enabled: true, buttons: 3 } : i === 5 ? { enabled: true, buttons: 0 } : { enabled: i === 7 }
+    )
+    const text = serializeParametersTxt(original)
+    expect(text).toMatch(/^lockFloors=2:3,5:0,7\r?$/m)
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.levelLock![2]).toEqual({ enabled: true, buttons: 3 })
+    expect(parsed.params.levelLock![5]).toEqual({ enabled: true, buttons: 0 })
+    // one button stores no count
+    expect(parsed.params.levelLock![7]).toEqual({ enabled: true })
+    expect(parseParametersTxt('lockFloors=1:1').params.levelLock![1]).toEqual({ enabled: true })
+    expect(parseParametersTxt('lockFloors=1:x').unknownKeys).toEqual(['lockFloors floor "1:x"'])
+  })
+
   it('reports lockFloors entries that are not floors of the campaign', () => {
     const parsed = parseParametersTxt('lockFloors=1,x,99')
     expect(parsed.params.levelLock!.map((l) => l.enabled)).toEqual([false, true, false, false, false, false, false, false])

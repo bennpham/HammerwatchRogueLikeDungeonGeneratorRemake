@@ -8,6 +8,22 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-25 — several buttons: shared `CheckVariable(== k)` nodes announce how many remain
+**Tag:** [EMITTED] — not playtested yet.
+**Context:** issue #69 part 2 lets a locked floor hide N buttons, all of
+which must be pressed. `buttonSeal.ts`'s `buildButtonCountdown` builds one
+`Variable(N)` and one `ChangeVariable(-1)` per button. It also builds N
+`CheckVariable`s (`== 0` … `== N-1`) that every button's `AreaTrigger` fires
+after its own subtraction. `== k ≥ 1` → `AnnounceText("k buttons remain")`;
+`== 0` → DestroyObject + the opened line, or, on a boss floor, the seal
+countdown below.
+**Evidence:** two parts differ from the [VERIFIED] multi-boss rig:
+- a `CheckVariable` with a non-zero `cmp-val`;
+- one `CheckVariable` fired by several sources instead of one per source.
+
+**Impact:** playtest a 3-button floor. The expected lines are "2 buttons
+remain", then "1 button remains", then the wall opens, in any press order.
+
 ### 2026-09-25 — a boss + button seal: a Variable countdown fed by a `CheckVariable`'s `on-true`
 **Tag:** [EMITTED] — not playtested yet.
 **Context:** issue #69 part 1 lets a floor be locked AND host a boss. Its wall

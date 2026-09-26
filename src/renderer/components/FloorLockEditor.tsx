@@ -1,7 +1,7 @@
 import React from 'react'
-import { bossFights, campaignOrder, defaultFloorLock, gatewayAfter } from '../../generator'
+import { MAX_LOCK_BUTTONS, bossFights, campaignOrder, defaultFloorLock, floorLockButtons, gatewayAfter } from '../../generator'
 import type { DungeonParameters, FloorLock, ValidationIssue } from '../../generator'
-import { BoolField } from './fields'
+import { NumberField } from './fields'
 
 interface FloorLockEditorProps {
   params: DungeonParameters
@@ -41,17 +41,24 @@ export function FloorLockEditor({ params, issues, onChange }: FloorLockEditorPro
     return next.slice(0, count)
   }
 
-  const setLocked = (level: number, enabled: boolean) => {
+  /**
+   * One number per floor: 0 unlocks it, anything else locks it with that many
+   * buttons. One button stores no count (absent means 1), which is the shape
+   * the presets and parameters.txt produce. A half-typed value is kept as-is
+   * so validation can flag it rather than the field snapping back.
+   */
+  const setButtons = (level: number, buttons: number) => {
     const next = locks()
-    next[level] = { ...next[level], enabled }
+    next[level] =
+      buttons === 0 ? { enabled: false } : buttons === 1 ? { enabled: true } : { enabled: true, buttons }
     onChange({ ...params, levelLock: next })
   }
 
   return (
     <div className="floor-locks">
       <p className="hint">
-        A locked floor walls off its exit; a hidden floor button opens it. On a boss floor the
-        wall waits for the boss <em>and</em> the button.
+        Buttons hidden on each floor; pressing all of them opens its walled-off exit. 0 leaves
+        the floor unlocked. On a boss floor the wall also waits for the boss.
       </p>
       {issues
         .filter((i) => i.field === 'levelLock')
@@ -64,12 +71,16 @@ export function FloorLockEditor({ params, issues, onChange }: FloorLockEditorPro
         {Array.from({ length: count }, (_, level) => {
           const detail = leadsTo.get(level)
           return (
-            <BoolField
+            <NumberField
               key={level}
               label={`Level ${level + 1}${detail ? ` (${detail})` : ''}`}
-              checked={params.levelLock?.[level]?.enabled === true}
-              onChange={(enabled) => setLocked(level, enabled)}
-              title="Seal this floor's way out behind a wall that a hidden floor button opens"
+              field={`levelLock.${level}.buttons`}
+              value={floorLockButtons(params, level)}
+              onChange={(v) => setButtons(level, v)}
+              issues={issues}
+              min={0}
+              max={MAX_LOCK_BUTTONS}
+              title="Buttons that must all be pressed to open this floor's exit — 0 for none"
             />
           )
         })}

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { CAMPAIGN_PRESETS, generateDungeon, defaultParameters, DungeonResult } from '../src/generator'
 import { plainParameters } from './params'
 import { doodadOffset, doodadPath } from '../src/generator/objects/doodad'
-import { nodesOfType, oneShotRespawn } from './xmlHelpers'
+import { badIntArray, nodesOfType, oneShotRespawn } from './xmlHelpers'
 import type { DoodadTypeName } from '../src/generator/objects/doodad'
 
 // The shipped campaign ends on an extra dungeon floor played AFTER the boss
@@ -640,6 +640,83 @@ describe('generateDungeon', () => {
         const gate = locked.levels[MIDDLE].rooms.find((r) => r.type === 'Orb')!
         expect(gate.sealed).toBe(true)
       }
+    })
+
+    describe('several buttons (issue #69 part 2)', () => {
+      const staticIn = (body: string, dict: string): number[] => {
+        const m = new RegExp(`<dictionary name="${dict}">\\s*(?:<int-arr name="static">([^<]*)</int-arr>)?`).exec(body)
+        return m?.[1] === undefined ? [] : m[1].split(' ').map(Number)
+      }
+      const connections = (body: string): number[] => {
+        const m = /<int-arr name="connections">([^<]*)<\/int-arr>/.exec(body)
+        return m === null ? [] : m[1].split(' ').map(Number)
+      }
+      const withButtons = (n: number) => (p: ReturnType<typeof defaultParameters>) => {
+        p.levelLock = p.levelLock!.map((l, i) => (i === finalFloorIndex ? { enabled: true, buttons: n } : l))
+      }
+
+      it('needs every button: a countdown, a "remaining" line per press, the wall on the last', () => {
+        for (const seed of [4, 555, 90210]) {
+          const result = generateOk(seed, withButtons(3))
+          const xml = lastLevelXML(result)
+
+          const plates = xml.match(/doodads\/special\/boss_door_button\.xml/g) ?? []
+          expect(plates, `seed ${seed}`).toHaveLength(3)
+
+          const variables = nodesOfType(xml, 'Variable')
+          expect(variables).toHaveLength(1)
+          expect(variables[0].body).toContain('<int name="parameters">3</int>')
+          const changes = nodesOfType(xml, 'ChangeVariable')
+          const checks = nodesOfType(xml, 'CheckVariable')
+          expect(changes).toHaveLength(3)
+          expect(checks.map((c) => /<int name="cmp-val">(\d+)<\/int>/.exec(c.body)?.[1])).toEqual(['0', '1', '2'])
+
+          // == 0 opens the wall; == 1 and == 2 say how many are left
+          const destroy = nodesOfType(xml, 'DestroyObject')
+          expect(destroy).toHaveLength(1)
+          expect(staticIn(checks[0].body, 'on-true')).toContain(destroy[0].id)
+          const announces = nodesOfType(xml, 'AnnounceText')
+          const textOf = (id: number) => /<string name="text">([^<]*)<\/string>/.exec(announces.find((a) => a.id === id)!.body)?.[1]
+          expect(staticIn(checks[1].body, 'on-true').map(textOf)).toEqual(['1 button remains'])
+          expect(staticIn(checks[2].body, 'on-true').map(textOf)).toEqual(['2 buttons remain'])
+
+          // every button: its own subtraction, then every check; its cue; its plate
+          const buttons = nodesOfType(xml, 'AreaTrigger').filter((t) => changes.some((c) => connections(t.body).includes(c.id)))
+          expect(buttons).toHaveLength(3)
+          buttons.forEach((b, i) => {
+            const to = connections(b.body)
+            expect(to).toContain(changes[i].id)
+            for (const c of checks) expect(to).toContain(c.id)
+            expect(to.indexOf(changes[i].id)).toBeLessThan(to.indexOf(checks[0].id))
+            expect(to).not.toContain(destroy[0].id)
+          })
+          expect(nodesOfType(xml, 'PlaySound')).toHaveLength(3)
+          expect(nodesOfType(xml, 'ChangeDoodadState')).toHaveLength(3)
+          expect(badIntArray(xml)).toBeNull()
+        }
+      })
+
+      it('keeps the buttons apart', () => {
+        for (const seed of [4, 555, 90210]) {
+          const xml = lastLevelXML(generateOk(seed, withButtons(6)))
+          const re = /<string name="type">doodads\/special\/boss_door_button\.xml<\/string>\s*<float name="x">(-?[\d.]+)<\/float>\s*<float name="y">(-?[\d.]+)<\/float>/g
+          const at = [...xml.matchAll(re)].map((m) => ({ x: parseFloat(m[1]), y: parseFloat(m[2]) }))
+          expect(at).toHaveLength(6)
+          for (let i = 0; i < at.length; i++)
+            for (let j = i + 1; j < at.length; j++)
+              expect(Math.abs(at[i].x - at[j].x) >= 2 || Math.abs(at[i].y - at[j].y) >= 2, `seed ${seed}`).toBe(true)
+        }
+      })
+
+      it('treats 0 buttons on a floor with no boss as no lock at all', () => {
+        const unlocked = generateOk(555, (p) => (p.levelLock = undefined))
+        const zero = generateOk(555, withButtons(0))
+        expect(zero.files).toEqual(unlocked.files)
+      })
+
+      it('stores one button as the same floor it always was', () => {
+        expect(generateOk(90210, withButtons(1)).files).toEqual(generateOk(90210).files)
+      })
     })
 
     it('leaves an unlocked portal floor open', () => {

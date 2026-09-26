@@ -314,23 +314,40 @@ export function floorBoss(params: DungeonParameters, level: number): DungeonBoss
   return boss !== undefined && boss.enabled ? boss : undefined
 }
 
-/**
- * One floor's locked exit room (issue #69). Only a toggle for now — one
- * button per locked floor; a button count is the planned next field.
- */
+/** One floor's locked exit room (issue #69). */
 export interface FloorLock {
   /** Off by default; a floor with this false is never sealed by a button. */
   enabled: boolean
+  /**
+   * How many buttons must ALL be pressed to open the wall (issue #69 part 2).
+   * Absent means 1 — read through `floorLockButtons`, never off the field.
+   * 0 means no button: the floor is then unlocked, unless it hosts a boss, in
+   * which case the boss alone opens it, exactly as an unlocked boss floor.
+   */
+  buttons?: number
 }
+
+/** Most buttons one floor may hide. */
+export const MAX_LOCK_BUTTONS = 20
 
 /** A fresh, unlocked floor — the stock value for a floor nobody locked. */
 export function defaultFloorLock(): FloorLock {
   return { enabled: false }
 }
 
-/** Whether floor `level` has its exit room locked behind a button. */
+/** How many buttons floor `level`'s lock needs — 0 when it is not locked. */
+export function floorLockButtons(params: DungeonParameters, level: number): number {
+  const lock = params.levelLock?.[level]
+  if (lock === undefined || !lock.enabled) return 0
+  return lock.buttons ?? 1
+}
+
+/**
+ * Whether floor `level` has its exit room locked behind at least one button.
+ * A lock with 0 buttons is no lock: nothing the party can press seals it.
+ */
 export function floorLocked(params: DungeonParameters, level: number): boolean {
-  return params.levelLock?.[level]?.enabled === true
+  return floorLockButtons(params, level) > 0
 }
 
 /**

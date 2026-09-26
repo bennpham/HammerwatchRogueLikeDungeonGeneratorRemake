@@ -1,6 +1,6 @@
 import { GenerationContext } from './core/context'
 import { Level } from './map/level'
-import { DungeonParameters, defaultParameters, bossFights, arenaMode, defaultSurvivalOptions, floorBoss, floorBossCount, floorLocked } from './config/parameters'
+import { DungeonParameters, defaultParameters, bossFights, arenaMode, defaultSurvivalOptions, floorBoss, floorBossCount, floorLockButtons } from './config/parameters'
 import { validateParameters, ValidationResult } from './config/validation'
 import { emitTweakFiles } from './tweak/overrides'
 import { DEFAULT_LOBBY_PRESET_ID, buildLobby, lobbyPresetById } from './lobby'
@@ -79,6 +79,8 @@ export {
   isMultiBoss,
   defaultFloorLock,
   floorLocked,
+  floorLockButtons,
+  MAX_LOCK_BUTTONS,
   gatewayLockedFloors,
   withGatewayLocks,
   arenaUsesBodyguards
@@ -400,7 +402,8 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
     const levelBoss = floorBoss(params, i)
     ctx.floorBoss = levelBoss !== undefined ? floorBossCount(levelBoss) : 0
     // Issue #69: same timing, same reason — a locked floor is sealed too.
-    ctx.floorLocked = floorLocked(params, i)
+    ctx.floorLockButtons = floorLockButtons(params, i)
+    ctx.floorLocked = ctx.floorLockButtons > 0
 
     let level: Level | null = null
     for (let attempt = 0; attempt < MAX_LEVEL_ATTEMPTS; attempt++) {

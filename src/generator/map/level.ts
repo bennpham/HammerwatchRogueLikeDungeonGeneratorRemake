@@ -273,7 +273,7 @@ export class Level {
           // Boss AND button: the button is hidden and wired to animate, but
           // opens nothing by itself — the post-pass feeds it and the boss's
           // death into one countdown (see dungeonBoss/opener.ts).
-          const sealed = sealRoomWallWithButton(orbRoom, ctx, this.rooms)
+          const sealed = sealRoomWallWithButton(orbRoom, ctx, this.rooms, ctx.floorLockButtons)
           gated = sealed !== null
           if (sealed !== null) {
             this.seals = sealed.seals
@@ -287,7 +287,7 @@ export class Level {
           gated = seals !== null
           if (seals !== null) this.seals = seals
         } else {
-          gated = sealRoomWithButton(orbRoom, ctx, this.rooms)
+          gated = sealRoomWithButton(orbRoom, ctx, this.rooms, ctx.floorLockButtons)
         }
         // the same consolation powerup, off the same three draws, that
         // lockRoom() grants — see Room.grantLockLoot

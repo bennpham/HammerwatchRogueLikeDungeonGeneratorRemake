@@ -332,6 +332,38 @@ describe('dungeon boss — on a locked floor (issue #69)', () => {
     expect(staticIn(sealChecks[0].body, 'on-true')).toContain(destroy.id)
   }, 60_000)
 
+  it('with several buttons, feeds the button countdown\'s == 0 check into the seal countdown', () => {
+    const params = lockedBoss()
+    params.levelLock![BOSS_FLOOR] = { enabled: true, buttons: 3 }
+    const xml = floorXml(generateOk(params, SEED), BOSS_FLOOR)
+
+    expect(xml.match(/doodads\/special\/boss_door_button\.xml/g) ?? []).toHaveLength(3)
+    // the buttons' Variable(3), then the seal's Variable(2): buttons done + boss dead
+    const variables = nodesOfType(xml, 'Variable')
+    expect(variables.map((v) => /<int name="parameters">(\d+)<\/int>/.exec(v.body)?.[1])).toEqual(['3', '2'])
+    const [buttons, seal] = variables
+
+    const checks = nodesOfType(xml, 'CheckVariable')
+    const buttonsDone = checks.find(
+      (c) => staticIn(c.body, 'vars')[0] === buttons.id && c.body.includes('<int name="cmp-val">0</int>')
+    )!
+    const sealChanges = nodesOfType(xml, 'ChangeVariable').filter((c) => staticIn(c.body, 'vars')[0] === seal.id)
+    const sealChecks = checks.filter((c) => staticIn(c.body, 'vars')[0] === seal.id)
+    const destroy = nodesOfType(xml, 'DestroyObject')
+    expect(destroy).toHaveLength(1)
+    expect(staticIn(buttonsDone.body, 'on-true')).toEqual([sealChanges[1].id, sealChecks[1].id])
+    expect(staticIn(sealChecks[0].body, 'on-true')).toContain(destroy[0].id)
+    expect(badIntArray(xml)).toBeNull()
+  }, 60_000)
+
+  it('with 0 buttons, is the boss-only floor', () => {
+    const zero = lockedBoss()
+    zero.levelLock![BOSS_FLOOR] = { enabled: true, buttons: 0 }
+    const unlocked = withBoss()
+    unlocked.levelLock = undefined
+    expect(floorXml(generateOk(zero, SEED), BOSS_FLOOR)).toEqual(floorXml(generateOk(unlocked, SEED), BOSS_FLOOR))
+  }, 60_000)
+
   it('stays finishable across seeds', () => {
     for (const seed of [1, 42, 777, 4242]) {
       const result = generateDungeon(lockedBoss(), seed)

@@ -43,7 +43,8 @@ import {
   survivalPickups,
   survivalTraps,
   survivalWaves,
-  floorLocked
+  floorLocked,
+  MAX_LOCK_BUTTONS
 } from './parameters'
 import { MUSIC_DEFAULT, MUSIC_TRACKS, isKnownMusicId } from '../music/tracks'
 import type { BossTrapDirection, TrapDirection } from './parameters'
@@ -182,6 +183,19 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
         'With a locked floor, floors with fewer than 3 rooms leave almost nowhere to put the button that opens it.'
     })
   }
+
+  // a lock's button count (issue #69 part 2): a whole number, 0..MAX. 0 is
+  // legal — it is "no button", which leaves a boss floor boss-only and any
+  // other floor unlocked
+  ;(p.levelLock ?? []).slice(0, Math.max(p.levels, 0)).forEach((lock, i) => {
+    if (!lock.enabled || lock.buttons === undefined) return
+    if (!Number.isInteger(lock.buttons) || lock.buttons < 0 || lock.buttons > MAX_LOCK_BUTTONS) {
+      errors.push({
+        field: `levelLock.${i}.buttons`,
+        message: `Level ${i + 1}: buttons must be a whole number from 0 to ${MAX_LOCK_BUTTONS}.`
+      })
+    }
+  })
 
   // the entrance/exit stair prefab is 6 tiles wide and needs room to spare
   if (p.maxRoomSize < 7) {
