@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { CAMPAIGN_PRESETS, generateDungeon, defaultParameters, DungeonResult } from '../src/generator'
 import { plainParameters } from './params'
 import { doodadOffset, doodadPath } from '../src/generator/objects/doodad'
-import { nodesOfType, oneShotRespawn } from './xmlHelpers'
+import { badIntArray, nodesOfType, oneShotRespawn } from './xmlHelpers'
 import type { DoodadTypeName } from '../src/generator/objects/doodad'
 
 // The shipped campaign ends on an extra dungeon floor played AFTER the boss
@@ -79,7 +79,7 @@ describe('generateDungeon', () => {
     })
   })
 
-  describe('lockFinalRoom', () => {
+  describe('locked floors (levelLock)', () => {
     /** index of the gold tier in ItemType.Key / ItemType.Door */
     const GOLD = 2
 
@@ -102,10 +102,11 @@ describe('generateDungeon', () => {
       result.files.find((f) => f.path === `levels/level${finalFloorIndex}.xml`)!.content
 
     it('touches nothing before the final floor', () => {
-      // the toggle must draw no random values until the last level, or every
-      // saved seed shifts — defaultParameters() has it on
+      // locking a floor that already ends in a portal draws nothing before
+      // that floor, or every saved seed shifts — plainParameters() locks the
+      // last floor, the one leading into the arena
       const on = generateOk(4242)
-      const off = generateOk(4242, (p) => (p.lockFinalRoom = false))
+      const off = generateOk(4242, (p) => (p.levelLock = undefined))
       expect(off.levels.slice(0, finalFloorIndex)).toEqual(on.levels.slice(0, finalFloorIndex))
       for (let i = 0; i < finalFloorIndex; i++) {
         const path = `levels/level${i}.xml`
@@ -120,7 +121,7 @@ describe('generateDungeon', () => {
 
     it('locks the orb into a dead-end room on the final floor only', () => {
       for (const seed of [4, 555, 90210]) {
-        const result = generateOk(seed, (p) => (p.lockFinalRoom = true))
+        const result = generateOk(seed)
         const last = result.levels[finalFloorIndex]
         const orbRooms = last.rooms.filter((r) => r.type === 'Orb')
         expect(orbRooms).toHaveLength(1)
@@ -145,7 +146,7 @@ describe('generateDungeon', () => {
       // still carry a gold key.
       let sawGoldDoor = false
       for (let seed = 1; seed <= 40; seed++) {
-        const result = generateOk(seed, (p) => (p.lockFinalRoom = true))
+        const result = generateOk(seed)
         const last = result.levels[finalFloorIndex]
 
         // a door is emitted once per corridor tile, so count sealed rooms
@@ -189,7 +190,7 @@ describe('generateDungeon', () => {
           expect(itemsOfType(xml, 'items/key_gold.xml').length).toBeGreaterThanOrEqual(goldSealed)
 
           // and one button, wired to a one-shot trigger
-          expect(doodadsOfType(xml, 'doodads/special/trigger_button_floor.xml')).toHaveLength(1)
+          expect(doodadsOfType(xml, 'doodads/special/boss_door_button.xml')).toHaveLength(1)
           expect(xml).toContain('<string name="type">PlaySound</string>')
           expect(xml).toContain('<string name="sound">sound/misc.xml:button_hatch</string>')
           expect(xml).toContain('<string name="type">DestroyObject</string>')
@@ -198,9 +199,9 @@ describe('generateDungeon', () => {
           // button's own doodad id, fired by the same one-shot trigger
           const press = nodesOfType(xml, 'ChangeDoodadState')
           expect(press, `seed ${seed}`).toHaveLength(1)
-          expect(press[0].body).toContain('<string name="state">pressed</string>')
+          expect(press[0].body).toContain('<string name="state">activate</string>')
 
-          const plate = /<int name="id">(\d+)<\/int>\s*<string name="type">doodads\/special\/trigger_button_floor\.xml<\/string>/.exec(
+          const plate = /<int name="id">(\d+)<\/int>\s*<string name="type">doodads\/special\/boss_door_button\.xml<\/string>/.exec(
             xml
           )!
           expect(press[0].body, `seed ${seed}`).toContain(
@@ -231,7 +232,7 @@ describe('generateDungeon', () => {
           ].map((m) => ({ id: m[1], path: m[2] }))
 
           const buttons = synced.filter(
-            (d) => d.path === 'doodads/special/trigger_button_floor.xml'
+            (d) => d.path === 'doodads/special/boss_door_button.xml'
           )
           expect(buttons, `seed ${seed}`).toHaveLength(1)
 
@@ -250,7 +251,7 @@ describe('generateDungeon', () => {
           const orb = last.rooms.find((r) => r.type === 'Orb')!
           const button = doodadsOfType(
             lastLevelXML(result),
-            'doodads/special/trigger_button_floor.xml'
+            'doodads/special/boss_door_button.xml'
           )[0]
 
           const inside =
@@ -326,7 +327,7 @@ describe('generateDungeon', () => {
               )
             ]
               .map((m) => ({ path: m[1], x: parseFloat(m[2]), y: parseFloat(m[3]) }))
-              .filter((d) => d.path !== 'doodads/special/trigger_button_floor.xml')
+              .filter((d) => d.path !== 'doodads/special/boss_door_button.xml')
             expect(seal.length, `${theme} seed ${seed}`).toBeGreaterThan(0)
             expect(new Set(seal.map((s) => s.path)).size).toBe(1)
 
@@ -563,7 +564,7 @@ describe('generateDungeon', () => {
           const last = result.levels[finalFloorIndex]
           const button = doodadsOfType(
             lastLevelXML(result),
-            'doodads/special/trigger_button_floor.xml'
+            'doodads/special/boss_door_button.xml'
           )[0]
 
           // the doodad carries a half-tile art offset, so undo it to get the draw
@@ -590,7 +591,7 @@ describe('generateDungeon', () => {
         // own rig (campaign/levels/level_1.xml) offsets them by exactly 0.5.
         for (const seed of [4, 555, 90210]) {
           const xml = lastLevelXML(generateOk(seed))
-          const button = doodadsOfType(xml, 'doodads/special/trigger_button_floor.xml')[0]
+          const button = doodadsOfType(xml, 'doodads/special/boss_door_button.xml')[0]
           expect(button).toBeDefined()
 
           // the seal's trigger is the one-shot one; its shape id names the box
@@ -617,9 +618,118 @@ describe('generateDungeon', () => {
 
     })
 
+    it('seals a stairs floor behind the blue teleport, pointing at the next floor', () => {
+      const MIDDLE = 2
+      for (const seed of [4, 555, 90210]) {
+        const plain = generateOk(seed)
+        const locked = generateOk(seed, (p) => {
+          p.levelLock = p.levelLock!.map((l, i) => ({ enabled: l.enabled || i === MIDDLE }))
+        })
+        // floors before it do not move
+        for (let i = 0; i < MIDDLE; i++) {
+          const path = `levels/level${i}.xml`
+          expect(locked.files.find((f) => f.path === path)).toEqual(plain.files.find((f) => f.path === path))
+        }
+        const xml = locked.files.find((f) => f.path === `levels/level${MIDDLE}.xml`)!.content
+        expect(xml, 'no stairs').not.toMatch(/_exit_h_dn/)
+        expect(xml).toContain('doodads/generic/exit_teleport.xml')
+        expect(xml).not.toContain('exit_teleport_boss.xml')
+        expect(xml).toContain(`<string name="level">${MIDDLE + 1}</string>`)
+        expect(xml).toContain('doodads/special/boss_door_button.xml')
+        expect(xml).toContain('<string name="type">DestroyObject</string>')
+        const gate = locked.levels[MIDDLE].rooms.find((r) => r.type === 'Orb')!
+        expect(gate.sealed).toBe(true)
+      }
+    })
+
+    describe('several buttons (issue #69 part 2)', () => {
+      const staticIn = (body: string, dict: string): number[] => {
+        const m = new RegExp(`<dictionary name="${dict}">\\s*(?:<int-arr name="static">([^<]*)</int-arr>)?`).exec(body)
+        return m?.[1] === undefined ? [] : m[1].split(' ').map(Number)
+      }
+      const connections = (body: string): number[] => {
+        const m = /<int-arr name="connections">([^<]*)<\/int-arr>/.exec(body)
+        return m === null ? [] : m[1].split(' ').map(Number)
+      }
+      const withButtons = (n: number) => (p: ReturnType<typeof defaultParameters>) => {
+        p.levelLock = p.levelLock!.map((l, i) => (i === finalFloorIndex ? { enabled: true, buttons: n } : l))
+      }
+
+      it('needs every button: a countdown, a "remaining" line per press, the wall on the last', () => {
+        for (const seed of [4, 555, 90210]) {
+          const result = generateOk(seed, withButtons(3))
+          const xml = lastLevelXML(result)
+
+          const plates = xml.match(/doodads\/special\/boss_door_button\.xml/g) ?? []
+          expect(plates, `seed ${seed}`).toHaveLength(3)
+
+          const variables = nodesOfType(xml, 'Variable')
+          expect(variables).toHaveLength(1)
+          expect(variables[0].body).toContain('<int name="parameters">3</int>')
+          const changes = nodesOfType(xml, 'ChangeVariable')
+          const checks = nodesOfType(xml, 'CheckVariable')
+          expect(changes).toHaveLength(3)
+          expect(checks.map((c) => /<int name="cmp-val">(\d+)<\/int>/.exec(c.body)?.[1])).toEqual(['0', '1', '2'])
+
+          // == 0 opens the wall; == 1 and == 2 say how many are left
+          const destroy = nodesOfType(xml, 'DestroyObject')
+          expect(destroy).toHaveLength(1)
+          expect(staticIn(checks[0].body, 'on-true')).toContain(destroy[0].id)
+          const announces = nodesOfType(xml, 'AnnounceText')
+          const textOf = (id: number) => /<string name="text">([^<]*)<\/string>/.exec(announces.find((a) => a.id === id)!.body)?.[1]
+          expect(staticIn(checks[1].body, 'on-true').map(textOf)).toEqual(['1 button remains'])
+          expect(staticIn(checks[2].body, 'on-true').map(textOf)).toEqual(['2 buttons remain'])
+
+          // every button: its own subtraction, then every check; its cue; its plate
+          const buttons = nodesOfType(xml, 'AreaTrigger').filter((t) => changes.some((c) => connections(t.body).includes(c.id)))
+          expect(buttons).toHaveLength(3)
+          buttons.forEach((b, i) => {
+            const to = connections(b.body)
+            expect(to).toContain(changes[i].id)
+            for (const c of checks) expect(to).toContain(c.id)
+            expect(to.indexOf(changes[i].id)).toBeLessThan(to.indexOf(checks[0].id))
+            expect(to).not.toContain(destroy[0].id)
+          })
+          expect(nodesOfType(xml, 'PlaySound')).toHaveLength(3)
+          expect(nodesOfType(xml, 'ChangeDoodadState')).toHaveLength(3)
+          expect(badIntArray(xml)).toBeNull()
+        }
+      })
+
+      it('keeps the buttons apart', () => {
+        for (const seed of [4, 555, 90210]) {
+          const xml = lastLevelXML(generateOk(seed, withButtons(6)))
+          const re = /<string name="type">doodads\/special\/boss_door_button\.xml<\/string>\s*<float name="x">(-?[\d.]+)<\/float>\s*<float name="y">(-?[\d.]+)<\/float>/g
+          const at = [...xml.matchAll(re)].map((m) => ({ x: parseFloat(m[1]), y: parseFloat(m[2]) }))
+          expect(at).toHaveLength(6)
+          for (let i = 0; i < at.length; i++)
+            for (let j = i + 1; j < at.length; j++)
+              expect(Math.abs(at[i].x - at[j].x) >= 2 || Math.abs(at[i].y - at[j].y) >= 2, `seed ${seed}`).toBe(true)
+        }
+      })
+
+      it('treats 0 buttons on a floor with no boss as no lock at all', () => {
+        const unlocked = generateOk(555, (p) => (p.levelLock = undefined))
+        const zero = generateOk(555, withButtons(0))
+        expect(zero.files).toEqual(unlocked.files)
+      })
+
+      it('stores one button as the same floor it always was', () => {
+        expect(generateOk(90210, withButtons(1)).files).toEqual(generateOk(90210).files)
+      })
+    })
+
+    it('leaves an unlocked portal floor open', () => {
+      const result = generateOk(555, (p) => (p.levelLock = undefined))
+      const xml = lastLevelXML(result)
+      expect(xml).not.toContain('boss_door_button.xml')
+      expect(xml).not.toContain('<string name="type">DestroyObject</string>')
+      expect(result.levels[finalFloorIndex].rooms.find((r) => r.type === 'Orb')?.sealed).toBeFalsy()
+    })
+
     it('still generates on a single-level campaign', () => {
       const result = generateOk(8, (p) => {
-        p.lockFinalRoom = true
+        p.levelLock = [{ enabled: true }]
         p.levels = 1
         p.themes = ['a']
         p.levelMonsters = [['bat1']]

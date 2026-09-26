@@ -127,7 +127,9 @@ export function buildFloorBossRig(
     // returns the shared all-bosses-died check, so any value reaches it — the opener just
     // wants the same node every death-tier rig above connected from.
     multi ? tierSource.tierTrigger(ctx, markerX, markerY, 0) : undefined,
-    count
+    count,
+    // A locked boss floor's buttons (issue #69) — empty otherwise.
+    level.sealButtons
   )
 
   buildFloorBossPickupRig(ctx, boss.waves, level, markerX, markerY, tierSource)

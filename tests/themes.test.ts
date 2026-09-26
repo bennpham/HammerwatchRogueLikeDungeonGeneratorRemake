@@ -82,9 +82,10 @@ describe('doodad resolution matrix — regression guard for the Pillar addition'
     for (const def of THEME_DEFS) {
       for (const type of Object.keys(DoodadType) as DoodadTypeName[]) {
         // new since the snapshot was taken, so not part of the "unchanged"
-        // guarantee. TriggerButton is themeless (themeSubs: 0) and resolves to
-        // one path everywhere, which the button-seal tests assert directly.
-        if (type === 'Pillar' || type === 'TriggerButton') continue
+        // guarantee. TriggerButton and BossDoorButton are themeless
+        // (themeSubs: 0) and resolve to one path everywhere, which the
+        // button-seal tests assert directly.
+        if (type === 'Pillar' || type === 'TriggerButton' || type === 'BossDoorButton') continue
         matrix[`${def.id}:${type}`] = {
           path: doodadPath(type, def.id),
           offset: doodadOffset(type, def.id)

@@ -29,7 +29,7 @@ import {
 } from '../src/generator/config/parameters'
 import type { FloorTrap, TrapDirection } from '../src/generator/config/parameters'
 import { validateParameters } from '../src/generator/config/validation'
-import { generateDungeon } from '../src/generator'
+import { generateDungeon, withGatewayLocks } from '../src/generator'
 import type { DungeonParameters, DungeonResult } from '../src/generator'
 import { GenerationContext } from '../src/generator/core/context'
 import { Level } from '../src/generator/map/level'
@@ -540,7 +540,7 @@ describe('floor traps — placement', () => {
 
     for (let seed = 0; seed < 60; seed++) {
       const params = bareParams()
-      params.lockFinalRoom = true
+      withGatewayLocks(params)
       const { level, placed } = sweep(params, seed, DIRECTIONS.map((direction) => trapRow({ direction, count: 6 })))
 
       for (const node of placed) {
@@ -630,7 +630,7 @@ describe('floor traps — a trapped floor is still finishable', () => {
   it('generates with every floor trapped and the final room sealed', () => {
     for (const seed of [1, 77, 4242, 987654]) {
       const params = bareParams()
-      params.lockFinalRoom = true
+      withGatewayLocks(params)
       params.levelTraps = Array.from({ length: params.levels }, () => [
         trapRow({ count: 8 }),
         trapRow({ direction: 'down', count: 8 }),

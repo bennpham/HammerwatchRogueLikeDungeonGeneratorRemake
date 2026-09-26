@@ -174,12 +174,12 @@ function passabilityOf(level: Level, ctx: GenerationContext): Passability {
   //
   // `need-sync` marks a doodad whose runtime changes replicate, which is not the
   // same as "blocks the player" — the button carries it too, for its *state*.
-  // `trigger_button_floor.xml` declares no collision element at all, so counting
-  // it here would invent an obstacle, and an invented obstacle shrinks the
-  // reachable set: this check would start passing floors it should reject.
+  // It is a plate the party stands on, not a barrier, so counting it here
+  // would invent an obstacle, and an invented obstacle shrinks the reachable
+  // set: this check would start passing floors it should reject.
   if (!fenced) {
     for (const d of ctx.doodads) {
-      if (d.needSync && d.type !== 'TriggerButton') pass.setSolid(d.x, d.y)
+      if (d.needSync && d.type !== 'BossDoorButton') pass.setSolid(d.x, d.y)
     }
   }
 

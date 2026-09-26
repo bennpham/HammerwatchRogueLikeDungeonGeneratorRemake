@@ -24,7 +24,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { generateDungeon } from '../src/generator'
+import { generateDungeon, withGatewayLocks } from '../src/generator'
 import type { DungeonParameters, DungeonResult, DungeonBoss } from '../src/generator'
 import { defaultDungeonBoss, MOBILE_BOSS_IDS, MAX_BOSS_COUNT, BOSS_COUNT_WARN } from '../src/generator'
 import { validateParameters } from '../src/generator/config/validation'
@@ -56,7 +56,9 @@ function bareParams(): DungeonParameters {
   params.levelTimers = params.levelTimers?.slice(0, floors)
   params.floorMusic = params.floorMusic?.slice(0, floors)
   params.playerTweaks = {}
-  return params
+  // locks the last floor, the one leading into the arena — what the old
+  // campaign-wide lockFinalRoom default sealed
+  return withGatewayLocks(params)
 }
 
 /** `bareParams()` with floor `BOSS_FLOOR` given a boss, patched. */
@@ -236,14 +238,13 @@ describe('dungeon boss — the floor itself', () => {
     expect(nodesOfType(xml, 'ChangeDoodadState'), 'no button plate').toHaveLength(0)
   }, 60_000)
 
-  it('is sealed whether or not lockFinalRoom is ticked', () => {
-    // The setting is campaign-wide, so the form cannot force it per floor; the
-    // generator ignores it on a boss floor, which is what the issue asks for.
+  it('is sealed by the boss alone when the floor is not locked', () => {
     const params = withBoss()
-    params.lockFinalRoom = false
+    params.levelLock = undefined
     const xml = floorXml(generateOk(params, SEED), BOSS_FLOOR)
 
     expect(nodesOfType(xml, 'DestroyObject'), 'still sealed').toHaveLength(1)
+    expect(nodesOfType(xml, 'Variable'), 'no countdown').toHaveLength(0)
   }, 60_000)
 
   it('emits clean XML with unique script ids', () => {
@@ -254,6 +255,121 @@ describe('dungeon boss — the floor itself', () => {
     const ids = scripting === null ? [] : allIds(scripting[1])
     expect(new Set(ids).size, 'script node ids must be unique').toBe(ids.length)
   }, 60_000)
+})
+
+describe('dungeon boss — on a locked floor (issue #69)', () => {
+  /** `withBoss(patch)` with `BOSS_FLOOR` locked too. */
+  const lockedBoss = (patch: Partial<DungeonBoss> = {}): DungeonParameters => {
+    const params = withBoss(patch)
+    params.levelLock = Array.from({ length: params.levels }, (_, i) => ({ enabled: i === BOSS_FLOOR }))
+    return params
+  }
+
+  const staticIn = (body: string, dict: string): number[] => {
+    const m = new RegExp(`<dictionary name="${dict}">\\s*(?:<int-arr name="static">([^<]*)</int-arr>)?`).exec(body)
+    return m?.[1] === undefined ? [] : m[1].split(' ').map(Number)
+  }
+
+  it('opens the wall only once the boss is dead AND the button is pressed', () => {
+    const xml = floorXml(generateOk(lockedBoss(), SEED), BOSS_FLOOR)
+
+    // one countdown of two: the boss's death and the one button
+    const variables = nodesOfType(xml, 'Variable')
+    expect(variables).toHaveLength(1)
+    expect(variables[0].body).toContain('<int name="parameters">2</int>')
+    const changes = nodesOfType(xml, 'ChangeVariable')
+    const checks = nodesOfType(xml, 'CheckVariable')
+    expect(changes).toHaveLength(2)
+    expect(checks).toHaveLength(2)
+
+    const destroys = nodesOfType(xml, 'DestroyObject')
+    expect(destroys, 'one DestroyObject, the seal').toHaveLength(1)
+    for (const check of checks) expect(staticIn(check.body, 'on-true')).toContain(destroys[0].id)
+
+    // Boss Died counts down; it no longer opens the wall directly
+    const died = nodesOfType(xml, 'GlobalEventTrigger').filter((n) => stringParam(n.body, 'parameters') === 'Boss Died')
+    expect(died).toHaveLength(1)
+    const diedTo = intArr(died[0].body, 'connections') ?? []
+    expect(diedTo).not.toContain(destroys[0].id)
+    expect(diedTo).toEqual([changes[0].id, checks[0].id])
+
+    // the button: counts down, plays its cue and animates — but opens nothing itself
+    expect(xml).toContain('doodads/special/boss_door_button.xml')
+    const button = nodesOfType(xml, 'AreaTrigger').find((t) =>
+      (intArr(t.body, 'connections') ?? []).includes(changes[1].id)
+    )
+    expect(button, 'the button trigger feeds the countdown').toBeDefined()
+    const buttonTo = intArr(button!.body, 'connections') ?? []
+    expect(buttonTo).toContain(checks[1].id)
+    expect(buttonTo).not.toContain(destroys[0].id)
+    expect(buttonTo).toContain(nodesOfType(xml, 'PlaySound')[0].id)
+    expect(buttonTo).toContain(nodesOfType(xml, 'ChangeDoodadState')[0].id)
+
+    // and a boss floor keeps the red portal
+    expect(xml).toContain('exit_teleport_boss.xml')
+    expect(badIntArray(xml)).toBeNull()
+  }, 60_000)
+
+  it('feeds a multi-boss floor\'s all-died check into the seal countdown, leaving the death tier on the bosses alone', () => {
+    const xml = floorXml(generateOk(lockedBoss({ bossCount: 2 }), SEED), BOSS_FLOOR)
+
+    // the all-died Variable(2) plus the seal's Variable(2)
+    const variables = nodesOfType(xml, 'Variable')
+    expect(variables.map((v) => /<int name="parameters">(\d+)<\/int>/.exec(v.body)?.[1])).toEqual(['2', '2'])
+    const [bosses, seal] = variables
+
+    const checks = nodesOfType(xml, 'CheckVariable')
+    const bossChecks = checks.filter((c) => staticIn(c.body, 'vars')[0] === bosses.id)
+    const sealChecks = checks.filter((c) => staticIn(c.body, 'vars')[0] === seal.id)
+    expect(bossChecks).toHaveLength(2)
+    expect(sealChecks).toHaveLength(2)
+
+    const destroy = nodesOfType(xml, 'DestroyObject')[0]
+    const sealChanges = nodesOfType(xml, 'ChangeVariable').filter((c) => staticIn(c.body, 'vars')[0] === seal.id)
+    // all bosses dead -> one seal step; the wall hangs off the seal only
+    expect(staticIn(bossChecks[0].body, 'on-true')).toContain(sealChanges[0].id)
+    expect(staticIn(bossChecks[0].body, 'on-true')).not.toContain(destroy.id)
+    expect(staticIn(sealChecks[0].body, 'on-true')).toContain(destroy.id)
+  }, 60_000)
+
+  it('with several buttons, feeds the button countdown\'s == 0 check into the seal countdown', () => {
+    const params = lockedBoss()
+    params.levelLock![BOSS_FLOOR] = { enabled: true, buttons: 3 }
+    const xml = floorXml(generateOk(params, SEED), BOSS_FLOOR)
+
+    expect(xml.match(/doodads\/special\/boss_door_button\.xml/g) ?? []).toHaveLength(3)
+    // the buttons' Variable(3), then the seal's Variable(2): buttons done + boss dead
+    const variables = nodesOfType(xml, 'Variable')
+    expect(variables.map((v) => /<int name="parameters">(\d+)<\/int>/.exec(v.body)?.[1])).toEqual(['3', '2'])
+    const [buttons, seal] = variables
+
+    const checks = nodesOfType(xml, 'CheckVariable')
+    const buttonsDone = checks.find(
+      (c) => staticIn(c.body, 'vars')[0] === buttons.id && c.body.includes('<int name="cmp-val">0</int>')
+    )!
+    const sealChanges = nodesOfType(xml, 'ChangeVariable').filter((c) => staticIn(c.body, 'vars')[0] === seal.id)
+    const sealChecks = checks.filter((c) => staticIn(c.body, 'vars')[0] === seal.id)
+    const destroy = nodesOfType(xml, 'DestroyObject')
+    expect(destroy).toHaveLength(1)
+    expect(staticIn(buttonsDone.body, 'on-true')).toEqual([sealChanges[1].id, sealChecks[1].id])
+    expect(staticIn(sealChecks[0].body, 'on-true')).toContain(destroy[0].id)
+    expect(badIntArray(xml)).toBeNull()
+  }, 60_000)
+
+  it('with 0 buttons, is the boss-only floor', () => {
+    const zero = lockedBoss()
+    zero.levelLock![BOSS_FLOOR] = { enabled: true, buttons: 0 }
+    const unlocked = withBoss()
+    unlocked.levelLock = undefined
+    expect(floorXml(generateOk(zero, SEED), BOSS_FLOOR)).toEqual(floorXml(generateOk(unlocked, SEED), BOSS_FLOOR))
+  }, 60_000)
+
+  it('stays finishable across seeds', () => {
+    for (const seed of [1, 42, 777, 4242]) {
+      const result = generateDungeon(lockedBoss(), seed)
+      expect(result.ok, `seed ${seed}`).toBe(true)
+    }
+  }, 120_000)
 })
 
 describe('dungeon boss — the tier rigs', () => {

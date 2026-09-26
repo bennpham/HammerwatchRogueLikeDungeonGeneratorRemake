@@ -1,12 +1,17 @@
 import { Doodad, doodadOffset } from '../objects/doodad'
 import {
+  CHANGE_VAR_SUB,
   NodeAnnounceText,
   NodeAreaTrigger,
   NodeChangeDoodadState,
+  NodeChangeVariable,
+  NodeCheckVariable,
   NodeDestroyObject,
   NodePlaySound,
-  NodeRectangleShape
+  NodeRectangleShape,
+  NodeVariable
 } from '../objects/nodes'
+import type { ScriptNode } from '../objects/scriptNode'
 import { overhangRows } from './reachability'
 import { getTheme } from '../config/themes'
 import type { Room } from './room'
@@ -22,14 +27,12 @@ export const SEAL_SOUND = 'sound/misc.xml:button_hatch'
 /**
  * The state the button is switched to when it fires.
  *
- * `trigger_button_floor.xml` declares three sprites — `raised` (its default),
- * `activate` (two frames, 50ms each) and `pressed` — plus
- * `<transition from="activate" to="pressed"/>`. So `activate` would animate the
- * press and land on `pressed` by itself, which is what the shipped
- * campaign/levels/level_1.xml node 2180 does. `pressed` snaps straight to the
- * final frame instead. That is deliberate, not an oversight — do not "fix" it.
+ * `activate` — what the hand-edited level6 that swapped the plate for
+ * `boss_door_button.xml` switches it to. [VERIFIED 2026-09-26] in game — see
+ * the DISCOVERY-LOG. The old `trigger_button_floor.xml` plate was driven to
+ * `pressed`; that belongs to the old asset, do not carry it back.
  */
-const SEAL_BUTTON_STATE = 'pressed'
+const SEAL_BUTTON_STATE = 'activate'
 
 /** How long the "it opened" banner stays up, in ms. */
 const SEAL_ANNOUNCE_MS = 2500
@@ -41,6 +44,9 @@ const SEAL_TEXT = 'The way to the final room has opened!'
 
 /** Same bound the key-spawning loops in level.ts use. */
 const MAX_BUTTON_ATTEMPTS = 2000
+
+/** Closest two buttons' tiles may sit on either axis, in tiles. */
+const MIN_BUTTON_SPACING = 2
 
 /**
  * Bar a dead-end room's corridor with a destructible wall, and hide the floor
@@ -66,28 +72,134 @@ const MAX_BUTTON_ATTEMPTS = 2000
  * campaign's two floor buttons differ on exactly this, the one driven by a
  * ChangeDoodadState being `True` and the plain one `False`.
  *
+ * With `count` buttons (issue #69 part 2) every one of them must be pressed:
+ * they count down a `Variable`, each press announces how many remain, and
+ * the wall comes down on the last (`buildButtonCountdown`). One button keeps
+ * the direct wiring above, node for node.
+ *
  * Returns false if the room is not a lockable dead end, or if the floor has
- * nowhere unlocked to hide the button — exactly as `lockRoom()` does, in which
+ * nowhere unlocked to hide the buttons — exactly as `lockRoom()` does, in which
  * case the caller re-rolls the floor.
  */
-export function sealRoomWithButton(room: Room, ctx: GenerationContext, rooms: Room[]): boolean {
+export function sealRoomWithButton(room: Room, ctx: GenerationContext, rooms: Room[], count = 1): boolean {
   if (!sealable(room)) return false
 
-  // Before the button is placed, so pickButtonTile's locked-room rule excludes
-  // the very room this seal is about to close.
+  // Before the buttons are placed, so pickButtonTile's locked-room rule
+  // excludes the very room this seal is about to close.
   room.locked = true
   room.sealed = true
 
-  // First, because a floor with nowhere to hide the button is discarded whole
+  // First, because a floor with nowhere to hide a button is discarded whole
   // and there is no point emitting a wall for it. It also has to come before
   // the wall below, which allocates doodad ids: swapping the two would move
   // every id on the floor.
-  const button = pickButtonTile(ctx, rooms)
-  if (button === null) return false
+  const tiles = pickButtonTiles(ctx, rooms, count)
+  if (tiles === null) return false
 
   const seals = drawSealWall(room, ctx)
 
-  return buildButtonRig(room, ctx, seals, button)
+  if (tiles.length === 1) {
+    buildButtonRig(room, ctx, tiles[0], seals)
+    return true
+  }
+
+  const triggers = tiles.map((tile) => buildButtonRig(room, ctx, tile))
+  const done = buildButtonCountdown(ctx, triggers)
+  openSeal(ctx, done, seals, triggers[0])
+  return true
+}
+
+/**
+ * A wall that needs BOTH the boss(es) dead and every button pressed — a floor
+ * that is locked (issue #69) and hosts a boss (issue #61).
+ *
+ * Draws exactly what `sealRoomWithButton` draws, in the same order (button
+ * tiles, then wall), but the buttons do not open the wall themselves. What is
+ * returned in `buttons` is the ONE node that fires when the buttons are done —
+ * the single button's own `AreaTrigger`, or the button countdown's `== 0`
+ * check when there are several — so the boss rig's post-pass
+ * (`dungeonBoss/opener.ts`) can feed it and the boss's death into one
+ * countdown. Every button still plays its cue and animates when stepped on,
+ * and with several each press still announces how many remain.
+ *
+ * Null when the room is not a lockable dead end or the floor has nowhere to
+ * hide the buttons, in which case the floor re-rolls.
+ */
+export function sealRoomWallWithButton(
+  room: Room,
+  ctx: GenerationContext,
+  rooms: Room[],
+  count = 1
+): { seals: Doodad[]; buttons: ScriptNode[] } | null {
+  if (!sealable(room)) return null
+
+  room.locked = true
+  room.sealed = true
+
+  const tiles = pickButtonTiles(ctx, rooms, count)
+  if (tiles === null) return null
+
+  const seals = drawSealWall(room, ctx)
+
+  const triggers = tiles.map((tile) => buildButtonRig(room, ctx, tile))
+  return { seals, buttons: [triggers.length === 1 ? triggers[0] : buildButtonCountdown(ctx, triggers)] }
+}
+
+/** "2 buttons remain" / "1 button remains" — what each press announces. */
+export function buttonsRemainingText(remaining: number): string {
+  return remaining === 1 ? '1 button remains' : `${remaining} buttons remain`
+}
+
+/**
+ * Several buttons, all of which must be pressed:
+ *
+ *   Variable(N)
+ *   per button i:  AreaTrigger(one shot)
+ *                    → ChangeVariable(var -= 1)
+ *                    → CheckVariable(var == k) for every k in 0..N-1
+ *   CheckVariable(== k ≥ 1)  on-true → AnnounceText("k buttons remain")
+ *   CheckVariable(== 0)      on-true → whatever the caller connects
+ *
+ * The per-source ChangeVariable-then-CheckVariable shape is the [VERIFIED]
+ * multi-boss rig's (`boss/tierSource.ts`); the checks are shared across the
+ * buttons rather than one set per button, since each only tests the value.
+ * Which button is pressed first does not matter — the count does.
+ * [VERIFIED 2026-09-26] in game, on its own and feeding a boss floor's seal.
+ *
+ * Returns the `== 0` check. Draws no RNG. The nodes are editor markers only,
+ * placed just past the map's east edge, clear of the boss rig's column.
+ */
+function buildButtonCountdown(ctx: GenerationContext, triggers: readonly ScriptNode[]): ScriptNode {
+  const x = ctx.params.mapWidth + 8
+  const y = 0
+  const remaining = new NodeVariable(ctx, x, y, triggers.length)
+  const changes = triggers.map((_, i) => new NodeChangeVariable(ctx, x + 1, y + 1 + i, remaining, CHANGE_VAR_SUB, 1))
+  const checks = triggers.map((_, k) => new NodeCheckVariable(ctx, x + 2, y + 1 + k, remaining, k, []))
+  for (let k = 1; k < checks.length; k++) {
+    const announce = new NodeAnnounceText(ctx, x + 3, y + 1 + k)
+    announce.setText(buttonsRemainingText(k))
+    announce.time = SEAL_ANNOUNCE_MS
+    announce.textType = SEAL_ANNOUNCE_TYPE
+    checks[k].connectTo(announce)
+  }
+  triggers.forEach((trigger, i) => {
+    trigger.connectTo(changes[i])
+    for (const check of checks) trigger.connectTo(check)
+  })
+  return checks[0]
+}
+
+/** DestroyObject on `seals` plus the "it opened" line, fired from `from`. */
+function openSeal(ctx: GenerationContext, from: ScriptNode, seals: Doodad[], at: { x: number; y: number }): void {
+  const mid = seals[Math.trunc(seals.length / 2)]
+  const destroy = new NodeDestroyObject(ctx, mid.x, mid.y)
+  for (const s of seals) destroy.connectDoodad(s)
+  const announce = new NodeAnnounceText(ctx, at.x, at.y)
+  announce.setText(SEAL_TEXT)
+  announce.time = SEAL_ANNOUNCE_MS
+  announce.textType = SEAL_ANNOUNCE_TYPE
+  from.connectTo(destroy)
+  from.connectTo(announce)
 }
 
 /**
@@ -205,15 +317,19 @@ function drawSealWall(room: Room, ctx: GenerationContext): Doodad[] {
 
 /**
  * The button half: the plate, its reachability claim, and the one-shot trigger
- * that destroys `seals`. Split from the wall above so a dungeon boss floor can
- * take the wall alone — see `sealRoomWall`.
+ * that plays the cue, animates the plate and — when `seals` is given —
+ * destroys them. Split from the wall above so a dungeon boss floor can take
+ * the wall alone (`sealRoomWall`), or the wall plus a button that only counts
+ * down toward opening it (`sealRoomWallWithButton`).
+ *
+ * Returns the button's `AreaTrigger`, the node that fires on the press.
  */
 function buildButtonRig(
   room: Room,
   ctx: GenerationContext,
-  seals: Doodad[],
-  button: { x: number; y: number }
-): boolean {
+  button: { x: number; y: number },
+  seals?: Doodad[]
+): ScriptNode {
   // `need-sync` because a script changes its state below — without it the press
   // would only be seen by the client who stepped on it. [VERIFIED] against
   // campaign/levels/level_1.xml, whose two floor buttons differ on exactly this
@@ -221,7 +337,7 @@ function buildButtonRig(
   // False (7111). It is NOT part of the barrier — the asset declares no
   // collision element at all — so anything treating `need-sync` as "blocks the
   // player" has to exclude it (see map/sealCheck.ts).
-  const plate = Doodad.create(ctx, button.x, button.y, 'TriggerButton', room.theme)
+  const plate = Doodad.create(ctx, button.x, button.y, 'BossDoorButton', room.theme)
   plate.needSync = true
 
   // A button the party cannot walk to is as fatal as an unreachable key, and
@@ -239,8 +355,10 @@ function buildButtonRig(
   // campaign's button rigs use: campaign/levels/level_1.xml has a
   // trigger_button_floor at `-20 -25` driven by a w1 h1 RectangleShape at
   // `-19.5 -24.5`. [VERIFIED] 2026-08-24 — the previous code anchored the shape
-  // at the raw tile and the box landed diagonally off the button.
-  const art = doodadOffset('TriggerButton', room.theme)
+  // at the raw tile and the box landed diagonally off the button. The
+  // hand-edited level6 that swapped in boss_door_button kept the same
+  // relationship (doodad `43 28`, shape `43.5 28.5`).
+  const art = doodadOffset('BossDoorButton', room.theme)
   const nodeX = button.x + art.x + 0.5
   const nodeY = button.y + art.y + 0.5
 
@@ -250,24 +368,29 @@ function buildButtonRig(
   trigger.connectToShape(shape)
 
   const sound = new NodePlaySound(ctx, nodeX, nodeY, SEAL_SOUND)
-  // purely cosmetic placement — put the node on the wall it destroys
-  const mid = seals[Math.trunc(seals.length / 2)]
-  const destroy = new NodeDestroyObject(ctx, mid.x, mid.y)
-  for (const s of seals) destroy.connectDoodad(s)
-  const announce = new NodeAnnounceText(ctx, nodeX, nodeY)
-  announce.setText(SEAL_TEXT)
-  announce.time = SEAL_ANNOUNCE_MS
-  announce.textType = SEAL_ANNOUNCE_TYPE
+  trigger.connectTo(sound)
+
+  // Only when this button opens the wall by itself. The node order — sound,
+  // destroy, announce, press — is what a lock-only floor has always emitted,
+  // so the two opener nodes sit in the middle rather than moving to the end.
+  if (seals !== undefined) {
+    // purely cosmetic placement — put the node on the wall it destroys
+    const mid = seals[Math.trunc(seals.length / 2)]
+    const destroy = new NodeDestroyObject(ctx, mid.x, mid.y)
+    for (const s of seals) destroy.connectDoodad(s)
+    const announce = new NodeAnnounceText(ctx, nodeX, nodeY)
+    announce.setText(SEAL_TEXT)
+    announce.time = SEAL_ANNOUNCE_MS
+    announce.textType = SEAL_ANNOUNCE_TYPE
+    trigger.connectTo(destroy)
+    trigger.connectTo(announce)
+  }
 
   const press = new NodeChangeDoodadState(ctx, nodeX, nodeY, SEAL_BUTTON_STATE)
   press.setTarget(plate)
-
-  trigger.connectTo(sound)
-  trigger.connectTo(destroy)
-  trigger.connectTo(announce)
   trigger.connectTo(press)
 
-  return true
+  return trigger
 }
 
 /**
@@ -279,14 +402,34 @@ function buildButtonRig(
  * seal it opens (the caller marks that room locked first) and out of any
  * chance-rolled gold-door room. Null means the floor has nowhere to put it.
  */
-function pickButtonTile(ctx: GenerationContext, rooms: Room[]): { x: number; y: number } | null {
+function pickButtonTile(
+  ctx: GenerationContext,
+  rooms: Room[],
+  taken: ReadonlyArray<{ x: number; y: number }> = []
+): { x: number; y: number } | null {
   for (let attempt = 0; attempt < MAX_BUTTON_ATTEMPTS; attempt++) {
     const r = rooms[ctx.rand.iRand(0, rooms.length)]
     if (r.locked) continue
-    return {
+    const tile = {
       x: ctx.rand.fRand(r.x, r.x + r.width),
       y: ctx.rand.fRand(r.y + 2, r.y + r.height)
     }
+    // Two plates overlapping would be one press for two buttons. The rule
+    // cannot fire for the first button, so a one-button floor draws exactly
+    // what it always drew.
+    if (taken.some((t) => Math.abs(t.x - tile.x) < MIN_BUTTON_SPACING && Math.abs(t.y - tile.y) < MIN_BUTTON_SPACING)) continue
+    return tile
   }
   return null
+}
+
+/** `count` button tiles, drawn one after another; null if any cannot be placed. */
+function pickButtonTiles(ctx: GenerationContext, rooms: Room[], count: number): Array<{ x: number; y: number }> | null {
+  const tiles: Array<{ x: number; y: number }> = []
+  for (let i = 0; i < count; i++) {
+    const tile = pickButtonTile(ctx, rooms, tiles)
+    if (tile === null) return null
+    tiles.push(tile)
+  }
+  return tiles
 }

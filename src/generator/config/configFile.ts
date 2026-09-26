@@ -13,6 +13,8 @@ import {
   defaultFloorTraps,
   defaultBossFight,
   defaultFloorTimer,
+  defaultFloorLock,
+  gatewayLockedFloors,
   defaultLobby,
   defaultParameters,
   isScatterMode,
@@ -107,7 +109,7 @@ export const PARAMETER_ORDER = [
   'vaultChance',
   'lockChance',
   'keyChance',
-  'lockFinalRoom',
+  'lockFloors',
   'monster', // placeholder: expanded to monsters0...monstersN
   'buff', // placeholder: expanded to buffN for each floor that carries a buff
   'trap', // placeholder: expanded to trapN for each floor that runs wall traps
@@ -1169,10 +1171,15 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   if (params.playerTweaks === undefined) params.playerTweaks = {}
   if (params.lobbies === undefined) params.lobbies = defaultParameters().lobbies
   if (params.boss === undefined) params.boss = defaultParameters().boss
-  if (params.lockFinalRoom === undefined)
-    params.lockFinalRoom = defaultParameters().lockFinalRoom
   if (params.lobbySaves === undefined) params.lobbySaves = defaultParameters().lobbySaves
   const result: ParsedConfig = { params, unknownKeys: [] }
+  // `lockFloors=` indices, or undefined when the file has no such line.
+  // Resolved after the whole file is read, since `levels` may come after it.
+  let lockFloors: Array<{ index: number; buttons?: number }> | undefined
+  // A legacy `lockFinalRoom=` line (the campaign-wide flag issue #69 replaced),
+  // or undefined. Needs the finished order and boss floors, so it is resolved
+  // at the very end too.
+  let legacyLockFinalRoom: boolean | undefined
   /** highest N seen in a `monstersN=` key, or -1 if the file declared no pools */
   let highestPoolIndex = -1
   // Highest `timerN=` seen, same purpose as highestPoolIndex above.
@@ -1266,7 +1273,22 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       continue
     }
     if (keyLower === 'lockfinalroom') {
-      params.lockFinalRoom = value === '1'
+      legacyLockFinalRoom = value === '1'
+      continue
+    }
+    if (keyLower === 'lockfloors') {
+      lockFloors = []
+      for (const token of value.split(',').map((t) => t.trim()).filter((t) => t !== '')) {
+        // `6` is floor 6 with one button, `6:3` with three (issue #69 part 2)
+        const m = /^(\d+)(?::(\d+))?$/.exec(token)
+        if (m === null) {
+          result.unknownKeys.push(`${key} floor "${token}"`)
+          continue
+        }
+        const entry: { index: number; buttons?: number } = { index: parseInt(m[1], 10) }
+        if (m[2] !== undefined) entry.buttons = parseInt(m[2], 10)
+        lockFloors.push(entry)
+      }
       continue
     }
     if (keyLower === 'themes') {
@@ -1659,6 +1681,36 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     if (params.levelOrder === undefined) delete params.levelOrder
   }
 
+  // Per-floor locks (issue #69). An explicit `lockFloors=` line is the whole
+  // truth; failing that, a legacy `lockFinalRoom=1` locks exactly the floors
+  // the old flag sealed — which needs the order and boss floors repaired
+  // above — and `lockFinalRoom=0` locks none. A file with neither keeps the
+  // base's locks, fitted to the floor count.
+  if (lockFloors !== undefined) {
+    const locks = Array.from({ length: params.levels }, () => defaultFloorLock())
+    for (const { index, buttons } of lockFloors) {
+      if (index >= params.levels) {
+        result.unknownKeys.push(`lockFloors floor "${index}"`)
+        continue
+      }
+      locks[index].enabled = true
+      // absent means 1, so a one-button floor stores no count — the shape
+      // defaultParameters() and the form produce
+      if (buttons !== undefined && buttons !== 1) locks[index].buttons = buttons
+    }
+    // No locks at all is stored as absent — the shape a campaign that never
+    // locked anything has, so a round trip of one stays equal to it.
+    if (locks.some((l) => l.enabled)) params.levelLock = locks
+    else delete params.levelLock
+  } else if (legacyLockFinalRoom === true) {
+    params.levelLock = gatewayLockedFloors(params)
+  } else if (legacyLockFinalRoom === false) {
+    delete params.levelLock
+  } else if (params.levelLock !== undefined) {
+    while (params.levelLock.length < params.levels) params.levelLock.push(defaultFloorLock())
+    params.levelLock.length = params.levels
+  }
+
   for (const [index, state] of fightState) {
     const arena = fights[index]?.arena
     if (arena === undefined) continue
@@ -1777,8 +1829,17 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
       lines.push(`lockChance=${params.lockChance.toFixed(6)}`)
     } else if (key === 'keyChance') {
       lines.push(`keyChance=${params.keyChance.toFixed(6)}`)
-    } else if (key === 'lockFinalRoom') {
-      lines.push(`lockFinalRoom=${params.lockFinalRoom ? 1 : 0}`)
+    } else if (key === 'lockFloors') {
+      // Always written, empty when no floor is locked, so importing it over a
+      // base campaign that had locks really does clear them.
+      // A floor with a count other than one is written `i:n` — including
+      // `i:0`, a lock with no button, so it round-trips as set.
+      const locked: string[] = []
+      ;(params.levelLock ?? []).slice(0, Math.max(params.levels, 0)).forEach((lock, i) => {
+        if (!lock.enabled) return
+        locked.push(lock.buttons === undefined || lock.buttons === 1 ? `${i}` : `${i}:${lock.buttons}`)
+      })
+      lines.push(`lockFloors=${locked.join(',')}`)
     } else if (key === 'monster') {
       params.levelMonsters.forEach((pool, i) => {
         lines.push(`monsters${i}=${pool.join(',')}`)

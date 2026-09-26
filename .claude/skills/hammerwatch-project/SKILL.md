@@ -53,7 +53,7 @@ src/
 │   ├── xml/              XMLDictionary/Array/Int/Float/Bool/String/IntArray
 │   ├── map/              level.ts, room.ts, passage.ts, tile.ts,
 │   │                     wallPattern.ts, posDir.ts, reachability.ts,
-│   │                     buttonSeal.ts (the final room's keyless gate)
+│   │                     buttonSeal.ts (a locked floor's keyless gate)
 │   │                     (overhang-aware flood fill), tilemapOverlay.ts
 │   │                     (overlay + mixed floor datasets), coverShape.ts
 │   │                     (the whole-map RectangleShape buffs and timer share)
@@ -320,7 +320,7 @@ reference/hammerwatch-tweak-stats.md
 | `minPassageWidth`–`maxPassageWidth` | 3–6 | **`maxPassageWidth` ≤ `minRoomSize`** or doors land outside rooms |
 | `edgePadding` / `roomPadding` | 2 / 2 | ≥ 0 |
 | `themes` | `a_mixed`…`g_mixed` | one per level; any id in `THEME_DEFS` — bases `a`–`i`, `bonus1`–`bonus5`, each base's overlay pairings (`c_tiles`) and its `_mixed` palette. Registry in `config/themes.ts`; see *Themes* below |
-| `lockFinalRoom` | `true` | the room carrying a gateway prefab (`gateway.kind !== 'exit'` — orb, boss portal or lobby portal) sits in a dead-end behind a destructible wall, with a floor button hidden elsewhere on the floor, placed like a key (`map/buttonSeal.ts`). No key exists, so one cannot be hoarded from an earlier floor or spent on the wrong door. Under the default order that is one room on the last floor; a rearranged campaign can have several. Off leaves the room open |
+| `levelLock[i]` | derived | per floor (issue #69; `lockFloors=` in parameters.txt, absent = none). A locked floor's gateway room sits in a dead-end behind a destructible wall, with a floor button hidden elsewhere on the floor, placed like a key (`map/buttonSeal.ts`). No key exists, so one cannot be hoarded or spent on the wrong door. A locked floor whose gateway is stairs takes the orb/portal branch with the **blue** `LobbyPortal` pointing at the next floor (a gateway-kind change: moves that floor and every later one). A locked BOSS floor needs the boss(es) AND the button: `dungeonBoss/opener.ts` feeds both into `boss/tierSource.ts`'s `buildCountdown`. `defaultParameters()` and every preset but Pre-Alpha derive it with `withGatewayLocks` — exactly the non-stairs, non-boss floors the old campaign-wide `lockFinalRoom` sealed, so their seeds did not move. All-unlocked is stored as absent. `buttons` (absent = 1, 0..`MAX_LOCK_BUTTONS` 20, `floorLockButtons`): N ≥ 2 builds `buttonSeal.ts`'s `buildButtonCountdown` — `Variable(N)`, per-button subtract, shared `CheckVariable(== k)` announcing "k buttons remain", `== 0` opening the wall (or feeding the boss seal countdown); 0 = no lock. `lockFloors=2:3,7` in parameters.txt |
 | `shopChance` / `vaultChance` / `lockChance` / `keyChance` | 1.0 / 0.3 / 0.8 / 1.0 | 0–1 inclusive |
 | `monsterMultiplier` / `goldMultiplier` / `foodMultiplier` | 1.0 / 1.1 / 1.2 | ≥ 0 |
 | `levelMonsters[i]` | see defaults | non-empty; each entry is a **floor pool key** — a bare id rolls the type's tiers, `id#tier` pins one actor, a `MONSTER_FAMILIES` id rolls evenly between several whole types (`isKnownFloorPoolKey`, a deliberate sibling of the arena's stricter `isKnownMonsterKey`); repeat an entry to weight it, which is all the form's weight spinner does |
@@ -462,7 +462,7 @@ Plus two app settings that are *not* generator parameters:
    the next slot is another floor, or the `Orb`/`BossPortal`/`LobbyPortal`
    prefab when it is anything else (one room branch, one three-id contract —
    see *Campaign order*); then `Shop`, `Vault`, an extra locked room and its
-   `Key` by chance. Everything left becomes a `Lair`. With `lockFinalRoom` on, the
+   `Key` by chance. Everything left becomes a `Lair`. On a locked floor, the
    orb room is gated last — always by `buttonSeal.ts`'s wall-and-button rig,
    never by a door (`Room.lockRoom()` refuses an `Orb` room outright).
    The wall spans the corridor's whole cross-section plus one tile of wall band
@@ -910,8 +910,8 @@ Two things follow from position in that list, and nothing else does:
   is why the
   finality tests `level < params.levels - 1` and `level === params.levels - 1`
   are gone: a rearranged campaign can end on a dungeon floor, and several floors
-  can lead into fights. `lockFinalRoom` likewise gates whichever room carries a
-  gateway prefab (`gateway.kind !== 'exit'`), not floor `levels - 1`.
+  can lead into fights. Locks are per floor (`levelLock`), not floor
+  `levels - 1`; a locked stairs floor swaps its stairs for the blue teleport.
 
   **`Orb`, `BossPortal` and `LobbyPortal` are one branch and one contract.**
   `level.ts` picks the room for all three the same way, and each prefab
@@ -1072,8 +1072,9 @@ while anubis and krilith carry no `<collision>` child at all. Out are the dragon
 derives each def's `mobile` flag from that list; the list lives in
 `parameters.ts` because `bosses.ts` imports from there and not the reverse.
 
-**Other rules.** The seal is built whether or not `lockFinalRoom` is ticked —
-the setting is campaign-wide, so a form cannot force it per floor. Wave monsters
+**Other rules.** The seal is built whether or not the floor is locked — the
+boss's death is its key. Locking it too adds a button, and the wall then waits
+for a `Variable` countdown of (boss death or all-died check) + button press. Wave monsters
 spawn from `FLOOR_SPAWN_POINTS` (9) interior points pooled across every eligible
 room, the same count the arena's anchors give and for the same
 too-many-actors-in-one-frame reason. Per-tier traps replace one another and

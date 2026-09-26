@@ -249,7 +249,9 @@ export class ObjectSet {
         // Points at the lobby the campaign order puts next. A boss arena can
         // also end in this rig (an arena followed by a lobby), which is why
         // boss/arena.ts picks the doodad by gateway kind the same way
-        // map/room.ts does for a dungeon floor.
+        // map/room.ts does for a dungeon floor. A locked floor (issue #69) that
+        // would otherwise take the stairs also ends here, pointing at the next
+        // floor — stairs cannot be sealed.
         const exit = new NodeLevelExit(ctx, x, y + 2)
         exit.level = exitTarget ?? lobbyId(0)
         exit.connectToShape(shape)

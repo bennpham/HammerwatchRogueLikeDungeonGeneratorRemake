@@ -21,6 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **The Long Haul**: a 13-floor, multi-act epic with two arenas and an escape floor.
 - **Preset guide.** An (i) button left of the preset dropdown opens a list of every preset and its description, each with a **Load** button. Claude Generated presets are listed alphabetically.
 - **Pre-Alpha preset** under its own greyed **Pre-Alpha** header: the original Java tool's `parameters.txt`. It has 8 floors of themes a–d, the Java monster caps, and no lobbies, bosses or extras. Java's `army1`/`army2`/`lich2` pools are split into today's skeleton, archer and lich types.
+- **Lock any floor (issue #69, part 1).** The campaign-wide "Lock final room" checkbox is replaced by a per-floor **Locked rooms** section on the Dungeon tab. A locked floor puts its way out behind a destructible wall that a hidden floor button opens.
+  - A locked floor that would normally lead on by stairs gets the blue teleport instead, since stairs can't be sealed.
+  - On a floor that also has a boss, the wall opens only once the boss (or every boss) is dead **and** the button has been pressed.
+  - Every preset locks the same floors the old checkbox did, so existing seeds are unchanged. Pre-Alpha stays unlocked.
+  - `parameters.txt` writes `lockFloors=6,7` (0-based floor list) instead of `lockFinalRoom=`. An old `lockFinalRoom=1` still imports, as the floors it used to lock.
+- **Several buttons per locked floor (issue #69, part 2).** Each floor in **Locked rooms** now takes a button count (0–20) instead of a checkbox.
+  - Every button must be pressed to open the wall. Each press announces how many buttons remain.
+  - 0 leaves a floor unlocked. A boss floor with 0 buttons is opened by the boss alone.
+  - `parameters.txt` writes a count other than one as `floor:buttons`, e.g. `lockFloors=2:3,7`.
 
 ### Fixed
 

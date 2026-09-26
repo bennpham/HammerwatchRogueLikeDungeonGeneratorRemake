@@ -1,5 +1,5 @@
 import { Room, roomSpawnBox } from './room'
-import { sealRoomWall, sealRoomWithButton } from './buttonSeal'
+import { sealRoomWall, sealRoomWallWithButton, sealRoomWithButton } from './buttonSeal'
 import { Passage } from './passage'
 import { Tile } from './tile'
 import { searchPatterns } from './wallPattern'
@@ -11,6 +11,7 @@ import { mixedDatasets, overlayDataset } from './tilemapOverlay'
 import { exitReachable } from './reachability'
 import { sealHolds } from './sealCheck'
 import type { GenerationContext } from '../core/context'
+import type { ScriptNode } from '../objects/scriptNode'
 
 const TILEMAP_SIZE = 20
 
@@ -50,6 +51,14 @@ export class Level {
    * hangs a `Boss Died` trigger off these after the floor is accepted.
    */
   seals: Doodad[] = []
+
+  /**
+   * The `AreaTrigger` of each button on a floor that is locked AND hosts a
+   * boss (issue #69): the buttons that count toward opening `seals` rather
+   * than opening them outright. Empty otherwise — a lock-only floor's button
+   * opens its own wall, and a boss-only floor has none.
+   */
+  sealButtons: ScriptNode[] = []
 
   /**
    * Where this floor's boss(es) stand, when it has any (issue #61, and issue
@@ -174,7 +183,11 @@ export class Level {
     // arming a boss moves this floor's layout and every floor after it. Free
     // today because no seed predates the feature, and gated so a floor without
     // a boss draws exactly what it always drew.
-    if (ctx.gateway?.kind === 'exit' && !ctx.floorBoss) {
+    //
+    // A LOCKED floor (issue #69) takes the same detour for the same reason —
+    // stairs cannot be sealed — with the blue teleport standing in for them
+    // (see the Orb case in room.ts).
+    if (ctx.gateway?.kind === 'exit' && !ctx.floorBoss && !ctx.floorLocked) {
       // exit stairs down to the next floor
       success = false
       for (let attempt = 0; attempt < 2000; attempt++) {
@@ -233,21 +246,19 @@ export class Level {
       }
     }
 
-    // seal the victory orb behind a button-opened wall (final floor only, opt in)
+    // seal the way out behind a destructible wall — a locked floor (issue #69),
+    // a boss floor (issue #61), or both
     //
     // Runs last on purpose: the chance-gated lock above already refuses an Orb
     // room so it can never steal this one, and writing ctx.lastLockType here at
-    // the very end of the final level cannot leak into a later level.
-    // Gates whichever room carries the campaign's gateway prefab — the victory
-    // orb, a boss portal, or a lobby portal. Under the default order there is
-    // exactly one such room, on floor `levels - 1`, which is what this used to
-    // test for directly; a rearranged campaign can have several, and each is
-    // the last gate before something that matters.
-    // A boss floor is sealed whether or not `lockFinalRoom` is ticked: the
-    // issue is explicit that the wall is there either way, and the setting is
-    // campaign-wide so the form cannot force it for one floor. Every other
-    // floor keeps the original condition exactly.
-    if (ctx.floorBoss || (params.lockFinalRoom && ctx.gateway?.kind !== 'exit')) {
+    // the very end of the level cannot leak into a later level.
+    // Gates whichever room carries the floor's gateway prefab — the victory
+    // orb, a boss portal, or a lobby portal. A locked or boss floor always has
+    // one: the stairs branch above is skipped for both.
+    // A boss floor is sealed whether or not it is locked: the boss's death is
+    // its key. Locking it as well adds a button, and the wall then waits for
+    // both.
+    if (ctx.floorBoss || ctx.floorLocked) {
       // transform('Orb') already refused every room with more than one
       // passage, so the orb room is a dead end and the seal fits across its
       // single corridor
@@ -258,7 +269,17 @@ export class Level {
       // doors. The wall the button destroys cannot be opened wrong.
       let gated = false
       if (orbRoom !== undefined) {
-        if (ctx.floorBoss) {
+        if (ctx.floorBoss && ctx.floorLocked) {
+          // Boss AND button: the button is hidden and wired to animate, but
+          // opens nothing by itself — the post-pass feeds it and the boss's
+          // death into one countdown (see dungeonBoss/opener.ts).
+          const sealed = sealRoomWallWithButton(orbRoom, ctx, this.rooms, ctx.floorLockButtons)
+          gated = sealed !== null
+          if (sealed !== null) {
+            this.seals = sealed.seals
+            this.sealButtons = sealed.buttons
+          }
+        } else if (ctx.floorBoss) {
           // No button on a boss floor — the boss's death is the key. The wall
           // is identical; only what opens it differs, and that is wired after
           // the floor is accepted (see dungeonBoss/opener.ts).
@@ -266,7 +287,7 @@ export class Level {
           gated = seals !== null
           if (seals !== null) this.seals = seals
         } else {
-          gated = sealRoomWithButton(orbRoom, ctx, this.rooms)
+          gated = sealRoomWithButton(orbRoom, ctx, this.rooms, ctx.floorLockButtons)
         }
         // the same consolation powerup, off the same three draws, that
         // lockRoom() grants — see Room.grantLockLoot

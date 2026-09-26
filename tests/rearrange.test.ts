@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { generateDungeon } from '../src/generator'
+import { generateDungeon, withGatewayLocks } from '../src/generator'
 import type { DungeonParameters, DungeonResult } from '../src/generator'
 import { plainParameters } from './params'
 import { defaultLobby, defaultParameters, type BossFight } from '../src/generator/config/parameters'
@@ -354,8 +354,10 @@ describe('campaign order — lobbies never move a floor (invariant #6)', () => {
 describe('campaign order — a floor that ends the campaign', () => {
   it('seals the gateway room on every floor that carries one', () => {
     // 1,B1,2 — floor 1 leads into a fight and floor 2 ends the run, so BOTH
-    // carry a gateway prefab and both are gated by lockFinalRoom
-    const params = campaign('1,B1,2,3', 1)
+    // carry a gateway prefab, and locking both (the floors the old campaign-
+    // wide lockFinalRoom sealed) gates both
+    const params = withGatewayLocks(campaign('1,B1,2,3', 1))
+    expect(params.levelLock!.map((l) => l.enabled)).toEqual([true, false, true])
     const result = generateOk(params, SEED)
 
     // floor 1's gateway room is behind the button seal, like the orb room is

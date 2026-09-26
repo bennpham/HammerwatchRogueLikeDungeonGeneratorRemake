@@ -49,7 +49,7 @@ export const TRAP_MIN_SPACING = 2
  *
  * An integer coordinate in this dialect is a tile CORNER, not a tile centre —
  * `objects/doodad.ts` says the same thing in the other direction, giving every
- * floor-anchored piece (Cover, TriggerButton, Torch) an `xOffset`/`yOffset` of
+ * floor-anchored piece (Cover, BossDoorButton, Torch) an `xOffset`/`yOffset` of
  * 0.5 to sit it in the middle of its tile, and the shipped campaign places its
  * actors on half coordinates (`level_boss_4.xml`'s dragon at `-5 -26.5`).
  *

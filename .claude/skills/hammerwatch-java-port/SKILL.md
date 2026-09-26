@@ -164,8 +164,8 @@ These are intentional. Do not "fix" them back.
    `ObjectSet` tested `level < params.levels - 1` for stairs and
    `level === params.levels - 1` for the orb. Those tests are **gone**. The
    port sets `ctx.gateway` from `campaign.ts`'s order and reads it in
-   `map/level.ts`, `map/room.ts` and `objects/objectSet.ts`; `lockFinalRoom`
-   now gates on `gateway.kind !== 'exit'` rather than on a floor index. A boss
+   `map/level.ts`, `map/room.ts` and `objects/objectSet.ts`; the final-room
+   lock is now a per-floor `levelLock` rather than a floor-index test. A boss
    fight can therefore sit anywhere in the campaign and the last slot — floor
    or arena — is the one that carries the orb.
 

@@ -327,13 +327,13 @@ describe('skeleton3 and tower_empty', () => {
       987654: '88023710004c21b45b12fe9a71587b22e246f9d4f1f45b84c5ad9f5ae062bfad'
     }
     for (const [seed, hash] of Object.entries(expected)) {
-      // the baseline predates lockFinalRoom, which now defaults on and reshapes
+      // the baseline predates the final-room lock, which now defaults on and reshapes
       // the last floor — hash the same open-orb dungeon it was measured over.
       // It also predates the boss feature, which — also on by default — would
       // otherwise swap the final floor's Orb prefab for a BossPortal; turn it
       // off so this stays a test of the RNG layout stream, not the boss's.
       const params = defaultParameters()
-      params.lockFinalRoom = false
+      params.levelLock = undefined
       params.boss.enabled = false
       // and the escape floor's 90-second hazard, its wall traps, and the
       // per-floor music cues — all three the shipped preset now arms on top of

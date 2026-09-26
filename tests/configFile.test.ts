@@ -5,6 +5,7 @@ import { plainParameters } from './params'
 import { parseParametersTxt, serializeParametersTxt } from '../src/generator/config/configFile'
 import { noUpgrades, oneOfEachUpgrade } from '../src/generator/levelTemplate/surgery'
 import {
+  gatewayLockedFloors,
   BOSS_DEATH_WAVE,
   BOSS_WAVE_COUNT,
   bossDeathBuffs,
@@ -209,19 +210,63 @@ describe('parameters.txt parsing', () => {
     expect(parsed.unknownKeys).toEqual(['boss0FloorPattern value "spiral"'])
   })
 
-  it('round-trips lockFinalRoom as 1/0', () => {
+  it('round-trips the per-floor locks as a lockFloors= list', () => {
     const original = defaultParameters()
-    expect(serializeParametersTxt(original)).toContain('lockFinalRoom=1')
-
-    original.lockFinalRoom = false
+    // the stock campaign locks the floor before the boss-prep lobby and the
+    // escape floor — the two the old lockFinalRoom flag sealed
     const text = serializeParametersTxt(original)
-    expect(text).toContain('lockFinalRoom=0')
+    expect(text).toContain('lockFloors=6,7')
+    expect(text).not.toContain('lockFinalRoom')
+
+    original.levelLock = original.levelLock!.map((_, i) => ({ enabled: i === 2 }))
+    const parsed = parseParametersTxt(serializeParametersTxt(original))
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.levelLock!.map((l) => l.enabled)).toEqual([false, false, true, false, false, false, false, false])
+  })
+
+  it('writes an empty lockFloors= line so importing it clears a base campaign\'s locks', () => {
+    const original = defaultParameters()
+    original.levelLock = undefined
+    const text = serializeParametersTxt(original)
+    expect(text).toMatch(/^lockFloors=\r?$/m)
+    // no locks is stored as absent, the same as a campaign that never had any
+    expect(parseParametersTxt(text).params.levelLock).toBeUndefined()
+  })
+
+  it('writes a button count other than one as floor:count, and round-trips it', () => {
+    const original = defaultParameters()
+    original.levelLock = original.levelLock!.map((_, i) =>
+      i === 2 ? { enabled: true, buttons: 3 } : i === 5 ? { enabled: true, buttons: 0 } : { enabled: i === 7 }
+    )
+    const text = serializeParametersTxt(original)
+    expect(text).toMatch(/^lockFloors=2:3,5:0,7\r?$/m)
 
     const parsed = parseParametersTxt(text)
-    expect(parsed.params.lockFinalRoom).toBe(false)
-    expect(parseParametersTxt('lockfinalroom=1').params.lockFinalRoom).toBe(true)
     expect(parsed.unknownKeys).toEqual([])
-    expect(parseParametersTxt('lockfinalroom=0').params.lockFinalRoom).toBe(false)
+    expect(parsed.params.levelLock![2]).toEqual({ enabled: true, buttons: 3 })
+    expect(parsed.params.levelLock![5]).toEqual({ enabled: true, buttons: 0 })
+    // one button stores no count
+    expect(parsed.params.levelLock![7]).toEqual({ enabled: true })
+    expect(parseParametersTxt('lockFloors=1:1').params.levelLock![1]).toEqual({ enabled: true })
+    expect(parseParametersTxt('lockFloors=1:x').unknownKeys).toEqual(['lockFloors floor "1:x"'])
+  })
+
+  it('reports lockFloors entries that are not floors of the campaign', () => {
+    const parsed = parseParametersTxt('lockFloors=1,x,99')
+    expect(parsed.params.levelLock!.map((l) => l.enabled)).toEqual([false, true, false, false, false, false, false, false])
+    expect(parsed.unknownKeys).toEqual(['lockFloors floor "x"', 'lockFloors floor "99"'])
+  })
+
+  it('reads a legacy lockFinalRoom line as the floors it used to seal', () => {
+    const on = parseParametersTxt('lockFinalRoom=1')
+    expect(on.unknownKeys).toEqual([])
+    expect(on.params.levelLock).toEqual(gatewayLockedFloors(on.params))
+    expect(on.params.levelLock!.map((l) => l.enabled)).toEqual([false, false, false, false, false, false, true, true])
+
+    expect(parseParametersTxt('lockfinalroom=0').params.levelLock).toBeUndefined()
+    // an explicit list wins over the legacy flag, whatever the line order
+    expect(parseParametersTxt('lockFloors=0\nlockFinalRoom=1').params.levelLock![0].enabled).toBe(true)
+    expect(parseParametersTxt('lockFloors=0\nlockFinalRoom=1').params.levelLock![7].enabled).toBe(false)
   })
 
   it('round-trips lobbySaves as 1/0, defaulting to on when the key is absent', () => {
@@ -249,7 +294,8 @@ describe('parameters.txt parsing', () => {
     // and gets the button seal, with the dead key reported not fatal
     const parsed = parseParametersTxt('levels=3\nfinalLockMode=key')
     expect(parsed.params.levels).toBe(3)
-    expect(parsed.params.lockFinalRoom).toBe(defaultParameters().lockFinalRoom)
+    // the base's locks survive, fitted to the new floor count
+    expect(parsed.params.levelLock).toHaveLength(3)
     expect(parsed.unknownKeys).toEqual(['finalLockMode'])
   })
 

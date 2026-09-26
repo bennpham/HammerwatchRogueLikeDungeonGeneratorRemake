@@ -238,6 +238,8 @@ a two-tile band instead (`ThemeDef.directionalFences`).
 | `VendorOffense` | `doodads/special/vendor_offense.xml` | 0, 0 |
 | `VendorDefense` | `doodads/special/vendor_defense.xml` | 0, 0 |
 | `Cover` | `doodads/special/color_theme_%s_16.xml` (1 sub) | 0.5, 0.5 |
+| `BossDoorButton` | `doodads/special/boss_door_button.xml` | 0.5, 0.5 |
+| `TriggerButton` (unused, reserved) | `doodads/special/trigger_button_floor.xml` | 0.5, 0.5 |
 | `ExitUp` (bonus only) | `doodads/special/bonus_entrance.xml` | 0, 0 |
 | `ExitDn` (bonus only) | `doodads/special/bonus_exit.xml` | 0, 0 |
 
@@ -257,6 +259,12 @@ in game 2026-09-01 — its `LevelExitArea` takes any level id, so an arena's
 alcove portal may point at a numeric floor and not only at a `bossprep<i>`
 room. That is what the presets' escape floor rides on. See the 2026-09-01
 entry in `DISCOVERY-LOG.md`.
+
+**`boss_door_button.xml` is the locked-room seal's plate** `[VERIFIED 2026-09-26]`
+— need-sync True, a w1 h1 `RectangleShape` centred half a tile past the
+doodad's position, and `ChangeDoodadState` to `activate` to show the press.
+`trigger_button_floor.xml` takes `pressed` instead; it is kept as
+`TriggerButton` for a later puzzle feature.
 
 **`Cover` is a character-occlusion overlay, not a collider** `[VERIFIED]` — read
 from the asset: `special/color_theme_a_16.xml` declares **zero**
@@ -740,6 +748,21 @@ The same rig also works in a multi-boss **arena**. `on-true` also drives the
 other death-tier targets: wave `ToggleElement`s, pickup `SpawnObject`s, and the
 after-death trap toggles. All of that is `[VERIFIED]` by the user's follow-up
 playtest on 2026-09-23.
+
+### "All of them" — Variable countdowns `[VERIFIED 2026-09-26]`
+
+The locked-room rigs (issue #69) extend the multi-boss countdown above, and
+playtests confirmed each part:
+- **Any node can decrement.** `GlobalEventTrigger("Boss Died")`, a button's
+  one-shot `AreaTrigger` and a `CheckVariable` (through `on-true`) all work as
+  the source of a `ChangeVariable(-1)` → `CheckVariable(== 0)` pair
+  (`boss/tierSource.ts`'s `buildCountdown`). A multi-boss + button seal chains
+  the all-died check into the seal's countdown this way.
+- **`CheckVariable` compares against any value.** `cmp-val` k ≥ 1 works, which
+  is what drives "k buttons remain" (`map/buttonSeal.ts`'s
+  `buildButtonCountdown`).
+- **One `CheckVariable` may be fired by many sources.** Every button fires the
+  same shared set of checks.
 
 ### Survival clock — `GlobalEventTrigger("LevelLoaded")` `[VERIFIED 2026-09-24]`
 
