@@ -1,5 +1,5 @@
 import React from 'react'
-import { bossFights, campaignOrder, defaultFloorLock, floorBoss, gatewayAfter } from '../../generator'
+import { bossFights, campaignOrder, defaultFloorLock, gatewayAfter } from '../../generator'
 import type { DungeonParameters, FloorLock, ValidationIssue } from '../../generator'
 import { BoolField } from './fields'
 
@@ -13,10 +13,9 @@ interface FloorLockEditorProps {
  * Locked exit rooms, one toggle per floor (issue #69) — the per-floor
  * replacement for the old campaign-wide "Lock final room".
  *
- * Each row says where the floor leads, because that decides what locking it
- * costs: a floor that ends in a portal or the orb just gains the wall and its
- * button, while one that ends in stairs has to swap them for the blue teleport
- * (stairs cannot be sealed), which re-rolls that floor's layout.
+ * Each row says where the floor leads — stairs, boss, lobby or orb — because a
+ * locked stairs floor swaps its stairs for the blue teleport (stairs cannot be
+ * sealed), which re-rolls that floor's layout.
  */
 export function FloorLockEditor({ params, issues, onChange }: FloorLockEditorProps) {
   const count = Math.max(params.levels, 0) || 0
@@ -31,7 +30,7 @@ export function FloorLockEditor({ params, issues, onChange }: FloorLockEditorPro
     const kind = gatewayAfter(order, position).kind
     leadsTo.set(
       slot.index,
-      kind === 'exit' ? 'stairs — becomes a blue teleport' : kind === 'orb' ? 'victory orb' : kind === 'portal' ? 'boss portal' : 'lobby teleport'
+      kind === 'exit' ? 'stairs' : kind === 'orb' ? 'orb' : kind === 'portal' ? 'boss' : 'lobby'
     )
   })
 
@@ -51,11 +50,8 @@ export function FloorLockEditor({ params, issues, onChange }: FloorLockEditorPro
   return (
     <div className="floor-locks">
       <p className="hint">
-        A locked floor puts its way out in a dead-end room behind a destructible wall, opened by a
-        button hidden somewhere else on the floor. No key is involved, so keys hoarded or spent on
-        the wrong door cannot strand the party. A floor that would lead on by stairs gets the blue
-        teleport instead, since stairs cannot be sealed. On a boss floor the wall waits for the
-        boss <em>and</em> the button.
+        A locked floor walls off its exit; a hidden floor button opens it. On a boss floor the
+        wall waits for the boss <em>and</em> the button.
       </p>
       {issues
         .filter((i) => i.field === 'levelLock')
@@ -66,8 +62,7 @@ export function FloorLockEditor({ params, issues, onChange }: FloorLockEditorPro
         ))}
       <div className="field-grid">
         {Array.from({ length: count }, (_, level) => {
-          const hasBoss = floorBoss(params, level) !== undefined
-          const detail = [leadsTo.get(level), hasBoss ? 'boss also required' : undefined].filter(Boolean).join('; ')
+          const detail = leadsTo.get(level)
           return (
             <BoolField
               key={level}
