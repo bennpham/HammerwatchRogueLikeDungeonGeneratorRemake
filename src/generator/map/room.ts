@@ -257,10 +257,10 @@ export class Room {
         if (this.locked) return false
         // the orb can only be locked behind a single door if exactly one
         // corridor reaches it — same condition lockRoom() enforces
-        // A boss floor is always sealed (issue #61), so its gateway room must
-        // be a dead end whether or not `lockFinalRoom` is ticked — the seal is
-        // drawn across a single corridor and has nothing to close otherwise.
-        if ((params.lockFinalRoom || ctx.floorBoss) && this.passages.length !== 1) return false
+        // A locked floor (issue #69) and a boss floor (issue #61) are both
+        // sealed, so their gateway room must be a dead end — the seal is drawn
+        // across a single corridor and has nothing to close otherwise.
+        if ((ctx.floorLocked || ctx.floorBoss) && this.passages.length !== 1) return false
         // What comes next swaps the orb prefab for one of two portals, at the
         // same coordinates: the red one into a fight's arena, or the blue one
         // into a lobby — three visually distinct ways for a floor to end, so
@@ -278,11 +278,17 @@ export class Room {
           ctx,
           this.x + Math.trunc(this.width / 2),
           this.y + Math.trunc(this.height / 2) + 1,
-          // `exit` reaches here only on a boss floor, which takes this branch
-          // instead of the stairs one — render it as the red portal pointing at
-          // the next floor, the same substitution boss/arena.ts makes for an
-          // arena that has no stairs prefab of its own.
-          gateway?.kind === 'lobbyPortal' ? 'LobbyPortal' : gateway?.kind === 'orb' || gateway === null ? 'Orb' : 'BossPortal',
+          // `exit` reaches here only on a boss or locked floor, which takes
+          // this branch instead of the stairs one. A boss floor renders it as
+          // the red portal pointing at the next floor, the same substitution
+          // boss/arena.ts makes for an arena that has no stairs prefab of its
+          // own; a locked floor without a boss gets the blue teleport, keeping
+          // red for "a boss was here". Same 3-id, zero-draw contract either way.
+          gateway?.kind === 'lobbyPortal' || (gateway?.kind === 'exit' && !ctx.floorBoss)
+            ? 'LobbyPortal'
+            : gateway?.kind === 'orb' || gateway === null
+              ? 'Orb'
+              : 'BossPortal',
           this.theme,
           gateway?.kind === 'orb' || gateway === null ? undefined : gateway.target
         )

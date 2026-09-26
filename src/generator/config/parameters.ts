@@ -9,7 +9,7 @@ import type { UpgradeCounts } from '../levelTemplate/surgery'
 // so this direction adds no cycle
 import { removeKey } from '../tweak/chains'
 import type { ArenaMode, CampaignSlot } from '../campaign'
-import { ARENA_MODES } from '../campaign'
+import { ARENA_MODES, campaignOrder, gatewayAfter } from '../campaign'
 // Type-only: boss/bosses.ts imports BOSS_IDS/MOBILE_BOSS_IDS FROM this file at
 // runtime, so a runtime import back here would cycle. `import type` is erased
 // at compile time and carries no such risk — see BossArenaOptions.bossLineup.
@@ -314,6 +314,66 @@ export function floorBoss(params: DungeonParameters, level: number): DungeonBoss
   return boss !== undefined && boss.enabled ? boss : undefined
 }
 
+/**
+ * One floor's locked exit room (issue #69). Only a toggle for now — one
+ * button per locked floor; a button count is the planned next field.
+ */
+export interface FloorLock {
+  /** Off by default; a floor with this false is never sealed by a button. */
+  enabled: boolean
+}
+
+/** A fresh, unlocked floor — the stock value for a floor nobody locked. */
+export function defaultFloorLock(): FloorLock {
+  return { enabled: false }
+}
+
+/** Whether floor `level` has its exit room locked behind a button. */
+export function floorLocked(params: DungeonParameters, level: number): boolean {
+  return params.levelLock?.[level]?.enabled === true
+}
+
+/**
+ * The floors the old campaign-wide `lockFinalRoom` flag sealed, as per-floor
+ * data: every floor whose way out is NOT stairs — the victory orb, the red
+ * portal into an arena, or the blue one into a lobby — and that has no boss.
+ *
+ * Used to seed `defaultParameters()` and the presets, so their campaigns
+ * stayed byte-identical when the flag became per-floor, and to read a legacy
+ * `lockFinalRoom=1` line from parameters.txt. The result is a snapshot of the
+ * CURRENT order: rearranging the campaign afterwards moves no lock.
+ */
+export function gatewayLockedFloors(params: DungeonParameters): FloorLock[] {
+  const counts = {
+    levels: params.levels,
+    fights: bossFights(params.boss).length,
+    lobbies: (params.lobbies ?? []).length
+  }
+  const order = campaignOrder(counts, params.levelOrder)
+  const locks = Array.from({ length: params.levels }, () => defaultFloorLock())
+  order.forEach((slot, position) => {
+    if (slot.kind !== 'floor' || slot.index >= params.levels) return
+    // A boss floor is skipped: the old flag never put a button on one — the
+    // boss's death alone opened it — and locking it now would add one.
+    locks[slot.index].enabled =
+      gatewayAfter(order, position).kind !== 'exit' && floorBoss(params, slot.index) === undefined
+  })
+  return locks
+}
+
+/**
+ * `params` with `levelLock` re-derived by `gatewayLockedFloors` — for a
+ * preset that spreads `defaultParameters()` and then changes the floor count
+ * or the order, so the base's locks no longer line up. Mutates and returns.
+ */
+export function withGatewayLocks(params: DungeonParameters): DungeonParameters {
+  const locks = gatewayLockedFloors(params)
+  // none locked is stored as absent, the shape parameters.txt reads it back as
+  if (locks.some((l) => l.enabled)) params.levelLock = locks
+  else delete params.levelLock
+  return params
+}
+
 export function escapeFloorTimer(): FloorTimer {
   return { enabled: true, seconds: 90, damage: 1, freqMs: 100, countdown: true }
 }
@@ -365,15 +425,6 @@ export interface DungeonParameters {
   vaultChance: number
   lockChance: number
   keyChance: number
-  /**
-   * Final floor only: force the victory Orb into a dead-end room and bar its
-   * corridor with a destructible wall, opened by a floor button just outside
-   * it. No key is involved, so a party that hoarded gold keys on earlier floors
-   * (or spent this floor's key on a chance-rolled gold door) cannot lock itself
-   * out of finishing the campaign. Off reproduces the pre-feature campaign
-   * exactly — same seeds.
-   */
-  lockFinalRoom: boolean
   /** monster pool (plain ids) per level */
   levelMonsters: string[][]
   /**
@@ -419,6 +470,27 @@ export interface DungeonParameters {
    * `ctx.floorBossRand`. See `src/generator/dungeonBoss/`.
    */
   levelBoss?: DungeonBoss[]
+  /**
+   * A locked exit room per level, one entry per floor (issue #69). Optional,
+   * and unlocked per floor when absent — which is what replaced the old
+   * campaign-wide `lockFinalRoom` flag.
+   *
+   * A locked floor forces its way out into a dead-end room and bars that
+   * room's corridor with a destructible wall, opened by a floor button hidden
+   * elsewhere on the floor (`map/buttonSeal.ts`). No key is involved, so a
+   * party that hoarded gold keys or spent this floor's on a chance-rolled
+   * door cannot shut itself out.
+   *
+   * Like `levelBoss`, NOT purely additive: stairs cannot be sealed, so a
+   * locked floor that would lead on by stairs takes the portal branch instead
+   * (the blue teleport, into the same next floor) — a different room pick and
+   * a different number of `ctx.rand` draws, so locking a stairs floor moves
+   * it and every floor after it. Locking a floor that already ends in a portal
+   * or the orb costs only the button's own draws, exactly what the old flag
+   * cost. With a boss on the floor too, the wall waits for the boss(es) AND
+   * the button — see `dungeonBoss/opener.ts`.
+   */
+  levelLock?: FloorLock[]
   /**
    * A `MUSIC_TRACKS` id per level, or the `MUSIC_DEFAULT` sentinel. Optional,
    * and unset per floor by default: a params object without it, or with every
@@ -1665,7 +1737,7 @@ function castleWaves(): BossWave[] {
  * mini-boss (`mb_*`) lives there and nowhere earlier.
  */
 export function defaultParameters(): DungeonParameters {
-  return {
+  const params: DungeonParameters = {
     levels: 8,
     minRoomSize: 6,
     maxRoomSize: 20,
@@ -1706,7 +1778,6 @@ export function defaultParameters(): DungeonParameters {
     vaultChance: 0.3,
     lockChance: 0.8,
     keyChance: 1.0,
-    lockFinalRoom: true,
     // Re-tuned in the app after the tier-roll and tower-family fixes (issue
     // #58): several types that were previously unreachable (plain/small
     // skeletons, tower_archer1, tower_banner1, …) are now genuinely in play,
@@ -1809,4 +1880,8 @@ export function defaultParameters(): DungeonParameters {
     lobbySaves: true,
     boss: defaultBossOptions()
   }
+  // Locks exactly the floors the old campaign-wide `lockFinalRoom` default
+  // sealed — every floor that ends in a portal or the orb — so the stock
+  // campaign stayed byte-identical when locks became per-floor (issue #69).
+  return withGatewayLocks(params)
 }

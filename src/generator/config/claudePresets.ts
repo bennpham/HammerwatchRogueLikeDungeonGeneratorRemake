@@ -13,7 +13,8 @@ import {
   escapeFloorTimer,
   scatterWave,
   stockWavePickups,
-  SHOOTER_ARROW_TRAPS
+  SHOOTER_ARROW_TRAPS,
+  withGatewayLocks
 } from './parameters'
 import type {
   BossArenaOptions,
@@ -741,55 +742,55 @@ export const CLAUDE_PRESETS: readonly CampaignPreset[] = [
     label: 'Arena Marathon',
     description: 'One warm-up floor, then four chained arenas — survival, boss, survival, a 3-boss finale — about 40 minutes.',
     group: 'claude',
-    build: arenaMarathon
+    build: () => withGatewayLocks(arenaMarathon())
   },
   {
     id: 'claude-beat-the-clock',
     label: 'Beat the Clock',
     description: 'Every floor runs on a shrinking hazard timer — about 30 minutes.',
     group: 'claude',
-    build: beatTheClock
+    build: () => withGatewayLocks(beatTheClock())
   },
   {
     id: 'claude-boss-rush',
     label: 'Boss Rush',
     description: 'A mobile boss seals the way out of every floor, then a two-boss finale — about 40 minutes.',
     group: 'claude',
-    build: bossRush
+    build: () => withGatewayLocks(bossRush())
   },
   {
     id: 'claude-frozen-descent',
     label: 'Frozen Descent',
     description: 'A five-floor descent through the ice caves, ending on Krilith — about 45 minutes.',
     group: 'claude',
-    build: frozenDescent
+    build: () => withGatewayLocks(frozenDescent())
   },
   {
     id: 'claude-lunch-break',
     label: 'Lunch Break',
     description: '3 short floors into one boss fight — about 15-20 minutes.',
     group: 'claude',
-    build: lunchBreak
+    build: () => withGatewayLocks(lunchBreak())
   },
   {
     id: 'claude-pandemonium',
     label: 'Pandemonium',
     description: 'Every floor hosts several roaming bosses at once, then a six-boss finale — about 50 minutes.',
     group: 'claude',
-    build: pandemonium
+    build: () => withGatewayLocks(pandemonium())
   },
   {
     id: 'claude-long-haul',
     label: 'The Long Haul',
     description: 'A 13-floor campaign across four acts and two boss arenas, ending in an escape floor — 2-3 hours.',
     group: 'claude',
-    build: longHaul
+    build: () => withGatewayLocks(longHaul())
   },
   {
     id: 'claude-trap-gauntlet',
     label: 'Trap Gauntlet',
     description: 'Wall traps escalate every floor, from arrows to dragonfire — about 45 minutes.',
     group: 'claude',
-    build: trapGauntlet
+    build: () => withGatewayLocks(trapGauntlet())
   }
 ]

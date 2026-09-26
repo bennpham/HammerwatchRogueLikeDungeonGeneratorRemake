@@ -355,7 +355,7 @@ describe('campaign presets', () => {
       expect(params.lobbies).toEqual([])
       expect(bossFights(params.boss)).toEqual([])
       expect(params.levelOrder).toBeUndefined()
-      expect(params.lockFinalRoom).toBe(false)
+      expect(params.levelLock).toBeUndefined()
       expect(params.playerTweaks).toEqual({})
       for (let i = 0; i < params.levels; i++) {
         expect(params.levelBuffs![i], `floor ${i + 1}`).toEqual([])

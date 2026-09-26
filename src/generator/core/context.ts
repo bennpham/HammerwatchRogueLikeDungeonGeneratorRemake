@@ -100,6 +100,14 @@ export class GenerationContext {
    */
   floorBoss = 0
 
+  /**
+   * Whether the floor being built has its exit room locked behind a button
+   * (issue #69, `DungeonParameters.levelLock`). Set before each `new Level()`
+   * alongside `floorBoss`, for the same reason: a locked floor's way out is a
+   * sealed portal room, never stairs, and that is decided during construction.
+   */
+  floorLocked = false
+
   monsters: Monster[] = []
   items: Item[] = []
   doodads: Doodad[] = []

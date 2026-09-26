@@ -151,6 +151,24 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    `isMultiBoss(floorBossCount(boss))` skips invulnerability outright, so it
    cannot compete with the timer's countdown and the two may coexist).
 
+   **A floor can be LOCKED, on the same terms** (`levelLock[i]`, issue #69,
+   read through `floorLocked()` / `ctx.floorLocked`; absent = unlocked). It
+   replaced the campaign-wide `lockFinalRoom`. A locked floor takes the
+   orb/portal branch like a boss floor does; with a stairs gateway it renders
+   the **blue** `LobbyPortal` at `gateway.target` (a boss floor keeps the red
+   one). Its gateway room is sealed by `buttonSeal.ts`, whose button tile is a
+   `ctx.rand` draw and a `ctx.reachTargets` entry. So locking a stairs floor
+   moves it and every later floor. Locking a portal/orb floor costs only the
+   button's draws, which is exactly what the old flag cost. A floor that is locked AND
+   hosts a boss is sealed by `sealRoomWallWithButton`: the button animates but
+   opens nothing, and `dungeonBoss/opener.ts` feeds the boss-death node (single:
+   `Boss Died`; multi: the all-died check) and every button's AreaTrigger into
+   one `buildCountdown` Variable, which then opens the wall. The death-tier rigs stay on
+   the bosses alone. `defaultParameters()` and every preset except Pre-Alpha
+   derive their locks with `withGatewayLocks` — the non-stairs, non-boss floors
+   the old flag sealed — so no stock seed moved. All-unlocked is stored as
+   absent.
+
 8. **The optional layers never move a seed's dungeon.**
    `src/generator/tweak/**` and `lobby/**` draw **no** random values and run
    after every level is built; `boss/**` draws only from `ctx.bossRand` — once
@@ -168,7 +186,8 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    of gateway it gets (see invariant 9), because `map/level.ts` picks a
    different room for stairs than for a portal or orb. The stock defaults are
    not empty any more: `defaultParameters()` ships two lobbies, the boss on,
-   `player.shared.remove.life`, and the escape floor's timer, so a stock run
+   `player.shared.remove.life`, the escape floor's timer, and locks on the two
+   floors that end in a portal or the orb (`levelLock`), so a stock run
    emits two lobbies, an arena, exactly one tweak file, and one floor carrying
    a hazard rig. The arena's bodyguard-twin swap (`arenaUsesBodyguards`,
    `BossArenaOptions.bodyguardVariants` — absent means on) is the same kind of

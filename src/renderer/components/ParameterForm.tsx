@@ -1,11 +1,12 @@
 import React, { useState } from 'react'
-import { MUSIC_DEFAULT, THEME_DEFS, defaultDungeonBoss, defaultFloorTimer, isDefaultOrder, normalizeOrder } from '../../generator'
+import { MUSIC_DEFAULT, THEME_DEFS, defaultDungeonBoss, defaultFloorLock, defaultFloorTimer, isDefaultOrder, normalizeOrder } from '../../generator'
 import type { CampaignCounts, DungeonParameters, ValidationIssue } from '../../generator'
-import { BoolField, NumberField, Section } from './fields'
+import { NumberField, Section } from './fields'
 import { MusicPicker } from './MusicPicker'
 import { MonsterPoolsEditor } from './MonsterPoolsEditor'
 import { MonsterMaxTable } from './MonsterMaxTable'
 import { FloorTimerEditor } from './FloorTimerEditor'
+import { FloorLockEditor } from './FloorLockEditor'
 import { FloorBuffEditor } from './FloorBuffEditor'
 import { FloorTrapEditor } from './FloorTrapEditor'
 import { DungeonBossEditor } from './DungeonBossEditor'
@@ -87,6 +88,15 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
       // missing one. Repairing keeps the arrangement the dungeon master made
       // instead of throwing it away every time the count changes; an order that
       // repairs back to the default is dropped, since absent IS the default.
+      // Same rule as levelBoss above: a new floor pads UNLOCKED rather than
+      // cloning the last floor's lock — growing the floor count must not
+      // silently seal a new floor's exit — and an absent array stays absent.
+      if (params.levelLock !== undefined) {
+        const levelLock = params.levelLock.map((l) => ({ ...l }))
+        while (levelLock.length < levels) levelLock.push(defaultFloorLock())
+        next.levelLock = levelLock.slice(0, Math.max(levels, 1))
+      }
+
       if (params.levelOrder !== undefined) {
         const counts: CampaignCounts = {
           levels,
@@ -165,13 +175,10 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
               <NumberField label="Gold ×" field="goldMultiplier" value={params.goldMultiplier} onChange={(v) => set('goldMultiplier', v)} issues={issues} min={0} step={0.1} title="Scales treasure amounts" />
               <NumberField label="Food ×" field="foodMultiplier" value={params.foodMultiplier} onChange={(v) => set('foodMultiplier', v)} issues={issues} min={0} step={0.1} title="Scales health/mana drops" />
             </div>
-            <BoolField
-              className="field-grid-footer"
-              label="Lock final room"
-              checked={params.lockFinalRoom}
-              onChange={(v) => set('lockFinalRoom', v)}
-              title="Final floor only: the victory orb sits in a dead-end room behind a destructible wall, blown open by a floor button just outside it. No key involved, so keys hoarded from earlier floors or spent on the wrong door cannot strand the party."
-            />
+          </Section>
+
+          <Section title="Locked rooms" badge={(params.levelLock ?? []).slice(0, params.levels).some((l) => l.enabled) ? 'on' : undefined}>
+            <FloorLockEditor params={params} issues={issues} onChange={onChange} />
           </Section>
 
           <Section title="Themes" badge={params.themes.slice(0, params.levels).join(', ')}>

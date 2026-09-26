@@ -1,6 +1,6 @@
 import { GenerationContext } from './core/context'
 import { Level } from './map/level'
-import { DungeonParameters, defaultParameters, bossFights, arenaMode, defaultSurvivalOptions, floorBoss, floorBossCount } from './config/parameters'
+import { DungeonParameters, defaultParameters, bossFights, arenaMode, defaultSurvivalOptions, floorBoss, floorBossCount, floorLocked } from './config/parameters'
 import { validateParameters, ValidationResult } from './config/validation'
 import { emitTweakFiles } from './tweak/overrides'
 import { DEFAULT_LOBBY_PRESET_ID, buildLobby, lobbyPresetById } from './lobby'
@@ -12,7 +12,7 @@ import { buildMusicRig } from './music/rig'
 import { buildFloorTrapRig } from './traps/floor'
 import { buildFloorBossRig } from './dungeonBoss'
 
-export type { DungeonParameters, DungeonBoss, LobbyOptions, BossOptions, BossFight, BossArenaOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FloorBuff, FloorTrap, TrapDirection, BuffTarget, WavePickup, BossTrap, BossTrapDirection, BossCheckpointPreset, ArenaMode, SurvivalOptions, SurvivalWave, SurvivalBuff, SurvivalPickup, SurvivalTrap, SurvivalCountdown } from './config/parameters'
+export type { DungeonParameters, DungeonBoss, LobbyOptions, BossOptions, BossFight, BossArenaOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FloorLock, FloorBuff, FloorTrap, TrapDirection, BuffTarget, WavePickup, BossTrap, BossTrapDirection, BossCheckpointPreset, ArenaMode, SurvivalOptions, SurvivalWave, SurvivalBuff, SurvivalPickup, SurvivalTrap, SurvivalCountdown } from './config/parameters'
 export {
   THEMES,
   BOSS_IDS,
@@ -77,6 +77,10 @@ export {
   arenaBossCount,
   floorBossCount,
   isMultiBoss,
+  defaultFloorLock,
+  floorLocked,
+  gatewayLockedFloors,
+  withGatewayLocks,
   arenaUsesBodyguards
 } from './config/parameters'
 export type { BossSelection } from './config/parameters'
@@ -395,6 +399,8 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
     // `Room.transform` decide while the floor is being built, not after.
     const levelBoss = floorBoss(params, i)
     ctx.floorBoss = levelBoss !== undefined ? floorBossCount(levelBoss) : 0
+    // Issue #69: same timing, same reason — a locked floor is sealed too.
+    ctx.floorLocked = floorLocked(params, i)
 
     let level: Level | null = null
     for (let attempt = 0; attempt < MAX_LEVEL_ATTEMPTS; attempt++) {

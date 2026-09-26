@@ -1,4 +1,4 @@
-import { defaultParameters } from '../src/generator'
+import { defaultParameters, withGatewayLocks } from '../src/generator'
 import type { DungeonParameters } from '../src/generator'
 import { MUSIC_DEFAULT } from '../src/generator/music/tracks'
 
@@ -50,5 +50,8 @@ export function plainParameters(): DungeonParameters {
   }
   params.lobbies = []
   delete params.levelOrder
-  return params
+  // The default's locks were derived for its own eight floors and shipped
+  // order; re-derive them for this one — the last floor, which leads into the
+  // arena, is the one the old campaign-wide lockFinalRoom sealed.
+  return withGatewayLocks(params)
 }

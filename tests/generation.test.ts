@@ -79,7 +79,7 @@ describe('generateDungeon', () => {
     })
   })
 
-  describe('lockFinalRoom', () => {
+  describe('locked floors (levelLock)', () => {
     /** index of the gold tier in ItemType.Key / ItemType.Door */
     const GOLD = 2
 
@@ -102,10 +102,11 @@ describe('generateDungeon', () => {
       result.files.find((f) => f.path === `levels/level${finalFloorIndex}.xml`)!.content
 
     it('touches nothing before the final floor', () => {
-      // the toggle must draw no random values until the last level, or every
-      // saved seed shifts — defaultParameters() has it on
+      // locking a floor that already ends in a portal draws nothing before
+      // that floor, or every saved seed shifts — plainParameters() locks the
+      // last floor, the one leading into the arena
       const on = generateOk(4242)
-      const off = generateOk(4242, (p) => (p.lockFinalRoom = false))
+      const off = generateOk(4242, (p) => (p.levelLock = undefined))
       expect(off.levels.slice(0, finalFloorIndex)).toEqual(on.levels.slice(0, finalFloorIndex))
       for (let i = 0; i < finalFloorIndex; i++) {
         const path = `levels/level${i}.xml`
@@ -120,7 +121,7 @@ describe('generateDungeon', () => {
 
     it('locks the orb into a dead-end room on the final floor only', () => {
       for (const seed of [4, 555, 90210]) {
-        const result = generateOk(seed, (p) => (p.lockFinalRoom = true))
+        const result = generateOk(seed)
         const last = result.levels[finalFloorIndex]
         const orbRooms = last.rooms.filter((r) => r.type === 'Orb')
         expect(orbRooms).toHaveLength(1)
@@ -145,7 +146,7 @@ describe('generateDungeon', () => {
       // still carry a gold key.
       let sawGoldDoor = false
       for (let seed = 1; seed <= 40; seed++) {
-        const result = generateOk(seed, (p) => (p.lockFinalRoom = true))
+        const result = generateOk(seed)
         const last = result.levels[finalFloorIndex]
 
         // a door is emitted once per corridor tile, so count sealed rooms
@@ -617,9 +618,41 @@ describe('generateDungeon', () => {
 
     })
 
+    it('seals a stairs floor behind the blue teleport, pointing at the next floor', () => {
+      const MIDDLE = 2
+      for (const seed of [4, 555, 90210]) {
+        const plain = generateOk(seed)
+        const locked = generateOk(seed, (p) => {
+          p.levelLock = p.levelLock!.map((l, i) => ({ enabled: l.enabled || i === MIDDLE }))
+        })
+        // floors before it do not move
+        for (let i = 0; i < MIDDLE; i++) {
+          const path = `levels/level${i}.xml`
+          expect(locked.files.find((f) => f.path === path)).toEqual(plain.files.find((f) => f.path === path))
+        }
+        const xml = locked.files.find((f) => f.path === `levels/level${MIDDLE}.xml`)!.content
+        expect(xml, 'no stairs').not.toMatch(/_exit_h_dn/)
+        expect(xml).toContain('doodads/generic/exit_teleport.xml')
+        expect(xml).not.toContain('exit_teleport_boss.xml')
+        expect(xml).toContain(`<string name="level">${MIDDLE + 1}</string>`)
+        expect(xml).toContain('doodads/special/boss_door_button.xml')
+        expect(xml).toContain('<string name="type">DestroyObject</string>')
+        const gate = locked.levels[MIDDLE].rooms.find((r) => r.type === 'Orb')!
+        expect(gate.sealed).toBe(true)
+      }
+    })
+
+    it('leaves an unlocked portal floor open', () => {
+      const result = generateOk(555, (p) => (p.levelLock = undefined))
+      const xml = lastLevelXML(result)
+      expect(xml).not.toContain('boss_door_button.xml')
+      expect(xml).not.toContain('<string name="type">DestroyObject</string>')
+      expect(result.levels[finalFloorIndex].rooms.find((r) => r.type === 'Orb')?.sealed).toBeFalsy()
+    })
+
     it('still generates on a single-level campaign', () => {
       const result = generateOk(8, (p) => {
-        p.lockFinalRoom = true
+        p.levelLock = [{ enabled: true }]
         p.levels = 1
         p.themes = ['a']
         p.levelMonsters = [['bat1']]

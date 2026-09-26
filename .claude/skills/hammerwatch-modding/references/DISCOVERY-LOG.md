@@ -8,6 +8,25 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-25 — a boss + button seal: a Variable countdown fed by a `CheckVariable`'s `on-true`
+**Tag:** [EMITTED] — not playtested yet.
+**Context:** issue #69 part 1 lets a floor be locked AND host a boss. Its wall
+must wait for both, so the boss-death node and the button's one-shot
+`AreaTrigger` each connect to their own `ChangeVariable(-1)` then
+`CheckVariable(== 0)` on one `Variable(2)`, with `DestroyObject` + the announce
+in the shared `on-true` (`boss/tierSource.ts`'s `buildCountdown`).
+**Evidence:** the per-source shape is the [VERIFIED] 2026-09-23 all-bosses-died
+rig with the `ObjectEventTrigger` swapped for an existing node. Two parts are
+new:
+- a `GlobalEventTrigger("Boss Died")` or an `AreaTrigger` as the decrementer;
+- on a multi-boss floor, the all-died `CheckVariable`'s `on-true` driving the
+  seal's `ChangeVariable` and then its `CheckVariable`. That relies on `on-true`
+  running its targets in list order, the same way `connections` does.
+
+**Impact:** first thing to check in a playtest. Press the button before and
+after killing the boss: the wall should open only on the second event either
+way. Test on a single-boss floor and a multi-boss floor.
+
 ### 2026-09-25 — the button seal's plate is now `boss_door_button.xml`, driven to `activate`
 **Tag:** [EMITTED] (taken from a hand-edited level; no in-game press reported yet).
 **Context:** the user hand-edited a generated `level6.xml`, replacing the

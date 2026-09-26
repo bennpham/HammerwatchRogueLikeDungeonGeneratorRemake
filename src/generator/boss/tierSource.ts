@@ -120,3 +120,34 @@ export function buildAllBossesDied(ctx: GenerationContext, actors: ReadonlyArray
   })
   return checks[0]
 }
+
+/**
+ * A countdown over nodes that already exist — issue #69's "kill the boss AND
+ * press the button" seal:
+ *
+ *   Variable(N)
+ *   per decrementer i:  decrementer
+ *                         → ChangeVariable(var -= 1)
+ *                         → CheckVariable(var == 0, on-true: shared)
+ *
+ * The same shape as `buildAllBossesDied`, except the per-source trigger is
+ * handed in rather than built — a boss's `GlobalEventTrigger("Boss Died")`, a
+ * multi-boss floor's all-died check, a button's `AreaTrigger` — so one rig can
+ * count sources of different kinds. Each decrementer must fire once: the
+ * button trigger is one-shot, and both boss sources fire once per floor.
+ *
+ * Returns the first check; connect FROM it to reach every check's `on-true`.
+ * Draws no RNG. `(x, y)` is a cosmetic editor origin, like every rig here.
+ */
+export function buildCountdown(ctx: GenerationContext, decrementers: readonly ScriptNode[], x: number, y: number): ScriptNode {
+  const remaining = new NodeVariable(ctx, x, y, decrementers.length)
+  const onTrue: ScriptNode[] = []
+  const checks = decrementers.map((source, i) => {
+    const change = new NodeChangeVariable(ctx, x + 1, y + 1 + i, remaining, CHANGE_VAR_SUB, 1)
+    const check = new NodeCheckVariable(ctx, x + 2, y + 1 + i, remaining, 0, onTrue)
+    source.connectTo(change)
+    source.connectTo(check)
+    return check
+  })
+  return checks[0]
+}

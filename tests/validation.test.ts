@@ -40,15 +40,19 @@ describe('parameter validation', () => {
     expect(fieldsOf(result.errors)).toContain('minRoomCount')
   })
 
-  it('warns about tiny floors when the final room is locked, but never blocks', () => {
+  it('warns about tiny floors when a floor is locked, but never blocks', () => {
     const p = defaultParameters()
-    p.lockFinalRoom = true
+    expect(p.levelLock?.some((l) => l.enabled)).toBe(true)
     expect(validateParameters(p).errors).toEqual([])
 
     p.minRoomCount = 2
     const result = validateParameters(p)
     expect(result.errors).toEqual([])
     expect(fieldsOf(result.warnings)).toContain('minRoomCount')
+
+    // no floor locked — nothing to warn about
+    p.levelLock = p.levelLock?.map(() => ({ enabled: false }))
+    expect(fieldsOf(validateParameters(p).warnings)).not.toContain('minRoomCount')
   })
 
   it('rejects rooms that cannot fit on the map (the original crashed here)', () => {

@@ -7,6 +7,7 @@ import {
   NodePlaySound,
   NodeRectangleShape
 } from '../objects/nodes'
+import type { ScriptNode } from '../objects/scriptNode'
 import { overhangRows } from './reachability'
 import { getTheme } from '../config/themes'
 import type { Room } from './room'
@@ -85,7 +86,39 @@ export function sealRoomWithButton(room: Room, ctx: GenerationContext, rooms: Ro
 
   const seals = drawSealWall(room, ctx)
 
-  return buildButtonRig(room, ctx, seals, button)
+  buildButtonRig(room, ctx, button, seals)
+  return true
+}
+
+/**
+ * A wall that needs BOTH a boss's death and a button press — a floor that is
+ * locked (issue #69) and hosts a boss (issue #61).
+ *
+ * Draws exactly what `sealRoomWithButton` draws, in the same order (button
+ * tile, then wall), but the button does not open the wall itself: its
+ * `AreaTrigger` is returned alongside the wall so the boss rig's post-pass
+ * (`dungeonBoss/opener.ts`) can feed it and the boss's death into one
+ * countdown. The button still plays its cue and animates when stepped on.
+ *
+ * Null when the room is not a lockable dead end or the floor has nowhere to
+ * hide the button, in which case the floor re-rolls.
+ */
+export function sealRoomWallWithButton(
+  room: Room,
+  ctx: GenerationContext,
+  rooms: Room[]
+): { seals: Doodad[]; buttons: ScriptNode[] } | null {
+  if (!sealable(room)) return null
+
+  room.locked = true
+  room.sealed = true
+
+  const button = pickButtonTile(ctx, rooms)
+  if (button === null) return null
+
+  const seals = drawSealWall(room, ctx)
+
+  return { seals, buttons: [buildButtonRig(room, ctx, button)] }
 }
 
 /**
@@ -203,15 +236,19 @@ function drawSealWall(room: Room, ctx: GenerationContext): Doodad[] {
 
 /**
  * The button half: the plate, its reachability claim, and the one-shot trigger
- * that destroys `seals`. Split from the wall above so a dungeon boss floor can
- * take the wall alone — see `sealRoomWall`.
+ * that plays the cue, animates the plate and — when `seals` is given —
+ * destroys them. Split from the wall above so a dungeon boss floor can take
+ * the wall alone (`sealRoomWall`), or the wall plus a button that only counts
+ * down toward opening it (`sealRoomWallWithButton`).
+ *
+ * Returns the button's `AreaTrigger`, the node that fires on the press.
  */
 function buildButtonRig(
   room: Room,
   ctx: GenerationContext,
-  seals: Doodad[],
-  button: { x: number; y: number }
-): boolean {
+  button: { x: number; y: number },
+  seals?: Doodad[]
+): ScriptNode {
   // `need-sync` because a script changes its state below — without it the press
   // would only be seen by the client who stepped on it. [VERIFIED] against
   // campaign/levels/level_1.xml, whose two floor buttons differ on exactly this
@@ -250,24 +287,29 @@ function buildButtonRig(
   trigger.connectToShape(shape)
 
   const sound = new NodePlaySound(ctx, nodeX, nodeY, SEAL_SOUND)
-  // purely cosmetic placement — put the node on the wall it destroys
-  const mid = seals[Math.trunc(seals.length / 2)]
-  const destroy = new NodeDestroyObject(ctx, mid.x, mid.y)
-  for (const s of seals) destroy.connectDoodad(s)
-  const announce = new NodeAnnounceText(ctx, nodeX, nodeY)
-  announce.setText(SEAL_TEXT)
-  announce.time = SEAL_ANNOUNCE_MS
-  announce.textType = SEAL_ANNOUNCE_TYPE
+  trigger.connectTo(sound)
+
+  // Only when this button opens the wall by itself. The node order — sound,
+  // destroy, announce, press — is what a lock-only floor has always emitted,
+  // so the two opener nodes sit in the middle rather than moving to the end.
+  if (seals !== undefined) {
+    // purely cosmetic placement — put the node on the wall it destroys
+    const mid = seals[Math.trunc(seals.length / 2)]
+    const destroy = new NodeDestroyObject(ctx, mid.x, mid.y)
+    for (const s of seals) destroy.connectDoodad(s)
+    const announce = new NodeAnnounceText(ctx, nodeX, nodeY)
+    announce.setText(SEAL_TEXT)
+    announce.time = SEAL_ANNOUNCE_MS
+    announce.textType = SEAL_ANNOUNCE_TYPE
+    trigger.connectTo(destroy)
+    trigger.connectTo(announce)
+  }
 
   const press = new NodeChangeDoodadState(ctx, nodeX, nodeY, SEAL_BUTTON_STATE)
   press.setTarget(plate)
-
-  trigger.connectTo(sound)
-  trigger.connectTo(destroy)
-  trigger.connectTo(announce)
   trigger.connectTo(press)
 
-  return true
+  return trigger
 }
 
 /**

@@ -6,6 +6,7 @@ import {
   defaultLobby,
   defaultParameters,
   shippedOrder,
+  withGatewayLocks,
   escapeFloorTimer,
   scatterWave,
   stockWavePickups,
@@ -310,7 +311,7 @@ const CLASSIC_PRESETS: readonly CampaignPreset[] = [
     // the indoor themes on floor 3, which is where the preset starts
     // actually hurting; floor 5 (tick2/tracking towers) is a second breather
     // before the mummy mini-boss rush on floor 6.
-    build: () => ({
+    build: () => withGatewayLocks({
       ...defaultParameters(),
       levels: 7,
       levelBuffs: Array.from({ length: 7 }, () => defaultFloorBuffs()),
@@ -446,7 +447,7 @@ const CLASSIC_PRESETS: readonly CampaignPreset[] = [
     description:
       '5 floors of the bonus tilesets, escalating from bonus mobs to a mixed boss floor.',
     group: 'classic',
-    build: () => ({
+    build: () => withGatewayLocks({
       ...defaultParameters(),
       levels: 6,
       levelBuffs: Array.from({ length: 6 }, () => defaultFloorBuffs()),
@@ -583,7 +584,8 @@ function preAlpha(): DungeonParameters {
     ...base,
     levels,
     themes: ['a', 'a', 'b', 'b', 'c', 'c', 'd', 'd'],
-    lockFinalRoom: false,
+    // The original tool had no locked rooms at all.
+    levelLock: undefined,
     levelMonsters: [
       ['bat1', 'tick1', 'maggot'],
       ['bat1', 'tick1', 'slime', 'maggot'],
