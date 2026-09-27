@@ -31,8 +31,9 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
   // a time: Boss holds only the per-floor boss editor, because several of its
   // sections share names with standard ones and the two read as one form when
   // stacked. Session state only, like every other sub-tab selector here.
-  // Mystery Buttons (issue #67) is the third view: a campaign-wide pool plus a
-  // per-floor pick, neither of which belongs to any one Standard section.
+  // Mystery Buttons (issue #67) is another view, between the two: a
+  // campaign-wide pool plus a per-floor pick, neither of which belongs to any
+  // one Standard section.
   const [dungeonTab, setDungeonTab] = useState<'standard' | 'boss' | 'mystery'>('standard')
 
   const set = <K extends keyof DungeonParameters>(key: K, value: DungeonParameters[K]) => {
@@ -148,13 +149,13 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
         >
           Standard Settings
         </button>
-        <button className={dungeonTab === 'boss' ? 'tab active' : 'tab'} onClick={() => setDungeonTab('boss')}>
-          Boss Settings
-          {enabledBossFloors > 0 && <span className="tab-count">{enabledBossFloors}</span>}
-        </button>
         <button className={dungeonTab === 'mystery' ? 'tab active' : 'tab'} onClick={() => setDungeonTab('mystery')}>
           Mystery Buttons
           {mysteryFloors > 0 && <span className="tab-count">{mysteryFloors}</span>}
+        </button>
+        <button className={dungeonTab === 'boss' ? 'tab active' : 'tab'} onClick={() => setDungeonTab('boss')}>
+          Boss Settings
+          {enabledBossFloors > 0 && <span className="tab-count">{enabledBossFloors}</span>}
         </button>
       </div>
 

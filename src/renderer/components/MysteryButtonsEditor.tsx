@@ -63,7 +63,7 @@ function buttonSummary(button: MysteryButton): string {
 }
 
 /**
- * Mystery buttons (issue #67) — the Dungeon tab's third sub-tab.
+ * Mystery buttons (issue #67) — the Dungeon tab's second sub-tab, between Standard and Boss.
  *
  * Two halves, because the data has two halves. The POOL is campaign-wide: each
  * entry is one kind of button — what a press spawns, what it switches on, what

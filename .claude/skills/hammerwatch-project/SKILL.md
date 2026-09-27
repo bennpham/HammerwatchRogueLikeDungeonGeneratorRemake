@@ -842,7 +842,7 @@ Optional, per floor, absent by default. A campaign-wide POOL of button kinds
 (`mysteryButtons`) and, per floor, how many plates to hide and which pool
 buttons they may be (`levelMystery`, weighted, with replacement). Stepping on a
 plate presses it for good and fires everything its button carries at once.
-UI: the Dungeon tab's third sub-tab, `MysteryButtonsEditor.tsx`.
+UI: the Dungeon tab's second sub-tab (between Standard and Boss), `MysteryButtonsEditor.tsx`.
 
 - **The rig** (transcribed from the owner's `test_mystery_button_simple.xml`):
   a need-sync `TriggerButton` (`trigger_button_floor.xml`) → w1 h1
