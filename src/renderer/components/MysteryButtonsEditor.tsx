@@ -176,7 +176,7 @@ export function MysteryButtonsEditor({ params, issues, onChange }: MysteryButton
             className="copy-down"
             onClick={addStarterSet}
             disabled={pool.length >= MAX_MYSTERY_DEFS}
-            title="Adds four sample buttons — Treasure, Nothing, Ambush and Trap room — to edit from"
+            title="Adds a ready-made set to edit from: a dud, coin/diamond/chest/potion/upgrade rewards, monster squads and trap rooms that switch off after 30 s. Floors are left alone — tick the buttons each floor may be."
           >
             Add starter set
           </button>

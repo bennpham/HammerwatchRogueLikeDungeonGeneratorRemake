@@ -15,8 +15,7 @@ import {
   MAX_MYSTERY_TRAP_SECONDS,
   MAX_TRAP_COUNT,
   MYSTERY_NAME_MAX,
-  MYSTERY_TEXT_MAX,
-  mysteryStarterPool
+  MYSTERY_TEXT_MAX
 } from '../src/generator/config/parameters'
 import { MAX_PICKUP_COUNT } from '../src/generator/objects/pickupTypes'
 import {
@@ -27,6 +26,7 @@ import {
 import { CAMPAIGN_PRESETS } from '../src/generator/config/presets'
 import { DEFAULT_LOBBY_PRESET_ID, LOBBY_PRESETS } from '../src/generator/lobby/presets'
 import { plainParameters } from './params'
+import { samplePool } from './mysterySample'
 import { noUpgrades, oneOfEachUpgrade } from '../src/generator/levelTemplate/surgery'
 import type { CampaignSlot } from '../src/generator/campaign'
 
@@ -1509,7 +1509,7 @@ describe('levelOrder (issue #43)', () => {
 describe('mystery button validation (issue #67)', () => {
   const armed = () => {
     const p = plainParameters()
-    p.mysteryButtons = mysteryStarterPool()
+    p.mysteryButtons = samplePool()
     p.levelMystery = Array.from({ length: p.levels }, () => ({ count: 0, pool: [] as number[] }))
     p.levelMystery[0] = { count: 5, pool: [0, 1, 2, 3] }
     return p

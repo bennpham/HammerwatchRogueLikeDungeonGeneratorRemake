@@ -8,6 +8,55 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-27 — chest roll tables; `shooter_valuables` does nothing; the mystery starter set's first spawns
+**Tag:** [VERIFIED] for the chest tables (read from
+`editor/assetsExtract/items/chest_*.xml`) and for `shooter_valuables` (owner,
+in game). [EMITTED] for the starter-set actors listed below.
+**Chests are a weighted roll out of 1000, not fixed loot:**
+
+| chest | 910 | 50 | 10 each |
+|---|---|---|---|
+| `chest_wood` | `valuable_diamond_small` (50 g) | `powerup_1up` | `upgrade_health/mana/damage/defense` |
+| `chest_green` | `valuable_diamond_small_red` (100 g) | `powerup_1up` | same four tier-I upgrades |
+| `chest_blue` | `valuable_diamond` (250 g) | `powerup_1up` | same |
+| `chest_red` | `valuable_diamond_red` (500 g) | `powerup_1up` | same |
+
+`chest_purple` rolls differently: 1000 `collectable_1`, 1000 `powerup_1up`,
+then 200/200/400/200 for tier-II health/mana/damage/defense.
+
+So **every** chest, not just purple, has a ~5% chance of an extra life, and
+three red chests are ~1500 gold. That is why the owner's 3-red-chest sample
+was far too rich.
+
+**`projectiles/shooter_valuables.xml` does nothing useful:** `damage="0"`,
+`behavior="neutral"` and a `take_coin` hit sound. The owner confirmed in game
+that it grants nothing, so it cannot be a coin fountain.
+
+**Spawned via `SpawnObject` for the first time** by `mysteryStarterPool()`
+(`[EMITTED]`, awaiting a playtest): `tower_flower_1_small`, `tower_flower_1`,
+`tower_flower_2`, `tower_nova_1`, `tower_tracking_1/2`, `pillar_fire`,
+`floater_fire`, `special_beheaded_kamikaze` (speed 1.45, 25-dmg
+splash-2 blast), `spider_1`, `lich_1/_elite/2/3`, `lich_1_mb`, `mummy_1*`,
+`mummy_ranged_1/2`, `mummy_1_mb`, `eye_1_mb`, `maggot_1_mb`, `tick_1_mb`,
+`tick_2*`, the bats and wisps, and two nests rather than creatures:
+`spawners/tick_1.xml` and `slime_1_host.xml`. Also the first spawns of
+`chest_wood/green/blue` and the three smaller diamonds.
+
+**`pillar_fire` is a timed chaser, not a permanent hazard:** read from
+`actors/pillar_fire.xml`, and it matches the owner's experience of outrunning
+them until they vanish.
+- An `armor` pskill with `dmg-mul 0` makes it take no damage at all; its
+  5000 HP never matters.
+- It chases at speed 0.65 (`ranged` movement, aggro range 1400).
+- It burns on contact with `buffs/enemy_pillar_fire.xml`.
+- A suicide `explode` skill (0 damage, 12000 ms cooldown) removes it about
+  12 s after spawning.
+
+So spawning several cannot block a room for good.
+
+**Impact:** `mysteryStarterPool()` leaves out red chests, the red diamond and
+tier-II upgrades. Record the first playtest of the actors above here.
+
 ### 2026-09-26 — mystery buttons work in game; coin and diamond values read from the assets
 **Tag:** [VERIFIED] (owner playtest of PR #71) for the rig; [VERIFIED] for the
 gold amounts (read from `editor/assetsExtract/items/valuable_*.xml`).

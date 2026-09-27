@@ -21,6 +21,8 @@ import {
   defaultDungeonBoss,
   defaultFloorTraps,
   floorMystery,
+  MAX_MYSTERY_DEFS,
+  MYSTERY_STARTER_TRAP_SECONDS,
   mysteryStarterPool
 } from '../src/generator/config/parameters'
 import type { FloorMystery, MysteryButton } from '../src/generator/config/parameters'
@@ -36,8 +38,11 @@ import { buildMysteryButtonRig } from '../src/generator/mystery/rig'
 import { MYSTERY_BUTTON_SPACING, mysteryButtonSlots } from '../src/generator/mystery/placement'
 import { sealHolds } from '../src/generator/map/sealCheck'
 import { MYSTERY_LOOT_DEFS, MYSTERY_LOOT_GROUPS, mysteryLootById } from '../src/generator/objects/mysteryLoot'
+import { isKnownMonsterKey } from '../src/generator/objects/monsterTypes'
+import { projectileById } from '../src/generator/objects/projectileTypes'
 import { allIds, badIntArray, nodesOfType } from './xmlHelpers'
 import { plainParameters } from './params'
+import { samplePool } from './mysterySample'
 
 const SEED = 4242
 const PLATE = 'doodads/special/trigger_button_floor.xml'
@@ -64,7 +69,7 @@ function bareParams(floors = 3): DungeonParameters {
 }
 
 /** `bareParams()` with a pool and floor `index` placing `count` from `pool`. */
-function armed(index: number, count: number, pool: number[], buttons: MysteryButton[] = mysteryStarterPool()): DungeonParameters {
+function armed(index: number, count: number, pool: number[], buttons: MysteryButton[] = samplePool()): DungeonParameters {
   const params = bareParams()
   params.mysteryButtons = buttons
   params.levelMystery = Array.from({ length: params.levels }, () => ({ count: 0, pool: [] }))
@@ -125,7 +130,7 @@ describe('mystery buttons — off means off', () => {
         expect(generateOk(params, seed).files).toEqual(none.files)
       }
       const poolOnly = bareParams()
-      poolOnly.mysteryButtons = mysteryStarterPool()
+      poolOnly.mysteryButtons = samplePool()
       expect(generateOk(poolOnly, seed).files).toEqual(none.files)
     }
   })
@@ -268,7 +273,7 @@ describe('mystery buttons — the rig', () => {
   })
 
   it('trapSeconds adds a delayed switch-off per spewer', () => {
-    const buttons = mysteryStarterPool()
+    const buttons = samplePool()
     buttons[3].trapSeconds = 5
     const xml = levelXml(generateOk(armed(0, 4, [3], buttons), SEED), 0)
     const spewers = nodesOfType(xml, 'ProjectileSpewer')
@@ -324,7 +329,7 @@ describe('mystery buttons — placement', () => {
 
   it('generates with every floor armed, one floor locked and one hosting a boss', () => {
     const params = bareParams()
-    params.mysteryButtons = mysteryStarterPool()
+    params.mysteryButtons = samplePool()
     params.levelMystery = [0, 1, 2].map(() => ({ count: 6, pool: [0, 1, 2, 3] }))
     params.levelLock = [{ enabled: true }, { enabled: false }, { enabled: false }]
     params.levelBoss = [defaultDungeonBoss(), { ...defaultDungeonBoss(), enabled: true }, defaultDungeonBoss()]
@@ -428,5 +433,44 @@ describe('mystery buttons — the loot registry', () => {
     expect(parsed.unknownKeys).toEqual([])
     expect(parsed.params.mysteryButtons).toEqual(params.mysteryButtons)
     expect(validateParameters(params).errors).toEqual([])
+  })
+})
+
+describe('mystery buttons — the starter set', () => {
+  const starter = mysteryStarterPool()
+  const everyButton = starter.map((_, i) => i)
+
+  it('fits the pool and names only things the game has', () => {
+    expect(starter.length).toBeLessThanOrEqual(MAX_MYSTERY_DEFS)
+    expect(new Set(starter.map((b) => b.name)).size).toBe(starter.length)
+    for (const button of starter) {
+      for (const row of button.loot) expect(mysteryLootById(row.item), row.item).toBeDefined()
+      for (const row of button.monsters) expect(isKnownMonsterKey(row.monster), row.monster).toBe(true)
+      for (const row of button.traps) expect(projectileById(row.projectile), row.projectile).toBeDefined()
+    }
+  })
+
+  it('opens with a dud and holds back the richest loot', () => {
+    expect(starter[0]).toMatchObject({ loot: [], monsters: [], traps: [] })
+    const items = starter.flatMap((b) => b.loot.map((r) => r.item))
+    for (const rich of ['chest_red', 'valuable_diamond_red', 'powerup_1up', 'powerup_7up']) expect(items).not.toContain(rich)
+    expect(items.filter((id) => /^upgrade_.*_2$/.test(id))).toEqual([])
+  })
+
+  it('arms every trap room on all four walls, switching off after the starter timer', () => {
+    const trapRooms = starter.filter((b) => b.traps.length > 0)
+    expect(trapRooms.length).toBeGreaterThan(0)
+    for (const room of trapRooms) {
+      expect(room.trapSeconds).toBe(MYSTERY_STARTER_TRAP_SECONDS)
+      expect(new Set(room.traps.map((t) => t.direction))).toEqual(new Set(['up', 'down', 'left', 'right']))
+    }
+  })
+
+  it('validates and generates with every button picked on every floor', () => {
+    const params = bareParams()
+    params.mysteryButtons = mysteryStarterPool()
+    params.levelMystery = [0, 1, 2].map(() => ({ count: 12, pool: everyButton }))
+    expect(validateParameters(params).errors).toEqual([])
+    for (const seed of [1, SEED]) generateOk(params, seed)
   })
 })

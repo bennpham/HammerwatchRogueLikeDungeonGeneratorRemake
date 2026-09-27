@@ -429,36 +429,104 @@ export function floorMystery(params: DungeonParameters, level: number): FloorMys
   return pool.length > 0 ? { count: floor.count, pool } : undefined
 }
 
+/** How long every starter-set trap room stays armed after the press. */
+export const MYSTERY_STARTER_TRAP_SECONDS = 30
+
 /**
- * The four-button starter set the form's "Add starter set" inserts —
- * transcribed from the owner's hand-built `test_mystery_button_simple.xml`:
- * a treasure button, a dud, an ambush and a trap room. Pure data, fresh every
- * call.
+ * The starter set the form's "Add starter set" inserts: one dud, then rewards
+ * cheapest first, then monster squads, then trap rooms. Pure data, fresh every
+ * call; it fills the pool only — which floors get which buttons, and how
+ * often, is the dungeon master's call on the per-floor picks.
+ *
+ * Tuned from the owner's playtest of their 4-button sample: the rewards stop
+ * short of the red chest, the red diamond and the tier-II upgrades (a chest is
+ * 91% its diamond — wood 50, green 100, blue 250, red 500 — and 5% an extra
+ * life), the squads are big enough to panic a party rather than be farmed, and
+ * every trap room fires from all four walls and switches off after
+ * MYSTERY_STARTER_TRAP_SECONDS so the room is passable again.
  */
 export function mysteryStarterPool(): MysteryButton[] {
+  const loot = (name: string, text: string, rows: Array<[string, number]>): MysteryButton => ({
+    name,
+    text,
+    loot: rows.map(([item, count]) => ({ item, count })),
+    monsters: [],
+    traps: []
+  })
+  const squad = (name: string, text: string, rows: Array<[string, number]>): MysteryButton => ({
+    name,
+    text,
+    loot: [],
+    monsters: rows.map(([monster, count]) => ({ monster, count })),
+    traps: []
+  })
+  // [up, down, left, right] spewer counts; a zero leaves that wall bare.
+  const trapRoom = (name: string, text: string, projectile: string, counts: [number, number, number, number]): MysteryButton => ({
+    name,
+    text,
+    loot: [],
+    monsters: [],
+    traps: (['up', 'down', 'left', 'right'] as const)
+      .map((direction, i) => ({ projectile, direction, spread: 0.5, spawnRateMs: 500, count: counts[i] }))
+      .filter((row) => row.count > 0),
+    trapSeconds: MYSTERY_STARTER_TRAP_SECONDS
+  })
+
   return [
-    {
-      name: 'Treasure',
-      text: 'You got treasure',
-      loot: [
-        { item: 'chest_red', count: 3 },
-        { item: 'upgrade_damage_2', count: 2 }
-      ],
-      monsters: [],
-      traps: []
-    },
-    { name: 'Nothing', text: 'Nothing happened', loot: [], monsters: [], traps: [] },
-    { name: 'Ambush', text: 'Monsters appear', loot: [], monsters: [{ monster: 'mb_skeleton', count: 4 }], traps: [] },
-    {
-      name: 'Trap room',
-      text: 'Traps activated',
-      loot: [],
-      monsters: [],
-      traps: [
-        { projectile: 'shooter_fireball_2', direction: 'left', spread: 0.5, spawnRateMs: 500, count: 1 },
-        { projectile: 'shooter_fireball_2', direction: 'right', spread: 0.5, spawnRateMs: 500, count: 1 }
-      ]
-    }
+    { name: 'Nothing', text: 'Nothing...', loot: [], monsters: [], traps: [] },
+
+    loot('Pocket change', 'A few coins', [['valuable_1', 5], ['valuable_4', 3]]),
+    loot('Loose change', 'Some coins', [['valuable_2', 4], ['valuable_3', 1]]),
+    loot('Silver stash', 'A silver stash', [['valuable_5', 3], ['valuable_6', 1]]),
+    loot('Gold stash', 'A gold stash', [['valuable_8', 2], ['valuable_9', 1]]),
+    loot('Small diamond', 'Something glitters', [['valuable_diamond_small', 1]]),
+    loot('Small red diamond', 'Something glitters red', [['valuable_diamond_small_red', 1]]),
+    loot('Blue diamond', 'A diamond!', [['valuable_diamond', 1]]),
+    loot('A chest', 'A chest', [['chest_wood', 1]]),
+    loot('Two chests', 'Two chests', [['chest_wood', 1], ['chest_green', 1]]),
+    loot('Three chests', 'Three chests!', [['chest_wood', 1], ['chest_green', 1], ['chest_blue', 1]]),
+    loot('Refreshments', 'Refreshments', [['health_2', 1], ['mana_1', 1]]),
+    loot('Rejuvenation', 'A potion', [['potion_2', 1]]),
+    loot('Invincibility', 'A potion', [['potion_1', 1]]),
+    loot('Fury', 'A potion', [['potion_3', 1]]),
+    loot('Damage upgrade', 'An upgrade', [['upgrade_damage', 1]]),
+    loot('Defense upgrade', 'An upgrade', [['upgrade_defense', 1]]),
+    loot('Health upgrade', 'An upgrade', [['upgrade_health', 1]]),
+    loot('Mana upgrade', 'An upgrade', [['upgrade_mana', 1]]),
+
+    squad('Tick nest', 'The floor is crawling', [['mb_tick', 1], ['tick1#0', 1], ['tick1', 24], ['tick1#2', 12], ['tick1#3', 3]]),
+    squad('Gold beetles', 'Gold beetles!', [['tick2', 4], ['tick2#0', 6]]),
+    squad('Bat swarm', 'Bats!', [['bat1', 40], ['bat2', 30], ['bat2#2', 10]]),
+    squad('Skeleton squad', 'The dead rise', [['mb_skeleton', 2], ['skeleton1#3', 4], ['skeleton1#2', 10], ['skeleton1', 4]]),
+    squad('Archer volley', 'Archers!', [['archer1', 12], ['archer2', 6], ['archer1#2', 3]]),
+    squad('Necromancer', 'Necromancers!', [['lich#3', 4], ['skeleton3', 18]]),
+    squad('Wisps', 'Wisps!', [['wisp1', 8], ['wisp1#2', 6], ['wisp2', 6]]),
+    squad('Flower bed', 'Something blooms', [['tower_flower1_small', 4], ['tower_flower1', 2], ['tower_flower2', 1]]),
+    squad('Nova towers', 'Towers rise', [['tower_nova1', 2]]),
+    squad('Tracking towers', 'Towers rise', [['tower_tracking1', 1], ['tower_tracking2', 1]]),
+    squad('Maggot brood', 'Maggots!', [['mb_maggot', 1], ['maggot', 12], ['maggot#2', 10], ['maggot#3', 4]]),
+    squad('Eye cluster', 'You are being watched', [['mb_eye', 1], ['eye', 8], ['eye#2', 8]]),
+    squad('Slime pit', 'Slime!', [['slime', 20], ['slime#0', 1]]),
+    squad('Kamikazes', 'AAAAAAAAAA', [['special_beheaded_kamikaze', 6]]),
+    squad('Fire pillars', 'Run!', [['pillar_fire', 6]]),
+    squad('Fire floaters', 'Fire!', [['floater_fire', 8]]),
+    squad('Spider nest', 'Spiders!', [['spider', 13]]),
+    squad('Lich council', 'The council convenes', [['mb_lich', 1], ['lich#0', 4], ['lich', 2], ['lich#2', 3]]),
+    squad('Mummy tomb', 'The tomb opens', [
+      ['mb_mummy', 1],
+      ['mummy_desert', 8],
+      ['mummy_desert#2', 6],
+      ['mummy_desert#3', 3],
+      ['mummy_ranged', 4],
+      ['mummy_ranged#2', 2]
+    ]),
+
+    trapRoom('Big fireball cross', 'Traps activated', 'shooter_fireball_2', [1, 1, 1, 1]),
+    trapRoom('Fireball ring', 'Traps activated', 'shooter_fireball', [2, 2, 2, 2]),
+    trapRoom('Arrow storm', 'Traps activated', 'shooter_arrow', [4, 4, 2, 2]),
+    trapRoom('Axe mill', 'Traps activated', 'enemy_axe', [1, 1, 2, 2]),
+    trapRoom('Death orbs', 'Traps activated', 'enemy_magicball_death', [1, 1, 1, 1]),
+    trapRoom('Purple drift', 'Traps activated', 'enemy_magicball_purple', [2, 2, 2, 2])
   ]
 }
 

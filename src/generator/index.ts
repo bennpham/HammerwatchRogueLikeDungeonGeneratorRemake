@@ -88,6 +88,7 @@ export {
   defaultFloorMystery,
   floorMystery,
   mysteryStarterPool,
+  MYSTERY_STARTER_TRAP_SECONDS,
   MAX_MYSTERY_DEFS,
   MAX_MYSTERY_PER_FLOOR,
   MAX_MYSTERY_MONSTERS,
