@@ -44,8 +44,16 @@ import {
   survivalTraps,
   survivalWaves,
   floorLocked,
-  MAX_LOCK_BUTTONS
+  MAX_LOCK_BUTTONS,
+  MAX_MYSTERY_DEFS,
+  MAX_MYSTERY_MONSTERS,
+  MAX_MYSTERY_PER_FLOOR,
+  MAX_MYSTERY_TRAP_SECONDS,
+  MYSTERY_NAME_MAX,
+  MYSTERY_TEXT_MAX
 } from './parameters'
+import { mysteryLootById } from '../objects/mysteryLoot'
+import { mysteryCapacity } from '../mystery/placement'
 import { MUSIC_DEFAULT, MUSIC_TRACKS, isKnownMusicId } from '../music/tracks'
 import type { BossTrapDirection, TrapDirection } from './parameters'
 import type { BossFight, BossOptions } from './parameters'
@@ -343,6 +351,7 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
   validateLevelBuffs(p, errors, warnings)
   validateLevelTraps(p, errors, warnings)
   validateLevelBoss(p, errors, warnings)
+  validateMystery(p, errors, warnings)
   validateLevelTimers(p, errors, warnings)
   validateFloorMusic(p, errors, warnings)
   validateLobbies(p, errors, warnings)
@@ -2619,4 +2628,167 @@ function validateLevelTraps(p: DungeonParameters, errors: ValidationIssue[], war
       }
     }
   })
+}
+
+/** Characters a mystery button's name or text may not carry — see validateMystery. */
+const MYSTERY_FORBIDDEN = /[=<>&\r\n]/
+
+/**
+ * Mystery buttons (issue #67): the campaign-wide pool and each floor's pick
+ * from it. Every row rule mirrors the same row type elsewhere (a wave pickup,
+ * a boss tier's trap), because the rig emits the same nodes for them.
+ */
+function validateMystery(p: DungeonParameters, errors: ValidationIssue[], warnings: ValidationIssue[]): void {
+  const pool = p.mysteryButtons ?? []
+  const floors = p.levelMystery
+
+  if (pool.length > MAX_MYSTERY_DEFS) {
+    errors.push({
+      field: 'mysteryButtons',
+      message: `The mystery-button pool holds ${pool.length} buttons — at most ${MAX_MYSTERY_DEFS}.`
+    })
+  }
+
+  pool.forEach((button, i) => {
+    const at = `mysteryButtons.${i}`
+    const label = `Mystery button ${i + 1}${button.name ? ` ("${button.name}")` : ''}`
+
+    // Both strings go into the level XML unescaped (xml/ writes values raw)
+    // and into parameters.txt, whose line split drops any value holding `=`.
+    for (const [field, text, max] of [
+      ['name', button.name, MYSTERY_NAME_MAX],
+      ['text', button.text, MYSTERY_TEXT_MAX]
+    ] as const) {
+      if (text === undefined) continue
+      if (text.length > max) {
+        errors.push({ field: `${at}.${field}`, message: `${label}: the ${field} is ${text.length} characters — at most ${max}.` })
+      }
+      if (MYSTERY_FORBIDDEN.test(text)) {
+        errors.push({
+          field: `${at}.${field}`,
+          message: `${label}: the ${field} may not contain = < > & or a line break.`
+        })
+      } else if (field === 'text' && /[^\x20-\x7e]/.test(text)) {
+        warnings.push({
+          field: `${at}.text`,
+          message: `${label}: the announcement has characters outside plain ASCII, which the game's font may not draw.`
+        })
+      }
+    }
+
+    button.loot.forEach((row, j) => {
+      if (mysteryLootById(row.item) === undefined) {
+        errors.push({ field: `${at}.loot.${j}.item`, message: `${label}: "${row.item}" is not an item a mystery button can spawn.` })
+      }
+      if (!Number.isInteger(row.count) || row.count < 1 || row.count > MAX_PICKUP_COUNT) {
+        errors.push({
+          field: `${at}.loot.${j}.count`,
+          message: `${label} spawns ${row.count} × "${row.item}" — the count must be a whole number from 1 to ${MAX_PICKUP_COUNT}.`
+        })
+      }
+    })
+
+    button.monsters.forEach((row, j) => {
+      if (!isKnownMonsterKey(row.monster)) {
+        errors.push({ field: `${at}.monsters.${j}.monster`, message: `${label}: "${row.monster}" is not a known monster.` })
+      }
+      if (!Number.isInteger(row.count) || row.count < 1 || row.count > MAX_MYSTERY_MONSTERS) {
+        errors.push({
+          field: `${at}.monsters.${j}.count`,
+          message: `${label} spawns ${row.count} × "${row.monster}" — the count must be a whole number from 1 to ${MAX_MYSTERY_MONSTERS}.`
+        })
+      }
+    })
+
+    button.traps.forEach((row, j) => {
+      if (projectileById(row.projectile) === undefined) {
+        errors.push({ field: `${at}.traps.${j}.projectile`, message: `${label}: "${row.projectile}" is not a projectile the game ships.` })
+      }
+      if (!BOSS_TRAP_DIRECTIONS.includes(row.direction)) {
+        errors.push({
+          field: `${at}.traps.${j}.direction`,
+          message: `${label}: "${row.direction}" is not a firing direction — use ${BOSS_TRAP_DIRECTIONS.join(', ')}.`
+        })
+      }
+      if (!Number.isFinite(row.spread) || row.spread < 0 || row.spread > TRAP_SPREAD_MAX) {
+        errors.push({
+          field: `${at}.traps.${j}.spread`,
+          message: `${label}: the "${row.projectile}" trap fans at ${row.spread} — spread must be between 0 and ${TRAP_SPREAD_MAX}.`
+        })
+      }
+      if (!Number.isInteger(row.spawnRateMs) || row.spawnRateMs < 1) {
+        errors.push({
+          field: `${at}.traps.${j}.spawnRateMs`,
+          message: `${label}: the "${row.projectile}" trap fires every ${row.spawnRateMs} ms — the rate must be a whole number of milliseconds, at least 1.`
+        })
+      } else if (row.spawnRateMs < TRAP_FAST_SPAWN_RATE_MS) {
+        warnings.push({
+          field: `${at}.traps.${j}.spawnRateMs`,
+          message: `${label}: the "${row.projectile}" trap fires every ${row.spawnRateMs} ms — below ${TRAP_FAST_SPAWN_RATE_MS} ms the room fills with projectiles faster than the party can cross it.`
+        })
+      }
+      // One room's wall, like one arena wall — so the arena's bound applies.
+      if (!Number.isInteger(row.count) || row.count < 1 || row.count > MAX_TRAP_COUNT) {
+        errors.push({
+          field: `${at}.traps.${j}.count`,
+          message: `${label} places ${row.count} × "${row.projectile}" — the count must be a whole number from 1 to ${MAX_TRAP_COUNT}.`
+        })
+      }
+    })
+
+    const seconds = button.trapSeconds
+    if (seconds !== undefined) {
+      if (!Number.isInteger(seconds) || seconds < 0 || seconds > MAX_MYSTERY_TRAP_SECONDS) {
+        errors.push({
+          field: `${at}.trapSeconds`,
+          message: `${label}: traps switch off after ${seconds} s — use a whole number from 0 (never) to ${MAX_MYSTERY_TRAP_SECONDS}.`
+        })
+      } else if (seconds > 0 && button.traps.length === 0) {
+        warnings.push({ field: `${at}.trapSeconds`, message: `${label} has a trap switch-off time but no traps.` })
+      }
+    }
+  })
+
+  if (floors === undefined) return
+
+  const inRange = floors.slice(0, p.levels)
+  const capacity = mysteryCapacity(p.minRoomCount, p.minRoomSize)
+  inRange.forEach((floor, i) => {
+    const at = `levelMystery.${i}`
+    if (!Number.isInteger(floor.count) || floor.count < 0 || floor.count > MAX_MYSTERY_PER_FLOOR) {
+      errors.push({
+        field: `${at}.count`,
+        message: `Floor ${i + 1}: ${floor.count} mystery buttons — use a whole number from 0 to ${MAX_MYSTERY_PER_FLOOR}.`
+      })
+      return
+    }
+    const dangling = floor.pool.filter((n) => !Number.isInteger(n) || n < 0 || n >= pool.length)
+    if (dangling.length > 0) {
+      errors.push({
+        field: `${at}.pool`,
+        message: `Floor ${i + 1} draws from mystery button(s) ${dangling.map((n) => n + 1).join(', ')}, which the pool does not have.`
+      })
+      return
+    }
+    if (floor.count > 0 && floor.pool.length === 0) {
+      errors.push({
+        field: `${at}.pool`,
+        message: `Floor ${i + 1} places ${floor.count} mystery buttons but has none picked from the pool — tick at least one.`
+      })
+      return
+    }
+    if (floor.count > capacity) {
+      warnings.push({
+        field: `${at}.count`,
+        message: `Floor ${i + 1} asks for ${floor.count} mystery buttons, but the smallest floor these room settings can roll has room for about ${capacity} — the rest are skipped when it runs out.`
+      })
+    }
+  })
+
+  if (floors.length > p.levels && floors.slice(p.levels).some((f) => f.count > 0)) {
+    warnings.push({
+      field: 'levelMystery',
+      message: `Mystery buttons are set for ${floors.length} floors but there are only ${p.levels} — the extra entries are ignored.`
+    })
+  }
 }

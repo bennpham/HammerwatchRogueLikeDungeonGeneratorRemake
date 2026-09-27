@@ -67,6 +67,17 @@ export class GenerationContext {
    */
   readonly floorBossRand: Rand
 
+  /**
+   * drives the optional per-floor MYSTERY BUTTONS (`mystery/`, issue #67) —
+   * which tile each plate lands on, which pool button it becomes, and where
+   * the spewers a trap button arms stand. A sixth stream, for the same reason
+   * `trapRand` is a fourth: the rig is a post-pass onto a finished, accepted
+   * floor, and a stream of its own is what keeps arming buttons from moving
+   * any floor's dungeon, any floor's always-on traps, or any floor boss.
+   * Arming floor 0 moves floor 1's BUTTON positions and nothing else.
+   */
+  readonly mysteryRand: Rand
+
   currentLevel = 0
   idCounter = 0
   lastLockType = 0
@@ -137,6 +148,7 @@ export class GenerationContext {
     this.bossRand = new Rand(seed + 2)
     this.trapRand = new Rand(seed + 3)
     this.floorBossRand = new Rand(seed + 4)
+    this.mysteryRand = new Rand(seed + 5)
   }
 
   /** Equivalent of the Clear() calls between levels in HammerwatchGen.main */

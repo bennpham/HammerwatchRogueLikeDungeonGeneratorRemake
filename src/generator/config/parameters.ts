@@ -351,6 +351,118 @@ export function floorLocked(params: DungeonParameters, level: number): boolean {
 }
 
 /**
+ * One monster row a mystery button spawns: `count` copies of one actor, each
+ * its own `SpawnObject`. `monster` speaks the ARENA grammar
+ * (`isKnownMonsterKey`) — a bare id is a pin at `defaultTier` — because a
+ * button fires structure, not a roll: resolving a floor pool key's ladder or a
+ * family would need a draw per copy.
+ */
+export interface MysteryMonster {
+  monster: string
+  /** 1..MAX_MYSTERY_MONSTERS copies; NOT scaled by `monsterMultiplier` */
+  count: number
+}
+
+/**
+ * One entry of the campaign-wide mystery-button POOL (issue #67). Stepping on
+ * the plate fires every outcome it carries at once; a button carrying nothing
+ * is a dud, which is a legitimate outcome and not an error.
+ */
+export interface MysteryButton {
+  /** the dungeon master's label for it — the form only, never emitted */
+  name?: string
+  /** announced on press; absent or empty emits no `AnnounceText` at all */
+  text?: string
+  /** items spawned beside the plate; `item` is a `MYSTERY_LOOT_DEFS` id */
+  loot: WavePickup[]
+  /** monsters spawned a few tiles clear of the plate */
+  monsters: MysteryMonster[]
+  /**
+   * spewers placed on the walls of the plate's own ROOM, shipped disabled and
+   * switched on by the press. `count` is per button, bounded by MAX_TRAP_COUNT.
+   */
+  traps: BossTrap[]
+  /** switch the traps back off this many seconds after the press; absent/0 = never */
+  trapSeconds?: number
+}
+
+/**
+ * How many mystery buttons floor `i` hides and which pool buttons they may
+ * be. `pool` holds 0-based indices into `mysteryButtons`, repeated to weight —
+ * the same convention `levelMonsters` uses. Each plate draws one entry
+ * independently, so a button may appear more than once and `count` may exceed
+ * the pool's size.
+ */
+export interface FloorMystery {
+  count: number
+  pool: number[]
+}
+
+/** Most buttons the campaign-wide pool may define. */
+export const MAX_MYSTERY_DEFS = 50
+/** Most mystery buttons one floor may hide. */
+export const MAX_MYSTERY_PER_FLOOR = 200
+/** Most copies one monster row of a button may spawn. */
+export const MAX_MYSTERY_MONSTERS = 100
+/** Longest button name the form accepts. */
+export const MYSTERY_NAME_MAX = 40
+/** Longest announce text — one line of the game's banner. */
+export const MYSTERY_TEXT_MAX = 120
+/** Longest a button's traps may stay on before switching off again. */
+export const MAX_MYSTERY_TRAP_SECONDS = 3600
+
+/** A floor with no mystery buttons — the pad value for a floor nobody armed. */
+export function defaultFloorMystery(): FloorMystery {
+  return { count: 0, pool: [] }
+}
+
+/**
+ * Floor `level`'s mystery-button config, or undefined when it places none —
+ * no count, or no pool index that names a real button. Read the field through
+ * this, never directly: a stale index must not count as "armed".
+ */
+export function floorMystery(params: DungeonParameters, level: number): FloorMystery | undefined {
+  const floor = params.levelMystery?.[level]
+  const defs = params.mysteryButtons ?? []
+  if (floor === undefined || !(floor.count > 0)) return undefined
+  const pool = floor.pool.filter((i) => Number.isInteger(i) && i >= 0 && i < defs.length)
+  return pool.length > 0 ? { count: floor.count, pool } : undefined
+}
+
+/**
+ * The four-button starter set the form's "Add starter set" inserts —
+ * transcribed from the owner's hand-built `test_mystery_button_simple.xml`:
+ * a treasure button, a dud, an ambush and a trap room. Pure data, fresh every
+ * call.
+ */
+export function mysteryStarterPool(): MysteryButton[] {
+  return [
+    {
+      name: 'Treasure',
+      text: 'You got treasure',
+      loot: [
+        { item: 'chest_red', count: 3 },
+        { item: 'upgrade_damage_2', count: 2 }
+      ],
+      monsters: [],
+      traps: []
+    },
+    { name: 'Nothing', text: 'Nothing happened', loot: [], monsters: [], traps: [] },
+    { name: 'Ambush', text: 'Monsters appear', loot: [], monsters: [{ monster: 'mb_skeleton', count: 4 }], traps: [] },
+    {
+      name: 'Trap room',
+      text: 'Traps activated',
+      loot: [],
+      monsters: [],
+      traps: [
+        { projectile: 'shooter_fireball_2', direction: 'left', spread: 0.5, spawnRateMs: 500, count: 1 },
+        { projectile: 'shooter_fireball_2', direction: 'right', spread: 0.5, spawnRateMs: 500, count: 1 }
+      ]
+    }
+  ]
+}
+
+/**
  * The floors the old campaign-wide `lockFinalRoom` flag sealed, as per-floor
  * data: every floor whose way out is NOT stairs — the victory orb, the red
  * portal into an arena, or the blue one into a lobby — and that has no boss.
@@ -508,6 +620,20 @@ export interface DungeonParameters {
    * the button — see `dungeonBoss/opener.ts`.
    */
   levelLock?: FloorLock[]
+  /**
+   * The campaign-wide pool of mystery buttons (issue #67) that
+   * `levelMystery` draws from. Optional; absent (or empty) with no floor
+   * armed produces byte-identical output for every seed — see `mystery/`.
+   */
+  mysteryButtons?: MysteryButton[]
+  /**
+   * Mystery buttons per floor — how many plates and which pool buttons they
+   * may be. Optional, absent = none anywhere. Purely ADDITIVE, like
+   * `levelTraps`: the rig runs after a floor is accepted and draws only from
+   * `ctx.mysteryRand`, so arming a floor moves no floor's dungeon. Read a
+   * floor through `floorMystery`.
+   */
+  levelMystery?: FloorMystery[]
   /**
    * A `MUSIC_TRACKS` id per level, or the `MUSIC_DEFAULT` sentinel. Optional,
    * and unset per floor by default: a params object without it, or with every

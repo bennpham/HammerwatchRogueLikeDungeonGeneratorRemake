@@ -239,7 +239,7 @@ a two-tile band instead (`ThemeDef.directionalFences`).
 | `VendorDefense` | `doodads/special/vendor_defense.xml` | 0, 0 |
 | `Cover` | `doodads/special/color_theme_%s_16.xml` (1 sub) | 0.5, 0.5 |
 | `BossDoorButton` | `doodads/special/boss_door_button.xml` | 0.5, 0.5 |
-| `TriggerButton` (unused, reserved) | `doodads/special/trigger_button_floor.xml` | 0.5, 0.5 |
+| `TriggerButton` (mystery buttons) | `doodads/special/trigger_button_floor.xml` | 0.5, 0.5 |
 | `ExitUp` (bonus only) | `doodads/special/bonus_entrance.xml` | 0, 0 |
 | `ExitDn` (bonus only) | `doodads/special/bonus_exit.xml` | 0, 0 |
 
@@ -263,8 +263,9 @@ entry in `DISCOVERY-LOG.md`.
 **`boss_door_button.xml` is the locked-room seal's plate** `[VERIFIED 2026-09-26]`
 — need-sync True, a w1 h1 `RectangleShape` centred half a tile past the
 doodad's position, and `ChangeDoodadState` to `activate` to show the press.
-`trigger_button_floor.xml` takes `pressed` instead; it is kept as
-`TriggerButton` for a later puzzle feature.
+`trigger_button_floor.xml` is the mystery buttons' plate (issue #67) and takes
+`pressed`, which leaves it down for good — `[EMITTED]`, see the 2026-09-26
+mystery-button entry in `DISCOVERY-LOG.md`.
 
 **`Cover` is a character-occlusion overlay, not a collider** `[VERIFIED]` — read
 from the asset: `special/color_theme_a_16.xml` declares **zero**

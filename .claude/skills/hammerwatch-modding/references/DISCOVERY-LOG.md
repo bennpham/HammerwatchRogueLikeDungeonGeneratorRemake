@@ -8,6 +8,36 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-26 — mystery buttons: `trigger_button_floor` driven to `pressed`, SpawnObject loot, delayed trap switch-off
+**Tag:** [EMITTED] (issue #67), except the pieces the owner's hand-built
+sample already exercised, marked below.
+**Context:** the owner hand-built `test_mystery_button_simple.xml` with four
+floor buttons — treasure, nothing, monsters, traps — and `mystery/rig.ts`
+transcribes it. Evidence and status per piece:
+- `doodads/special/trigger_button_floor.xml`, need-sync True, driven by
+  `ChangeDoodadState` to **`pressed`**. The owner's own choice, stated
+  2026-09-26: `pressed` keeps the plate down after one press, while the
+  campaign's `activate` lets it bob back up — right for a reusable switch,
+  wrong for a one-shot mystery. Built in the owner's sample; the generated
+  rig is [EMITTED] until played.
+- `SpawnObject` with `items/chest_red.xml` and `items/upgrade_damage_2.xml`
+  (sample), `actors/skeleton_1_mb.xml` (sample). The other chests, the red
+  diamond and `valuable_1..9` via `SpawnObject` are [UNVERIFIED]; they are
+  shipped item assets already placed as items by `objects/item.ts` and the
+  lobbies.
+- `AnnounceText` `type` **1** (the sample's value). Only 0 (centred banner)
+  and 2 (small corner line) were documented before; what 1 looks like is
+  [UNVERIFIED]. `MYSTERY_ANNOUNCE_TYPE` is the one-line switch.
+- Disabled `ProjectileSpewer` + `ToggleElement{state 0}` off the press: the
+  sample's own shape. The optional switch-off is a `ToggleElement{state 1}`
+  connected with a real delay, which puts that one `AreaTrigger` into
+  real-delay mode (`connection-delays` alongside `delays`) — the shape
+  survival's verified clock uses, on an `AreaTrigger` for the first time.
+  [EMITTED].
+**Impact:** `TriggerButton` is no longer reserved (ASSET-REGISTRY). Playtest
+checklist: the plate stays down, loot lands beside it, monsters spawn clear
+of it, traps fire and (with a switch-off) stop, a dud only clicks.
+
 ### 2026-09-26 — the locked-room rigs work in game: several buttons, boss + button, the new plate
 **Tag:** [VERIFIED] (user playtest). It settles the three 2026-09-25 entries below.
 **Context:** the user played the issue #69 build (PR #70) and confirmed each

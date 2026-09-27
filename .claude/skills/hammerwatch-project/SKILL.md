@@ -141,6 +141,12 @@ src/
 │   │   │                 <- draws
 │   │   ├── opener.ts    Boss Died -> DestroyObject on the floor's seals
 │   │   └── index.ts     buildFloorBossRig() — the fixed call order
+│   ├── mystery/         MYSTERY BUTTONS (issue #67) — floor plates that fire a
+│   │   │                 pool button's loot/monsters/traps/text on press. The
+│   │   │                 only consumer of ctx.mysteryRand; last per-floor rig
+│   │   ├── placement.ts plate tiles (reachable, plate rooms, clear of items,
+│   │   │                 lock plates and boss tiles), spawn rings, capacity
+│   │   └── rig.ts       buildMysteryButtonRig() — the fixed draw order
 │   ├── survival/        the SURVIVAL arena's rig — everything boss/'s tier
 │   │   │                 rigs do, re-keyed from boss health to elapsed time.
 │   │   │                 Exists because the engine fires the `Boss ...` events
@@ -215,7 +221,9 @@ reference/hammerwatch-tweak-stats.md
 2. **Determinism.** `(params, seed)` ⇒ byte-identical files. Forbidden inside
    the generator: `Math.random()`, `Date`, `crypto`, iteration over an object
    whose key order isn't fixed, `Array.sort` without a total comparator.
-3. **Five RNG streams, never mixed.** `ctx.rand` (seed) drives layout and
+3. **Six RNG streams, never mixed.** (The sixth, `ctx.mysteryRand`
+   (seed + 5), drives the per-floor mystery buttons — see *Mystery buttons*
+   below; it follows the trap stream's post-acceptance rules exactly.) `ctx.rand` (seed) drives layout and
    population — the stream that must match the Java original.
    `ctx.cosmeticRand` (seed + 1) drives floor-tile variants, overlay tilesets
    and mixed-palette slots. `ctx.bossRand` (seed + 2) drives everything in the
@@ -329,6 +337,8 @@ reference/hammerwatch-tweak-stats.md
 | `levelTraps[i]` | present, empty on every floor | wall traps, one `FloorTrap[]` per floor: each `{projectile, direction, spread, spawnRateMs, count}`, the same five fields a boss tier's trap row carries. `count` is spewers on the **floor**, spread over every eligible room's wall of that direction — not per room — and unlike a wave tier's `count` it has **no upper bound** (`MAX_TRAP_COUNT` applies only to `arena.waves[i].traps`): a floor's pool spans every eligible room on it, not one fixed-size arena wall, so a very large count just runs the pool dry, which validation only warns about. Always live, no tiers and no trigger. Empty on every floor reproduces the pre-feature campaign exactly. `trapN=<projectile>:<dir>:<spread>:<rate>:<count>|…` in `parameters.txt`. See *Traps per dungeon floor* below |
 | `levelTimers[i]` | all off but the escape floor (90s, 1 dmg / 100ms) | timer mode, one `FloorTimer` per floor: `enabled`, `seconds` (1–3600), `damage` (−10000–10000, **negative heals**), `freqMs` (50–600000), `countdown`. Off on every floor reproduces the pre-feature campaign exactly. See *Timer mode* below |
 | `floorMusic[i]` | castle: `act1,act2,act2,act3,act3,act4,act4,act4`; absent otherwise | music mode, one track id per floor (`MUSIC_TRACKS` in `music/tracks.ts` — the base `music.xml` cues plus the desert bank). `default` (`MUSIC_DEFAULT`) emits no `PlayMusic` node and leaves the template's music untouched. `musicN=<track>` in `parameters.txt`, written only for floors that swapped — **but** a file carrying any `musicN=` line rebuilds the whole array from scratch (`explicitMusic` map, `configFile.ts`), so a base object's own per-floor tracks never bleed into an index a shorter import leaves unmentioned. `lobbies[i].music` / `fights[i].arena.music` are the same knob per lobby / per arena (`lobby<i>Music`, `boss<i>Music`). See *Music* below |
+| `mysteryButtons` | absent | the campaign-wide mystery-button POOL (issue #67), `MysteryButton[]` ≤ `MAX_MYSTERY_DEFS` (50): each `{name?, text?, loot: WavePickup[] (MYSTERY_LOOT_DEFS ids), monsters: {monster, count}[] (arena key grammar, ≤ 100/row, unscaled), traps: BossTrap[] (≤ MAX_TRAP_COUNT, on the plate room's walls), trapSeconds?}`. Name ≤ 40 / text ≤ 120 chars, never `= < > &` or a line break (XML is unescaped; `=` breaks the line split). Empty is stored absent. `mysteryButtons=N`, `mysteryButton<i>Name/Text/Loot/Monsters/Traps/TrapSeconds` |
+| `levelMystery[i]` | absent | per floor `{count ≤ 200, pool: number[]}` — 0-based pool indices repeated to weight, drawn WITH replacement; read through `floorMystery`. Absent/all-zero = none. `mysteryFloorN=<count>:<i,i,j>` |
 | `lobbySaves` | **`true`** | campaign-wide: every generated lobby gets one `items/trigger_button_save.xml` by its exit. Items-only, no RNG, `levels/level*.xml` byte-identical either way. `lobbySaves=1` in `parameters.txt`. See *Free upgrades and the arrival revive* |
 | `playerTweaks` | `{ 'player.shared.remove.life': 1 }` | sparse `Record<lowercase key, number>` of player-balance overrides; empty = no `tweak/` folder. See below |
 | `lobbies` | **two** — `BETA-dungeon-prep` at 10000g and `BETA-boss-prep` at 20000g, both selling all 21 columns, no free upgrades | the campaign's shop rooms, `LobbyOptions[]`. A lobby exists iff it is in this list: there is no `enabled` flag any more, and `lobbies: []` reproduces the pre-lobby campaign exactly — the same rule `boss.fights` already followed. Any number, each independently placed by `levelOrder`. `lobbies=N` in `parameters.txt`. See *Lobbies* below |
@@ -825,6 +835,43 @@ smallest rollable floor, `minRoomCount` rooms whose walls span `minRoomSize + 1`
 by `minRoomSize + 3`. Deliberately optimistic — the exclusions can only reduce
 it — so overshooting is a warning, not an error; the rig stops placing
 gracefully either way.
+
+## Mystery buttons (`src/generator/mystery/`, issue #67)
+
+Optional, per floor, absent by default. A campaign-wide POOL of button kinds
+(`mysteryButtons`) and, per floor, how many plates to hide and which pool
+buttons they may be (`levelMystery`, weighted, with replacement). Stepping on a
+plate presses it for good and fires everything its button carries at once.
+UI: the Dungeon tab's third sub-tab, `MysteryButtonsEditor.tsx`.
+
+- **The rig** (transcribed from the owner's `test_mystery_button_simple.xml`):
+  a need-sync `TriggerButton` (`trigger_button_floor.xml`) → w1 h1
+  `RectangleShape` → one-shot `AreaTrigger` → `PlaySound button_hatch`,
+  `ChangeDoodadState` **`pressed`** (not the lock's `activate`: the plate
+  must STAY down, `activate` bobs back up — owner, 2026-09-26), `AnnounceText`
+  only when `text` is non-empty (type 1), one `SpawnObject{trigger-times 1}` per
+  loot/monster copy, and per spewer a disabled `ProjectileSpewer` +
+  `ToggleElement{state 0}`; with `trapSeconds` a `ToggleElement{state 1}` per
+  spewer connected LAST with a real delay (the trigger enters real-delay mode).
+- **Placement.** Plates: `roomInteriorSlots` of every room but Entrance, Shop,
+  `sealed` and `locked`, reachable per `entranceReach` (extracted from
+  `exitReachable`), ≥ 2 tiles from any floor item, ≥ 4 from a lock plate or boss
+  tile, and `MYSTERY_BUTTON_SPACING` (4, Chebyshev, `takeSpacedSlot`) apart.
+  Loot/monsters: zero-draw — the plate room's interior sorted by distance then
+  y then x, loot ≥ 2 and monsters ≥ 3 tiles out. Traps: `roomWallSlots` of the
+  plate's room, one pool per room+direction shared by every plate, clear of
+  spewers already on the floor.
+- **RNG.** `ctx.mysteryRand` only, after every other per-floor rig (index.ts).
+  Per plate: `iRand` for the tile, then `iRand` for the pool button; then per
+  plate in order, one `iRand` per placed spewer. Returns before any draw or id
+  when unconfigured or when no tile qualifies. A plate the pool cannot place
+  draws nothing.
+- **Loot registry** `objects/mysteryLoot.ts`: `MYSTERY_LOOT_DEFS` = four chests,
+  the 500-gold red diamond, `valuable_1..9`, then every `PICKUP_DEFS` entry
+  (lane dropped). Kept apart from `PICKUP_DEFS` so the arena's pad is untouched.
+- **parameters.txt** writes nothing for a campaign without them. A file that
+  mentions the pool states the whole pool; any `mysteryFloorN` line rebuilds
+  `levelMystery` from scratch; a dangling floor index is dropped and reported.
 
 ## Timer mode (`src/generator/timer/`)
 
@@ -1498,7 +1545,8 @@ same `GeneratedFile[]` the levels produce.
 Reject or fix a diff that: imports Node APIs into `src/generator`; adds
 unseeded randomness; changes RNG draw order without flagging it; draws arena
 randomness from `ctx.rand`/`ctx.cosmeticRand` instead of `ctx.bossRand`, or
-floor-trap randomness from anything but `ctx.trapRand`; draws trap randomness
+floor-trap randomness from anything but `ctx.trapRand`, or mystery-button
+randomness from anything but `ctx.mysteryRand`; draws trap randomness
 from inside the `Level` constructor, where the retry loop's discarded
 candidates would spend it; draws
 before the early return in a no-op theme path; adds a parameter without a

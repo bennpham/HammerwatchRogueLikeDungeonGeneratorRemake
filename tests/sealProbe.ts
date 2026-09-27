@@ -179,7 +179,8 @@ export function passabilityOf(level: LevelPreview, xml: string): Passability {
   // `sealPiece` would read it as a `Horizontal`, undo a `yOffset` never applied
   // and land that obstacle on the wrong tile.
   for (const d of doodads) {
-    if (!d.sync || d.name === 'boss_door_button') continue
+    // ...and so is a mystery button's plate (issue #67), for the same reason.
+    if (!d.sync || d.name === 'boss_door_button' || d.name === 'trigger_button_floor') continue
     const off = doodadOffset(sealPiece(d.name), level.theme)
     pass.setSolid(Math.round(d.x - off.x), Math.round(d.y - off.y))
   }

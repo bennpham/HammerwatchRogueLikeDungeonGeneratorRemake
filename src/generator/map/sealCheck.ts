@@ -176,10 +176,13 @@ function passabilityOf(level: Level, ctx: GenerationContext): Passability {
   // same as "blocks the player" — the button carries it too, for its *state*.
   // It is a plate the party stands on, not a barrier, so counting it here
   // would invent an obstacle, and an invented obstacle shrinks the reachable
-  // set: this check would start passing floors it should reject.
+  // set: this check would start passing floors it should reject. Both plates
+  // are excluded — the lock's `BossDoorButton` and the mystery buttons'
+  // `TriggerButton` (issue #67), which today are placed after this check runs
+  // but must never become obstacles should that order change.
   if (!fenced) {
     for (const d of ctx.doodads) {
-      if (d.needSync && d.type !== 'BossDoorButton') pass.setSolid(d.x, d.y)
+      if (d.needSync && d.type !== 'BossDoorButton' && d.type !== 'TriggerButton') pass.setSolid(d.x, d.y)
     }
   }
 

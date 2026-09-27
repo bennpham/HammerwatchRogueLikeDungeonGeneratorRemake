@@ -160,15 +160,9 @@ function prefabTarget(s: ObjectSet): { x: number; y: number } {
 export function exitReachable(level: Level, ctx: GenerationContext): boolean {
   const { width, height } = level
   const sets = ctx.objectSets
-  const entrance = sets.find((s) => s.type === 'ExitUp')
-  if (entrance === undefined) return false
-
-  const blocked = blockedGrid(level)
-  const from = prefabTarget(entrance)
-  const start = standingTile(blocked, width, height, from.x, from.y)
-  if (start === null) return false
-
-  const visited = floodFill(blocked, width, height, { x: start % width, y: Math.trunc(start / width) })
+  const reach = entranceReach(level, ctx)
+  if (reach === null) return false
+  const { blocked, visited } = reach
 
   const targets: Array<{ x: number; y: number }> = []
   for (const s of sets) {
@@ -195,6 +189,33 @@ export function exitReachable(level: Level, ctx: GenerationContext): boolean {
   }
 
   return true
+}
+
+/**
+ * Every tile the player can walk to from the entrance stairs, overhang
+ * modelled — the flood `exitReachable` runs, exposed for the post-acceptance
+ * rigs that must only place things the party can get to (`mystery/`). Null
+ * when the floor has no entrance or its entrance is not standable. Draws
+ * nothing.
+ *
+ * Doors and seals are items and doodads, not tiles, so the fill walks through
+ * them: a caller that must avoid a locked vault or the sealed exit room has to
+ * exclude those rooms itself.
+ */
+export function entranceReach(
+  level: Level,
+  ctx: GenerationContext
+): { blocked: Uint8Array; visited: Uint8Array } | null {
+  const { width, height } = level
+  const entrance = ctx.objectSets.find((s) => s.type === 'ExitUp')
+  if (entrance === undefined) return null
+
+  const blocked = blockedGrid(level)
+  const from = prefabTarget(entrance)
+  const start = standingTile(blocked, width, height, from.x, from.y)
+  if (start === null) return null
+
+  return { blocked, visited: floodFill(blocked, width, height, { x: start % width, y: Math.trunc(start / width) }) }
 }
 
 function clamp(v: number, lo: number, hi: number): number {

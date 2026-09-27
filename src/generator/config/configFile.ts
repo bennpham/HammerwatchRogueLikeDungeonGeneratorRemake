@@ -14,6 +14,7 @@ import {
   defaultBossFight,
   defaultFloorTimer,
   defaultFloorLock,
+  defaultFloorMystery,
   gatewayLockedFloors,
   defaultLobby,
   defaultParameters,
@@ -58,11 +59,15 @@ import type {
   SurvivalTrap,
   SurvivalWave,
   DungeonBoss,
-  BossSelection
+  BossSelection,
+  FloorMystery,
+  MysteryButton,
+  MysteryMonster
 } from './parameters'
 import { MONSTER_FAMILIES, MONSTER_TYPES, isKnownMonsterKey } from '../objects/monsterTypes'
 import { buffById } from '../objects/buffTypes'
 import { pickupById } from '../objects/pickupTypes'
+import { mysteryLootById } from '../objects/mysteryLoot'
 import { projectileById } from '../objects/projectileTypes'
 import { isLobbyCategory } from '../lobby/shops'
 import { DEFAULT_LOBBY_PRESET_ID, LOBBY_PRESETS } from '../lobby/presets'
@@ -116,6 +121,7 @@ export const PARAMETER_ORDER = [
   'timer', // placeholder: expanded to timerN for each floor whose timer is on
   'bossFloor', // placeholder: expanded to bossFloorN… for each floor carrying a boss
   'music', // placeholder: expanded to musicN for each floor with a track set
+  'mystery', // placeholder: mysteryButtons=, mysteryButton<i>…, then mysteryFloorN
   'monsterMax', // placeholder: expanded per MONSTER_TYPES order
   'playerTweaks', // placeholder: sorted by key
 ] as const
@@ -285,7 +291,12 @@ function lineupLine(lineup: Partial<Record<string, number>> | undefined): string
  * hand-written line. An unknown item or a non-numeric count is reported
  * through `unknownKeys` and skipped, never thrown on (invariant #5).
  */
-function parsePickupRows(key: string, value: string, unknownKeys: string[]): WavePickup[] {
+function parsePickupRows(
+  key: string,
+  value: string,
+  unknownKeys: string[],
+  known: (id: string) => unknown = pickupById
+): WavePickup[] {
   const entries: WavePickup[] = []
   for (const segment of value.split('|')) {
     const trimmed = segment.trim()
@@ -294,7 +305,7 @@ function parsePickupRows(key: string, value: string, unknownKeys: string[]): Wav
     const id = (colon === -1 ? trimmed : trimmed.slice(0, colon)).trim()
     const countText = colon === -1 ? '1' : trimmed.slice(colon + 1).trim()
 
-    if (pickupById(id) === undefined) {
+    if (known(id) === undefined) {
       unknownKeys.push(`${key} item "${id}"`)
       continue
     }
@@ -306,6 +317,38 @@ function parsePickupRows(key: string, value: string, unknownKeys: string[]): Wav
     entries.push({ item: id, count })
   }
   return entries
+}
+
+/**
+ * Parses a mystery button's `<monster key>:<count>|…` value. Keys speak the
+ * arena grammar (`isKnownMonsterKey`) — see `MysteryMonster`. A bare key is
+ * one copy; an unknown key or a non-numeric count is reported and skipped.
+ */
+function parseMonsterCountRows(key: string, value: string, unknownKeys: string[]): MysteryMonster[] {
+  const rows: MysteryMonster[] = []
+  for (const segment of value.split('|')) {
+    const trimmed = segment.trim()
+    if (trimmed === '') continue
+    const colon = trimmed.indexOf(':')
+    const monster = (colon === -1 ? trimmed : trimmed.slice(0, colon)).trim().toLowerCase()
+    const countText = colon === -1 ? '1' : trimmed.slice(colon + 1).trim()
+    if (!isKnownMonsterKey(monster)) {
+      unknownKeys.push(`${key} monster "${monster}"`)
+      continue
+    }
+    const count = parseInt(countText, 10)
+    if (Number.isNaN(count)) {
+      unknownKeys.push(`${key} count "${countText}"`)
+      continue
+    }
+    rows.push({ monster, count })
+  }
+  return rows
+}
+
+/** A pool entry nothing has been set on yet — what `mysteryButton<i>…` keys grow the pool with. */
+function emptyMysteryButton(): MysteryButton {
+  return { loot: [], monsters: [], traps: [] }
 }
 
 /**
@@ -1222,6 +1265,34 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   /** the `lobbies=` count, or null when the file never declared one */
   let declaredLobbyCount: number | null = null
 
+  // Mystery buttons (issue #67). A file that mentions the pool at all states
+  // the WHOLE pool: the first `mysteryButtons=` / `mysteryButton<i>…` key
+  // clears whatever the base carried, so a base's stale buttons can never
+  // survive into indices this file leaves unmentioned. Floors likewise: any
+  // `mysteryFloorN=` line rebuilds `levelMystery` from scratch (the musicN
+  // rule).
+  let mysteryPoolSeen = false
+  /** the `mysteryButtons=` count, or null when the file never declared one */
+  let declaredMysteryCount: number | null = null
+  /** the keys that named each pool index, so an index past the count can be reported */
+  const mysteryKeys = new Map<number, string[]>()
+  const explicitMystery = new Map<number, FloorMystery>()
+  const claimMysteryPool = (): MysteryButton[] => {
+    if (!mysteryPoolSeen) {
+      params.mysteryButtons = []
+      mysteryPoolSeen = true
+    }
+    return params.mysteryButtons ?? (params.mysteryButtons = [])
+  }
+  const mysteryAt = (index: number, key: string): MysteryButton => {
+    const pool = claimMysteryPool()
+    while (pool.length <= index) pool.push(emptyMysteryButton())
+    const named = mysteryKeys.get(index)
+    if (named === undefined) mysteryKeys.set(index, [key])
+    else named.push(key)
+    return pool[index]
+  }
+
   const lobbyAt = (index: number, key: string): LobbyOptions => {
     while (params.lobbies.length <= index) params.lobbies.push(defaultLobby(DEFAULT_LOBBY_PRESET_ID))
     const named = lobbyKeys.get(index)
@@ -1481,6 +1552,58 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       continue
     }
 
+    // Mystery buttons (issue #67): the pool count, then one key per button
+    // field, then one line per armed floor. All three are anchored on a
+    // `mystery` prefix no other key shares.
+    if (keyLower === 'mysterybuttons') {
+      const count = parseInt(value, 10)
+      if (Number.isNaN(count) || count < 0) result.unknownKeys.push(`${key} "${value}"`)
+      else {
+        claimMysteryPool()
+        declaredMysteryCount = count
+      }
+      continue
+    }
+    const mysteryButtonMatch = keyLower.match(/^mysterybutton(\d+)(.+)$/)
+    if (mysteryButtonMatch) {
+      const index = parseInt(mysteryButtonMatch[1], 10)
+      const field = mysteryButtonMatch[2]
+      if (field === 'name') mysteryAt(index, key).name = value
+      else if (field === 'text') mysteryAt(index, key).text = value
+      else if (field === 'loot') mysteryAt(index, key).loot = parsePickupRows(key, value, result.unknownKeys, mysteryLootById)
+      else if (field === 'monsters') mysteryAt(index, key).monsters = parseMonsterCountRows(key, value, result.unknownKeys)
+      else if (field === 'traps') mysteryAt(index, key).traps = parseTrapRows(key, value, result.unknownKeys)
+      else if (field === 'trapseconds') {
+        const seconds = parseInt(value, 10)
+        if (Number.isNaN(seconds)) result.unknownKeys.push(`${key} "${value}"`)
+        else mysteryAt(index, key).trapSeconds = seconds
+      } else result.unknownKeys.push(key)
+      continue
+    }
+    // mysteryFloorN=<count>:<pool index>,<pool index>,… — 0-based indices,
+    // repeated to weight.
+    const mysteryFloorMatch = keyLower.match(/^mysteryfloor(\d+)$/)
+    if (mysteryFloorMatch) {
+      const levelIndex = parseInt(mysteryFloorMatch[1], 10)
+      const colon = value.indexOf(':')
+      const countText = (colon === -1 ? value : value.slice(0, colon)).trim()
+      const count = parseInt(countText, 10)
+      if (Number.isNaN(count)) {
+        result.unknownKeys.push(`${key} count "${countText}"`)
+        continue
+      }
+      const pool: number[] = []
+      for (const token of (colon === -1 ? '' : value.slice(colon + 1)).split(',')) {
+        const t = token.trim()
+        if (t === '') continue
+        const n = parseInt(t, 10)
+        if (Number.isNaN(n) || n < 0) result.unknownKeys.push(`${key} button "${t}"`)
+        else pool.push(n)
+      }
+      explicitMystery.set(levelIndex, { count, pool })
+      continue
+    }
+
     // timerN=enabled|seconds|damage|freqMs|countdown — one line per floor whose
     // timer is on. Absent floors keep the default (off), so a file written
     // before timer mode existed parses exactly as it always did. Per-field NaN
@@ -1598,6 +1721,43 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     while (levelTraps.length < params.levels) levelTraps.push(defaultFloorTraps())
     levelTraps.length = params.levels
   }
+
+  // Mystery buttons. A declared count is the whole truth about the pool's
+  // size: trim (reporting the keys of any button it drops) or pad with empty
+  // buttons. Floor lines rebuild `levelMystery` from scratch, then every floor
+  // pool index is checked against the final pool — a dangling index is
+  // reported and dropped rather than left to fail validation on a file the
+  // user never hand-edited. Both fields end absent when they carry nothing.
+  if (declaredMysteryCount !== null) {
+    const pool = claimMysteryPool()
+    for (const [index, keys] of [...mysteryKeys].sort((a, b) => a[0] - b[0])) {
+      if (index >= declaredMysteryCount) result.unknownKeys.push(...keys)
+    }
+    while (pool.length < declaredMysteryCount) pool.push(emptyMysteryButton())
+    pool.length = declaredMysteryCount
+  }
+  if (explicitMystery.size > 0) {
+    const floors: FloorMystery[] = []
+    for (let i = 0; i < params.levels; i++) floors.push(explicitMystery.get(i) ?? defaultFloorMystery())
+    for (const index of [...explicitMystery.keys()].sort((a, b) => a - b)) {
+      if (index >= params.levels) result.unknownKeys.push(`mysteryFloor${index}`)
+    }
+    params.levelMystery = floors
+  } else if (params.levelMystery !== undefined) {
+    while (params.levelMystery.length < params.levels) params.levelMystery.push(defaultFloorMystery())
+    params.levelMystery.length = params.levels
+  }
+  if (params.levelMystery !== undefined) {
+    const poolSize = params.mysteryButtons?.length ?? 0
+    params.levelMystery.forEach((floor, i) => {
+      const dangling = floor.pool.filter((n) => n >= poolSize)
+      if (dangling.length === 0) return
+      for (const n of dangling) result.unknownKeys.push(`mysteryFloor${i} button "${n}"`)
+      floor.pool = floor.pool.filter((n) => n < poolSize)
+    })
+    if (params.levelMystery.every((f) => f.count === 0 && f.pool.length === 0)) delete params.levelMystery
+  }
+  if (params.mysteryButtons !== undefined && params.mysteryButtons.length === 0) delete params.mysteryButtons
 
   // Only enabled floors get a `timerN=` line, so an imported file is sparse by
   // design: pad up to the floor count rather than trimming to the highest key,
@@ -1980,6 +2140,40 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
       if (params.floorMusic !== undefined) {
         for (let i = 0; i < params.floorMusic.length; i++) {
           writeMusicLine(lines, `music${i}`, params.floorMusic[i], base.floorMusic?.[i])
+        }
+      }
+    } else if (key === 'mystery') {
+      // Nothing at all for a campaign without mystery buttons, which is every
+      // campaign written before them — so those files stay byte-identical. The
+      // base never carries a pool, so "differs from the base" is simply
+      // "present", and the parser treats the pool this writes as the whole pool.
+      const pool = params.mysteryButtons ?? []
+      if (pool.length > 0) {
+        lines.push(`mysteryButtons=${pool.length}`)
+        pool.forEach((b, i) => {
+          if (b.name !== undefined && b.name !== '') lines.push(`mysteryButton${i}Name=${b.name}`)
+          if (b.text !== undefined && b.text !== '') lines.push(`mysteryButton${i}Text=${b.text}`)
+          if (b.loot.length > 0) {
+            lines.push(`mysteryButton${i}Loot=${b.loot.map((r) => `${r.item}:${r.count}`).join('|')}`)
+          }
+          if (b.monsters.length > 0) {
+            lines.push(`mysteryButton${i}Monsters=${b.monsters.map((r) => `${r.monster}:${r.count}`).join('|')}`)
+          }
+          if (b.traps.length > 0) {
+            lines.push(
+              `mysteryButton${i}Traps=${b.traps
+                .map((t) => `${t.projectile}:${t.direction}:${t.spread}:${t.spawnRateMs}:${t.count}`)
+                .join('|')}`
+            )
+          }
+          if ((b.trapSeconds ?? 0) !== 0) lines.push(`mysteryButton${i}TrapSeconds=${b.trapSeconds}`)
+        })
+      }
+      if (params.levelMystery !== undefined) {
+        for (let i = 0; i < params.levels; i++) {
+          const floor = params.levelMystery[i]
+          if (floor === undefined || (floor.count === 0 && floor.pool.length === 0)) continue
+          lines.push(`mysteryFloor${i}=${floor.count}:${floor.pool.join(',')}`)
         }
       }
     } else if (key === 'playerTweaks') {
