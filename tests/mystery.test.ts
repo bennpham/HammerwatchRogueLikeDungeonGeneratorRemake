@@ -35,6 +35,7 @@ import { NodeSpawnObject } from '../src/generator/objects/nodes'
 import { buildMysteryButtonRig } from '../src/generator/mystery/rig'
 import { MYSTERY_BUTTON_SPACING, mysteryButtonSlots } from '../src/generator/mystery/placement'
 import { sealHolds } from '../src/generator/map/sealCheck'
+import { MYSTERY_LOOT_DEFS, MYSTERY_LOOT_GROUPS, mysteryLootById } from '../src/generator/objects/mysteryLoot'
 import { allIds, badIntArray, nodesOfType } from './xmlHelpers'
 import { plainParameters } from './params'
 
@@ -401,5 +402,31 @@ describe('mystery buttons — parameters.txt', () => {
         'mysteryFloor0 button "9"'
       ])
     )
+  })
+})
+
+describe('mystery buttons — the loot registry', () => {
+  it('names every coin and diamond by its asset, once each', () => {
+    const paths = MYSTERY_LOOT_DEFS.map((d) => d.path)
+    expect(new Set(paths).size).toBe(paths.length)
+    const money = MYSTERY_LOOT_DEFS.filter((d) => d.id.startsWith('valuable_'))
+    for (const d of money) expect(d.path).toBe(`items/${d.id}.xml`)
+    expect(money.map((d) => d.id)).toEqual([
+      ...Array.from({ length: 9 }, (_, i) => `valuable_${i + 1}`),
+      'valuable_diamond_small',
+      'valuable_diamond_small_red',
+      'valuable_diamond',
+      'valuable_diamond_red'
+    ])
+    expect(MYSTERY_LOOT_GROUPS.slice(0, 3)).toEqual(['Chests', 'Coins', 'Diamonds'])
+    expect(mysteryLootById('valuable_9')?.label).toBe('Gold coin pile (42 gold)')
+  })
+
+  it('round-trips a new diamond through parameters.txt', () => {
+    const params = armed(0, 2, [0], [{ loot: [{ item: 'valuable_diamond_small_red', count: 3 }], monsters: [], traps: [] }])
+    const parsed = parseParametersTxt(serializeParametersTxt(params))
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.mysteryButtons).toEqual(params.mysteryButtons)
+    expect(validateParameters(params).errors).toEqual([])
   })
 })

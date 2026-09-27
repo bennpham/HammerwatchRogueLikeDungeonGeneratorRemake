@@ -1560,3 +1560,11 @@ button.primary:hover:not(:disabled) {
   display: flex;
   gap: 8px;
 }
+
+/* The loot labels ("Bronze coin pile (10 gold)") need the row's width more
+   than the count does; `input.` for the same specificity reason as
+   input.pool-weight above. */
+.mystery-buttons input.buff-target {
+  flex: 0 0 64px;
+  width: 64px;
+}

@@ -149,8 +149,8 @@ Two lobbies and the boss finale are **on by default**; timer mode is **off**.
   off if you would rather the deadline stayed a surprise.
 - **Mystery buttons** — floor plates hidden around a floor, configured on the
   Dungeon tab's **Mystery Buttons** sub-tab and off by default. You build a
-  **pool** of buttons, each of which can spawn loot (chests, gold, upgrades,
-  potions) beside the plate, spawn monsters a few tiles out, turn the walls of
+  **pool** of buttons, each of which can spawn loot (chests, bronze/silver/gold
+  coins, four sizes of diamond, upgrades, potions) beside the plate, spawn monsters a few tiles out, turn the walls of
   its room into spewers (optionally for a limited time), announce a message,
   or do nothing at all. Then, per floor, you choose how many plates to hide
   and which pool buttons they may be, each with a weight. Every plate looks the
@@ -258,7 +258,7 @@ User-data folder: `%APPDATA%/hammerwatch-roguelike-dungeon-generator` (Windows),
 | `monsters0…N` | see defaults | Monster pool per floor (repeat an id to weight it) |
 | `buff0…N` | absent | Buff auras for that floor: `<id>:<target>` entries separated by `\|`, e.g. `buff2=frost:players\|bloodlust:monsters`. Targets are `players`, `monsters`, `both`; an omitted target means `players`. Written only for floors that carry one, so a stock file has none |
 | `timer0…N` | absent | Timer mode for that floor: `enabled|seconds|damage|freqMs|countdown`, e.g. `timer2=1|180|1|1000|1`. Written only for floors whose timer is on, so a stock file has none. Negative damage heals |
-| `mysteryButtons` | absent | How many buttons the mystery-button pool holds (up to 50). Each pool button `i` (0-based) has `mysteryButton<i>Name`, `mysteryButton<i>Text` (announced on press; no `=`, `<`, `>`, `&`), `mysteryButton<i>Loot` (`<item>:<count>|…` — chests, `valuable_diamond_red`, `valuable_1`–`9` or any wave pickup), `mysteryButton<i>Monsters` (`<monster>:<count>|…`), `mysteryButton<i>Traps` (the `trapN` row format; placed on the walls of the plate's room) and `mysteryButton<i>TrapSeconds` (switch the traps off again; 0 = never) |
+| `mysteryButtons` | absent | How many buttons the mystery-button pool holds (up to 50). Each pool button `i` (0-based) has `mysteryButton<i>Name`, `mysteryButton<i>Text` (announced on press; no `=`, `<`, `>`, `&`), `mysteryButton<i>Loot` (`<item>:<count>|…` — chests, coins `valuable_1`–`9` (bronze/silver/gold, 1–42 gold), diamonds `valuable_diamond_small`/`_small_red`/`valuable_diamond`/`valuable_diamond_red` (50/100/250/500 gold) or any wave pickup), `mysteryButton<i>Monsters` (`<monster>:<count>|…`), `mysteryButton<i>Traps` (the `trapN` row format; placed on the walls of the plate's room) and `mysteryButton<i>TrapSeconds` (switch the traps off again; 0 = never) |
 | `mysteryFloor0…N` | absent | Mystery buttons on that floor: `<count>:<pool buttons>`, 0-based and repeated to weight, e.g. `mysteryFloor2=8:0,0,1,3` hides 8 plates, each twice as likely to be button 0 |
 | `max<Monster>` | see defaults | Horde-size cap per monster type; 0 disables the type |
 

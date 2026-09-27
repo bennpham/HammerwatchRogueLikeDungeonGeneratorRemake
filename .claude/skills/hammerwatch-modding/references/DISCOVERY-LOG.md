@@ -8,9 +8,47 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-26 — mystery buttons work in game; coin and diamond values read from the assets
+**Tag:** [VERIFIED] (owner playtest of PR #71) for the rig; [VERIFIED] for the
+gold amounts (read from `editor/assetsExtract/items/valuable_*.xml`).
+**Context:** the owner played the generated mystery buttons and confirmed:
+- `trigger_button_floor.xml` driven to `pressed` stays down after the press.
+- Loot lands beside the plate and monsters spawn clear of it, in its room.
+- A `ToggleElement{state 1}` on a real per-connection delay switches the
+  spewers off after `trapSeconds` — so an `AreaTrigger` in real-delay mode
+  (`connection-delays` alongside `delays`) works, not only a
+  `GlobalEventTrigger`.
+- `AnnounceText` `type` 1 displays (0 and 2 were the only documented values).
+- `items/valuable_1..9.xml` spawn through `SpawnObject`.
+
+**Gold values.** Every `valuable_*.xml` is `<item behavior="money">` with an
+`<entry name="amount">`. The nine coins are three metals of three sizes; the
+metal is the sprite's colour on `items/items.png` (single coins at frame y
+107/91/75, stacks at y 312–400: brown, grey, gold), the sizes a single coin, a
+small stack and a pile:
+
+| id | amount | | id | amount |
+|---|---|---|---|---|
+| valuable_1 bronze coin | 1 | | valuable_diamond_small (blue) | 50 |
+| valuable_2 bronze coins | 5 | | valuable_diamond_small_red | 100 |
+| valuable_3 bronze pile | 10 | | valuable_diamond (blue) | 250 |
+| valuable_4 silver coin | 3 | | valuable_diamond_red | 500 |
+| valuable_5 silver coins | 13 | | | |
+| valuable_6 silver pile | 25 | | | |
+| valuable_7 gold coin | 5 | | | |
+| valuable_8 gold coins | 27 | | | |
+| valuable_9 gold pile | 42 | | | |
+
+The metal names are inferred from colour, not written in the files.
+`valuable_diamond`, `_small` and `_small_red` via SpawnObject are still
+[UNVERIFIED], as are `chest_wood/blue/green`.
+**Impact:** `objects/mysteryLoot.ts` labels the loot dropdown with these
+names and amounts, split into Chests / Coins / Diamonds, and offers all four
+diamonds. Promoted in `ASSET-REGISTRY.md`.
+
 ### 2026-09-26 — mystery buttons: `trigger_button_floor` driven to `pressed`, SpawnObject loot, delayed trap switch-off
-**Tag:** [EMITTED] (issue #67), except the pieces the owner's hand-built
-sample already exercised, marked below.
+**Tag:** [EMITTED] when written (issue #67) — now [VERIFIED], see the entry
+above.
 **Context:** the owner hand-built `test_mystery_button_simple.xml` with four
 floor buttons — treasure, nothing, monsters, traps — and `mystery/rig.ts`
 transcribes it. Evidence and status per piece:

@@ -61,7 +61,8 @@ import { MYSTERY_BUTTON_SPACING, mysteryButtonSlots, spawnTiles } from './placem
  * that stays in the floor tells the party it is spent. The shipped campaign
  * drives the same asset to `activate`, which animates the press and lets it
  * bob back up; that is right for a reusable switch, wrong here. The owner's
- * sample level uses `pressed` for exactly this reason.
+ * sample level uses `pressed` for exactly this reason. [VERIFIED] in game,
+ * owner playtest 2026-09-26: the plate stays down.
  */
 export const MYSTERY_BUTTON_STATE = 'pressed'
 
@@ -70,8 +71,8 @@ export const MYSTERY_ANNOUNCE_MS = 2500
 
 /**
  * The announcement style. The owner's sample uses 1; the seal and the
- * countdowns use 2 (the small corner line) and 0 is the centred banner. Kept
- * as a constant so a playtest can move it in one line.
+ * countdowns use 2 (the small corner line) and 0 is the centred banner.
+ * [VERIFIED] in game, owner playtest 2026-09-26.
  */
 export const MYSTERY_ANNOUNCE_TYPE = 1
 

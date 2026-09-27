@@ -38,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Boss Rush:** 1 button on each boss floor, on top of the boss.
   - Lunch Break, Pandemonium and Arena Marathon are unchanged.
 - **Mystery buttons (issue #67).** A new **Mystery Buttons** sub-tab on the Dungeon tab hides floor plates that reward or punish whoever steps on them.
-  - **Button pool:** up to 50 buttons for the whole campaign. Each can spawn loot (chests, gold, upgrades, potions), spawn monsters, switch on wall traps in its room (optionally only for N seconds), and announce a message. A button with none of these is a dud. **Add starter set** adds four sample buttons: Treasure, Nothing, Ambush and Trap room.
+  - **Button pool:** up to 50 buttons for the whole campaign. Each can spawn loot (chests, bronze/silver/gold coins and all four diamonds, each labelled with its gold value, plus upgrades and potions), spawn monsters, switch on wall traps in its room (optionally only for N seconds), and announce a message. A button with none of these is a dud. **Add starter set** adds four sample buttons: Treasure, Nothing, Ambush and Trap room.
   - **Buttons per floor:** how many plates a floor hides (0–200), and which pool buttons they can be, each with a weight. Each plate is picked independently, so a button can appear more than once.
   - A plate stays pressed after one use. All plates look the same.
   - Off by default. Buttons are placed after the floor is built, from their own random stream, so arming a floor never changes any floor's layout and existing seeds are unchanged.

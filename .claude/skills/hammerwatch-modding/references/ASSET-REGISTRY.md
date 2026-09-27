@@ -264,8 +264,8 @@ entry in `DISCOVERY-LOG.md`.
 — need-sync True, a w1 h1 `RectangleShape` centred half a tile past the
 doodad's position, and `ChangeDoodadState` to `activate` to show the press.
 `trigger_button_floor.xml` is the mystery buttons' plate (issue #67) and takes
-`pressed`, which leaves it down for good — `[EMITTED]`, see the 2026-09-26
-mystery-button entry in `DISCOVERY-LOG.md`.
+`pressed`, which leaves it down for good — `[VERIFIED 2026-09-26]`, see the
+mystery-button entries in `DISCOVERY-LOG.md`.
 
 **`Cover` is a character-occlusion overlay, not a collider** `[VERIFIED]` — read
 from the asset: `special/color_theme_a_16.xml` declares **zero**
@@ -368,6 +368,13 @@ so **appending is safe, inserting or reordering changes every existing seed.**
 Keys and doors are index-matched: bronze/silver/gold at 0/1/2, and doors 0–2
 are horizontal while 3–5 are the vertical variants of the same three tiers.
 `ctx.lastLockType` carries the tier from the door to its key.
+
+**`valuable_*` gold values** `[VERIFIED 2026-09-26]`, read from each file's
+`<entry name="amount">`: coins `valuable_1..3` bronze 1/5/10, `4..6` silver
+3/13/25, `7..9` gold 5/27/42 (metal inferred from the sprite colour); diamonds
+`valuable_diamond_small` 50, `_small_red` 100, `valuable_diamond` 250,
+`valuable_diamond_red` 500. `valuable_1..9` spawn via `SpawnObject`
+`[VERIFIED 2026-09-26]` (mystery buttons, `objects/mysteryLoot.ts`).
 
 ### Health and life pickups beyond `Food` `[VERIFIED 2026-08-28]`
 
@@ -686,7 +693,7 @@ and the four `_v2` corners.
 | `RectangleShape` | area geometry other nodes attach to | width/height |
 | `AreaTrigger` | fires when players enter a shape | `event`, `types`, `shape` |
 | `ToggleElement` | enable/disable another node (used to one-shot the level banner) | `state`, `element` |
-| `AnnounceText` | on-screen text; `textType` 0 = centred banner, 2 = timer line | `text`, `time`, `textType` |
+| `AnnounceText` | on-screen text; `textType` 0 = centred banner, 1 = the mystery buttons' style `[VERIFIED 2026-09-26]`, 2 = timer line | `text`, `time`, `textType` |
 | `ObjectEventTrigger` | fires on an item event (orb pickup) | item id |
 | `ShopArea` | vendor area; carries the vendor doodad type | shop type |
 | `GameEnd` | ends the campaign (final floor orb) | — |

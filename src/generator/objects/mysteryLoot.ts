@@ -1,6 +1,6 @@
 /**
- * The items a mystery button (issue #67) can spawn — every wave pickup plus a
- * "Treasure" group of chests and money.
+ * The items a mystery button (issue #67) can spawn — chests, coins and
+ * diamonds, then every wave pickup.
  *
  * Kept apart from PICKUP_DEFS on purpose. That roster is the arena's, and each
  * of its entries carries a drop-pad `lane` (boss/pickupPad.ts); a chest has no
@@ -10,14 +10,17 @@
  *
  * Verification status (see hammerwatch-modding/references/):
  *   every PICKUP_DEFS entry — as documented in objects/pickupTypes.ts
- *   [EMITTED]    chest_* via SpawnObject — the owner's hand-built
- *                `test_mystery_button_simple.xml` spawns `items/chest_red.xml`
- *                exactly this way; the other three chests are the same asset
- *                family, already placed as items by objects/item.ts
+ *   [VERIFIED]   chest_red via SpawnObject — the owner's sample and the
+ *                mystery-button playtest, 2026-09-26
+ *   [UNVERIFIED] chest_wood / chest_blue / chest_green via SpawnObject — same
+ *                asset family, already placed as items by objects/item.ts
+ *   [VERIFIED]   valuable_1..9 via SpawnObject — owner playtest 2026-09-26.
+ *                Gold amounts read from assetsExtract/items/valuable_*.xml
+ *                (`behavior="money"`, `amount`); the metal is the sprite's
+ *                colour on items.png (see DISCOVERY-LOG 2026-09-26)
  *   [VERIFIED]   valuable_diamond_red — the lobbies' 500-gold diamond
- *   [UNVERIFIED] valuable_1..9 via SpawnObject — placed as items by
- *                objects/item.ts since the port; their gold values have not
- *                been read from the game's files, hence the plain tier labels
+ *   [UNVERIFIED] valuable_diamond_small / _small_red / valuable_diamond via
+ *                SpawnObject — amounts read from their asset files
  */
 import { PICKUP_DEFS } from './pickupTypes'
 import type { PickupDef } from './pickupTypes'
@@ -25,37 +28,53 @@ import type { PickupDef } from './pickupTypes'
 /** A mystery-button loot entry: a pickup without the arena's drop-pad lane. */
 export type LootDef = Omit<PickupDef, 'lane'>
 
-const TREASURE = 'Treasure'
-
 const CHESTS: readonly LootDef[] = (['wood', 'blue', 'red', 'green'] as const).map((colour) => ({
   id: `chest_${colour}`,
   path: `items/chest_${colour}.xml`,
   label: `Chest (${colour[0].toUpperCase()}${colour.slice(1)})`,
-  group: TREASURE,
+  group: 'Chests',
   description: `A ${colour} treasure chest — the same asset the dungeon floors scatter as a powerup.`
 }))
 
-const VALUABLES: readonly LootDef[] = Array.from({ length: 9 }, (_, i) => ({
-  id: `valuable_${i + 1}`,
-  path: `items/valuable_${i + 1}.xml`,
-  label: `Valuable (tier ${i + 1})`,
-  group: TREASURE,
-  description: `Gold pickup valuable_${i + 1} — one of the nine the dungeon floors scatter as treasure.`
-}))
+/**
+ * The nine coin pickups, as [id, label, gold]. Three metals of three sizes —
+ * a single coin, a small stack, a big pile — in the order the game's own
+ * files number them; bronze, silver, gold.
+ */
+const COINS: ReadonlyArray<readonly [string, string, number]> = [
+  ['valuable_1', 'Bronze coin', 1],
+  ['valuable_2', 'Bronze coins', 5],
+  ['valuable_3', 'Bronze coin pile', 10],
+  ['valuable_4', 'Silver coin', 3],
+  ['valuable_5', 'Silver coins', 13],
+  ['valuable_6', 'Silver coin pile', 25],
+  ['valuable_7', 'Gold coin', 5],
+  ['valuable_8', 'Gold coins', 27],
+  ['valuable_9', 'Gold coin pile', 42]
+]
 
-const DIAMOND: LootDef = {
-  id: 'valuable_diamond_red',
-  path: 'items/valuable_diamond_red.xml',
-  label: 'Red diamond (500 gold)',
-  group: TREASURE,
-  description: 'Worth 500 gold — the diamond the lobbies pay starting gold in.'
-}
+/** The four diamonds, as [id, label, gold], cheapest first. */
+const DIAMONDS: ReadonlyArray<readonly [string, string, number]> = [
+  ['valuable_diamond_small', 'Small blue diamond', 50],
+  ['valuable_diamond_small_red', 'Small red diamond', 100],
+  ['valuable_diamond', 'Blue diamond', 250],
+  ['valuable_diamond_red', 'Red diamond', 500]
+]
+
+const money = (group: string, rows: ReadonlyArray<readonly [string, string, number]>): LootDef[] =>
+  rows.map(([id, name, gold]) => ({
+    id,
+    path: `items/${id}.xml`,
+    label: `${name} (${gold} gold)`,
+    group,
+    description: `${name} — worth ${gold} gold when picked up.`
+  }))
 
 /** Every item a mystery button can spawn, in dropdown order. */
 export const MYSTERY_LOOT_DEFS: readonly LootDef[] = [
   ...CHESTS,
-  DIAMOND,
-  ...VALUABLES,
+  ...money('Coins', COINS),
+  ...money('Diamonds', DIAMONDS),
   ...PICKUP_DEFS.map(({ lane: _lane, ...def }) => def)
 ]
 
