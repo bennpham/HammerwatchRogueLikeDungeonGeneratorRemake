@@ -44,6 +44,7 @@ import {
   survivalTraps,
   survivalWaves,
   floorLocked,
+  floorLockButtons,
   MAX_LOCK_BUTTONS,
   MAX_MYSTERY_MONSTERS,
   MAX_MYSTERY_PER_FLOOR,
@@ -2742,16 +2743,62 @@ function validateMystery(p: DungeonParameters, errors: ValidationIssue[], warnin
     }
   })
 
-  if (floors === undefined) return
+  if (floors !== undefined) {
+    const inRange = floors.slice(0, p.levels)
+    const capacity = mysteryCapacity(p.minRoomCount, p.minRoomSize)
+    inRange.forEach((floor, i) => {
+      const at = `levelMystery.${i}`
+      if (!Number.isInteger(floor.count) || floor.count < 0 || floor.count > MAX_MYSTERY_PER_FLOOR) {
+        errors.push({
+          field: `${at}.count`,
+          message: `Floor ${i + 1}: ${floor.count} mystery buttons — use a whole number from 0 to ${MAX_MYSTERY_PER_FLOOR}.`
+        })
+        return
+      }
+      const dangling = floor.pool.filter((n) => !Number.isInteger(n) || n < 0 || n >= pool.length)
+      if (dangling.length > 0) {
+        errors.push({
+          field: `${at}.pool`,
+          message: `Floor ${i + 1} draws from mystery button(s) ${dangling.map((n) => n + 1).join(', ')}, which the pool does not have.`
+        })
+        return
+      }
+      if (floor.count > 0 && floor.pool.length === 0) {
+        errors.push({
+          field: `${at}.pool`,
+          message: `Floor ${i + 1} places ${floor.count} mystery buttons but has none picked from the pool — tick at least one.`
+        })
+        return
+      }
+      if (floor.count > capacity) {
+        warnings.push({
+          field: `${at}.count`,
+          message: `Floor ${i + 1} asks for ${floor.count} mystery buttons, but the smallest floor these room settings can roll has room for about ${capacity} — the rest are skipped when it runs out.`
+        })
+      }
+    })
 
-  const inRange = floors.slice(0, p.levels)
-  const capacity = mysteryCapacity(p.minRoomCount, p.minRoomSize)
-  inRange.forEach((floor, i) => {
-    const at = `levelMystery.${i}`
-    if (!Number.isInteger(floor.count) || floor.count < 0 || floor.count > MAX_MYSTERY_PER_FLOOR) {
+    if (floors.length > p.levels && floors.slice(p.levels).some((f) => f.count > 0)) {
+      warnings.push({
+        field: 'levelMystery',
+        message: `Mystery buttons are set for ${floors.length} floors but there are only ${p.levels} — the extra entries are ignored.`
+      })
+    }
+  }
+
+  // Enhanced lock buttons (built on the pool above) — a separate per-floor
+  // pick list, so it is validated independent of `levelMystery` above; a
+  // campaign may enhance lock buttons with no ordinary mystery plates at all.
+  const lockFloors = p.levelLockMystery
+  if (lockFloors === undefined) return
+
+  const inRangeLock = lockFloors.slice(0, p.levels)
+  inRangeLock.forEach((floor, i) => {
+    const at = `levelLockMystery.${i}`
+    if (!Number.isInteger(floor.count) || floor.count < 0 || floor.count > MAX_LOCK_BUTTONS) {
       errors.push({
         field: `${at}.count`,
-        message: `Floor ${i + 1}: ${floor.count} mystery buttons — use a whole number from 0 to ${MAX_MYSTERY_PER_FLOOR}.`
+        message: `Floor ${i + 1}: ${floor.count} enhanced lock buttons — use a whole number from 0 to ${MAX_LOCK_BUTTONS}.`
       })
       return
     }
@@ -2759,29 +2806,44 @@ function validateMystery(p: DungeonParameters, errors: ValidationIssue[], warnin
     if (dangling.length > 0) {
       errors.push({
         field: `${at}.pool`,
-        message: `Floor ${i + 1} draws from mystery button(s) ${dangling.map((n) => n + 1).join(', ')}, which the pool does not have.`
+        message: `Floor ${i + 1}'s enhanced lock buttons draw from mystery button(s) ${dangling.map((n) => n + 1).join(', ')}, which the pool does not have.`
       })
       return
     }
     if (floor.count > 0 && floor.pool.length === 0) {
       errors.push({
         field: `${at}.pool`,
-        message: `Floor ${i + 1} places ${floor.count} mystery buttons but has none picked from the pool — tick at least one.`
+        message: `Floor ${i + 1} enhances ${floor.count} lock button(s) but has none picked from the pool — tick at least one.`
       })
       return
     }
-    if (floor.count > capacity) {
+
+    if (!floorLocked(p, i)) {
+      if (floor.count > 0 || floor.pool.length > 0 || floor.disguise === true) {
+        warnings.push({
+          field: at,
+          message: `Floor ${i + 1} has enhanced lock buttons or a disguise set, but the floor is not locked — there is nothing to enhance or disguise.`
+        })
+      }
+      return
+    }
+
+    const buttons = floorLockButtons(p, i)
+    if (floor.count > buttons) {
       warnings.push({
         field: `${at}.count`,
-        message: `Floor ${i + 1} asks for ${floor.count} mystery buttons, but the smallest floor these room settings can roll has room for about ${capacity} — the rest are skipped when it runs out.`
+        message: `Floor ${i + 1} asks to enhance ${floor.count} lock buttons, but the floor only has ${buttons} — the rest are ignored.`
       })
     }
   })
 
-  if (floors.length > p.levels && floors.slice(p.levels).some((f) => f.count > 0)) {
+  if (
+    lockFloors.length > p.levels &&
+    lockFloors.slice(p.levels).some((f) => f.count > 0 || f.pool.length > 0 || f.disguise === true)
+  ) {
     warnings.push({
-      field: 'levelMystery',
-      message: `Mystery buttons are set for ${floors.length} floors but there are only ${p.levels} — the extra entries are ignored.`
+      field: 'levelLockMystery',
+      message: `Enhanced lock buttons are set for ${lockFloors.length} floors but there are only ${p.levels} — the extra entries are ignored.`
     })
   }
 }

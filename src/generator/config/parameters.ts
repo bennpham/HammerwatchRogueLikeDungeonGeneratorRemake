@@ -436,6 +436,56 @@ export function floorMystery(params: DungeonParameters, level: number): FloorMys
   return pool.length > 0 ? { count: floor.count, pool } : undefined
 }
 
+/**
+ * Enhanced lock buttons: up to `count` of a locked floor's own `BossDoorButton`
+ * plates ALSO fire a mystery payload drawn from `pool`, on top of counting
+ * toward the lock as they always have. A separate per-floor pick list from
+ * `levelMystery` — the dungeon master picks the plate squads and the lock
+ * squads independently, since pressing a lock button cannot be avoided the
+ * way a mystery plate can.
+ *
+ * `disguise` (optional, absent = off) draws the floor's lock buttons with the
+ * mystery plate's `TriggerButton` art and `pressed` state instead of
+ * `BossDoorButton`/`activate`, so every plate on the floor looks the same —
+ * zero draws, construction time only (`map/buttonSeal.ts`).
+ */
+export interface FloorLockMystery {
+  count: number
+  pool: number[]
+  disguise?: boolean
+}
+
+/** A floor with no enhanced lock buttons — the pad value for one nobody armed. */
+export function defaultFloorLockMystery(): FloorLockMystery {
+  return { count: 0, pool: [] }
+}
+
+/**
+ * Floor `level`'s enhanced-lock-button config, or undefined when it enhances
+ * none — the floor is not locked, there is no valid pool index, or `count` is
+ * 0. `count` is clamped to the floor's own button count (`floorLockButtons`):
+ * asking to enhance more buttons than the lock has just enhances all of them.
+ * Read the field through this, never directly — mirrors `floorMystery`.
+ */
+export function floorLockMystery(params: DungeonParameters, level: number): FloorLockMystery | undefined {
+  if (!floorLocked(params, level)) return undefined
+  const floor = params.levelLockMystery?.[level]
+  if (floor === undefined || !(floor.count > 0)) return undefined
+  const defs = params.mysteryButtons ?? []
+  const pool = floor.pool.filter((i) => Number.isInteger(i) && i >= 0 && i < defs.length)
+  if (pool.length === 0) return undefined
+  return { count: Math.min(floor.count, floorLockButtons(params, level)), pool, disguise: floor.disguise }
+}
+
+/**
+ * Whether floor `level`'s lock buttons are disguised as mystery plates.
+ * Independent of `floorLockMystery` — a floor may disguise its buttons
+ * without enhancing any of them, and vice versa.
+ */
+export function floorLockDisguised(params: DungeonParameters, level: number): boolean {
+  return floorLocked(params, level) && params.levelLockMystery?.[level]?.disguise === true
+}
+
 /** How long every starter-set trap room stays armed after the press. */
 export const MYSTERY_STARTER_TRAP_SECONDS = 30
 
@@ -731,6 +781,16 @@ export interface DungeonParameters {
    * floor through `floorMystery`.
    */
   levelMystery?: FloorMystery[]
+  /**
+   * Enhanced lock buttons per floor (up to `floorLockButtons(params, i)` of a
+   * locked floor's own buttons also fire a mystery payload) and the optional
+   * disguise that draws them as `TriggerButton` plates. Optional, absent =
+   * none anywhere. Purely ADDITIVE like `levelMystery`: the enhancement draws
+   * only from `ctx.mysteryRand`, strictly after every other mystery draw on
+   * the floor, so arming it moves no floor's dungeon — not even this floor's
+   * own plates. Read a floor through `floorLockMystery`/`floorLockDisguised`.
+   */
+  levelLockMystery?: FloorLockMystery[]
   /**
    * A `MUSIC_TRACKS` id per level, or the `MUSIC_DEFAULT` sentinel. Optional,
    * and unset per floor by default: a params object without it, or with every

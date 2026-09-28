@@ -15,6 +15,7 @@ import {
   defaultFloorTimer,
   defaultFloorLock,
   defaultFloorMystery,
+  defaultFloorLockMystery,
   MYSTERY_PARSE_LIMIT,
   gatewayLockedFloors,
   defaultLobby,
@@ -62,6 +63,7 @@ import type {
   DungeonBoss,
   BossSelection,
   FloorMystery,
+  FloorLockMystery,
   MysteryButton,
   MysteryMonster
 } from './parameters'
@@ -350,6 +352,32 @@ function parseMonsterCountRows(key: string, value: string, unknownKeys: string[]
 /** A pool entry nothing has been set on yet — what `mysteryButton<i>…` keys grow the pool with. */
 function emptyMysteryButton(): MysteryButton {
   return { loot: [], monsters: [], traps: [] }
+}
+
+/**
+ * Parses a `<count>:<pool index>,<pool index>,…` value — the shared grammar
+ * `mysteryFloorN` and `mysteryLockN` (enhanced lock buttons) both use. 0-based
+ * indices, repeated to weight. Returns null (after reporting) when the count
+ * itself does not parse; a malformed pool token is reported and simply
+ * dropped, same as every other row parser in this file.
+ */
+function parsePoolLine(key: string, value: string, unknownKeys: string[]): { count: number; pool: number[] } | null {
+  const colon = value.indexOf(':')
+  const countText = (colon === -1 ? value : value.slice(0, colon)).trim()
+  const count = parseInt(countText, 10)
+  if (Number.isNaN(count)) {
+    unknownKeys.push(`${key} count "${countText}"`)
+    return null
+  }
+  const pool: number[] = []
+  for (const token of (colon === -1 ? '' : value.slice(colon + 1)).split(',')) {
+    const t = token.trim()
+    if (t === '') continue
+    const n = parseInt(t, 10)
+    if (Number.isNaN(n) || n < 0) unknownKeys.push(`${key} button "${t}"`)
+    else pool.push(n)
+  }
+  return { count, pool }
 }
 
 /**
@@ -1278,6 +1306,18 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   /** the keys that named each pool index, so an index past the count can be reported */
   const mysteryKeys = new Map<number, string[]>()
   const explicitMystery = new Map<number, FloorMystery>()
+  // Enhanced lock buttons (built on the mystery pool above). Either
+  // `mysteryLockN=` or `mysteryLockDisguiseN=` on a floor is enough to declare
+  // it — same "any line rebuilds the whole array" rule as explicitMystery.
+  const explicitLockMystery = new Map<number, FloorLockMystery>()
+  const lockMysteryAt = (index: number): FloorLockMystery => {
+    let entry = explicitLockMystery.get(index)
+    if (entry === undefined) {
+      entry = defaultFloorLockMystery()
+      explicitLockMystery.set(index, entry)
+    }
+    return entry
+  }
   const claimMysteryPool = (): MysteryButton[] => {
     if (!mysteryPoolSeen) {
       params.mysteryButtons = []
@@ -1588,22 +1628,34 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     const mysteryFloorMatch = keyLower.match(/^mysteryfloor(\d+)$/)
     if (mysteryFloorMatch) {
       const levelIndex = parseInt(mysteryFloorMatch[1], 10)
-      const colon = value.indexOf(':')
-      const countText = (colon === -1 ? value : value.slice(0, colon)).trim()
-      const count = parseInt(countText, 10)
-      if (Number.isNaN(count)) {
-        result.unknownKeys.push(`${key} count "${countText}"`)
-        continue
+      const parsed = parsePoolLine(key, value, result.unknownKeys)
+      if (parsed !== null) explicitMystery.set(levelIndex, parsed)
+      continue
+    }
+    // Enhanced lock buttons: mysteryLockN=<count>:<pool index>,… (the same
+    // grammar as mysteryFloorN, reusing its parser) and
+    // mysteryLockDisguiseN=1, the per-floor "disguise as mystery plates"
+    // tickbox. Both anchored on `mysterylock`, a prefix neither
+    // `mysterybutton(\d+)(.+)` nor `mysteryfloor(\d+)` above can match, so
+    // order between the three mystery dispatchers does not matter. The
+    // disguise check is tried first only so a floor that sets nothing but the
+    // disguise still gets a bookkeeping entry without the count regex ever
+    // seeing it.
+    const mysteryLockDisguiseMatch = keyLower.match(/^mysterylockdisguise(\d+)$/)
+    if (mysteryLockDisguiseMatch) {
+      const levelIndex = parseInt(mysteryLockDisguiseMatch[1], 10)
+      lockMysteryAt(levelIndex).disguise = value === '1'
+      continue
+    }
+    const mysteryLockMatch = keyLower.match(/^mysterylock(\d+)$/)
+    if (mysteryLockMatch) {
+      const levelIndex = parseInt(mysteryLockMatch[1], 10)
+      const parsed = parsePoolLine(key, value, result.unknownKeys)
+      if (parsed !== null) {
+        const entry = lockMysteryAt(levelIndex)
+        entry.count = parsed.count
+        entry.pool = parsed.pool
       }
-      const pool: number[] = []
-      for (const token of (colon === -1 ? '' : value.slice(colon + 1)).split(',')) {
-        const t = token.trim()
-        if (t === '') continue
-        const n = parseInt(t, 10)
-        if (Number.isNaN(n) || n < 0) result.unknownKeys.push(`${key} button "${t}"`)
-        else pool.push(n)
-      }
-      explicitMystery.set(levelIndex, { count, pool })
       continue
     }
 
@@ -1760,6 +1812,36 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     })
     if (params.levelMystery.every((f) => f.count === 0 && f.pool.length === 0)) delete params.levelMystery
   }
+
+  // Enhanced lock buttons. Same shape as levelMystery just above: any
+  // mysteryLock*N= line rebuilds the whole array from scratch, then every
+  // floor's pool index is checked against the final pool — before the pool
+  // itself is possibly cleared below, so poolSize still reflects what this
+  // file actually declared.
+  if (explicitLockMystery.size > 0) {
+    const floors: FloorLockMystery[] = []
+    for (let i = 0; i < params.levels; i++) floors.push(explicitLockMystery.get(i) ?? defaultFloorLockMystery())
+    for (const index of [...explicitLockMystery.keys()].sort((a, b) => a - b)) {
+      if (index >= params.levels) result.unknownKeys.push(`mysteryLock${index}`)
+    }
+    params.levelLockMystery = floors
+  } else if (params.levelLockMystery !== undefined) {
+    while (params.levelLockMystery.length < params.levels) params.levelLockMystery.push(defaultFloorLockMystery())
+    params.levelLockMystery.length = params.levels
+  }
+  if (params.levelLockMystery !== undefined) {
+    const poolSize = params.mysteryButtons?.length ?? 0
+    params.levelLockMystery.forEach((floor, i) => {
+      const dangling = floor.pool.filter((n) => n >= poolSize)
+      if (dangling.length === 0) return
+      for (const n of dangling) result.unknownKeys.push(`mysteryLock${i} button "${n}"`)
+      floor.pool = floor.pool.filter((n) => n < poolSize)
+    })
+    if (params.levelLockMystery.every((f) => f.count === 0 && f.pool.length === 0 && f.disguise !== true)) {
+      delete params.levelLockMystery
+    }
+  }
+
   if (params.mysteryButtons !== undefined && params.mysteryButtons.length === 0) delete params.mysteryButtons
 
   // Only enabled floors get a `timerN=` line, so an imported file is sparse by
@@ -2177,6 +2259,19 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
           const floor = params.levelMystery[i]
           if (floor === undefined || (floor.count === 0 && floor.pool.length === 0)) continue
           lines.push(`mysteryFloor${i}=${floor.count}:${floor.pool.join(',')}`)
+        }
+      }
+      // Enhanced lock buttons: written only for floors that carry an
+      // enhancement, a disguise, or both — a campaign that never touches this
+      // stays byte-identical to one written before the feature existed.
+      if (params.levelLockMystery !== undefined) {
+        for (let i = 0; i < params.levels; i++) {
+          const floor = params.levelLockMystery[i]
+          if (floor === undefined) continue
+          if (floor.count > 0 || floor.pool.length > 0) {
+            lines.push(`mysteryLock${i}=${floor.count}:${floor.pool.join(',')}`)
+          }
+          if (floor.disguise === true) lines.push(`mysteryLockDisguise${i}=1`)
         }
       }
     } else if (key === 'playerTweaks') {

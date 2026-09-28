@@ -8,6 +8,56 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-27 — enhanced lock buttons: a `TriggerButton` used as a lock plate, a mystery payload on a lock trigger, two announces on one press
+**Tag:** [EMITTED]/[UNVERIFIED] — implemented against the existing
+[VERIFIED] facts for both halves (`boss_door_button.xml`/`activate` for the
+lock, `trigger_button_floor.xml`/`pressed` for a mystery plate, both entries
+above), but the COMBINATION — a lock trigger carrying a mystery payload, and a
+lock button wearing the mystery plate's art — has not itself been played.
+**Context:** issue "enhanced lock buttons" lets up to N of a locked floor's
+own lock buttons also fire a mystery payload (loot/monsters/traps/text) from
+the same campaign-wide pool, and an optional per-floor disguise draws the
+lock buttons with the mystery plate's own asset so every plate on the floor
+looks the same.
+**What is new, structurally:**
+- A `doodads/special/trigger_button_floor.xml` plate can now be the thing that
+  OPENS a locked floor's wall — previously that asset was only ever a mystery
+  plate, and the lock's own plate was always `boss_door_button.xml`. The
+  disguise tickbox swaps `buttonSeal.ts`'s `buildButtonRig` onto the mystery
+  asset/state pair (`TriggerButton`/`pressed`) with no other change: same
+  `RectangleShape`/`AreaTrigger` anchoring (`doodadOffset` plus 0.5, per the
+  2026-08-24 entry below), same `need-sync`.
+- A lock button's `AreaTrigger` — the one that already carries
+  `PlaySound`/`ChangeDoodadState` and, for a multi-button lock, the shared
+  `ChangeVariable`/`CheckVariable` countdown wiring — now ALSO carries a
+  mystery button's payload nodes (`AnnounceText`, loot/monster `SpawnObject`s,
+  disabled `ProjectileSpewer`s + toggles), appended after the existing
+  connections. So a single press can fire, in order: the hatch sound, the
+  plate's state change, the lock countdown, AND a payload announcement — two
+  `AnnounceText`s from one `AreaTrigger` when the button both counts down past
+  a `k ≥ 1` remainder (which announces "k buttons remain" from the shared
+  `CheckVariable`, a separate node) and carries payload text. On a
+  single-button lock the wall-opened announcement is a third. Nothing in the
+  existing rig objected to a node carrying more than one `AnnounceText`
+  target, and `NodeAreaTrigger.connections` has no arity limit, but this is
+  the first time this repo has actually built that shape.
+- A lock button may sit in an Entrance or Shop room (`pickButtonTile` only
+  refuses locked rooms), so an enhanced button's payload can spawn loot or
+  monsters there — untested territory for a "monsters appear" payload in a
+  room the party treats as safe.
+**Evidence:** none yet — no playtest. Recorded so the combination is tracked
+as its own claim rather than assumed to inherit both halves' [VERIFIED]
+status.
+**Impact:** `src/generator/map/buttonSeal.ts` (`LockButton`, `Level.lockButtons`,
+the disguise branch in `buildButtonRig`), `src/generator/mystery/rig.ts`
+(`emitPayload` extraction, phases C/D), `src/generator/mystery/placement.ts`
+(plate avoidance reads `level.lockButtons`). Follow-up: an in-game playtest of
+a multi-button locked floor with one enhanced button carrying loot AND a
+disguise, watching for (a) the plate reading correctly as pressed, (b) both
+announces displaying without clobbering each other, (c) the payload spawns
+landing somewhere sane in an Entrance/Shop room if a lock button ever rolls
+into one.
+
 ### 2026-09-27 — chest roll tables; `shooter_valuables` does nothing; the mystery starter set verified in game
 **Tag:** [VERIFIED] for the chest tables (read from
 `editor/assetsExtract/items/chest_*.xml`) and for `shooter_valuables` (owner,

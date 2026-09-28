@@ -125,6 +125,15 @@ export class GenerationContext {
    */
   floorLockButtons = 0
 
+  /**
+   * Whether this floor's lock buttons are disguised as mystery plates
+   * (enhanced lock buttons, per-floor `disguise` tickbox) — `TriggerButton`
+   * art driven to `pressed` instead of `BossDoorButton`/`activate`. Set
+   * alongside `floorLockButtons`; construction-time only, and read straight
+   * off this field rather than re-deriving it, exactly like `floorLocked`.
+   */
+  floorLockDisguise = false
+
   monsters: Monster[] = []
   items: Item[] = []
   doodads: Doodad[] = []

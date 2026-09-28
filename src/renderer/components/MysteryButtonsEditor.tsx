@@ -9,10 +9,19 @@ import {
   MYSTERY_LOOT_GROUPS,
   MYSTERY_NAME_MAX,
   MYSTERY_TEXT_MAX,
+  defaultFloorLockMystery,
   defaultFloorMystery,
+  floorLockButtons,
   mysteryStarterPool
 } from '../../generator'
-import type { DungeonParameters, FloorMystery, MysteryButton, MysteryMonster, ValidationIssue } from '../../generator'
+import type {
+  DungeonParameters,
+  FloorLockMystery,
+  FloorMystery,
+  MysteryButton,
+  MysteryMonster,
+  ValidationIssue
+} from '../../generator'
 import { NumberField, Section } from './fields'
 import { InfoTip } from './InfoTip'
 import { MonsterFilterBar, useMonsterFilter } from './MonsterFilterBar'
@@ -142,6 +151,53 @@ export function MysteryButtonsEditor({ params, issues, onChange }: MysteryButton
     commit(clone(pool), next)
   }
 
+  /** The lock-enhancement list padded to the floor count, so indexing is always safe. */
+  const lockFloors = (): FloorLockMystery[] => {
+    const next = (params.levelLockMystery ?? []).map((f): FloorLockMystery => ({ count: f.count, pool: [...f.pool], ...(f.disguise ? { disguise: true } : {}) }))
+    while (next.length < levels) next.push(defaultFloorLockMystery())
+    return next
+  }
+
+  const commitLock = (nextFloors: FloorLockMystery[]) => {
+    const next = { ...params }
+    if (nextFloors.some((f) => f.count !== 0 || f.pool.length > 0 || f.disguise)) next.levelLockMystery = nextFloors
+    else delete next.levelLockMystery
+    onChange(next)
+  }
+
+  const setLockFloor = (level: number, change: Partial<FloorLockMystery>) => {
+    const next = lockFloors()
+    next[level] = { ...next[level], ...change }
+    commitLock(next)
+  }
+
+  /** Stores `weight` copies of `button` in the floor's enhancement pick, kept in ascending order. */
+  const setLockWeight = (level: number, button: number, weight: number) => {
+    const current = lockFloors()[level]
+    const others = current.pool.filter((n) => n !== button)
+    const picks = [...others, ...Array.from({ length: Math.max(0, weight) }, () => button)].sort((a, b) => a - b)
+    setLockFloor(level, { pool: picks })
+  }
+
+  // Clamps each target floor's count to that floor's OWN lock-button count —
+  // floor 3 might allow 5 enhancements where floor 1 only has 2 buttons total
+  // — and never writes onto a floor that isn't locked at all.
+  const copyLockDown = (level: number) => {
+    const next = lockFloors()
+    const source = next[level]
+    for (let i = level + 1; i < levels; i++) {
+      const cap = floorLockButtons(params, i)
+      if (cap === 0) continue
+      next[i] = { count: Math.min(source.count, cap), pool: [...source.pool], disguise: source.disguise }
+    }
+    commitLock(next)
+  }
+
+  const lockFloorList = lockFloors()
+  const lockEnhancedFloors = lockFloorList
+    .slice(0, levels)
+    .filter((f) => f.count > 0 || f.disguise).length
+
   return (
     <div className="mystery-buttons">
       <p className="hint">
@@ -202,6 +258,51 @@ export function MysteryButtonsEditor({ params, issues, onChange }: MysteryButton
               ))}
           </div>
         )}
+      </Section>
+
+      <Section title="Lock buttons per floor" badge={lockEnhancedFloors > 0 ? `${lockEnhancedFloors}` : undefined}>
+        <p className="hint">
+          A locked floor's own buttons — the ones that must all be pressed to open its exit — can be
+          enhanced. An enhanced lock button still counts toward opening the room, but pressing it ALSO
+          fires a pool button drawn from the picks below, so the party is gambling on whether to press a
+          lock button that might unleash something, or hunt down the mystery plates first.
+        </p>
+        {messages(issues, 'levelLockMystery')}
+        {pool.length === 0 && <p className="hint">Add at least one button to the pool first.</p>}
+        <div className="floor-mystery">
+          {Array.from({ length: levels }, (_, level) => {
+            const cap = floorLockButtons(params, level)
+            const floor = lockFloorList[level]
+            return (
+              <FloorPicker
+                key={level}
+                level={level}
+                floor={floor}
+                pool={pool}
+                issues={issues}
+                fieldPrefix="levelLockMystery"
+                countLabel={`Enhanced lock buttons (of ${cap})`}
+                max={cap}
+                notLocked={cap === 0}
+                onCount={(count) => setLockFloor(level, { count: Math.min(count, cap) })}
+                onWeight={(button, weight) => setLockWeight(level, button, weight)}
+                onCopyDown={cap > 0 && level < levels - 1 ? () => copyLockDown(level) : undefined}
+                extra={
+                  cap > 0 && (
+                    <label className="checkbox">
+                      <input
+                        type="checkbox"
+                        checked={!!floor.disguise}
+                        onChange={(e) => setLockFloor(level, { disguise: e.target.checked ? true : undefined })}
+                      />
+                      <span>Disguise lock buttons as mystery plates</span>
+                    </label>
+                  )
+                }
+              />
+            )
+          })}
+        </div>
       </Section>
     </div>
   )
@@ -377,22 +478,49 @@ function MonsterCountListEditor({ value, onChange, issuePrefix, issues }: Monste
 
 interface FloorPickerProps {
   level: number
-  floor: FloorMystery
+  floor: FloorMystery | FloorLockMystery
   pool: MysteryButton[]
   issues: ValidationIssue[]
   onCount: (count: number) => void
   onWeight: (button: number, weight: number) => void
   onCopyDown?: () => void
+  /** `levelMystery` (plates, the default) or `levelLockMystery` (enhanced lock buttons) — drives the validation field paths. */
+  fieldPrefix?: string
+  /** "Buttons on this floor" for plates; "Enhanced lock buttons (of N)" for a lock's own buttons. */
+  countLabel?: string
+  max?: number
+  /**
+   * True for a floor with no lock at all — renders a note instead of the
+   * picker, since there is nothing here to enhance. Only meaningful for the
+   * lock-button use.
+   */
+  notLocked?: boolean
+  /** Rendered after "Copy to floors below" — the disguise tickbox, for the lock-button use. */
+  extra?: React.ReactNode
 }
 
-/** One floor: how many plates, and a checkbox plus weight per pool button. */
-function FloorPicker({ level, floor, pool, issues, onCount, onWeight, onCopyDown }: FloorPickerProps) {
+/** One floor: how many plates (or enhanced lock buttons), and a checkbox plus weight per pool button. */
+function FloorPicker({
+  level,
+  floor,
+  pool,
+  issues,
+  onCount,
+  onWeight,
+  onCopyDown,
+  fieldPrefix = 'levelMystery',
+  countLabel = 'Buttons on this floor',
+  max = MAX_MYSTERY_PER_FLOOR,
+  notLocked,
+  extra
+}: FloorPickerProps) {
   const weightOf = (button: number) => floor.pool.filter((n) => n === button).length
   const picked = pool.map((_, i) => i).filter((i) => weightOf(i) > 0)
-  const summary =
-    floor.count > 0 && picked.length > 0
-      ? `${floor.count} from ${picked.map((i) => `#${i + 1}${weightOf(i) > 1 ? ` ×${weightOf(i)}` : ''}`).join(', ')}`
-      : 'none'
+  const summary = notLocked
+    ? 'not locked'
+    : floor.count > 0 && picked.length > 0
+    ? `${floor.count} from ${picked.map((i) => `#${i + 1}${weightOf(i) > 1 ? ` ×${weightOf(i)}` : ''}`).join(', ')}`
+    : 'none'
 
   return (
     <details className="pool-level">
@@ -401,46 +529,60 @@ function FloorPicker({ level, floor, pool, issues, onCount, onWeight, onCopyDown
         <span className="pool-summary">{summary}</span>
       </summary>
       <div className="section-body">
-        <div className="field-grid">
-          <NumberField
-            label="Buttons on this floor"
-            field={`levelMystery.${level}.count`}
-            value={floor.count}
-            onChange={(v) => onCount(Number.isNaN(v) ? 0 : v)}
-            issues={issues}
-            min={0}
-            max={MAX_MYSTERY_PER_FLOOR}
-            title="How many plates this floor hides. Each one independently becomes one of the ticked buttons, by weight."
-          />
-        </div>
-        {messages(issues, `levelMystery.${level}.pool`)}
-        <div className="pool-checkboxes">
-          {pool.map((button, i) => {
-            const weight = weightOf(i)
-            return (
-              <label key={i} className="pool-checkbox" title={buttonSummary(button)}>
-                <input type="checkbox" checked={weight > 0} onChange={(e) => onWeight(i, e.target.checked ? 1 : 0)} />
-                <span>{buttonLabel(button, i)}</span>
-                {weight > 0 && (
-                  <input
-                    type="number"
-                    className="pool-weight"
-                    min={1}
-                    max={MAX_WEIGHT}
-                    value={weight}
-                    title="Weight — how many slots this button takes in the floor's pick"
-                    onClick={(ev) => ev.preventDefault()}
-                    onChange={(ev) => onWeight(i, Math.min(MAX_WEIGHT, Number(ev.target.value) || 1))}
+        {messages(issues, `${fieldPrefix}.${level}`)}
+        {notLocked ? (
+          <p className="hint">Not locked — set lock buttons under Standard Settings.</p>
+        ) : (
+          <>
+            {pool.length === 0 ? (
+              <p className="hint">Add at least one button to the pool first.</p>
+            ) : (
+              <>
+                <div className="field-grid">
+                  <NumberField
+                    label={countLabel}
+                    field={`${fieldPrefix}.${level}.count`}
+                    value={floor.count}
+                    onChange={(v) => onCount(Number.isNaN(v) ? 0 : v)}
+                    issues={issues}
+                    min={0}
+                    max={max}
+                    title="How many plates this floor hides. Each one independently becomes one of the ticked buttons, by weight."
                   />
+                </div>
+                {messages(issues, `${fieldPrefix}.${level}.pool`)}
+                <div className="pool-checkboxes">
+                  {pool.map((button, i) => {
+                    const weight = weightOf(i)
+                    return (
+                      <label key={i} className="pool-checkbox" title={buttonSummary(button)}>
+                        <input type="checkbox" checked={weight > 0} onChange={(e) => onWeight(i, e.target.checked ? 1 : 0)} />
+                        <span>{buttonLabel(button, i)}</span>
+                        {weight > 0 && (
+                          <input
+                            type="number"
+                            className="pool-weight"
+                            min={1}
+                            max={MAX_WEIGHT}
+                            value={weight}
+                            title="Weight — how many slots this button takes in the floor's pick"
+                            onClick={(ev) => ev.preventDefault()}
+                            onChange={(ev) => onWeight(i, Math.min(MAX_WEIGHT, Number(ev.target.value) || 1))}
+                          />
+                        )}
+                      </label>
+                    )
+                  })}
+                </div>
+                {onCopyDown && (
+                  <button type="button" className="copy-down" onClick={onCopyDown}>
+                    Copy to floors below
+                  </button>
                 )}
-              </label>
-            )
-          })}
-        </div>
-        {onCopyDown && (
-          <button type="button" className="copy-down" onClick={onCopyDown}>
-            Copy to floors below
-          </button>
+              </>
+            )}
+            {extra}
+          </>
         )}
       </div>
     </details>

@@ -40,7 +40,12 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    post-acceptance terms, and the per-floor MYSTERY BUTTONS from
    `ctx.mysteryRand` (`seed + 5`), likewise post-acceptance and last of all the
    per-floor rigs — per plate one `iRand` for its tile then one for which pool
-   button it is, then one per spewer its traps place. Mixing them shifts the streams after and every
+   button it is, then one per spewer its traps place; THEN, for a locked
+   floor's enhanced lock buttons (up to `floorLockButtons` of them also firing
+   a mystery payload), one `iRand` per enhanced button for its own pool entry,
+   then one per spewer its traps place — strictly after every ordinary plate
+   draw above, so arming the enhancement never moves this floor's own plates,
+   only a later floor's mysteryRand draws. Mixing them shifts the streams after and every
    existing seed changes. A path with nothing to draw must return *before*
    touching a stream.
 3. **No unbounded loops.** Every retry loop in the port is bounded
@@ -196,7 +201,18 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    plates, their loot/monster spawns and their disabled spewers are appended
    after every other rig, so arming a floor moves only a later floor's own
    plate positions. A plate is a doodad the player walks over, never a
-   collider — `map/sealCheck.ts` excludes `TriggerButton` for that reason. That is only safe because a script node carries no collision: a
+   collider — `map/sealCheck.ts` excludes `TriggerButton` for that reason.
+   **Enhanced lock buttons** build on both #67 and the lock above: up to
+   `floorLockButtons` of a locked floor's own lock buttons ALSO fire a mystery
+   payload (`floorLockMystery`, its own per-floor pick list, separate from
+   `levelMystery`), drawn from `ctx.mysteryRand` strictly after every ordinary
+   plate on the floor — one `iRand` per enhanced button for its pool entry,
+   then one per spewer its traps place — so arming it never moves this floor's
+   own plates, only a later floor. The optional per-floor **disguise**
+   (`floorLockDisguised`) draws the floor's lock buttons with the plate's own
+   `TriggerButton` art and `pressed` state instead of `BossDoorButton`/
+   `activate`, at construction time off zero draws — a lossless art swap, the
+   same shape as the arena's bodyguard-twin substitution. That is only safe because a script node carries no collision: a
    trap cannot seal a route, so a floor `map/reachability.ts` has already
    accepted stays finishable however it is trapped. Adding, removing or reordering lobbies must leave every
    `levels/level*.xml` byte-identical — only which extra files exist, and which

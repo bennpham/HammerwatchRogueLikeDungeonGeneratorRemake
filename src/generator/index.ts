@@ -1,6 +1,6 @@
 import { GenerationContext } from './core/context'
 import { Level } from './map/level'
-import { DungeonParameters, defaultParameters, bossFights, arenaMode, defaultSurvivalOptions, floorBoss, floorBossCount, floorLockButtons } from './config/parameters'
+import { DungeonParameters, defaultParameters, bossFights, arenaMode, defaultSurvivalOptions, floorBoss, floorBossCount, floorLockButtons, floorLockDisguised } from './config/parameters'
 import { validateParameters, ValidationResult } from './config/validation'
 import { emitTweakFiles } from './tweak/overrides'
 import { DEFAULT_LOBBY_PRESET_ID, buildLobby, lobbyPresetById } from './lobby'
@@ -87,6 +87,9 @@ export {
   arenaUsesBodyguards,
   defaultFloorMystery,
   floorMystery,
+  defaultFloorLockMystery,
+  floorLockMystery,
+  floorLockDisguised,
   mysteryStarterPool,
   MYSTERY_STARTER_TRAP_SECONDS,
   MYSTERY_PARSE_LIMIT,
@@ -96,7 +99,7 @@ export {
   MYSTERY_TEXT_MAX,
   MAX_MYSTERY_TRAP_SECONDS
 } from './config/parameters'
-export type { BossSelection, MysteryButton, MysteryMonster, FloorMystery } from './config/parameters'
+export type { BossSelection, MysteryButton, MysteryMonster, FloorMystery, FloorLockMystery } from './config/parameters'
 export { MYSTERY_LOOT_DEFS, MYSTERY_LOOT_GROUPS, mysteryLootById } from './objects/mysteryLoot'
 export type { LootDef } from './objects/mysteryLoot'
 export { BUFF_DEFS, BUFF_GROUPS, BUFF_HELPFUL_IDS, buffById } from './objects/buffTypes'
@@ -417,6 +420,7 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
     // Issue #69: same timing, same reason — a locked floor is sealed too.
     ctx.floorLockButtons = floorLockButtons(params, i)
     ctx.floorLocked = ctx.floorLockButtons > 0
+    ctx.floorLockDisguise = floorLockDisguised(params, i)
 
     let level: Level | null = null
     for (let attempt = 0; attempt < MAX_LEVEL_ATTEMPTS; attempt++) {
