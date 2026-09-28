@@ -550,17 +550,23 @@ function trapGauntlet(): DungeonParameters {
         { projectile: 'shooter_fireball', direction: 'left', spread: 0, spawnRateMs: 900, count: 3 },
         { projectile: 'shooter_fireball', direction: 'right', spread: 0, spawnRateMs: 900, count: 3 }
       ],
+      // Floors 4-5 carry the lethal ammunition (damage >= 50: boulders,
+      // large fireballs, spikes). An always-on trap may fire it only in
+      // straight, timeable lanes, never fanned out — a sprayed boulder or
+      // spike cannot be dodged, and a lock button or the last corridor can
+      // land inside it (playtest, 2026-09-28). tests/presets.test.ts holds
+      // every preset to this; mystery buttons are exempt.
       [
-        { projectile: 'shooter_stone_ball', direction: 'up', spread: 0.3, spawnRateMs: 800, count: 3 },
-        { projectile: 'shooter_stone_ball', direction: 'down', spread: 0.3, spawnRateMs: 800, count: 3 },
-        { projectile: 'shooter_fireball_2', direction: 'left', spread: 0, spawnRateMs: 800, count: 3 },
-        { projectile: 'shooter_fireball_2', direction: 'right', spread: 0, spawnRateMs: 800, count: 3 }
+        { projectile: 'shooter_stone_ball', direction: 'up', spread: 0, spawnRateMs: 2500, count: 1 },
+        { projectile: 'shooter_stone_ball', direction: 'down', spread: 0, spawnRateMs: 2500, count: 1 },
+        { projectile: 'shooter_fireball_2', direction: 'left', spread: 0, spawnRateMs: 1000, count: 2 },
+        { projectile: 'shooter_fireball_2', direction: 'right', spread: 0, spawnRateMs: 1000, count: 2 }
       ],
       [
         { projectile: 'shooter_arrow', direction: 'up', spread: 0.5, spawnRateMs: 700, count: 4 },
-        { projectile: 'shooter_spike', direction: 'down', spread: 0.5, spawnRateMs: 700, count: 4 },
+        { projectile: 'shooter_spike', direction: 'down', spread: 0, spawnRateMs: 1200, count: 3 },
         { projectile: 'shooter_fireball', direction: 'left', spread: 0.5, spawnRateMs: 700, count: 4 },
-        { projectile: 'enemy_boss_dragon_fireball', direction: 'right', spread: 0.5, spawnRateMs: 900, count: 3 }
+        { projectile: 'enemy_boss_dragon_fireball', direction: 'right', spread: 0.5, spawnRateMs: 900, count: 2 }
       ]
     ],
     // buttons rise with the traps, so the trapped rooms have to be crossed

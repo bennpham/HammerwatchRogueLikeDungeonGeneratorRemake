@@ -35,6 +35,7 @@ import {
 import { corpseCollision } from '../src/generator/objects/actorCollision'
 import { isScatterMode, waveSpawnMode } from '../src/generator/config/parameters'
 import { mysteryKit } from '../src/generator/config/presetMystery'
+import { projectileById } from '../src/generator/objects/projectileTypes'
 
 const CLASSIC_PRESETS = CAMPAIGN_PRESETS.filter((p) => p.group === 'classic')
 
@@ -223,6 +224,32 @@ describe('campaign presets', () => {
         for (const [i, wave] of boss.waves.entries()) {
           expectWaveScatterSafe(wave, `${preset.id} floor ${level + 1} boss wave ${i + 1}`)
         }
+      }
+    }
+  })
+
+  // Playtest rule (2026-09-28): an always-on floor trap may fire a lethal
+  // projectile (spike, large fireball, boulder) in straight lanes the party
+  // can time, never fanned out — a spray of them cannot be dodged. Mystery
+  // buttons are exempt (pressing one is a gamble), but their traps must
+  // switch off again so a deadly room never stays sealed for good.
+  it('fires lethal projectiles on floor traps only in timeable lanes, and never arms a mystery trap forever', () => {
+    const LETHAL_DAMAGE = 50
+    for (const preset of CAMPAIGN_PRESETS) {
+      const params = preset.build()
+      const rows = [
+        ...(params.levelTraps ?? []).flatMap((traps, i) => traps.map((row) => ({ row, at: `floor ${i + 1}` }))),
+        ...(params.levelBoss ?? []).flatMap((boss, i) =>
+          boss.enabled ? boss.waves.flatMap((wave) => (wave.traps ?? []).map((row) => ({ row, at: `floor ${i + 1} boss` }))) : []
+        )
+      ]
+      for (const { row, at } of rows) {
+        const label = `${preset.id} ${at}: ${row.projectile} ${row.direction}`
+        if (projectileById(row.projectile)!.damage < LETHAL_DAMAGE) continue
+        expect(row.count, label).toBeLessThanOrEqual(row.spread > 0 ? 1 : 3)
+      }
+      for (const button of params.mysteryButtons ?? []) {
+        if (button.traps.length > 0) expect(button.trapSeconds ?? 0, `${preset.id}: ${button.name}`).toBeGreaterThan(0)
       }
     }
   })
