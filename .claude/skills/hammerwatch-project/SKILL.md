@@ -398,7 +398,11 @@ show off floor bosses, multi-boss lineups, survival arenas, chained arenas and
 per-floor traps, timers and buffs. Beat the Clock, Boss Rush, Frozen Descent,
 The Long Haul and Trap Gauntlet also hide extra lock buttons (`buttonLocks`) and
 are registered WITHOUT `withGatewayLocks`, which would overwrite them. The other
-three keep the derived single-button locks. The header text lives only in
+three keep the derived single-button locks. Lunch Break, Boss Rush, Frozen
+Descent, The Long Haul and Trap Gauntlet also carry mystery data through
+`presetMystery.ts`. Boss Rush uses reward-only enhanced lock buttons. Trap
+Gauntlet has trap-room plates plus trapped lock buttons from floor 2 on. Every
+preset carrying plates runs the `moves no floor` test. The header text lives only in
 `PRESET_GROUPS`. The escape-floor / shared-arena-size tests in
 `tests/presets.test.ts` apply to the `classic` group only. Every preset in either
 group must validate, generate, stay deterministic and round-trip through
