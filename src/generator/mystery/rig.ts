@@ -94,7 +94,7 @@ export const MYSTERY_ANNOUNCE_MS = 2500
  * editor lists 0 Title, 1 Subtitle (global), 2 Regular (timer ticks),
  * 3 Pickup (local to its node). [VERIFIED] in game, owner playtest 2026-09-26.
  */
-export const MYSTERY_ANNOUNCE_TYPE = 1
+export const MYSTERY_ANNOUNCE_TYPE = 3
 
 /**
  * An ENHANCED LOCK BUTTON's payload text goes on Pickup (3), which pops up
