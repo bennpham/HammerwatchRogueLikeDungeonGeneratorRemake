@@ -16,6 +16,8 @@ import { oneOfEachUpgrade } from '../levelTemplate/surgery'
 import type { BossTrap, BossWave, DungeonParameters, FloorTrap } from './parameters'
 import { MUSIC_DEFAULT } from '../music/tracks'
 import { CLAUDE_PRESETS } from './claudePresets'
+import { deepLoot, escapePicks, midLoot, mysteryButton, mysteryKit, shallowLoot } from './presetMystery'
+import type { MysteryPicks } from './presetMystery'
 
 /**
  * The headers the preset dropdown groups presets under — rendered as greyed,
@@ -286,24 +288,174 @@ function bonusWaves(): BossWave[] {
   ]
 }
 
+// --- mystery buttons ------------------------------------------------------------
+// Two plates on every floor and one on the escape floor, themed to each
+// preset's acts and ramped by depth — see presetMystery.ts. The plates draw
+// only from `ctx.mysteryRand` after a floor is accepted, so arming them moves
+// no floor's rooms, walls, actors or items (invariant 8).
+
 /**
- * The presets, in dropdown order. `castle` is `defaultParameters()` verbatim,
- * so the first entry is always what the app opens with.
+ * Castle's plates follow its acts: vermin and flower beds, then the crypt's
+ * skeletons and archers, the arcane floors' eyes and wisps, and the liches at
+ * the bottom.
+ */
+function castleMystery(): Pick<DungeonParameters, 'mysteryButtons' | 'levelMystery'> {
+  const kit = mysteryKit()
+  return {
+    mysteryButtons: kit.buttons,
+    levelMystery: [
+      kit.pick(2, shallowLoot(), [
+        ['Tick nest', 5], ['Bat swarm', 4], ['Maggot brood', 3], ['Flower bed', 4],
+        ['Arrow storm', 3], ['Fireball ring', 3]
+      ]),
+      kit.pick(2, shallowLoot(), [
+        ['Maggot brood', 3], ['Slime pit', 3], ['Skeleton squad', 4], ['Archer volley', 4], ['Tick nest', 2],
+        ['Arrow storm', 3], ['Axe mill', 3]
+      ]),
+      kit.pick(2, midLoot(), [
+        ['Eye cluster', 4], ['Wisps', 4], ['Necromancer', 4], ['Nova towers', 3],
+        ['Purple drift', 3], ['Fireball ring', 3]
+      ]),
+      kit.pick(2, midLoot(), [
+        ['Skeleton squad', 4], ['Archer volley', 4], ['Necromancer', 3], ['Wisps', 3], ['Drain tracking', 1],
+        ['Axe mill', 3], ['Spike gauntlet', 2], ['Big fireball cross', 2]
+      ]),
+      kit.pick(2, midLoot(), [
+        ['Tick nest', 3], ['Gold beetles', 3], ['Bat swarm', 3], ['Maggot brood', 3], ['Flower bed', 3],
+        ['Poison nova', 3], ['Boulder run', 2], ['Arrow storm', 2]
+      ]),
+      kit.pick(2, deepLoot(['Defense upgrade II']), [
+        ['Skeleton squad', 4], ['Eye cluster', 4], ['Archer volley', 3], ['Nova towers', 2],
+        ['Fire and frost tracking', 2], ['Lich council', 1],
+        ['Death orbs', 2], ['Spike gauntlet', 2], ['Purple drift', 3]
+      ]),
+      kit.pick(2, deepLoot(['Damage upgrade II', 'Health upgrade II']), [
+        ['Lich council', 3], ['Necromancer', 3], ['Wisps', 3], ['Eye cluster', 2], ['Nova towers', 2],
+        ['Kamikazes', 1], ['Drain tracking', 1],
+        ['Death orbs', 3], ["Dragon's breath", 1], ['Purple drift', 2], ['Big fireball cross', 1]
+      ]),
+      kit.pick(1, escapePicks('Bat swarm'))
+    ]
+  }
+}
+
+/**
+ * Desert's plates are a temple's treasury: heavy on coins and diamonds, with
+ * scarabs guarding the hoards, temple guards early, and the mummy tomb and
+ * Anubis' own fire held back for the last floors before the boss.
+ */
+function desertMystery(): Pick<DungeonParameters, 'mysteryButtons' | 'levelMystery'> {
+  const kit = mysteryKit([
+    mysteryButton('Scarab hoard', 'Scarabs guard a hoard', {
+      monsters: [['tick2', 4], ['tick2#0', 2]],
+      loot: [['valuable_8', 2], ['valuable_9', 1]]
+    }),
+    mysteryButton('Tomb offering', 'An offering to the sun', {
+      loot: [['valuable_diamond_small', 2], ['valuable_diamond_small_red', 1]]
+    }),
+    mysteryButton('Temple guards', 'Temple guards!', {
+      monsters: [['guard_desert', 8], ['guard_desert_range', 4]]
+    }),
+    mysteryButton('Sun priests', 'The priests awaken', {
+      monsters: [['lich_desert', 2], ['mummy_ranged', 4]]
+    })
+  ])
+  const treasure: MysteryPicks = [['Tomb offering', 2], ['Gold stash', 1]]
+  return {
+    mysteryButtons: kit.buttons,
+    levelMystery: [
+      // the outdoor bug floor ahead of the temple
+      kit.pick(2, shallowLoot(), [
+        ['Tick nest', 5], ['Maggot brood', 3], ['Flower bed', 4], ['Bat swarm', 3],
+        ['Arrow storm', 3], ['Fireball ring', 3]
+      ]),
+      kit.pick(2, shallowLoot(), treasure, [
+        ['Temple guards', 6], ['Gold beetles', 3], ['Scarab hoard', 3], ['Tick nest', 2],
+        ['Arrow storm', 3], ['Big fireball cross', 3]
+      ]),
+      kit.pick(2, midLoot(), treasure, [
+        ['Temple guards', 4], ['Scarab hoard', 3], ['Spider nest', 3], ['Mummy tomb', 2], ['Gold beetles', 3],
+        ['Big fireball cross', 3], ['Spike gauntlet', 3]
+      ]),
+      kit.pick(2, midLoot(), treasure, [
+        ['Mummy tomb', 3], ['Sun priests', 3], ['Temple guards', 3], ['Spider nest', 3], ['Scarab hoard', 3],
+        ['Boulder run', 2], ['Fireball ring', 2], ['Spike gauntlet', 2]
+      ]),
+      kit.pick(2, deepLoot(['Damage upgrade II', 'Defense upgrade II']), treasure, [
+        ['Mummy tomb', 3], ['Spider nest', 3], ['Fire pillars', 3], ['Fire floaters', 3], ['Sun priests', 2],
+        ['Kamikazes', 1],
+        ["Anubis' wrath", 2], ['Big fireball cross', 2], ['Boulder run', 2], ['Death orbs', 1]
+      ]),
+      // the breather floor before the mummy rush — the treasury's richest
+      kit.pick(2, deepLoot(['Health upgrade II']), treasure, treasure, [
+        ['Gold beetles', 4], ['Scarab hoard', 4], ['Spider nest', 3], ['Tick nest', 3], ['Flower bed', 2],
+        ['Arrow storm', 3], ['Fireball ring', 3]
+      ]),
+      kit.pick(1, escapePicks('Spider nest'))
+    ]
+  }
+}
+
+/**
+ * Bonus's plates stay in the bonus tilesets' castle: an ambush of its own
+ * skeletons and archers early, the crypt and the arcane floors after, and the
+ * lich council waiting on the last floor before the boss.
+ */
+function bonusMystery(): Pick<DungeonParameters, 'mysteryButtons' | 'levelMystery'> {
+  const kit = mysteryKit([
+    mysteryButton('Bonus ambush', 'Ambush!', {
+      monsters: [['bonus_skeleton1', 14], ['bonus_archer1', 6]]
+    })
+  ])
+  return {
+    mysteryButtons: kit.buttons,
+    levelMystery: [
+      kit.pick(2, shallowLoot(), [
+        ['Bonus ambush', 6], ['Skeleton squad', 3], ['Archer volley', 3], ['Bat swarm', 3],
+        ['Arrow storm', 3], ['Axe mill', 3]
+      ]),
+      kit.pick(2, shallowLoot(), [
+        ['Skeleton squad', 4], ['Archer volley', 4], ['Bonus ambush', 4], ['Necromancer', 2],
+        ['Arrow storm', 3], ['Purple drift', 3]
+      ]),
+      kit.pick(2, midLoot(), [
+        ['Skeleton squad', 4], ['Archer volley', 3], ['Necromancer', 3], ['Nova towers', 2],
+        ['Fire and frost tracking', 2], ['Bonus ambush', 2],
+        ['Axe mill', 3], ['Spike gauntlet', 2], ['Purple drift', 2]
+      ]),
+      kit.pick(2, deepLoot(['Mana upgrade II']), [
+        ['Wisps', 4], ['Necromancer', 3], ['Nova towers', 3], ['Eye cluster', 2], ['Drain tracking', 2],
+        ['Lich council', 1],
+        ['Purple drift', 3], ['Death orbs', 2], ['Frost wall', 2]
+      ]),
+      kit.pick(2, deepLoot(['Damage upgrade II', 'Defense upgrade II']), [
+        ['Lich council', 3], ['Eye cluster', 3], ['Fire pillars', 2], ['Fire floaters', 2], ['Wisps', 3],
+        ['Kamikazes', 2],
+        ['Death orbs', 3], ["Dragon's breath", 1], ['Purple drift', 2], ['Big fireball cross', 1]
+      ]),
+      kit.pick(1, escapePicks('Wisps'))
+    ]
+  }
+}
+
+/**
+ * The presets, in dropdown order. `castle` is `defaultParameters()` plus its
+ * mystery plates; the app itself opens on the plate-free `defaultParameters()`.
  */
 const CLASSIC_PRESETS: readonly CampaignPreset[] = [
   {
     id: 'castle',
     label: 'Castle (default)',
     description:
-      '7 floors through the mixed castle themes — four act floors, then three boss rushes.',
+      '7 floors through the mixed castle themes — four act floors, then three boss rushes, with two mystery buttons hidden on every floor.',
     group: 'classic',
-    build: () => defaultParameters()
+    build: () => ({ ...defaultParameters(), ...castleMystery() })
   },
   {
     id: 'desert',
     label: 'Desert',
     description:
-      '7 floors from the outdoor bug swarms through Temple of the Sun mobs and a mummy mini-boss rush, then Anubis or the worm.',
+      '7 floors from the outdoor bug swarms through Temple of the Sun mobs and a mummy mini-boss rush, then Anubis or the worm, with the temple treasury hidden under mystery buttons.',
     group: 'classic',
     // Floor 0 is an outdoor bug/beast floor ahead of the desert proper. The
     // two guard floors mob the party in numbers but barely scratch it, so the
@@ -351,6 +503,7 @@ const CLASSIC_PRESETS: readonly CampaignPreset[] = [
       // the seventh is the escape floor, played after the boss — see levelOrder
       themes: ['g_mixed', 'h', 'i', 'i_symbols', 'i_mixed', 'g_mixed', 'i_mixed'],
       levelOrder: shippedOrder(7),
+      ...desertMystery(),
       boss: withBoss('i_mixed', ['boss_anubis', 'boss_worm'], desertWaves()),
       lobbies: [
         { ...defaultLobby('BETA-dungeon-prep'), music: 'desert_village' },
@@ -445,7 +598,7 @@ const CLASSIC_PRESETS: readonly CampaignPreset[] = [
     id: 'bonus',
     label: 'Bonus Gauntlet',
     description:
-      '5 floors of the bonus tilesets, escalating from bonus mobs to a mixed boss floor.',
+      '5 floors of the bonus tilesets, escalating from bonus mobs to a mixed boss floor, with two mystery buttons hidden on every floor.',
     group: 'classic',
     build: () => withGatewayLocks({
       ...defaultParameters(),
@@ -469,6 +622,7 @@ const CLASSIC_PRESETS: readonly CampaignPreset[] = [
       // bonus5 twice: the escape floor after the boss stays on the last tileset
       themes: ['bonus1', 'bonus2', 'bonus3', 'bonus4', 'bonus5', 'bonus5'],
       levelOrder: shippedOrder(6),
+      ...bonusMystery(),
       boss: withBoss(
         'bonus5',
         ['boss_knight', 'boss_lich', 'boss_krilith', 'boss_dragon'],
@@ -634,7 +788,7 @@ const PRE_ALPHA_PRESETS: readonly CampaignPreset[] = [
 
 /**
  * Every campaign preset the dropdown offers: the three classics first (castle
- * is the app's default and stays at index 0), then the eight Claude-generated
+ * is the app's default and stays at index 0), then the ten Claude-generated
  * ones — see `claudePresets.ts` — then Pre-Alpha. `PRESET_GROUPS` is what the
  * renderer groups and orders them by; this array's order is the fallback
  * within each group.

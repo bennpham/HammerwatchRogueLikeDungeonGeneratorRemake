@@ -35,9 +35,11 @@ src/
 │   │   └── context.ts    GenerationContext — replaces the Java statics
 │   ├── config/
 │   │   ├── parameters.ts DungeonParameters + defaultParameters() + THEMES
-│   │   ├── presets.ts    CAMPAIGN_PRESETS — castle (== the default) / desert /
-│   │   │                 bonus. Each build() returns a full fresh parameter set
-│   │   ├── claudePresets.ts CLAUDE_PRESETS — the 8 "Claude Generated" presets
+│   │   ├── presets.ts    CAMPAIGN_PRESETS — castle (the default + plates) /
+│   │   │                 desert / bonus. Each build() returns a fresh object
+│   │   ├── presetMystery.ts mysteryKit — the presets' mystery pools, picked
+│   │   │                 by button NAME with weights; loot-tier pick lists
+│   │   ├── claudePresets.ts CLAUDE_PRESETS — the 10 "Claude Generated" presets
 │   │   ├── themes.ts     THEME_DEFS — tileset path, tile count, doodad token
 │   │   ├── configFile.ts parameters.txt parse/serialize (original format)
 │   │   └── validation.ts every crash path of the original, as a rule
@@ -389,21 +391,37 @@ each shows as a greyed, unselectable header. `preAlpha` ("Pre-Alpha") holds
 `pre-alpha`: the Java original's `parameters.txt` with every remake layer off,
 and `army1`/`army2`/`lich2` split into today's types. `classic`
 ("Beta Classic") holds castle / desert / bonus. Castle stays at index 0 of
-`CAMPAIGN_PRESETS` because it is the app default. `claude` ("Claude Generated") holds the eight presets in
+`CAMPAIGN_PRESETS` because it is the app default. `claude` ("Claude Generated") holds the ten presets in
 `config/claudePresets.ts`: Lunch Break, Beat the Clock, Boss Rush, Arena
-Marathon, Trap Gauntlet, Frozen Descent, Pandemonium and The Long Haul. They
+Marathon, Trap Gauntlet, Frozen Descent, Pandemonium, The Long Haul, Double or
+Nothing and Shell Game. They
 show off floor bosses, multi-boss lineups, survival arenas, chained arenas and
 per-floor traps, timers and buffs. Beat the Clock, Boss Rush, Frozen Descent,
 The Long Haul and Trap Gauntlet also hide extra lock buttons (`buttonLocks`) and
 are registered WITHOUT `withGatewayLocks`, which would overwrite them. The other
-three keep the derived single-button locks. The header text lives only in
+three keep the derived single-button locks. Lunch Break, Boss Rush, Frozen
+Descent, The Long Haul and Trap Gauntlet also carry mystery data through
+`presetMystery.ts`. Boss Rush uses reward-only enhanced lock buttons. Trap
+Gauntlet has trap-room plates plus trapped lock buttons from floor 2 on. Every
+preset carrying plates runs the `moves no floor` test.
+
+Two presets are built around the buttons themselves. **Double or Nothing**
+leaves its lock buttons visible and safe and fills each floor with 3–5
+plates from a high-stakes custom pool. That pool includes tier-II bundles, a
+Jackpot and an Extra life (`powerup_1up`), set against Double trouble, Death
+trap and Inferno, and a test checks that the harsh share rises every floor.
+**Shell Game** disguises every lock button (`disguise: true`) and enhances
+some of them. It adds decoy plates and runs a Beat the Clock–style timer
+(damage 3) whose seconds per lock button fall every floor. Both are
+registered WITHOUT `withGatewayLocks`. The header text lives only in
 `PRESET_GROUPS`. The escape-floor / shared-arena-size tests in
 `tests/presets.test.ts` apply to the `classic` group only. Every preset in either
 group must validate, generate, stay deterministic and round-trip through
 `parameters.txt`.
 
 `config/presets.ts` holds `CAMPAIGN_PRESETS` — `castle` (8 floors,
-`a_mixed`–`g_mixed` then `f_mixed`; identical to `defaultParameters()`),
+`a_mixed`–`g_mixed` then `f_mixed`; `defaultParameters()` plus its mystery
+plates — the default itself stays plate-free),
 `desert` (**7 floors** since the 070 parameter set —
 `g_mixed,h,i,i_symbols,i_mixed,g_mixed,i_mixed`; an outdoor bug floor now
 opens it and a tick/tower breather sits before the mummy rush) and `bonus`
@@ -418,6 +436,17 @@ sizes; the exceptions are `tower_empty`, raised to 150 in
 `defaultParameters()` for the escape floor, and — in the desert preset —
 `tower_flower1` raised to 6 because floor 0 is the first floor of any preset
 to pool it.
+
+**Mystery plates in the presets.** Every classic hides two mystery plates per
+floor and one on the escape floor, themed to its acts (desert and bonus add
+custom buttons: `Scarab hoard`, `Tomb offering`, `Temple guards`, `Sun
+priests`, `Bonus ambush`). A preset's pool is `mysteryStarterPool()`
+unchanged, followed by its custom buttons; floors pick by NAME through
+`presetMystery.ts`'s `mysteryKit().pick`, which throws on an unknown name.
+The weights follow the owner's rule: risk and reward ramp together with depth.
+No lich council, kamikazes, death orbs or boss fire in the first half of a
+classic (a test enforces it). Plates are purely additive (invariant 8). The
+test `moves no floor` compares each floor's tilemap with and without them.
 
 **The 070 preset content (`944e81d`).** All three presets now arm their
 **escape floor** with a four-wall spewer rig (`shooter_fireball` ×8/wall on

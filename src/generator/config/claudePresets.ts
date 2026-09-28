@@ -11,6 +11,7 @@ import {
   defaultParameters,
   defaultSurvivalOptions,
   escapeFloorTimer,
+  MYSTERY_STARTER_TRAP_SECONDS,
   scatterWave,
   stockWavePickups,
   SHOOTER_ARROW_TRAPS,
@@ -32,6 +33,8 @@ import type {
   WaveEntry
 } from './parameters'
 import { oneOfEachUpgrade } from '../levelTemplate/surgery'
+import { deepLoot, midLoot, mysteryButton, mysteryKit, shallowLoot } from './presetMystery'
+import type { MysteryPicks } from './presetMystery'
 import type { CampaignSlot } from '../campaign'
 import { MUSIC_DEFAULT } from '../music/tracks'
 // Type-only: presets.ts imports CLAUDE_PRESETS from this file at runtime, so a
@@ -40,9 +43,10 @@ import { MUSIC_DEFAULT } from '../music/tracks'
 import type { CampaignPreset } from './presets'
 
 /**
- * Eight hand-built presets that show off everything added since the beta
+ * Ten hand-built presets that show off everything added since the beta
  * classics: floor bosses, multi-boss arenas and lineups, survival arenas,
- * chained arenas, and per-floor traps/timers/buffs. Grouped separately from
+ * chained arenas, per-floor traps/timers/buffs, and mystery buttons and
+ * enhanced/disguised lock buttons. Grouped separately from
  * the three classic presets in the dropdown (see `PRESET_GROUPS` in
  * `presets.ts`).
  *
@@ -113,7 +117,7 @@ function floorRange(from: number, to: number): CampaignSlot[] {
 }
 
 /**
- * The shape five of the eight presets share: one lobby, every floor, a second
+ * The shape most of the presets share: one lobby, every floor, a second
  * lobby, then a single boss fight — no escape floor after it. Distinct from
  * `shippedOrder()`, which plays one more floor AFTER the boss.
  */
@@ -260,6 +264,19 @@ function survivalTrapRow(row: BossTrap, startSeconds: number, endSeconds: number
 
 // --- Lunch Break -------------------------------------------------------------
 
+/** One friendly plate a floor — mostly a treat, with a small squad or an arrow room as the catch. */
+function lunchBreakMystery(): Pick<DungeonParameters, 'mysteryButtons' | 'levelMystery'> {
+  const kit = mysteryKit()
+  return {
+    mysteryButtons: kit.buttons,
+    levelMystery: [
+      kit.pick(1, shallowLoot(), [['Bat swarm', 3], ['Tick nest', 3], ['Arrow storm', 2]]),
+      kit.pick(1, shallowLoot(), [['Skeleton squad', 3], ['Slime pit', 2], ['Archer volley', 2], ['Arrow storm', 2]]),
+      kit.pick(1, midLoot(), [['Skeleton squad', 2], ['Wisps', 3], ['Archer volley', 2], ['Axe mill', 2]])
+    ]
+  }
+}
+
 function lunchBreak(): DungeonParameters {
   return campaign(3, {
     mapWidth: 56,
@@ -274,6 +291,7 @@ function lunchBreak(): DungeonParameters {
     ],
     floorMusic: ['act1', 'act2', 'act3'],
     lobbies: [lobby('BETA-dungeon-prep', { startingGold: 15000 })],
+    ...lunchBreakMystery(),
     boss: {
       enabled: true,
       fights: [
@@ -329,6 +347,29 @@ function beatTheClock(): DungeonParameters {
 
 // --- Boss Rush -----------------------------------------------------------------
 
+/**
+ * Every floor's one lock button also drops supplies — never a squad or a
+ * trap — so searching the floor pays for the boss standing on it.
+ */
+function bossRushMystery(levels: number): Pick<DungeonParameters, 'mysteryButtons' | 'levelLockMystery'> {
+  const kit = mysteryKit([
+    mysteryButton('Field rations', 'Supplies for the fight', {
+      loot: [['powerup_health', 1], ['mana_2', 2]]
+    })
+  ])
+  const supplies: MysteryPicks = [
+    ['Field rations', 3],
+    ['Refreshments', 3],
+    ['Rejuvenation', 2],
+    ['Invincibility', 1],
+    ['Fury', 1]
+  ]
+  return {
+    mysteryButtons: kit.buttons,
+    levelLockMystery: Array.from({ length: levels }, () => kit.pick(1, supplies))
+  }
+}
+
 function bossRush(): DungeonParameters {
   const levels = 4
   return campaign(levels, {
@@ -348,6 +389,7 @@ function bossRush(): DungeonParameters {
     // one button on every boss floor, so the way out needs the boss dead AND
     // the floor searched — the boss stays the main event
     levelLock: buttonLocks([1, 1, 1, 1]),
+    ...bossRushMystery(levels),
     floorMusic: ['act2', 'bonus_1', 'act3', 'desert_temple'],
     lobbies: [lobby('BETA-dungeon-prep'), lobby('BETA-boss-prep', { startingGold: 25000, upgrades: oneOfEachUpgrade(), music: 'boss_1' })],
     levelOrder: actOrder(levels),
@@ -443,6 +485,42 @@ function arenaMarathon(): DungeonParameters {
 
 // --- Trap Gauntlet ---------------------------------------------------------------
 
+/**
+ * The plates are mostly trap rooms firing that floor's own projectiles, and
+ * from the second floor on the lock buttons are trapped too — the one button
+ * the party cannot skip may light up its room, or may pay out for braving it.
+ * Trapped lock buttons grow with depth: one, then two on the last two floors.
+ */
+function trapGauntletMystery(): Pick<DungeonParameters, 'mysteryButtons' | 'levelMystery' | 'levelLockMystery'> {
+  const kit = mysteryKit()
+  // each floor's trap rooms, matching that floor's wall rig in levelTraps
+  const rooms: MysteryPicks[] = [
+    [['Arrow storm', 12]],
+    [['Arrow storm', 6], ['Spike gauntlet', 6]],
+    [['Axe mill', 6], ['Fireball ring', 6]],
+    [['Boulder run', 6], ['Big fireball cross', 6]],
+    [['Arrow storm', 3], ['Spike gauntlet', 3], ['Fireball ring', 3], ["Dragon's breath", 3]]
+  ]
+  const loot = [shallowLoot(), shallowLoot(), midLoot(), midLoot(), deepLoot(['Defense upgrade II'])]
+  const squads: MysteryPicks[] = [
+    [['Bat swarm', 3], ['Tick nest', 3]],
+    [['Maggot brood', 3], ['Slime pit', 3]],
+    [['Skeleton squad', 3], ['Archer volley', 3]],
+    [['Skeleton squad', 3], ['Archer volley', 3]],
+    [['Wisps', 2], ['Eye cluster', 2], ['Necromancer', 2]]
+  ]
+  const trapped = [0, 1, 1, 2, 2]
+  return {
+    mysteryButtons: kit.buttons,
+    levelMystery: rooms.map((room, i) => kit.pick(2, loot[i], squads[i], room)),
+    levelLockMystery: rooms.map((room, i) =>
+      trapped[i] === 0
+        ? { count: 0, pool: [] }
+        : kit.pick(trapped[i], room, [['Nothing', 4], ['Refreshments', 2], ['Rejuvenation', 1], ['A chest', 1]])
+    )
+  }
+}
+
 function trapGauntlet(): DungeonParameters {
   const levels = 5
   return campaign(levels, {
@@ -472,22 +550,29 @@ function trapGauntlet(): DungeonParameters {
         { projectile: 'shooter_fireball', direction: 'left', spread: 0, spawnRateMs: 900, count: 3 },
         { projectile: 'shooter_fireball', direction: 'right', spread: 0, spawnRateMs: 900, count: 3 }
       ],
+      // Floors 4-5 carry the lethal ammunition (damage >= 50: boulders,
+      // large fireballs, spikes). An always-on trap may fire it only in
+      // straight, timeable lanes, never fanned out — a sprayed boulder or
+      // spike cannot be dodged, and a lock button or the last corridor can
+      // land inside it (playtest, 2026-09-28). tests/presets.test.ts holds
+      // every preset to this; mystery buttons are exempt.
       [
-        { projectile: 'shooter_stone_ball', direction: 'up', spread: 0.3, spawnRateMs: 800, count: 3 },
-        { projectile: 'shooter_stone_ball', direction: 'down', spread: 0.3, spawnRateMs: 800, count: 3 },
-        { projectile: 'shooter_fireball_2', direction: 'left', spread: 0, spawnRateMs: 800, count: 3 },
-        { projectile: 'shooter_fireball_2', direction: 'right', spread: 0, spawnRateMs: 800, count: 3 }
+        { projectile: 'shooter_stone_ball', direction: 'up', spread: 0, spawnRateMs: 2500, count: 1 },
+        { projectile: 'shooter_stone_ball', direction: 'down', spread: 0, spawnRateMs: 2500, count: 1 },
+        { projectile: 'shooter_fireball_2', direction: 'left', spread: 0, spawnRateMs: 1000, count: 2 },
+        { projectile: 'shooter_fireball_2', direction: 'right', spread: 0, spawnRateMs: 1000, count: 2 }
       ],
       [
         { projectile: 'shooter_arrow', direction: 'up', spread: 0.5, spawnRateMs: 700, count: 4 },
-        { projectile: 'shooter_spike', direction: 'down', spread: 0.5, spawnRateMs: 700, count: 4 },
+        { projectile: 'shooter_spike', direction: 'down', spread: 0, spawnRateMs: 1200, count: 3 },
         { projectile: 'shooter_fireball', direction: 'left', spread: 0.5, spawnRateMs: 700, count: 4 },
-        { projectile: 'enemy_boss_dragon_fireball', direction: 'right', spread: 0.5, spawnRateMs: 900, count: 3 }
+        { projectile: 'enemy_boss_dragon_fireball', direction: 'right', spread: 0.5, spawnRateMs: 900, count: 2 }
       ]
     ],
     // buttons rise with the traps, so the trapped rooms have to be crossed
     // rather than run past
     levelLock: buttonLocks([1, 1, 2, 2, 3]),
+    ...trapGauntletMystery(),
     floorMusic: ['act1', 'act2', 'act3', 'act4', 'act4'],
     lobbies: [lobby('BETA-dungeon-prep'), lobby('BETA-boss-prep', { music: 'boss_1' })],
     levelOrder: actOrder(levels),
@@ -523,6 +608,48 @@ function trapGauntlet(): DungeonParameters {
 }
 
 // --- Frozen Descent --------------------------------------------------------------
+
+/**
+ * Frost-themed plates: chests frozen into the caves, Krilith's own dead, and
+ * rooms that fill with frost or confusion. One plate on the first floor and on
+ * Krilith's, two in between.
+ */
+function frozenDescentMystery(): Pick<DungeonParameters, 'mysteryButtons' | 'levelMystery'> {
+  const kit = mysteryKit([
+    mysteryButton('Frozen chest', 'A chest in the ice', {
+      loot: [['chest_blue', 1], ['mana_2', 1]]
+    }),
+    mysteryButton('Frozen dead', 'The frozen dead rise', {
+      monsters: [['krilith_mb_skeleton', 2], ['skeleton2', 6]]
+    })
+  ])
+  return {
+    mysteryButtons: kit.buttons,
+    levelMystery: [
+      kit.pick(1, shallowLoot(), [
+        ['Wisps', 4], ['Gold beetles', 4], ['Frozen chest', 2],
+        ['Frost wall', 3], ['Arrow storm', 2]
+      ]),
+      kit.pick(2, shallowLoot(), [
+        ['Skeleton squad', 3], ['Wisps', 3], ['Frozen dead', 2], ['Frozen chest', 2],
+        ['Frost wall', 3], ['Confusion', 2]
+      ]),
+      // the Regeneration floor — a breather, so the treasure leans richer
+      kit.pick(2, midLoot(), [
+        ['Eye cluster', 3], ['Wisps', 3], ['Frozen chest', 3],
+        ['Frost wall', 2], ['Confusion', 2]
+      ]),
+      kit.pick(2, deepLoot(['Defense upgrade II']), [
+        ['Necromancer', 3], ['Frozen dead', 3], ['Lich council', 1], ['Frozen chest', 2],
+        ['Frost wall', 3], ['Confusion', 2], ['Death orbs', 1]
+      ]),
+      kit.pick(1, deepLoot(['Health upgrade II']), [
+        ['Frozen chest', 3], ['Wisps', 2], ['Frozen dead', 2],
+        ['Frost wall', 2]
+      ])
+    ]
+  }
+}
 
 function frozenDescent(): DungeonParameters {
   const levels = 5
@@ -570,6 +697,7 @@ function frozenDescent(): DungeonParameters {
     // the deeper caves become a scavenger hunt: two buttons from floor 3 on,
     // and on Krilith's floor the wall waits for her too
     levelLock: buttonLocks([0, 0, 2, 2, 2]),
+    ...frozenDescentMystery(),
     lobbies: [lobby('BETA-dungeon-prep'), lobby('BETA-boss-prep', { music: 'boss_1' })],
     levelOrder: actOrder(levels),
     boss: {
@@ -650,6 +778,68 @@ function escapeFloorTraps(): BossTrap[] {
   ]
 }
 
+/**
+ * The Long Haul's plates walk the whole depth ramp across four acts: coins and
+ * vermin in the castle, frost around Krilith, tombs and scarabs in the desert,
+ * and the lich council, kamikazes and dragonfire only in the bonus act at the
+ * bottom. One plate on the first floor, two after, none on the escape floor.
+ */
+function longHaulMystery(): Pick<DungeonParameters, 'mysteryButtons' | 'levelMystery'> {
+  const kit = mysteryKit()
+  return {
+    mysteryButtons: kit.buttons,
+    levelMystery: [
+      // castle act
+      kit.pick(1, shallowLoot(), [
+        ['Tick nest', 5], ['Bat swarm', 5], ['Maggot brood', 3], ['Arrow storm', 3], ['Fireball ring', 2]
+      ]),
+      kit.pick(2, shallowLoot(), [
+        ['Maggot brood', 4], ['Slime pit', 4], ['Tick nest', 3], ['Flower bed', 3], ['Arrow storm', 3], ['Axe mill', 2]
+      ]),
+      kit.pick(2, shallowLoot(), [
+        ['Skeleton squad', 5], ['Archer volley', 5], ['Bat swarm', 2], ['Axe mill', 3], ['Arrow storm', 2]
+      ]),
+      // castle/ice act
+      kit.pick(2, shallowLoot(), [
+        ['Skeleton squad', 4], ['Archer volley', 4], ['Necromancer', 3], ['Axe mill', 3], ['Spike gauntlet', 2]
+      ]),
+      kit.pick(2, midLoot(), [
+        ['Eye cluster', 4], ['Wisps', 4], ['Nova towers', 3], ['Purple drift', 3], ['Fireball ring', 2]
+      ]),
+      kit.pick(2, midLoot(), [
+        ['Wisps', 4], ['Fire and frost tracking', 3], ['Nova towers', 2], ['Frost wall', 3], ['Confusion', 2]
+      ]),
+      // desert act
+      kit.pick(2, midLoot(), [
+        ['Gold beetles', 4], ['Tick nest', 3], ['Spider nest', 3], ['Big fireball cross', 3], ['Arrow storm', 2]
+      ]),
+      kit.pick(2, midLoot(), [
+        ['Mummy tomb', 3], ['Spider nest', 3], ['Gold beetles', 2],
+        ['Spike gauntlet', 2], ['Boulder run', 2], ['Fireball ring', 2]
+      ]),
+      kit.pick(2, deepLoot(['Defense upgrade II']), [
+        ['Mummy tomb', 3], ['Spider nest', 3], ['Fire pillars', 2], ['Lich council', 1],
+        ["Anubis' wrath", 2], ['Death orbs', 2]
+      ]),
+      // bonus act
+      kit.pick(2, deepLoot(['Damage upgrade II']), [
+        ['Skeleton squad', 4], ['Archer volley', 3], ['Necromancer', 3],
+        ['Purple drift', 3], ['Axe mill', 2], ['Death orbs', 1]
+      ]),
+      kit.pick(2, deepLoot(['Health upgrade II']), [
+        ['Wisps', 3], ['Necromancer', 3], ['Eye cluster', 3], ['Lich council', 2],
+        ['Death orbs', 2], ['Frost wall', 2], ['Spike gauntlet', 1]
+      ]),
+      kit.pick(2, deepLoot(['Damage upgrade II', 'Mana upgrade II']), [
+        ['Lich council', 3], ['Kamikazes', 2], ['Eye cluster', 2], ['Fire floaters', 2],
+        ['Death orbs', 2], ["Dragon's breath", 1], ['Purple drift', 2]
+      ]),
+      // the escape floor — the clock is pressure enough
+      { count: 0, pool: [] }
+    ]
+  }
+}
+
 function longHaul(): DungeonParameters {
   const levels = 13
   const order: CampaignSlot[] = [
@@ -721,6 +911,7 @@ function longHaul(): DungeonParameters {
       lobby('BETA-boss-prep', { startingGold: 25000, upgrades: oneOfEachUpgrade(), music: 'boss_1' })
     ],
     levelOrder: order,
+    ...longHaulMystery(),
     boss: {
       enabled: true,
       fights: [
@@ -763,6 +954,181 @@ function longHaul(): DungeonParameters {
   return params
 }
 
+// --- Double or Nothing -----------------------------------------------------------
+
+/** One spewer per wall, all four walls — the shape every custom trap button below uses. */
+function fourWalls(projectile: string, spawnRateMs: number, spread: number): BossTrap[] {
+  return (['up', 'down', 'left', 'right'] as const).map((direction) => ({ projectile, direction, spread, spawnRateMs, count: 1 }))
+}
+
+/**
+ * The red lock buttons are in plain sight and always safe: find them and the
+ * floor opens. Everything else is a wager. The plates draw from a high-stakes
+ * pool — tier-II upgrades, a jackpot and an extra life against lich councils,
+ * kamikaze packs and rooms of death orbs — and the odds tilt toward the house
+ * with every floor. Ignore them and walk into the boss with what you brought;
+ * gamble and walk in a giant, or not at all.
+ */
+function doubleOrNothingMystery(): Pick<DungeonParameters, 'mysteryButtons' | 'levelMystery'> {
+  const kit = mysteryKit([
+    // the house pays out
+    mysteryButton('Safe bet', 'A modest win', { loot: [['health_2', 1], ['valuable_5', 2]] }),
+    mysteryButton('Power surge', 'Power surges through you', { loot: [['upgrade_damage_2', 1], ['potion_3', 1]] }),
+    mysteryButton('Iron skin', 'Your skin turns to iron', { loot: [['upgrade_defense_2', 1], ['upgrade_health', 1]] }),
+    mysteryButton('Vitality', 'You feel unstoppable', { loot: [['upgrade_health_2', 1], ['health_3', 1]] }),
+    mysteryButton('Arcane well', 'Arcane power floods in', { loot: [['upgrade_mana_2', 1], ['mana_2', 2]] }),
+    mysteryButton('Jackpot', 'JACKPOT!', { loot: [['chest_blue', 1], ['chest_green', 1], ['valuable_diamond', 1]] }),
+    mysteryButton('Diamond rain', 'Diamonds!', { loot: [['valuable_diamond', 2], ['valuable_diamond_small_red', 2]] }),
+    mysteryButton('Extra life', 'An extra life!', { loot: [['powerup_1up', 1]] }),
+    // the house collects
+    mysteryButton('Bone pit', 'The pit opens', { monsters: [['mb_skeleton', 2], ['skeleton2', 12], ['archer2', 6]] }),
+    mysteryButton('Double trouble', 'Double or nothing... nothing', {
+      monsters: [['mb_lich', 1], ['lich#0', 3], ['special_beheaded_kamikaze', 3]]
+    }),
+    mysteryButton('Death trap', 'You lose', {
+      monsters: [['special_beheaded_kamikaze', 2]],
+      traps: fourWalls('enemy_magicball_death', 500, 0.5),
+      trapSeconds: MYSTERY_STARTER_TRAP_SECONDS
+    }),
+    mysteryButton('Inferno', 'Burn!', {
+      monsters: [['floater_fire', 4]],
+      traps: fourWalls('enemy_boss_dragon_fireball', 800, 0.5),
+      trapSeconds: MYSTERY_STARTER_TRAP_SECONDS
+    })
+  ])
+  return {
+    mysteryButtons: kit.buttons,
+    levelMystery: [
+      kit.pick(3, [
+        ['Nothing', 10], ['Safe bet', 8], ['Silver stash', 4], ['Refreshments', 4],
+        ['Power surge', 2], ['Iron skin', 2], ['Jackpot', 1], ['Diamond rain', 1],
+        ['Bone pit', 5], ['Skeleton squad', 4], ['Lich council', 1],
+        ['Arrow storm', 3], ['Spike gauntlet', 3], ['Death orbs', 2]
+      ]),
+      kit.pick(4, [
+        ['Nothing', 8], ['Safe bet', 6], ['Silver stash', 3],
+        ['Power surge', 2], ['Iron skin', 2], ['Vitality', 2], ['Arcane well', 1], ['Jackpot', 2], ['Diamond rain', 1],
+        ['Bone pit', 5], ['Necromancer', 3], ['Lich council', 2], ['Kamikazes', 1],
+        ['Death orbs', 3], ['Spike gauntlet', 3], ['Axe mill', 3]
+      ]),
+      kit.pick(4, [
+        ['Nothing', 6], ['Safe bet', 4],
+        ['Power surge', 3], ['Iron skin', 3], ['Vitality', 2], ['Arcane well', 2], ['Jackpot', 2], ['Diamond rain', 2],
+        ['Three chests', 1],
+        ['Lich council', 3], ['Bone pit', 4], ['Kamikazes', 2],
+        ['Death orbs', 3], ['Death trap', 2], ['Boulder run', 2], ["Dragon's breath", 1]
+      ]),
+      kit.pick(5, [
+        ['Nothing', 5], ['Safe bet', 3],
+        ['Power surge', 3], ['Iron skin', 3], ['Vitality', 3], ['Arcane well', 2], ['Jackpot', 3], ['Diamond rain', 2],
+        ['Extra life', 1],
+        ['Lich council', 4], ['Double trouble', 3], ['Kamikazes', 3], ['Mummy tomb', 2],
+        ['Death trap', 3], ['Inferno', 2], ["Dragon's breath", 2], ["Anubis' wrath", 2]
+      ]),
+      kit.pick(5, [
+        ['Nothing', 4],
+        ['Power surge', 3], ['Iron skin', 3], ['Vitality', 3], ['Arcane well', 2], ['Jackpot', 4], ['Diamond rain', 2],
+        ['Extra life', 2],
+        ['Double trouble', 5], ['Lich council', 4], ['Kamikazes', 3],
+        ['Death trap', 4], ['Inferno', 3], ["Dragon's breath", 2], ["Anubis' wrath", 2]
+      ])
+    ]
+  }
+}
+
+function doubleOrNothing(): DungeonParameters {
+  const levels = 5
+  return campaign(levels, {
+    // the floors themselves are quiet — the plates are the danger
+    monsterMultiplier: 0.6,
+    themes: ['b_mixed', 'c_mixed', 'd_mixed', 'e_mixed', 'g_mixed'],
+    levelMonsters: [
+      ['bat1', 'tick1'],
+      ['skeleton1', 'archer1'],
+      ['eye', 'wisp1'],
+      ['skeleton2', 'archer2'],
+      ['lich', 'wisp2']
+    ],
+    floorMusic: ['act1', 'act2', 'act3', 'act3', 'act4'],
+    // the red buttons, never disguised: finding them is always the safe way on
+    levelLock: buttonLocks([1, 1, 2, 2, 2]),
+    ...doubleOrNothingMystery(),
+    // a thin purse to start, so the gold won on the plates is what the
+    // boss-prep shop is spent with
+    lobbies: [
+      lobby('BETA-dungeon-prep', { startingGold: 5000 }),
+      lobby('BETA-boss-prep', { startingGold: 10000, music: 'boss_1' })
+    ],
+    levelOrder: actOrder(levels),
+    boss: { enabled: true, fights: [bossFight({ music: 'boss_final' })] }
+  })
+}
+
+// --- Shell Game --------------------------------------------------------------------
+
+/**
+ * Every plate looks the same. Each floor's lock buttons are drawn as mystery
+ * plates (`disguise`), some of them fire a payload of their own, and decoys
+ * are mixed in among them. A real lock button gives itself away only once
+ * pressed, when it announces how many remain. The clock gives time to check
+ * a few plates, never all of them.
+ */
+function shellGameMystery(): Pick<DungeonParameters, 'mysteryButtons' | 'levelMystery' | 'levelLockMystery'> {
+  const kit = mysteryKit()
+  // what a real lock button may also do — mostly help, sometimes cost time
+  const lockPayload: MysteryPicks = [
+    ['Nothing', 4], ['Refreshments', 3], ['Rejuvenation', 2], ['Fury', 1], ['Invincibility', 1],
+    ['Bat swarm', 2], ['Skeleton squad', 2], ['Arrow storm', 2]
+  ]
+  // the decoys — tempting loot, and squads and trap rooms that eat the clock
+  const decoys: MysteryPicks[] = [
+    [...shallowLoot(), ['Bat swarm', 4], ['Tick nest', 4], ['Arrow storm', 4], ['Fireball ring', 3]],
+    [...shallowLoot(), ['Tick nest', 4], ['Gold beetles', 3], ['Slime pit', 3], ['Arrow storm', 3], ['Axe mill', 3]],
+    [...midLoot(), ['Skeleton squad', 4], ['Bat swarm', 3], ['Archer volley', 3], ['Axe mill', 3], ['Spike gauntlet', 2]],
+    [...midLoot(), ['Skeleton squad', 4], ['Necromancer', 3], ['Gold beetles', 3], ['Spike gauntlet', 3], ['Boulder run', 2]],
+    [...deepLoot(['Damage upgrade II']), ['Necromancer', 3], ['Bat swarm', 3], ['Kamikazes', 1], ['Death orbs', 3], ['Spike gauntlet', 2]]
+  ]
+  const decoyCounts = [2, 2, 3, 3, 4]
+  const enhanced = [1, 1, 1, 2, 2]
+  return {
+    mysteryButtons: kit.buttons,
+    levelMystery: decoys.map((picks, i) => kit.pick(decoyCounts[i], picks)),
+    levelLockMystery: enhanced.map((count) => ({ ...kit.pick(count, lockPayload), disguise: true }))
+  }
+}
+
+function shellGame(): DungeonParameters {
+  const levels = 5
+  const params = campaign(levels, {
+    mapWidth: 64,
+    mapHeight: 48,
+    minRoomCount: 8,
+    maxRoomCount: 10,
+    monsterMultiplier: 0.5,
+    themes: ['b_mixed', 'c_mixed', 'd_mixed', 'e_mixed', 'f_mixed'],
+    levelMonsters: [
+      ['bat1'],
+      ['tick1', 'bat1'],
+      ['skeleton1', 'bat2'],
+      ['skeleton3', 'tick2'],
+      ['skeleton3', 'bat2']
+    ],
+    floorMusic: ['act1', 'act2', 'act2', 'act3', 'act4'],
+    levelLock: buttonLocks([1, 2, 2, 3, 3]),
+    ...shellGameMystery(),
+    lobbies: [lobby('BETA-dungeon-prep'), lobby('BETA-boss-prep', { music: 'boss_1' })],
+    levelOrder: actOrder(levels),
+    boss: { enabled: true, fights: [bossFight({ music: 'boss_final' })] }
+  })
+  // Beat the Clock on steroids: each floor has less time per button (150 s
+  // for one, then down to 30 s each for three), and a floor that runs out
+  // hurts harder and faster.
+  const seconds = [150, 135, 120, 105, 90]
+  const freqMs = [200, 175, 150, 125, 100]
+  params.levelTimers = seconds.map((s, i) => ({ enabled: true, seconds: s, damage: 3, freqMs: freqMs[i], countdown: true }))
+  return params
+}
+
 // --- registry ----------------------------------------------------------------
 
 /** In alphabetical order by label, which is the order the dropdown and the preset guide list them in. */
@@ -784,21 +1150,29 @@ export const CLAUDE_PRESETS: readonly CampaignPreset[] = [
   {
     id: 'claude-boss-rush',
     label: 'Boss Rush',
-    description: 'A mobile boss and a hidden button seal the way out of every floor, then a two-boss finale — about 40 minutes.',
+    description: 'A mobile boss and a hidden button seal the way out of every floor, and each button drops supplies for the fight, then a two-boss finale — about 40 minutes.',
     group: 'claude',
     build: bossRush
   },
   {
+    id: 'claude-double-or-nothing',
+    label: 'Double or Nothing',
+    description:
+      'The red buttons are safe; every other plate is a wager of tier-II upgrades and extra lives against lich councils and death traps. The odds get worse the deeper you go — about 40 minutes.',
+    group: 'claude',
+    build: doubleOrNothing
+  },
+  {
     id: 'claude-frozen-descent',
     label: 'Frozen Descent',
-    description: 'A five-floor descent through the ice caves, hunting buttons in the deeper ones, ending on Krilith — about 45 minutes.',
+    description: 'A five-floor descent through the ice caves, hunting buttons and frozen mystery plates, ending on Krilith — about 45 minutes.',
     group: 'claude',
     build: frozenDescent
   },
   {
     id: 'claude-lunch-break',
     label: 'Lunch Break',
-    description: '3 short floors into one boss fight — about 15-20 minutes.',
+    description: '3 short floors, each hiding one friendly mystery button, into one boss fight — about 15-20 minutes.',
     group: 'claude',
     build: () => withGatewayLocks(lunchBreak())
   },
@@ -810,16 +1184,24 @@ export const CLAUDE_PRESETS: readonly CampaignPreset[] = [
     build: () => withGatewayLocks(pandemonium())
   },
   {
+    id: 'claude-shell-game',
+    label: 'Shell Game',
+    description:
+      'Lock buttons look just like the decoy plates around them, and a steep clock gives time to check only a few. Some of the real ones bite back — about 30 minutes.',
+    group: 'claude',
+    build: shellGame
+  },
+  {
     id: 'claude-long-haul',
     label: 'The Long Haul',
-    description: 'A 13-floor campaign across four acts and two boss arenas, with more buttons to find each act, ending in an escape floor — 2-3 hours.',
+    description: 'A 13-floor campaign across four acts and two boss arenas, with more buttons to find and riskier mystery plates each act, ending in an escape floor — 2-3 hours.',
     group: 'claude',
     build: longHaul
   },
   {
     id: 'claude-trap-gauntlet',
     label: 'Trap Gauntlet',
-    description: 'Wall traps escalate every floor, from arrows to dragonfire, and so do the buttons hidden under them — about 45 minutes.',
+    description: 'Wall traps escalate every floor, from arrows to dragonfire, and so do the buttons hidden under them — some of which are trapped too — about 45 minutes.',
     group: 'claude',
     build: trapGauntlet
   }

@@ -16,6 +16,11 @@ import {
   arenaMode,
   bossFights,
   floorBoss as floorBossAt,
+  floorMystery,
+  floorLockMystery,
+  floorLockButtons,
+  floorLockDisguised,
+  mysteryStarterPool,
   MOBILE_BOSS_IDS
 } from '../src/generator'
 import type { BossWave, DungeonParameters } from '../src/generator'
@@ -29,6 +34,8 @@ import {
 } from '../src/generator/objects/monsterTypes'
 import { corpseCollision } from '../src/generator/objects/actorCollision'
 import { isScatterMode, waveSpawnMode } from '../src/generator/config/parameters'
+import { mysteryKit } from '../src/generator/config/presetMystery'
+import { projectileById } from '../src/generator/objects/projectileTypes'
 
 const CLASSIC_PRESETS = CAMPAIGN_PRESETS.filter((p) => p.group === 'classic')
 
@@ -171,6 +178,33 @@ describe('campaign presets', () => {
         })
       }
     })
+
+    describe('mystery buttons', () => {
+      for (const preset of CLASSIC_PRESETS) {
+        const params = preset.build()
+        const last = params.levels - 1
+
+        it(`${preset.id}: hides two plates on every floor and one on the escape floor`, () => {
+          expect(params.levelMystery).toHaveLength(params.levels)
+          for (let i = 0; i < last; i++) expect(floorMystery(params, i)?.count, `floor ${i + 1}`).toBe(2)
+          expect(floorMystery(params, last)?.count).toBe(1)
+        })
+
+        it(`${preset.id}: keeps the starter set intact at the front of its pool`, () => {
+          const starter = mysteryStarterPool()
+          expect(params.mysteryButtons!.slice(0, starter.length)).toEqual(starter)
+        })
+
+        it(`${preset.id}: ramps the risk — no lich council, kamikazes or boss fire in the first half`, () => {
+          const names = params.mysteryButtons!.map((b) => b.name)
+          const harsh = ['Lich council', 'Kamikazes', "Dragon's breath", "Anubis' wrath", 'Death orbs']
+          for (let i = 0; i < Math.floor(last / 2); i++) {
+            const picked = new Set(floorMystery(params, i)!.pool.map((n) => names[n]))
+            for (const name of harsh) expect(picked.has(name), `floor ${i + 1}: ${name}`).toBe(false)
+          }
+        })
+      }
+    })
   })
 
   // Scatter safety is a hard invariant, not a classic-preset habit — it
@@ -194,14 +228,54 @@ describe('campaign presets', () => {
     }
   })
 
+  // Playtest rule (2026-09-28): an always-on floor trap may fire a lethal
+  // projectile (spike, large fireball, boulder) in straight lanes the party
+  // can time, never fanned out — a spray of them cannot be dodged. Mystery
+  // buttons are exempt (pressing one is a gamble), but their traps must
+  // switch off again so a deadly room never stays sealed for good.
+  it('fires lethal projectiles on floor traps only in timeable lanes, and never arms a mystery trap forever', () => {
+    const LETHAL_DAMAGE = 50
+    for (const preset of CAMPAIGN_PRESETS) {
+      const params = preset.build()
+      const rows = [
+        ...(params.levelTraps ?? []).flatMap((traps, i) => traps.map((row) => ({ row, at: `floor ${i + 1}` }))),
+        ...(params.levelBoss ?? []).flatMap((boss, i) =>
+          boss.enabled ? boss.waves.flatMap((wave) => (wave.traps ?? []).map((row) => ({ row, at: `floor ${i + 1} boss` }))) : []
+        )
+      ]
+      for (const { row, at } of rows) {
+        const label = `${preset.id} ${at}: ${row.projectile} ${row.direction}`
+        if (projectileById(row.projectile)!.damage < LETHAL_DAMAGE) continue
+        expect(row.count, label).toBeLessThanOrEqual(row.spread > 0 ? 1 : 3)
+      }
+      for (const button of params.mysteryButtons ?? []) {
+        if (button.traps.length > 0) expect(button.trapSeconds ?? 0, `${preset.id}: ${button.name}`).toBeGreaterThan(0)
+      }
+    }
+  })
+
   it('resolves by id, and reports an unknown id rather than guessing', () => {
     expect(campaignPresetById('desert')?.label).toBe('Desert')
     expect(campaignPresetById('claude-lunch-break')?.label).toBe('Lunch Break')
     expect(campaignPresetById('nope')).toBeUndefined()
   })
 
-  it('makes the castle preset the built-in default', () => {
-    expect(campaignPresetById('castle')!.build()).toEqual(defaultParameters())
+  it('makes the castle preset the built-in default plus its mystery plates, and nothing else', () => {
+    const { mysteryButtons, levelMystery, ...rest } = campaignPresetById('castle')!.build()
+    expect(mysteryButtons).toBeDefined()
+    expect(levelMystery).toBeDefined()
+    expect(rest).toEqual(defaultParameters())
+    // the app opens on the plate-free default, and parameters.txt imports onto it
+    expect(defaultParameters().mysteryButtons).toBeUndefined()
+    expect(defaultParameters().levelMystery).toBeUndefined()
+  })
+
+  it('resolves mystery picks by button name, and throws on an unknown one', () => {
+    const kit = mysteryKit()
+    const nothing = kit.buttons.findIndex((b) => b.name === 'Nothing')
+    expect(kit.pick(2, [['Nothing', 3]])).toEqual({ count: 2, pool: [nothing, nothing, nothing] })
+    expect(() => kit.pick(1, [['No such button', 1]])).toThrow(/No such button/)
+    expect(() => mysteryKit([{ name: 'Nothing', loot: [], monsters: [], traps: [] }])).toThrow(/unique/)
   })
 
   it('builds a fresh object every call, so the form cannot mutate a preset', () => {
@@ -276,6 +350,23 @@ describe('campaign presets', () => {
         expect(a.levels).toEqual(b.levels)
       })
 
+      // Plates and enhanced lock buttons are purely additive (invariant 8):
+      // stripping them must leave every floor's tilemap byte-identical.
+      it.runIf(params.mysteryButtons !== undefined)('moves no floor — its mystery plates are added after each floor is built', () => {
+        const plain = { ...params, mysteryButtons: undefined, levelMystery: undefined, levelLockMystery: undefined }
+        const a = generateDungeon(plain, 4242)
+        const b = generateDungeon(params, 4242)
+        expect(a.ok && b.ok).toBe(true)
+        if (!a.ok || !b.ok) return
+        const tilemap = (xml: string) => xml.slice(0, xml.indexOf('<dictionary name="doodads">'))
+        for (let i = 0; i < params.levels; i++) {
+          const path = `levels/level${i}.xml`
+          const before = a.files.find((f) => f.path === path)!.content
+          const after = b.files.find((f) => f.path === path)!.content
+          expect(tilemap(after), path).toBe(tilemap(before))
+        }
+      })
+
       it('round-trips through parameters.txt unchanged', () => {
         const reparsed = parseParametersTxt(serializeParametersTxt(params))
         expect(reparsed.unknownKeys).toEqual([])
@@ -321,9 +412,89 @@ describe('campaign presets', () => {
       expect(modes).toContain('boss')
     })
 
+    it('Trap Gauntlet: plates on every floor, and trapped lock buttons from floor 2 on', () => {
+      const params = campaignPresetById('claude-trap-gauntlet')!.build()
+      for (let level = 0; level < params.levels; level++) {
+        expect(floorMystery(params, level)?.count, `floor ${level + 1}`).toBe(2)
+        const lock = floorLockMystery(params, level)
+        if (level === 0) {
+          expect(lock).toBeUndefined()
+          continue
+        }
+        expect(lock, `floor ${level + 1}`).toBeDefined()
+        expect(lock!.count).toBeLessThanOrEqual(floorLockButtons(params, level))
+        // the lock can pay out as well as fire, so it is a gamble, not a tax
+        const picked = lock!.pool.map((n) => params.mysteryButtons![n])
+        expect(picked.some((b) => b.traps.length > 0), `floor ${level + 1}`).toBe(true)
+        expect(picked.some((b) => b.traps.length === 0), `floor ${level + 1}`).toBe(true)
+      }
+    })
+
+    it('Boss Rush: every lock button drops supplies and never a squad or a trap', () => {
+      const params = campaignPresetById('claude-boss-rush')!.build()
+      for (let level = 0; level < params.levels; level++) {
+        const lock = floorLockMystery(params, level)
+        expect(lock?.count, `floor ${level + 1}`).toBe(1)
+        for (const n of lock!.pool) {
+          const button = params.mysteryButtons![n]
+          expect(button.loot.length, button.name).toBeGreaterThan(0)
+          expect(button.monsters, button.name).toEqual([])
+          expect(button.traps, button.name).toEqual([])
+        }
+      }
+    })
+
+    it('Double or Nothing: visible locks, and more plates with worse odds the deeper you go', () => {
+      const params = campaignPresetById('claude-double-or-nothing')!.build()
+      const harsh = new Set(['Lich council', 'Double trouble', 'Kamikazes', 'Death trap', 'Inferno', "Dragon's breath", "Anubis' wrath", 'Death orbs'])
+      let lastCount = 0
+      let lastShare = 0
+      for (let level = 0; level < params.levels; level++) {
+        expect(floorLockButtons(params, level), `floor ${level + 1}`).toBeGreaterThan(0)
+        expect(floorLockDisguised(params, level), `floor ${level + 1}`).toBe(false)
+        const floor = floorMystery(params, level)!
+        expect(floor.count).toBeGreaterThanOrEqual(lastCount)
+        const share = floor.pool.filter((n) => harsh.has(params.mysteryButtons![n].name!)).length / floor.pool.length
+        expect(share, `floor ${level + 1}`).toBeGreaterThan(lastShare)
+        lastCount = floor.count
+        lastShare = share
+      }
+      // the top prize exists, and only on the last two floors
+      const extraLife = params.mysteryButtons!.findIndex((b) => b.name === 'Extra life')
+      for (let level = 0; level < params.levels; level++) {
+        expect(floorMystery(params, level)!.pool.includes(extraLife), `floor ${level + 1}`).toBe(level >= 3)
+      }
+    })
+
+    it('Shell Game: every lock is disguised and partly enhanced, among decoys, against a clock', () => {
+      const params = campaignPresetById('claude-shell-game')!.build()
+      for (let level = 0; level < params.levels; level++) {
+        expect(floorLockDisguised(params, level), `floor ${level + 1}`).toBe(true)
+        expect(floorLockMystery(params, level)?.count, `floor ${level + 1}`).toBeGreaterThan(0)
+        expect(floorMystery(params, level)?.count, `floor ${level + 1}`).toBeGreaterThan(0)
+        expect(params.levelTimers![level].enabled, `floor ${level + 1}`).toBe(true)
+      }
+      // less time per button on every floor than the one before it
+      const perButton = params.levelTimers!.map((t, level) => t.seconds / floorLockButtons(params, level))
+      for (let level = 1; level < params.levels; level++) expect(perButton[level]).toBeLessThan(perButton[level - 1])
+
+      // a disguised lock button is drawn with the plate's art, never the red button's
+      const result = generateDungeon(params, 4242)
+      expect(result.ok, result.ok ? '' : result.errors.join(' ')).toBe(true)
+      if (!result.ok) return
+      for (let level = 0; level < params.levels; level++) {
+        const xml = result.files.find((f) => f.path === `levels/level${level}.xml`)!.content
+        expect(xml, `floor ${level + 1}`).not.toContain('boss_door_button.xml')
+        expect(xml, `floor ${level + 1}`).toContain('trigger_button_floor.xml')
+      }
+    })
+
     it('Long Haul: 13 floors, ending on the escape floor', () => {
       const params = campaignPresetById('claude-long-haul')!.build()
       expect(params.levels).toBe(13)
+      // plates on every floor but the escape floor, where the clock is pressure enough
+      for (let level = 0; level < 12; level++) expect(floorMystery(params, level), `floor ${level + 1}`).toBeDefined()
+      expect(floorMystery(params, 12)).toBeUndefined()
       expect(params.levelOrder!.at(-1)).toEqual({ kind: 'floor', index: 12 })
 
       const result = generateDungeon(params, 4242)

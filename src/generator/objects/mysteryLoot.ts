@@ -12,8 +12,8 @@
  *   every PICKUP_DEFS entry — as documented in objects/pickupTypes.ts
  *   [VERIFIED]   chest_red via SpawnObject — the owner's sample and the
  *                mystery-button playtest, 2026-09-26
- *   [UNVERIFIED] chest_wood / chest_blue / chest_green via SpawnObject — same
- *                asset family, already placed as items by objects/item.ts.
+ *   [VERIFIED]   chest_wood / chest_blue / chest_green via SpawnObject — the
+ *                owner's preset playtest (PR #73), 2026-09-28
  *                Left untested on purpose in the 2026-09-27 playtest, which
  *                covered the starter set's monsters and traps only
  *   [VERIFIED]   valuable_1..9 via SpawnObject — owner playtest 2026-09-26.

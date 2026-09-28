@@ -43,6 +43,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - A plate stays pressed after one use. All plates look the same.
   - Off by default. Buttons are placed after the floor is built, from their own random stream, so arming a floor never changes any floor's layout and existing seeds are unchanged.
   - `parameters.txt` gains `mysteryButtons=`, `mysteryButton<i>Name/Text/Loot/Monsters/Traps/TrapSeconds=` and `mysteryFloor<N>=<count>:<buttons>`. None of them are written for a campaign that doesn't use buttons.
+- **The Beta Classic presets hide mystery buttons.** Castle, Desert and Bonus Gauntlet now hide two plates on every floor and one on the escape floor. Their dungeons are unchanged for every seed; the plates are added on top.
+  - Risk and reward grow together. Early floors give coins, snacks and small squads (ticks, bats, maggots). Deeper floors give chests, diamonds and tier-II upgrades, against lich councils, mummy tombs and death orbs. Kamikazes and dragon or Anubis fire only turn up near the end.
+  - Each preset keeps to its theme. Castle follows its acts. Desert is a temple treasury, with scarabs guarding gold, temple guards and sun priests. Bonus springs ambushes of its own skeletons and archers.
+  - The app still opens on the plate-free defaults, so an imported `parameters.txt` gets no plates it didn't ask for.
+- **Five Claude presets use mystery buttons.** Their dungeons are unchanged for every seed.
+  - **Trap Gauntlet:** two plates per floor, mostly trap rooms firing that floor's projectiles. From floor 2 on, some of the lock buttons you have to press are trapped too, or pay out for braving them.
+  - **The Long Haul:** plates on every floor but the escape floor. The stakes rise act by act: coins and vermin in the castle, frost around Krilith, tombs and scarabs in the desert, and lich councils, kamikazes and dragonfire in the bonus act.
+  - **Frozen Descent:** frost plates, with chests frozen into the caves, Krilith's own dead, and rooms of frost or confusion.
+  - **Boss Rush:** each floor's lock button also drops supplies (potions or rations) for the boss fight.
+  - **Lunch Break:** one friendly, loot-heavy plate per floor.
+  - Beat the Clock, Pandemonium and Arena Marathon are unchanged.
+- **Trap Gauntlet's last two floors are survivable.** Their always-on wall traps fanned out boulders and spikes, which can't be dodged and could surround a lock button or block the last corridor. Lethal ammunition (boulders, large fireballs, spikes) now fires only in straight lanes you can time: one boulder lane per wall every 2.5 s, and fewer, slower spikes and large fireballs. Mystery buttons can still roll deadly rooms, but those switch off after 30 seconds. A test holds every preset to this rule.
+- **Two new Claude Generated presets built around mystery buttons.**
+  - **Double or Nothing:** the red lock buttons are in plain sight and always safe. Every other plate is a wager. Win tier-II upgrades, a jackpot, diamonds or even an extra life, or trigger a lich council, a kamikaze pack or a room of death orbs. Plates get more numerous and the odds get worse floor by floor. Monsters are quiet and the starting purse is thin, so winnings are what you spend in the boss-prep shop. About 40 minutes.
+  - **Shell Game:** the lock buttons look exactly like the decoy plates around them, and some of the real ones fire a payload of their own. A real button gives itself away only when pressed, by announcing how many remain. Every floor is timed, with less time per button each floor and a harder hit when the clock runs out. About 30 minutes.
 
 ### Fixed
 
