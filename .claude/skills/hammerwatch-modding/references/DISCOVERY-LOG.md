@@ -8,6 +8,33 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-27 — AnnounceText `type` names; enhanced lock buttons playtested
+**Tag:** [VERIFIED] for the type names (the owner read them off the editor's
+AnnounceText dropdown) and for the playtest facts below (owner, in game).
+The look of Pickup (3) on the "opened" line is [EMITTED] until it is played.
+**AnnounceText `type`, in dropdown order:** 0 **Title**, 1 **Subtitle**,
+2 **Regular**, 3 **Pickup**. How the shipped campaign uses them (from a tally
+of `editor/campaign/levels/*.xml`):
+- 0 for "secret area", "`ig.more-to-go?num=N`" and "sequence complete"
+- 1 for the act headings and countdown numbers
+- 2 for "passage revealed", "spikes off" and bridge events
+- 3 not at all
+**Playtest:**
+- "k buttons remain" still counts down on a lock whose buttons are enhanced.
+- The disguise works as built: lock plates drawn as `trigger_button_floor`
+  and driven to `pressed`.
+- On a timed floor, anything on Regular (2) is replaced by the next timer
+  tick (also Regular) and is visible for only a split second.
+**Impact:**
+- `buttonSeal.ts` now puts "k buttons remain" on Title (0), the style the
+  game's own "more to go" uses.
+- "The way … has opened!" (in `buttonSeal.ts` and `dungeonBoss/opener.ts`)
+  now uses Pickup (3).
+- The two lines never fire on the same press: the last press takes the count
+  to 0, and only the `== 0` check answers that.
+- Timer and invulnerability ticks stay on Regular. Mystery text stays on
+  Subtitle (1).
+
 ### 2026-09-27 — enhanced lock buttons: a `TriggerButton` used as a lock plate, a mystery payload on a lock trigger, two announces on one press
 **Tag:** [EMITTED]/[UNVERIFIED] — implemented against the existing
 [VERIFIED] facts for both halves (`boss_door_button.xml`/`activate` for the

@@ -48,8 +48,23 @@ const DISGUISE_BUTTON_STATE = 'pressed'
 /** How long the "it opened" banner stays up, in ms. */
 const SEAL_ANNOUNCE_MS = 2500
 
-/** `type: 2` is the small corner line, not the full-screen banner. */
-const SEAL_ANNOUNCE_TYPE = 2
+/**
+ * AnnounceText `type`, named as the editor's dropdown lists them: 0 Title,
+ * 1 Subtitle, 2 Regular, 3 Pickup (owner, 2026-09-27). Regular is the line
+ * timer mode ticks on every second, so anything on it flashes by for a split
+ * second on a timed floor — the owner's playtest of the countdown below.
+ *
+ * "It opened" goes on Pickup, the line a player reads as "you got something".
+ */
+const SEAL_ANNOUNCE_TYPE = 3
+
+/**
+ * "k buttons remain" goes on Title — the style the game's own "<n> more to
+ * go" (`ig.more-to-go`) uses across the shipped campaign. Never fires on the
+ * same press as the opened line: the last press takes the count to 0, which
+ * only the `== 0` check answers.
+ */
+const REMAINING_ANNOUNCE_TYPE = 0
 
 const SEAL_TEXT = 'The way to the final room has opened!'
 
@@ -204,7 +219,7 @@ function buildButtonCountdown(ctx: GenerationContext, triggers: readonly ScriptN
     const announce = new NodeAnnounceText(ctx, x + 3, y + 1 + k)
     announce.setText(buttonsRemainingText(k))
     announce.time = SEAL_ANNOUNCE_MS
-    announce.textType = SEAL_ANNOUNCE_TYPE
+    announce.textType = REMAINING_ANNOUNCE_TYPE
     checks[k].connectTo(announce)
   }
   triggers.forEach((trigger, i) => {

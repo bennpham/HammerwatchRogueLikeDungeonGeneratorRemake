@@ -45,8 +45,12 @@ export const OPENED_TEXT_COMBINED = 'The way onward has opened!'
 /** How long that line stays on screen, in ms. */
 export const OPENED_ANNOUNCE_MS = 2500
 
-/** Small corner line, the style `buttonSeal.ts` uses for the same message. */
-export const OPENED_TEXT_TYPE = 2
+/**
+ * Pickup (3 — the editor lists 0 Title, 1 Subtitle, 2 Regular, 3 Pickup), the
+ * style `buttonSeal.ts` uses for the same message: off the Regular line a
+ * floor timer ticks on, so it is not wiped by the next tick.
+ */
+export const OPENED_TEXT_TYPE = 3
 
 /**
  * Wires the floor's seals to the boss's death. Emits nothing when there is

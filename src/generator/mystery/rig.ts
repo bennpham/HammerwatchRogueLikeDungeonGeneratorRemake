@@ -90,9 +90,9 @@ export const MYSTERY_BUTTON_STATE = 'pressed'
 export const MYSTERY_ANNOUNCE_MS = 2500
 
 /**
- * The announcement style. The owner's sample uses 1; the seal and the
- * countdowns use 2 (the small corner line) and 0 is the centred banner.
- * [VERIFIED] in game, owner playtest 2026-09-26.
+ * The announcement style: 1, Subtitle — the owner's sample's value. The
+ * editor lists 0 Title, 1 Subtitle, 2 Regular (timer ticks), 3 Pickup (the
+ * lock's "opened" line). [VERIFIED] in game, owner playtest 2026-09-26.
  */
 export const MYSTERY_ANNOUNCE_TYPE = 1
 
