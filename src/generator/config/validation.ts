@@ -45,7 +45,6 @@ import {
   survivalWaves,
   floorLocked,
   MAX_LOCK_BUTTONS,
-  MAX_MYSTERY_DEFS,
   MAX_MYSTERY_MONSTERS,
   MAX_MYSTERY_PER_FLOOR,
   MAX_MYSTERY_TRAP_SECONDS,
@@ -2642,13 +2641,7 @@ function validateMystery(p: DungeonParameters, errors: ValidationIssue[], warnin
   const pool = p.mysteryButtons ?? []
   const floors = p.levelMystery
 
-  if (pool.length > MAX_MYSTERY_DEFS) {
-    errors.push({
-      field: 'mysteryButtons',
-      message: `The mystery-button pool holds ${pool.length} buttons — at most ${MAX_MYSTERY_DEFS}.`
-    })
-  }
-
+  // No rule on the pool's size: it is unbounded by design (see MYSTERY_PARSE_LIMIT).
   pool.forEach((button, i) => {
     const at = `mysteryButtons.${i}`
     const label = `Mystery button ${i + 1}${button.name ? ` ("${button.name}")` : ''}`

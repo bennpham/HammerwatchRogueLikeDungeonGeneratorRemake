@@ -15,6 +15,7 @@ import {
   defaultFloorTimer,
   defaultFloorLock,
   defaultFloorMystery,
+  MYSTERY_PARSE_LIMIT,
   gatewayLockedFloors,
   defaultLobby,
   defaultParameters,
@@ -1557,7 +1558,7 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     // `mystery` prefix no other key shares.
     if (keyLower === 'mysterybuttons') {
       const count = parseInt(value, 10)
-      if (Number.isNaN(count) || count < 0) result.unknownKeys.push(`${key} "${value}"`)
+      if (Number.isNaN(count) || count < 0 || count >= MYSTERY_PARSE_LIMIT) result.unknownKeys.push(`${key} "${value}"`)
       else {
         claimMysteryPool()
         declaredMysteryCount = count
@@ -1568,7 +1569,9 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     if (mysteryButtonMatch) {
       const index = parseInt(mysteryButtonMatch[1], 10)
       const field = mysteryButtonMatch[2]
-      if (field === 'name') mysteryAt(index, key).name = value
+      // mysteryAt pads the pool out to `index` — see MYSTERY_PARSE_LIMIT.
+      if (index >= MYSTERY_PARSE_LIMIT) result.unknownKeys.push(key)
+      else if (field === 'name') mysteryAt(index, key).name = value
       else if (field === 'text') mysteryAt(index, key).text = value
       else if (field === 'loot') mysteryAt(index, key).loot = parsePickupRows(key, value, result.unknownKeys, mysteryLootById)
       else if (field === 'monsters') mysteryAt(index, key).monsters = parseMonsterCountRows(key, value, result.unknownKeys)

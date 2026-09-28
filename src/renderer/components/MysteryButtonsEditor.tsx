@@ -1,6 +1,5 @@
 import React from 'react'
 import {
-  MAX_MYSTERY_DEFS,
   MAX_MYSTERY_MONSTERS,
   MAX_MYSTERY_PER_FLOOR,
   MAX_MYSTERY_TRAP_SECONDS,
@@ -103,7 +102,7 @@ export function MysteryButtonsEditor({ params, issues, onChange }: MysteryButton
 
   const addButton = () => commit([...clone(pool), { name: `Button ${pool.length + 1}`, loot: [], monsters: [], traps: [] }], floors())
 
-  const addStarterSet = () => commit([...clone(pool), ...mysteryStarterPool()].slice(0, MAX_MYSTERY_DEFS), floors())
+  const addStarterSet = () => commit([...clone(pool), ...mysteryStarterPool()], floors())
 
   // Appended rather than inserted beside the original, so no floor's indices move.
   const duplicate = (index: number) => {
@@ -164,18 +163,16 @@ export function MysteryButtonsEditor({ params, issues, onChange }: MysteryButton
             onChange={(change) => setButton(index, change)}
             onDuplicate={() => duplicate(index)}
             onRemove={() => remove(index)}
-            canDuplicate={pool.length < MAX_MYSTERY_DEFS}
           />
         ))}
         <div className="mystery-actions">
-          <button type="button" className="copy-down" onClick={addButton} disabled={pool.length >= MAX_MYSTERY_DEFS}>
+          <button type="button" className="copy-down" onClick={addButton}>
             Add button
           </button>
           <button
             type="button"
             className="copy-down"
             onClick={addStarterSet}
-            disabled={pool.length >= MAX_MYSTERY_DEFS}
             title="Adds a ready-made set to edit from: a dud, coin/diamond/chest/potion/upgrade rewards, monster squads and trap rooms that switch off after 30 s. Floors are left alone — tick the buttons each floor may be."
           >
             Add starter set
@@ -217,11 +214,10 @@ interface ButtonEditorProps {
   onChange: (change: Partial<MysteryButton>) => void
   onDuplicate: () => void
   onRemove: () => void
-  canDuplicate: boolean
 }
 
 /** One pool entry, collapsed to a one-line summary so a 50-button pool stays scannable. */
-function ButtonEditor({ index, button, issues, onChange, onDuplicate, onRemove, canDuplicate }: ButtonEditorProps) {
+function ButtonEditor({ index, button, issues, onChange, onDuplicate, onRemove }: ButtonEditorProps) {
   const prefix = `mysteryButtons.${index}`
   const hasIssue = issues.some((i) => i.field === prefix || i.field.startsWith(`${prefix}.`))
 
@@ -311,7 +307,7 @@ function ButtonEditor({ index, button, issues, onChange, onDuplicate, onRemove, 
         )}
 
         <div className="mystery-actions">
-          <button type="button" className="copy-down" onClick={onDuplicate} disabled={!canDuplicate}>
+          <button type="button" className="copy-down" onClick={onDuplicate}>
             Duplicate
           </button>
           <button type="button" className="copy-down" onClick={onRemove} title="Remove this button from the pool and from every floor's pick">

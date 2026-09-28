@@ -9,7 +9,6 @@ import {
   defaultLobby,
   defaultParameters,
   defaultSurvivalOptions,
-  MAX_MYSTERY_DEFS,
   MAX_MYSTERY_MONSTERS,
   MAX_MYSTERY_PER_FLOOR,
   MAX_MYSTERY_TRAP_SECONDS,
@@ -1519,10 +1518,10 @@ describe('mystery button validation (issue #67)', () => {
     expect(validateParameters(armed()).errors).toEqual([])
   })
 
-  it('rejects a pool larger than MAX_MYSTERY_DEFS', () => {
+  it('puts no cap on the pool size', () => {
     const p = armed()
-    p.mysteryButtons = Array.from({ length: MAX_MYSTERY_DEFS + 1 }, () => ({ loot: [], monsters: [], traps: [] }))
-    expect(fieldsOf(validateParameters(p).errors)).toContain('mysteryButtons')
+    p.mysteryButtons = [...samplePool(), ...Array.from({ length: 300 }, () => ({ loot: [], monsters: [], traps: [] }))]
+    expect(validateParameters(p).errors).toEqual([])
   })
 
   it('rejects a name or text that is too long or would break the XML or the file', () => {

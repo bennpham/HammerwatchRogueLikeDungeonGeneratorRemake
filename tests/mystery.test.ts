@@ -21,7 +21,7 @@ import {
   defaultDungeonBoss,
   defaultFloorTraps,
   floorMystery,
-  MAX_MYSTERY_DEFS,
+  MYSTERY_PARSE_LIMIT,
   MYSTERY_STARTER_TRAP_SECONDS,
   mysteryStarterPool
 } from '../src/generator/config/parameters'
@@ -372,6 +372,24 @@ describe('mystery buttons — parameters.txt', () => {
     expect(parsed.params.levelMystery).toEqual(params.levelMystery)
   })
 
+  it('reports a runaway button index or count instead of padding the pool out to it', () => {
+    const parsed = parseParametersTxt(
+      [`mysteryButton0Name=Real`, `mysteryButton${MYSTERY_PARSE_LIMIT}Name=Stray`, `mysteryButton999999999Text=Stray`].join('\n')
+    )
+    expect(parsed.params.mysteryButtons).toHaveLength(1)
+    expect(parsed.unknownKeys).toEqual([`mysteryButton${MYSTERY_PARSE_LIMIT}Name`, 'mysteryButton999999999Text'])
+    const counted = parseParametersTxt(`mysteryButtons=999999999\nmysteryButton0Name=Real`)
+    expect(counted.params.mysteryButtons).toHaveLength(1)
+    expect(counted.unknownKeys).toEqual(['mysteryButtons "999999999"'])
+  })
+
+  it('round-trips the whole starter set', () => {
+    const params = armed(0, 5, [0, 1], mysteryStarterPool())
+    const parsed = parseParametersTxt(serializeParametersTxt(params))
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.mysteryButtons).toEqual(params.mysteryButtons)
+  })
+
   it('writes nothing for a campaign without them, and reads nothing back', () => {
     const text = serializeParametersTxt(bareParams())
     expect(text).not.toMatch(/mystery/i)
@@ -440,8 +458,7 @@ describe('mystery buttons — the starter set', () => {
   const starter = mysteryStarterPool()
   const everyButton = starter.map((_, i) => i)
 
-  it('fits the pool and names only things the game has', () => {
-    expect(starter.length).toBeLessThanOrEqual(MAX_MYSTERY_DEFS)
+  it('names only things the game has', () => {
     expect(new Set(starter.map((b) => b.name)).size).toBe(starter.length)
     for (const button of starter) {
       for (const row of button.loot) expect(mysteryLootById(row.item), row.item).toBeDefined()
@@ -454,7 +471,10 @@ describe('mystery buttons — the starter set', () => {
     expect(starter[0]).toMatchObject({ loot: [], monsters: [], traps: [] })
     const items = starter.flatMap((b) => b.loot.map((r) => r.item))
     for (const rich of ['chest_red', 'valuable_diamond_red', 'powerup_1up', 'powerup_7up']) expect(items).not.toContain(rich)
-    expect(items.filter((id) => /^upgrade_.*_2$/.test(id))).toEqual([])
+    // A tier-II upgrade is its own button, one copy and nothing else.
+    const tierTwo = starter.filter((b) => b.loot.some((r) => /^upgrade_.*_2$/.test(r.item)))
+    expect(tierTwo).toHaveLength(4)
+    for (const b of tierTwo) expect(b.loot).toEqual([{ item: expect.stringMatching(/_2$/), count: 1 }])
   })
 
   it('arms every trap room on all four walls, switching off after the starter timer', () => {

@@ -398,8 +398,15 @@ export interface FloorMystery {
   pool: number[]
 }
 
-/** Most buttons the campaign-wide pool may define. */
-export const MAX_MYSTERY_DEFS = 50
+/**
+ * NOT a cap on the pool — the pool is unbounded, a button is only data and
+ * only the ones a floor rolls are emitted. This guards the parameters.txt
+ * importer alone: it pads the pool out to every `mysteryButton<i>…` index and
+ * to the `mysteryButtons=` count, so a stray `mysteryButton999999999Name=`
+ * line would otherwise build a billion buttons and freeze the import. An index
+ * or count at or past this is reported as an unknown key instead.
+ */
+export const MYSTERY_PARSE_LIMIT = 10000
 /** Most mystery buttons one floor may hide. */
 export const MAX_MYSTERY_PER_FLOOR = 200
 /** Most copies one monster row of a button may spawn. */
@@ -439,11 +446,12 @@ export const MYSTERY_STARTER_TRAP_SECONDS = 30
  * often, is the dungeon master's call on the per-floor picks.
  *
  * Tuned from the owner's playtest of their 4-button sample: the rewards stop
- * short of the red chest, the red diamond and the tier-II upgrades (a chest is
- * 91% its diamond — wood 50, green 100, blue 250, red 500 — and 5% an extra
- * life), the squads are big enough to panic a party rather than be farmed, and
- * every trap room fires from all four walls and switches off after
- * MYSTERY_STARTER_TRAP_SECONDS so the room is passable again.
+ * short of the red chest and the red diamond (a chest is 91% its diamond —
+ * wood 50, green 100, blue 250, red 500 — and 5% an extra life) and give a
+ * tier-II upgrade only one to a button, the squads are big enough to panic a
+ * party rather than be farmed, and every trap room fires from all four walls
+ * and switches off after MYSTERY_STARTER_TRAP_SECONDS so the room is passable
+ * again.
  */
 export function mysteryStarterPool(): MysteryButton[] {
   const loot = (name: string, text: string, rows: Array<[string, number]>): MysteryButton => ({
@@ -461,13 +469,20 @@ export function mysteryStarterPool(): MysteryButton[] {
     traps: []
   })
   // [up, down, left, right] spewer counts; a zero leaves that wall bare.
-  const trapRoom = (name: string, text: string, projectile: string, counts: [number, number, number, number]): MysteryButton => ({
+  const trapRoom = (
+    name: string,
+    text: string,
+    projectile: string,
+    counts: [number, number, number, number],
+    spawnRateMs = 500,
+    spread = 0.5
+  ): MysteryButton => ({
     name,
     text,
     loot: [],
     monsters: [],
     traps: (['up', 'down', 'left', 'right'] as const)
-      .map((direction, i) => ({ projectile, direction, spread: 0.5, spawnRateMs: 500, count: counts[i] }))
+      .map((direction, i) => ({ projectile, direction, spread, spawnRateMs, count: counts[i] }))
       .filter((row) => row.count > 0),
     trapSeconds: MYSTERY_STARTER_TRAP_SECONDS
   })
@@ -493,6 +508,10 @@ export function mysteryStarterPool(): MysteryButton[] {
     loot('Defense upgrade', 'An upgrade', [['upgrade_defense', 1]]),
     loot('Health upgrade', 'An upgrade', [['upgrade_health', 1]]),
     loot('Mana upgrade', 'An upgrade', [['upgrade_mana', 1]]),
+    loot('Damage upgrade II', 'A great upgrade', [['upgrade_damage_2', 1]]),
+    loot('Defense upgrade II', 'A great upgrade', [['upgrade_defense_2', 1]]),
+    loot('Health upgrade II', 'A great upgrade', [['upgrade_health_2', 1]]),
+    loot('Mana upgrade II', 'A great upgrade', [['upgrade_mana_2', 1]]),
 
     squad('Tick nest', 'The floor is crawling', [['mb_tick', 1], ['tick1#0', 1], ['tick1', 24], ['tick1#2', 12], ['tick1#3', 3]]),
     squad('Gold beetles', 'Gold beetles!', [['tick2', 4], ['tick2#0', 6]]),
@@ -502,11 +521,12 @@ export function mysteryStarterPool(): MysteryButton[] {
     squad('Necromancer', 'Necromancers!', [['lich#3', 4], ['skeleton3', 18]]),
     squad('Wisps', 'Wisps!', [['wisp1', 8], ['wisp1#2', 6], ['wisp2', 6]]),
     squad('Flower bed', 'Something blooms', [['tower_flower1_small', 4], ['tower_flower1', 2], ['tower_flower2', 1]]),
-    squad('Nova towers', 'Towers rise', [['tower_nova1', 2]]),
-    squad('Tracking towers', 'Towers rise', [['tower_tracking1', 1], ['tower_tracking2', 1]]),
+    squad('Nova towers', 'Towers rise', [['tower_nova1', 1], ['tower_nova2', 1]]),
+    squad('Fire and frost tracking', 'Towers rise', [['tower_tracking1', 1], ['tower_tracking2', 1]]),
+    squad('Drain tracking', 'Your mana drains away', [['tower_tracking3', 2]]),
     squad('Maggot brood', 'Maggots!', [['mb_maggot', 1], ['maggot', 12], ['maggot#2', 10], ['maggot#3', 4]]),
     squad('Eye cluster', 'You are being watched', [['mb_eye', 1], ['eye', 8], ['eye#2', 8]]),
-    squad('Slime pit', 'Slime!', [['slime', 20], ['slime#0', 1]]),
+    squad('Slime pit', 'Slime!', [['slime', 70], ['slime#0', 1]]),
     squad('Kamikazes', 'AAAAAAAAAA', [['special_beheaded_kamikaze', 6]]),
     squad('Fire pillars', 'Run!', [['pillar_fire', 6]]),
     squad('Fire floaters', 'Fire!', [['floater_fire', 8]]),
@@ -526,7 +546,16 @@ export function mysteryStarterPool(): MysteryButton[] {
     trapRoom('Arrow storm', 'Traps activated', 'shooter_arrow', [4, 4, 2, 2]),
     trapRoom('Axe mill', 'Traps activated', 'enemy_axe', [1, 1, 2, 2]),
     trapRoom('Death orbs', 'Traps activated', 'enemy_magicball_death', [1, 1, 1, 1]),
-    trapRoom('Purple drift', 'Traps activated', 'enemy_magicball_purple', [2, 2, 2, 2])
+    trapRoom('Purple drift', 'Traps activated', 'enemy_magicball_purple', [2, 2, 2, 2]),
+    // Spikes and boulders are the lethal ones: slow rates and no fan, so every
+    // shot is a single lane the party can read and step out of.
+    trapRoom('Spike gauntlet', 'Traps activated', 'shooter_spike', [1, 1, 1, 1], 1500, 0),
+    trapRoom('Boulder run', 'Boulders!', 'shooter_stone_ball', [1, 1, 1, 1], 3000, 0),
+    trapRoom("Dragon's breath", 'Traps activated', 'enemy_boss_dragon_fireball', [1, 1, 1, 1], 800),
+    trapRoom("Anubis' wrath", 'Traps activated', 'enemy_boss_anubis_fireball', [1, 1, 1, 1], 1000, 0.25),
+    trapRoom('Frost wall', 'Traps activated', 'enemy_boss_krilith_frostball', [2, 2, 2, 2], 900),
+    trapRoom('Confusion', 'Traps activated', 'enemy_boss_krilith_confusion', [2, 2, 2, 2], 900),
+    trapRoom('Poison nova', 'Traps activated', 'boss_maggot_nova', [1, 1, 1, 1], 700)
   ]
 }
 

@@ -34,7 +34,7 @@ that it grants nothing, so it cannot be a coin fountain.
 
 **Spawned via `SpawnObject` for the first time** by `mysteryStarterPool()`
 (`[EMITTED]`, awaiting a playtest): `tower_flower_1_small`, `tower_flower_1`,
-`tower_flower_2`, `tower_nova_1`, `tower_tracking_1/2`, `pillar_fire`,
+`tower_flower_2`, `tower_nova_1/2`, `tower_tracking_1/2/3`, `pillar_fire`,
 `floater_fire`, `special_beheaded_kamikaze` (speed 1.45, 25-dmg
 splash-2 blast), `spider_1`, `lich_1/_elite/2/3`, `lich_1_mb`, `mummy_1*`,
 `mummy_ranged_1/2`, `mummy_1_mb`, `eye_1_mb`, `maggot_1_mb`, `tick_1_mb`,
@@ -54,8 +54,12 @@ them until they vanish.
 
 So spawning several cannot block a room for good.
 
-**Impact:** `mysteryStarterPool()` leaves out red chests, the red diamond and
-tier-II upgrades. Record the first playtest of the actors above here.
+**First fired from a mystery button:** `shooter_spike`,
+`shooter_stone_ball`, `enemy_boss_krilith_frostball` (all `[EMITTED]`), and
+the arena-verified dragon, Anubis, Krilith-confusion and maggot-nova shots.
+**Impact:** `mysteryStarterPool()` leaves out red chests and the red diamond,
+and gives tier-II upgrades one per button. Record the first playtest of the
+actors and projectiles above here.
 
 ### 2026-09-26 — mystery buttons work in game; coin and diamond values read from the assets
 **Tag:** [VERIFIED] (owner playtest of PR #71) for the rig; [VERIFIED] for the
