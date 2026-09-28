@@ -43,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - A plate stays pressed after one use. All plates look the same.
   - Off by default. Buttons are placed after the floor is built, from their own random stream, so arming a floor never changes any floor's layout and existing seeds are unchanged.
   - `parameters.txt` gains `mysteryButtons=`, `mysteryButton<i>Name/Text/Loot/Monsters/Traps/TrapSeconds=` and `mysteryFloor<N>=<count>:<buttons>`. None of them are written for a campaign that doesn't use buttons.
+- **The Beta Classic presets hide mystery buttons.** Castle, Desert and Bonus Gauntlet now hide two plates on every floor and one on the escape floor. Their dungeons are unchanged for every seed; the plates are added on top.
+  - Risk and reward grow together. Early floors give coins, snacks and small squads (ticks, bats, maggots). Deeper floors give chests, diamonds and tier-II upgrades, against lich councils, mummy tombs and death orbs. Kamikazes and dragon or Anubis fire only turn up near the end.
+  - Each preset keeps to its theme. Castle follows its acts. Desert is a temple treasury, with scarabs guarding gold, temple guards and sun priests. Bonus springs ambushes of its own skeletons and archers.
+  - The app still opens on the plate-free defaults, so an imported `parameters.txt` gets no plates it didn't ask for.
 
 ### Fixed
 

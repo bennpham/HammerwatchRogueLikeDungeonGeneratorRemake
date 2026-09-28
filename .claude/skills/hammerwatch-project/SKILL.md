@@ -35,8 +35,10 @@ src/
 │   │   └── context.ts    GenerationContext — replaces the Java statics
 │   ├── config/
 │   │   ├── parameters.ts DungeonParameters + defaultParameters() + THEMES
-│   │   ├── presets.ts    CAMPAIGN_PRESETS — castle (== the default) / desert /
-│   │   │                 bonus. Each build() returns a full fresh parameter set
+│   │   ├── presets.ts    CAMPAIGN_PRESETS — castle (the default + plates) /
+│   │   │                 desert / bonus. Each build() returns a fresh object
+│   │   ├── presetMystery.ts mysteryKit — the presets' mystery pools, picked
+│   │   │                 by button NAME with weights; loot-tier pick lists
 │   │   ├── claudePresets.ts CLAUDE_PRESETS — the 8 "Claude Generated" presets
 │   │   ├── themes.ts     THEME_DEFS — tileset path, tile count, doodad token
 │   │   ├── configFile.ts parameters.txt parse/serialize (original format)
@@ -403,7 +405,8 @@ group must validate, generate, stay deterministic and round-trip through
 `parameters.txt`.
 
 `config/presets.ts` holds `CAMPAIGN_PRESETS` — `castle` (8 floors,
-`a_mixed`–`g_mixed` then `f_mixed`; identical to `defaultParameters()`),
+`a_mixed`–`g_mixed` then `f_mixed`; `defaultParameters()` plus its mystery
+plates — the default itself stays plate-free),
 `desert` (**7 floors** since the 070 parameter set —
 `g_mixed,h,i,i_symbols,i_mixed,g_mixed,i_mixed`; an outdoor bug floor now
 opens it and a tick/tower breather sits before the mummy rush) and `bonus`
@@ -418,6 +421,17 @@ sizes; the exceptions are `tower_empty`, raised to 150 in
 `defaultParameters()` for the escape floor, and — in the desert preset —
 `tower_flower1` raised to 6 because floor 0 is the first floor of any preset
 to pool it.
+
+**Mystery plates in the presets.** Every classic hides two mystery plates per
+floor and one on the escape floor, themed to its acts (desert and bonus add
+custom buttons: `Scarab hoard`, `Tomb offering`, `Temple guards`, `Sun
+priests`, `Bonus ambush`). A preset's pool is `mysteryStarterPool()`
+unchanged, followed by its custom buttons; floors pick by NAME through
+`presetMystery.ts`'s `mysteryKit().pick`, which throws on an unknown name.
+The weights follow the owner's rule: risk and reward ramp together with depth.
+No lich council, kamikazes, death orbs or boss fire in the first half of a
+classic (a test enforces it). Plates are purely additive (invariant 8). The
+test `moves no floor` compares each floor's tilemap with and without them.
 
 **The 070 preset content (`944e81d`).** All three presets now arm their
 **escape floor** with a four-wall spewer rig (`shooter_fireball` ×8/wall on

@@ -16,6 +16,8 @@ import {
   arenaMode,
   bossFights,
   floorBoss as floorBossAt,
+  floorMystery,
+  mysteryStarterPool,
   MOBILE_BOSS_IDS
 } from '../src/generator'
 import type { BossWave, DungeonParameters } from '../src/generator'
@@ -29,6 +31,7 @@ import {
 } from '../src/generator/objects/monsterTypes'
 import { corpseCollision } from '../src/generator/objects/actorCollision'
 import { isScatterMode, waveSpawnMode } from '../src/generator/config/parameters'
+import { mysteryKit } from '../src/generator/config/presetMystery'
 
 const CLASSIC_PRESETS = CAMPAIGN_PRESETS.filter((p) => p.group === 'classic')
 
@@ -171,6 +174,49 @@ describe('campaign presets', () => {
         })
       }
     })
+
+    describe('mystery buttons', () => {
+      for (const preset of CLASSIC_PRESETS) {
+        const params = preset.build()
+        const last = params.levels - 1
+
+        it(`${preset.id}: hides two plates on every floor and one on the escape floor`, () => {
+          expect(params.levelMystery).toHaveLength(params.levels)
+          for (let i = 0; i < last; i++) expect(floorMystery(params, i)?.count, `floor ${i + 1}`).toBe(2)
+          expect(floorMystery(params, last)?.count).toBe(1)
+        })
+
+        it(`${preset.id}: keeps the starter set intact at the front of its pool`, () => {
+          const starter = mysteryStarterPool()
+          expect(params.mysteryButtons!.slice(0, starter.length)).toEqual(starter)
+        })
+
+        it(`${preset.id}: ramps the risk — no lich council, kamikazes or boss fire in the first half`, () => {
+          const names = params.mysteryButtons!.map((b) => b.name)
+          const harsh = ['Lich council', 'Kamikazes', "Dragon's breath", "Anubis' wrath", 'Death orbs']
+          for (let i = 0; i < Math.floor(last / 2); i++) {
+            const picked = new Set(floorMystery(params, i)!.pool.map((n) => names[n]))
+            for (const name of harsh) expect(picked.has(name), `floor ${i + 1}: ${name}`).toBe(false)
+          }
+        })
+
+        it(`${preset.id}: moves no floor — every plate is appended after the floor is built`, () => {
+          const plain = { ...params, mysteryButtons: undefined, levelMystery: undefined }
+          const a = generateDungeon(plain, 4242)
+          const b = generateDungeon(params, 4242)
+          expect(a.ok && b.ok).toBe(true)
+          if (!a.ok || !b.ok) return
+          const tilemap = (xml: string) => xml.slice(0, xml.indexOf('<dictionary name="doodads">'))
+          for (let i = 0; i < params.levels; i++) {
+            const path = `levels/level${i}.xml`
+            const before = a.files.find((f) => f.path === path)!.content
+            const after = b.files.find((f) => f.path === path)!.content
+            expect(tilemap(after), path).toBe(tilemap(before))
+            expect(after.length, path).toBeGreaterThan(before.length)
+          }
+        })
+      }
+    })
   })
 
   // Scatter safety is a hard invariant, not a classic-preset habit — it
@@ -200,8 +246,22 @@ describe('campaign presets', () => {
     expect(campaignPresetById('nope')).toBeUndefined()
   })
 
-  it('makes the castle preset the built-in default', () => {
-    expect(campaignPresetById('castle')!.build()).toEqual(defaultParameters())
+  it('makes the castle preset the built-in default plus its mystery plates, and nothing else', () => {
+    const { mysteryButtons, levelMystery, ...rest } = campaignPresetById('castle')!.build()
+    expect(mysteryButtons).toBeDefined()
+    expect(levelMystery).toBeDefined()
+    expect(rest).toEqual(defaultParameters())
+    // the app opens on the plate-free default, and parameters.txt imports onto it
+    expect(defaultParameters().mysteryButtons).toBeUndefined()
+    expect(defaultParameters().levelMystery).toBeUndefined()
+  })
+
+  it('resolves mystery picks by button name, and throws on an unknown one', () => {
+    const kit = mysteryKit()
+    const nothing = kit.buttons.findIndex((b) => b.name === 'Nothing')
+    expect(kit.pick(2, [['Nothing', 3]])).toEqual({ count: 2, pool: [nothing, nothing, nothing] })
+    expect(() => kit.pick(1, [['No such button', 1]])).toThrow(/No such button/)
+    expect(() => mysteryKit([{ name: 'Nothing', loot: [], monsters: [], traps: [] }])).toThrow(/unique/)
   })
 
   it('builds a fresh object every call, so the form cannot mutate a preset', () => {
