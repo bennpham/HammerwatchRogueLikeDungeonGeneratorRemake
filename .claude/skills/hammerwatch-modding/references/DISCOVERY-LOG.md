@@ -8,6 +8,132 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-27 — chest roll tables; `shooter_valuables` does nothing; the mystery starter set verified in game
+**Tag:** [VERIFIED] for the chest tables (read from
+`editor/assetsExtract/items/chest_*.xml`) and for `shooter_valuables` (owner,
+in game). [VERIFIED] for every starter-set monster spawn and trap below
+(owner playtest, 2026-09-27); the reward items stay [UNVERIFIED].
+**Chests are a weighted roll out of 1000, not fixed loot:**
+
+| chest | 910 | 50 | 10 each |
+|---|---|---|---|
+| `chest_wood` | `valuable_diamond_small` (50 g) | `powerup_1up` | `upgrade_health/mana/damage/defense` |
+| `chest_green` | `valuable_diamond_small_red` (100 g) | `powerup_1up` | same four tier-I upgrades |
+| `chest_blue` | `valuable_diamond` (250 g) | `powerup_1up` | same |
+| `chest_red` | `valuable_diamond_red` (500 g) | `powerup_1up` | same |
+
+`chest_purple` rolls differently: 1000 `collectable_1`, 1000 `powerup_1up`,
+then 200/200/400/200 for tier-II health/mana/damage/defense.
+
+So **every** chest, not just purple, has a ~5% chance of an extra life, and
+three red chests are ~1500 gold. That is why the owner's 3-red-chest sample
+was far too rich.
+
+**`projectiles/shooter_valuables.xml` does nothing useful:** `damage="0"`,
+`behavior="neutral"` and a `take_coin` hit sound. The owner confirmed in game
+that it grants nothing, so it cannot be a coin fountain.
+
+**Spawned via `SpawnObject` for the first time** by `mysteryStarterPool()`
+(`[VERIFIED]`, owner playtest 2026-09-27): `tower_flower_1_small`, `tower_flower_1`,
+`tower_flower_2`, `tower_nova_1/2`, `tower_tracking_1/2/3`, `pillar_fire`,
+`floater_fire`, `special_beheaded_kamikaze` (speed 1.45, 25-dmg
+splash-2 blast), `spider_1`, `lich_1/_elite/2/3`, `lich_1_mb`, `mummy_1*`,
+`mummy_ranged_1/2`, `mummy_1_mb`, `eye_1_mb`, `maggot_1_mb`, `tick_1_mb`,
+`tick_2*`, the bats and wisps, and two nests rather than creatures:
+`spawners/tick_1.xml` and `slime_1_host.xml`.
+
+**Still `[UNVERIFIED]`:** the rewards were not part of that playtest, so
+`chest_wood/green/blue` and `valuable_diamond_small` / `_small_red` /
+`valuable_diamond` via `SpawnObject` remain untested (the owner was happy to
+leave them).
+
+**`pillar_fire` is a timed chaser, not a permanent hazard:** read from
+`actors/pillar_fire.xml`, and it matches the owner's experience of outrunning
+them until they vanish.
+- An `armor` pskill with `dmg-mul 0` makes it take no damage at all; its
+  5000 HP never matters.
+- It chases at speed 0.65 (`ranged` movement, aggro range 1400).
+- It burns on contact with `buffs/enemy_pillar_fire.xml`.
+- A suicide `explode` skill (0 damage, 12000 ms cooldown) removes it about
+  12 s after spawning.
+
+So spawning several cannot block a room for good.
+
+**First fired from a mystery button:** `shooter_spike`,
+`shooter_stone_ball`, `enemy_boss_krilith_frostball` (all `[VERIFIED]`, owner
+playtest 2026-09-27), and
+the arena-verified dragon, Anubis, Krilith-confusion and maggot-nova shots.
+**Impact:** `mysteryStarterPool()` leaves out red chests and the red diamond,
+and gives tier-II upgrades one per button. Promoted in `ASSET-REGISTRY.md`.
+
+### 2026-09-26 — mystery buttons work in game; coin and diamond values read from the assets
+**Tag:** [VERIFIED] (owner playtest of PR #71) for the rig; [VERIFIED] for the
+gold amounts (read from `editor/assetsExtract/items/valuable_*.xml`).
+**Context:** the owner played the generated mystery buttons and confirmed:
+- `trigger_button_floor.xml` driven to `pressed` stays down after the press.
+- Loot lands beside the plate and monsters spawn clear of it, in its room.
+- A `ToggleElement{state 1}` on a real per-connection delay switches the
+  spewers off after `trapSeconds` — so an `AreaTrigger` in real-delay mode
+  (`connection-delays` alongside `delays`) works, not only a
+  `GlobalEventTrigger`.
+- `AnnounceText` `type` 1 displays (0 and 2 were the only documented values).
+- `items/valuable_1..9.xml` spawn through `SpawnObject`.
+
+**Gold values.** Every `valuable_*.xml` is `<item behavior="money">` with an
+`<entry name="amount">`. The nine coins are three metals of three sizes; the
+metal is the sprite's colour on `items/items.png` (single coins at frame y
+107/91/75, stacks at y 312–400: brown, grey, gold), the sizes a single coin, a
+small stack and a pile:
+
+| id | amount | | id | amount |
+|---|---|---|---|---|
+| valuable_1 bronze coin | 1 | | valuable_diamond_small (blue) | 50 |
+| valuable_2 bronze coins | 5 | | valuable_diamond_small_red | 100 |
+| valuable_3 bronze pile | 10 | | valuable_diamond (blue) | 250 |
+| valuable_4 silver coin | 3 | | valuable_diamond_red | 500 |
+| valuable_5 silver coins | 13 | | | |
+| valuable_6 silver pile | 25 | | | |
+| valuable_7 gold coin | 5 | | | |
+| valuable_8 gold coins | 27 | | | |
+| valuable_9 gold pile | 42 | | | |
+
+The metal names are inferred from colour, not written in the files.
+`valuable_diamond`, `_small` and `_small_red` via SpawnObject are still
+[UNVERIFIED], as are `chest_wood/blue/green`.
+**Impact:** `objects/mysteryLoot.ts` labels the loot dropdown with these
+names and amounts, split into Chests / Coins / Diamonds, and offers all four
+diamonds. Promoted in `ASSET-REGISTRY.md`.
+
+### 2026-09-26 — mystery buttons: `trigger_button_floor` driven to `pressed`, SpawnObject loot, delayed trap switch-off
+**Tag:** [EMITTED] when written (issue #67) — now [VERIFIED], see the entry
+above.
+**Context:** the owner hand-built `test_mystery_button_simple.xml` with four
+floor buttons — treasure, nothing, monsters, traps — and `mystery/rig.ts`
+transcribes it. Evidence and status per piece:
+- `doodads/special/trigger_button_floor.xml`, need-sync True, driven by
+  `ChangeDoodadState` to **`pressed`**. The owner's own choice, stated
+  2026-09-26: `pressed` keeps the plate down after one press, while the
+  campaign's `activate` lets it bob back up — right for a reusable switch,
+  wrong for a one-shot mystery. Built in the owner's sample; the generated
+  rig is [EMITTED] until played.
+- `SpawnObject` with `items/chest_red.xml` and `items/upgrade_damage_2.xml`
+  (sample), `actors/skeleton_1_mb.xml` (sample). The other chests, the red
+  diamond and `valuable_1..9` via `SpawnObject` are [UNVERIFIED]; they are
+  shipped item assets already placed as items by `objects/item.ts` and the
+  lobbies.
+- `AnnounceText` `type` **1** (the sample's value). Only 0 (centred banner)
+  and 2 (small corner line) were documented before; what 1 looks like is
+  [UNVERIFIED]. `MYSTERY_ANNOUNCE_TYPE` is the one-line switch.
+- Disabled `ProjectileSpewer` + `ToggleElement{state 0}` off the press: the
+  sample's own shape. The optional switch-off is a `ToggleElement{state 1}`
+  connected with a real delay, which puts that one `AreaTrigger` into
+  real-delay mode (`connection-delays` alongside `delays`) — the shape
+  survival's verified clock uses, on an `AreaTrigger` for the first time.
+  [EMITTED].
+**Impact:** `TriggerButton` is no longer reserved (ASSET-REGISTRY). Playtest
+checklist: the plate stays down, loot lands beside it, monsters spawn clear
+of it, traps fire and (with a switch-off) stop, a dud only clicks.
+
 ### 2026-09-26 — the locked-room rigs work in game: several buttons, boss + button, the new plate
 **Tag:** [VERIFIED] (user playtest). It settles the three 2026-09-25 entries below.
 **Context:** the user played the issue #69 build (PR #70) and confirmed each

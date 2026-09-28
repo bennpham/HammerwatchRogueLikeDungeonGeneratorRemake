@@ -201,9 +201,10 @@ export function eligibleRoom(room: Room): boolean {
 /**
  * The legal slots on one room's `direction` wall, in ascending order along it:
  * the innermost interior floor row or column, minus the corners, the passage
- * mouths and any prefab's footprint.
+ * mouths and any prefab's footprint. Exported for `mystery/`, whose trap
+ * buttons arm spewers in the plate's own room rather than across the floor.
  */
-function roomWallSlots(
+export function roomWallSlots(
   level: Level,
   ctx: GenerationContext,
   room: Room,

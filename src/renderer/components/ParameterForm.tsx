@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { MUSIC_DEFAULT, THEME_DEFS, defaultDungeonBoss, defaultFloorLock, defaultFloorTimer, isDefaultOrder, normalizeOrder } from '../../generator'
+import { MUSIC_DEFAULT, THEME_DEFS, defaultDungeonBoss, defaultFloorLock, defaultFloorMystery, defaultFloorTimer, floorMystery, isDefaultOrder, normalizeOrder } from '../../generator'
 import type { CampaignCounts, DungeonParameters, ValidationIssue } from '../../generator'
 import { NumberField, Section } from './fields'
 import { MusicPicker } from './MusicPicker'
@@ -10,6 +10,7 @@ import { FloorLockEditor } from './FloorLockEditor'
 import { FloorBuffEditor } from './FloorBuffEditor'
 import { FloorTrapEditor } from './FloorTrapEditor'
 import { DungeonBossEditor } from './DungeonBossEditor'
+import { MysteryButtonsEditor } from './MysteryButtonsEditor'
 
 /** Themes bucketed by their registry group, in registry order. */
 const THEME_GROUPS = THEME_DEFS.reduce<[string, (typeof THEME_DEFS)[number][]][]>((groups, def) => {
@@ -30,7 +31,10 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
   // a time: Boss holds only the per-floor boss editor, because several of its
   // sections share names with standard ones and the two read as one form when
   // stacked. Session state only, like every other sub-tab selector here.
-  const [dungeonTab, setDungeonTab] = useState<'standard' | 'boss'>('standard')
+  // Mystery Buttons (issue #67) is another view, between the two: a
+  // campaign-wide pool plus a per-floor pick, neither of which belongs to any
+  // one Standard section.
+  const [dungeonTab, setDungeonTab] = useState<'standard' | 'boss' | 'mystery'>('standard')
 
   const set = <K extends keyof DungeonParameters>(key: K, value: DungeonParameters[K]) => {
     onChange({ ...params, [key]: value })
@@ -97,6 +101,14 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
         next.levelLock = levelLock.slice(0, Math.max(levels, 1))
       }
 
+      // Mystery buttons pad the same way: a new floor hides none, and an
+      // absent list stays absent.
+      if (params.levelMystery !== undefined) {
+        const levelMystery = params.levelMystery.map((f) => ({ count: f.count, pool: [...f.pool] }))
+        while (levelMystery.length < levels) levelMystery.push(defaultFloorMystery())
+        next.levelMystery = levelMystery.slice(0, Math.max(levels, 1))
+      }
+
       if (params.levelOrder !== undefined) {
         const counts: CampaignCounts = {
           levels,
@@ -124,6 +136,9 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
   }
 
   const enabledBossFloors = (params.levelBoss ?? []).slice(0, params.levels).filter((b) => b.enabled).length
+  const mysteryFloors = Array.from({ length: Math.max(params.levels, 0) || 0 }, (_, i) => floorMystery(params, i)).filter(
+    (f) => f !== undefined
+  ).length
 
   return (
     <div className="parameter-form">
@@ -134,6 +149,10 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
         >
           Standard Settings
         </button>
+        <button className={dungeonTab === 'mystery' ? 'tab active' : 'tab'} onClick={() => setDungeonTab('mystery')}>
+          Mystery Buttons
+          {mysteryFloors > 0 && <span className="tab-count">{mysteryFloors}</span>}
+        </button>
         <button className={dungeonTab === 'boss' ? 'tab active' : 'tab'} onClick={() => setDungeonTab('boss')}>
           Boss Settings
           {enabledBossFloors > 0 && <span className="tab-count">{enabledBossFloors}</span>}
@@ -141,6 +160,8 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
       </div>
 
       {dungeonTab === 'boss' && <DungeonBossEditor params={params} issues={issues} onChange={onChange} />}
+
+      {dungeonTab === 'mystery' && <MysteryButtonsEditor params={params} issues={issues} onChange={onChange} />}
 
       {dungeonTab === 'standard' && (
         <>

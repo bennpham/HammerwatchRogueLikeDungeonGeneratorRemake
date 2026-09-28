@@ -30,14 +30,17 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    All I/O lives in `src/main/**`.
 2. **Determinism.** Same params + same seed ⇒ byte-identical output. Never
    introduce `Math.random()`, `Date.now()`, or `Object` iteration order
-   dependence into the generator. **Five** streams, never mixed: layout
+   dependence into the generator. **Six** streams, never mixed: layout
    randomness draws from `ctx.rand`, cosmetic (floor tiles, overlay and mixed
    palettes) from `ctx.cosmeticRand`, everything in the boss arena from
    `ctx.bossRand`, the per-floor wall traps from `ctx.trapRand` (`seed + 3`) —
    one `iRand` per placed spewer, in numeric floor order, and only after the
    retry loop has *accepted* a floor, so a discarded candidate never draws —
    and the per-floor BOSS from `ctx.floorBossRand` (`seed + 4`), on the same
-   post-acceptance terms. Mixing them shifts the streams after and every
+   post-acceptance terms, and the per-floor MYSTERY BUTTONS from
+   `ctx.mysteryRand` (`seed + 5`), likewise post-acceptance and last of all the
+   per-floor rigs — per plate one `iRand` for its tile then one for which pool
+   button it is, then one per spewer its traps place. Mixing them shifts the streams after and every
    existing seed changes. A path with nothing to draw must return *before*
    touching a stream.
 3. **No unbounded loops.** Every retry loop in the port is bounded
@@ -189,7 +192,11 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    after a floor has been built AND validated, so arming a floor's traps leaves
    every floor's rooms, walls, doodads, actors, items and pre-existing ids
    byte-identical — the one thing it moves is a *later* floor's own trap
-   positions. That is only safe because a script node carries no collision: a
+   positions. `mystery/**` (issue #67) is the same shape on `ctx.mysteryRand`:
+   plates, their loot/monster spawns and their disabled spewers are appended
+   after every other rig, so arming a floor moves only a later floor's own
+   plate positions. A plate is a doodad the player walks over, never a
+   collider — `map/sealCheck.ts` excludes `TriggerButton` for that reason. That is only safe because a script node carries no collision: a
    trap cannot seal a route, so a floor `map/reachability.ts` has already
    accepted stays finishable however it is trapped. Adding, removing or reordering lobbies must leave every
    `levels/level*.xml` byte-identical — only which extra files exist, and which

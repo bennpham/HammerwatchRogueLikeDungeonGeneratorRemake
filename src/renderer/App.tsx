@@ -5,6 +5,7 @@ import {
   arenaMode,
   campaignPresetById,
   defaultParameters,
+  floorMystery,
   pruneTweaks,
   validateParameters
 } from '../generator'
@@ -46,8 +47,17 @@ export function App() {
 
   const dungeonTabBadge = useMemo(() => {
     const bossCount = (params.levelBoss ?? []).slice(0, params.levels).filter((b) => b.enabled).length
-    return bossCount > 0 ? `${params.levels} floors · ${bossCount} boss` : `${params.levels} floors`
-  }, [params.levels, params.levelBoss])
+    const mysteryCount = Array.from({ length: Math.max(params.levels, 0) || 0 }, (_, i) => floorMystery(params, i)).filter(
+      (f) => f !== undefined
+    ).length
+    return [
+      `${params.levels} floors`,
+      bossCount > 0 && `${bossCount} boss`,
+      mysteryCount > 0 && `${mysteryCount} mystery`
+    ]
+      .filter((p): p is string => p !== false)
+      .join(' · ')
+  }, [params.levels, params.levelBoss, params.levelMystery, params.mysteryButtons])
 
   const arenaTabBadge = useMemo(() => {
     if (!params.boss.enabled) return 'off'

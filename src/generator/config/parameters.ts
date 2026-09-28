@@ -351,6 +351,215 @@ export function floorLocked(params: DungeonParameters, level: number): boolean {
 }
 
 /**
+ * One monster row a mystery button spawns: `count` copies of one actor, each
+ * its own `SpawnObject`. `monster` speaks the ARENA grammar
+ * (`isKnownMonsterKey`) — a bare id is a pin at `defaultTier` — because a
+ * button fires structure, not a roll: resolving a floor pool key's ladder or a
+ * family would need a draw per copy.
+ */
+export interface MysteryMonster {
+  monster: string
+  /** 1..MAX_MYSTERY_MONSTERS copies; NOT scaled by `monsterMultiplier` */
+  count: number
+}
+
+/**
+ * One entry of the campaign-wide mystery-button POOL (issue #67). Stepping on
+ * the plate fires every outcome it carries at once; a button carrying nothing
+ * is a dud, which is a legitimate outcome and not an error.
+ */
+export interface MysteryButton {
+  /** the dungeon master's label for it — the form only, never emitted */
+  name?: string
+  /** announced on press; absent or empty emits no `AnnounceText` at all */
+  text?: string
+  /** items spawned beside the plate; `item` is a `MYSTERY_LOOT_DEFS` id */
+  loot: WavePickup[]
+  /** monsters spawned a few tiles clear of the plate */
+  monsters: MysteryMonster[]
+  /**
+   * spewers placed on the walls of the plate's own ROOM, shipped disabled and
+   * switched on by the press. `count` is per button, bounded by MAX_TRAP_COUNT.
+   */
+  traps: BossTrap[]
+  /** switch the traps back off this many seconds after the press; absent/0 = never */
+  trapSeconds?: number
+}
+
+/**
+ * How many mystery buttons floor `i` hides and which pool buttons they may
+ * be. `pool` holds 0-based indices into `mysteryButtons`, repeated to weight —
+ * the same convention `levelMonsters` uses. Each plate draws one entry
+ * independently, so a button may appear more than once and `count` may exceed
+ * the pool's size.
+ */
+export interface FloorMystery {
+  count: number
+  pool: number[]
+}
+
+/**
+ * NOT a cap on the pool — the pool is unbounded, a button is only data and
+ * only the ones a floor rolls are emitted. This guards the parameters.txt
+ * importer alone: it pads the pool out to every `mysteryButton<i>…` index and
+ * to the `mysteryButtons=` count, so a stray `mysteryButton999999999Name=`
+ * line would otherwise build a billion buttons and freeze the import. An index
+ * or count at or past this is reported as an unknown key instead.
+ */
+export const MYSTERY_PARSE_LIMIT = 10000
+/** Most mystery buttons one floor may hide. */
+export const MAX_MYSTERY_PER_FLOOR = 200
+/** Most copies one monster row of a button may spawn. */
+export const MAX_MYSTERY_MONSTERS = 100
+/** Longest button name the form accepts. */
+export const MYSTERY_NAME_MAX = 40
+/** Longest announce text — one line of the game's banner. */
+export const MYSTERY_TEXT_MAX = 120
+/** Longest a button's traps may stay on before switching off again. */
+export const MAX_MYSTERY_TRAP_SECONDS = 3600
+
+/** A floor with no mystery buttons — the pad value for a floor nobody armed. */
+export function defaultFloorMystery(): FloorMystery {
+  return { count: 0, pool: [] }
+}
+
+/**
+ * Floor `level`'s mystery-button config, or undefined when it places none —
+ * no count, or no pool index that names a real button. Read the field through
+ * this, never directly: a stale index must not count as "armed".
+ */
+export function floorMystery(params: DungeonParameters, level: number): FloorMystery | undefined {
+  const floor = params.levelMystery?.[level]
+  const defs = params.mysteryButtons ?? []
+  if (floor === undefined || !(floor.count > 0)) return undefined
+  const pool = floor.pool.filter((i) => Number.isInteger(i) && i >= 0 && i < defs.length)
+  return pool.length > 0 ? { count: floor.count, pool } : undefined
+}
+
+/** How long every starter-set trap room stays armed after the press. */
+export const MYSTERY_STARTER_TRAP_SECONDS = 30
+
+/**
+ * The starter set the form's "Add starter set" inserts: one dud, then rewards
+ * cheapest first, then monster squads, then trap rooms. Pure data, fresh every
+ * call; it fills the pool only — which floors get which buttons, and how
+ * often, is the dungeon master's call on the per-floor picks.
+ *
+ * Tuned from the owner's playtest of their 4-button sample: the rewards stop
+ * short of the red chest and the red diamond (a chest is 91% its diamond —
+ * wood 50, green 100, blue 250, red 500 — and 5% an extra life) and give a
+ * tier-II upgrade only one to a button, the squads are big enough to panic a
+ * party rather than be farmed, and every trap room fires from all four walls
+ * and switches off after MYSTERY_STARTER_TRAP_SECONDS so the room is passable
+ * again.
+ */
+export function mysteryStarterPool(): MysteryButton[] {
+  const loot = (name: string, text: string, rows: Array<[string, number]>): MysteryButton => ({
+    name,
+    text,
+    loot: rows.map(([item, count]) => ({ item, count })),
+    monsters: [],
+    traps: []
+  })
+  const squad = (name: string, text: string, rows: Array<[string, number]>): MysteryButton => ({
+    name,
+    text,
+    loot: [],
+    monsters: rows.map(([monster, count]) => ({ monster, count })),
+    traps: []
+  })
+  // [up, down, left, right] spewer counts; a zero leaves that wall bare.
+  const trapRoom = (
+    name: string,
+    text: string,
+    projectile: string,
+    counts: [number, number, number, number],
+    spawnRateMs = 500,
+    spread = 0.5
+  ): MysteryButton => ({
+    name,
+    text,
+    loot: [],
+    monsters: [],
+    traps: (['up', 'down', 'left', 'right'] as const)
+      .map((direction, i) => ({ projectile, direction, spread, spawnRateMs, count: counts[i] }))
+      .filter((row) => row.count > 0),
+    trapSeconds: MYSTERY_STARTER_TRAP_SECONDS
+  })
+
+  return [
+    { name: 'Nothing', text: 'Nothing...', loot: [], monsters: [], traps: [] },
+
+    loot('Pocket change', 'A few coins', [['valuable_1', 5], ['valuable_4', 3]]),
+    loot('Loose change', 'Some coins', [['valuable_2', 4], ['valuable_3', 1]]),
+    loot('Silver stash', 'A silver stash', [['valuable_5', 3], ['valuable_6', 1]]),
+    loot('Gold stash', 'A gold stash', [['valuable_8', 2], ['valuable_9', 1]]),
+    loot('Small diamond', 'Something glitters', [['valuable_diamond_small', 1]]),
+    loot('Small red diamond', 'Something glitters red', [['valuable_diamond_small_red', 1]]),
+    loot('Blue diamond', 'A diamond!', [['valuable_diamond', 1]]),
+    loot('A chest', 'A chest', [['chest_wood', 1]]),
+    loot('Two chests', 'Two chests', [['chest_wood', 1], ['chest_green', 1]]),
+    loot('Three chests', 'Three chests!', [['chest_wood', 1], ['chest_green', 1], ['chest_blue', 1]]),
+    loot('Refreshments', 'Refreshments', [['health_2', 1], ['mana_1', 1]]),
+    loot('Rejuvenation', 'A potion', [['potion_2', 1]]),
+    loot('Invincibility', 'A potion', [['potion_1', 1]]),
+    loot('Fury', 'A potion', [['potion_3', 1]]),
+    loot('Damage upgrade', 'An upgrade', [['upgrade_damage', 1]]),
+    loot('Defense upgrade', 'An upgrade', [['upgrade_defense', 1]]),
+    loot('Health upgrade', 'An upgrade', [['upgrade_health', 1]]),
+    loot('Mana upgrade', 'An upgrade', [['upgrade_mana', 1]]),
+    loot('Damage upgrade II', 'A great upgrade', [['upgrade_damage_2', 1]]),
+    loot('Defense upgrade II', 'A great upgrade', [['upgrade_defense_2', 1]]),
+    loot('Health upgrade II', 'A great upgrade', [['upgrade_health_2', 1]]),
+    loot('Mana upgrade II', 'A great upgrade', [['upgrade_mana_2', 1]]),
+
+    squad('Tick nest', 'The floor is crawling', [['mb_tick', 1], ['tick1#0', 1], ['tick1', 24], ['tick1#2', 12], ['tick1#3', 3]]),
+    squad('Gold beetles', 'Gold beetles!', [['tick2', 4], ['tick2#0', 6]]),
+    squad('Bat swarm', 'Bats!', [['bat1', 40], ['bat2', 30], ['bat2#2', 10]]),
+    squad('Skeleton squad', 'The dead rise', [['mb_skeleton', 2], ['skeleton1#3', 4], ['skeleton1#2', 10], ['skeleton1', 4]]),
+    squad('Archer volley', 'Archers!', [['archer1', 12], ['archer2', 6], ['archer1#2', 3]]),
+    squad('Necromancer', 'Necromancers!', [['lich#3', 4], ['skeleton3', 18]]),
+    squad('Wisps', 'Wisps!', [['wisp1', 8], ['wisp1#2', 6], ['wisp2', 6]]),
+    squad('Flower bed', 'Something blooms', [['tower_flower1_small', 4], ['tower_flower1', 2], ['tower_flower2', 1]]),
+    squad('Nova towers', 'Towers rise', [['tower_nova1', 1], ['tower_nova2', 1]]),
+    squad('Fire and frost tracking', 'Towers rise', [['tower_tracking1', 1], ['tower_tracking2', 1]]),
+    squad('Drain tracking', 'Your mana drains away', [['tower_tracking3', 2]]),
+    squad('Maggot brood', 'Maggots!', [['mb_maggot', 1], ['maggot', 12], ['maggot#2', 10], ['maggot#3', 4]]),
+    squad('Eye cluster', 'You are being watched', [['mb_eye', 1], ['eye', 8], ['eye#2', 8]]),
+    squad('Slime pit', 'Slime!', [['slime', 70], ['slime#0', 1]]),
+    squad('Kamikazes', 'AAAAAAAAAA', [['special_beheaded_kamikaze', 6]]),
+    squad('Fire pillars', 'Run!', [['pillar_fire', 6]]),
+    squad('Fire floaters', 'Fire!', [['floater_fire', 8]]),
+    squad('Spider nest', 'Spiders!', [['spider', 13]]),
+    squad('Lich council', 'The council convenes', [['mb_lich', 1], ['lich#0', 4], ['lich', 2], ['lich#2', 3]]),
+    squad('Mummy tomb', 'The tomb opens', [
+      ['mb_mummy', 1],
+      ['mummy_desert', 8],
+      ['mummy_desert#2', 6],
+      ['mummy_desert#3', 3],
+      ['mummy_ranged', 4],
+      ['mummy_ranged#2', 2]
+    ]),
+
+    trapRoom('Big fireball cross', 'Traps activated', 'shooter_fireball_2', [1, 1, 1, 1]),
+    trapRoom('Fireball ring', 'Traps activated', 'shooter_fireball', [2, 2, 2, 2]),
+    trapRoom('Arrow storm', 'Traps activated', 'shooter_arrow', [4, 4, 2, 2]),
+    trapRoom('Axe mill', 'Traps activated', 'enemy_axe', [1, 1, 2, 2]),
+    trapRoom('Death orbs', 'Traps activated', 'enemy_magicball_death', [1, 1, 1, 1]),
+    trapRoom('Purple drift', 'Traps activated', 'enemy_magicball_purple', [2, 2, 2, 2]),
+    // Spikes and boulders are the lethal ones: slow rates and no fan, so every
+    // shot is a single lane the party can read and step out of.
+    trapRoom('Spike gauntlet', 'Traps activated', 'shooter_spike', [1, 1, 1, 1], 1500, 0),
+    trapRoom('Boulder run', 'Boulders!', 'shooter_stone_ball', [1, 1, 1, 1], 3000, 0),
+    trapRoom("Dragon's breath", 'Traps activated', 'enemy_boss_dragon_fireball', [1, 1, 1, 1], 800),
+    trapRoom("Anubis' wrath", 'Traps activated', 'enemy_boss_anubis_fireball', [1, 1, 1, 1], 1000, 0.25),
+    trapRoom('Frost wall', 'Traps activated', 'enemy_boss_krilith_frostball', [2, 2, 2, 2], 900),
+    trapRoom('Confusion', 'Traps activated', 'enemy_boss_krilith_confusion', [2, 2, 2, 2], 900),
+    trapRoom('Poison nova', 'Traps activated', 'boss_maggot_nova', [1, 1, 1, 1], 700)
+  ]
+}
+
+/**
  * The floors the old campaign-wide `lockFinalRoom` flag sealed, as per-floor
  * data: every floor whose way out is NOT stairs — the victory orb, the red
  * portal into an arena, or the blue one into a lobby — and that has no boss.
@@ -508,6 +717,20 @@ export interface DungeonParameters {
    * the button — see `dungeonBoss/opener.ts`.
    */
   levelLock?: FloorLock[]
+  /**
+   * The campaign-wide pool of mystery buttons (issue #67) that
+   * `levelMystery` draws from. Optional; absent (or empty) with no floor
+   * armed produces byte-identical output for every seed — see `mystery/`.
+   */
+  mysteryButtons?: MysteryButton[]
+  /**
+   * Mystery buttons per floor — how many plates and which pool buttons they
+   * may be. Optional, absent = none anywhere. Purely ADDITIVE, like
+   * `levelTraps`: the rig runs after a floor is accepted and draws only from
+   * `ctx.mysteryRand`, so arming a floor moves no floor's dungeon. Read a
+   * floor through `floorMystery`.
+   */
+  levelMystery?: FloorMystery[]
   /**
    * A `MUSIC_TRACKS` id per level, or the `MUSIC_DEFAULT` sentinel. Optional,
    * and unset per floor by default: a params object without it, or with every

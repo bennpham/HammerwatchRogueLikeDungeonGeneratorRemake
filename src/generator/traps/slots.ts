@@ -99,6 +99,22 @@ export function takeSlot(rand: Rand, pool: Slot[]): Slot {
 }
 
 /**
+ * `takeSlot` with a square exclusion instead of the manhattan one: one `iRand`
+ * draw, then every slot within Chebyshev distance `< gap` of the chosen one is
+ * removed. For things that occupy floor rather than a wall line — a mystery
+ * button's plate and the loot around it — where the manhattan-2 prune would
+ * still let two plates touch diagonally.
+ */
+export function takeSpacedSlot<T extends Slot>(rand: Rand, pool: T[], gap: number): T {
+  const index = rand.iRand(0, pool.length)
+  const chosen = pool[index]
+  for (let i = pool.length - 1; i >= 0; i--) {
+    if (Math.max(Math.abs(pool[i].x - chosen.x), Math.abs(pool[i].y - chosen.y)) < gap) pool.splice(i, 1)
+  }
+  return chosen
+}
+
+/**
  * How many spewers a wall of this size can hold — what `config/validation.ts`
  * checks trap counts against before generation. Assumes an empty floor:
  * pillars, prefabs and doorways can only ever reduce it, which is why running

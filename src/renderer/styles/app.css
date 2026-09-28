@@ -1532,3 +1532,39 @@ button.primary:hover:not(:disabled) {
 .checkpoint-fields {
   margin-top: 10px;
 }
+
+/* Mystery buttons (issue #67): the pool's rows and each floor's pick, laid out
+   like the per-floor editors above. */
+.mystery-buttons .pool-level > .section-body,
+.floor-mystery > .pool-level > .section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 10px 10px;
+}
+
+.mystery-button.has-issue > summary {
+  color: var(--error);
+}
+
+.mystery-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mystery-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* The loot labels ("Bronze coin pile (10 gold)") need the row's width more
+   than the count does; `input.` for the same specificity reason as
+   input.pool-weight above. */
+.mystery-buttons input.buff-target {
+  flex: 0 0 64px;
+  width: 64px;
+}

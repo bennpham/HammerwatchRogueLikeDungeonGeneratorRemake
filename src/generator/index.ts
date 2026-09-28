@@ -11,6 +11,7 @@ import { buildFloorBuffRig } from './buffs/field'
 import { buildMusicRig } from './music/rig'
 import { buildFloorTrapRig } from './traps/floor'
 import { buildFloorBossRig } from './dungeonBoss'
+import { buildMysteryButtonRig } from './mystery/rig'
 
 export type { DungeonParameters, DungeonBoss, LobbyOptions, BossOptions, BossFight, BossArenaOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FloorLock, FloorBuff, FloorTrap, TrapDirection, BuffTarget, WavePickup, BossTrap, BossTrapDirection, BossCheckpointPreset, ArenaMode, SurvivalOptions, SurvivalWave, SurvivalBuff, SurvivalPickup, SurvivalTrap, SurvivalCountdown } from './config/parameters'
 export {
@@ -83,9 +84,21 @@ export {
   MAX_LOCK_BUTTONS,
   gatewayLockedFloors,
   withGatewayLocks,
-  arenaUsesBodyguards
+  arenaUsesBodyguards,
+  defaultFloorMystery,
+  floorMystery,
+  mysteryStarterPool,
+  MYSTERY_STARTER_TRAP_SECONDS,
+  MYSTERY_PARSE_LIMIT,
+  MAX_MYSTERY_PER_FLOOR,
+  MAX_MYSTERY_MONSTERS,
+  MYSTERY_NAME_MAX,
+  MYSTERY_TEXT_MAX,
+  MAX_MYSTERY_TRAP_SECONDS
 } from './config/parameters'
-export type { BossSelection } from './config/parameters'
+export type { BossSelection, MysteryButton, MysteryMonster, FloorMystery } from './config/parameters'
+export { MYSTERY_LOOT_DEFS, MYSTERY_LOOT_GROUPS, mysteryLootById } from './objects/mysteryLoot'
+export type { LootDef } from './objects/mysteryLoot'
 export { BUFF_DEFS, BUFF_GROUPS, BUFF_HELPFUL_IDS, buffById } from './objects/buffTypes'
 export type { BuffDef } from './objects/buffTypes'
 export { PICKUP_DEFS, PICKUP_GROUPS, MAX_PICKUP_COUNT, pickupById } from './objects/pickupTypes'
@@ -453,6 +466,12 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
     // after it, because a boss floor takes a different branch inside `new
     // Level()` above. That is decided by ctx.floorBoss, not here.
     buildFloorBossRig(ctx, levelBoss, level)
+
+    // Sixth: mystery buttons (issue #67). Last, so arming them cannot move any
+    // other rig's ids, and drawing from ctx.mysteryRand alone, so they move no
+    // floor's layout, no floor trap and no floor boss. Their plates keep clear
+    // of the boss's tiles and the lock buttons, which is why they come after.
+    buildMysteryButtonRig(ctx, params, level, i)
 
     files.push({ path: `levels/level${i}.xml`, content: level.getXML() })
     floorPreviews.set(i, buildPreview(ctx, level))

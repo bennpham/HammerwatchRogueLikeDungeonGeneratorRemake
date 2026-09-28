@@ -8,8 +8,15 @@ import {
   BOSS_COUNT_WARN,
   defaultLobby,
   defaultParameters,
-  defaultSurvivalOptions
+  defaultSurvivalOptions,
+  MAX_MYSTERY_MONSTERS,
+  MAX_MYSTERY_PER_FLOOR,
+  MAX_MYSTERY_TRAP_SECONDS,
+  MAX_TRAP_COUNT,
+  MYSTERY_NAME_MAX,
+  MYSTERY_TEXT_MAX
 } from '../src/generator/config/parameters'
+import { MAX_PICKUP_COUNT } from '../src/generator/objects/pickupTypes'
 import {
   GOLD_SAFETY_MAX,
   UPGRADE_COUNT_MAX,
@@ -18,6 +25,7 @@ import {
 import { CAMPAIGN_PRESETS } from '../src/generator/config/presets'
 import { DEFAULT_LOBBY_PRESET_ID, LOBBY_PRESETS } from '../src/generator/lobby/presets'
 import { plainParameters } from './params'
+import { samplePool } from './mysterySample'
 import { noUpgrades, oneOfEachUpgrade } from '../src/generator/levelTemplate/surgery'
 import type { CampaignSlot } from '../src/generator/campaign'
 
@@ -1494,5 +1502,102 @@ describe('levelOrder (issue #43)', () => {
 
     p.levelOrder = [floor(0), boss(0), floor(1)]
     expect(validateParameters(p).errors.some((e) => e.message.includes('does not have'))).toBe(true)
+  })
+})
+
+describe('mystery button validation (issue #67)', () => {
+  const armed = () => {
+    const p = plainParameters()
+    p.mysteryButtons = samplePool()
+    p.levelMystery = Array.from({ length: p.levels }, () => ({ count: 0, pool: [] as number[] }))
+    p.levelMystery[0] = { count: 5, pool: [0, 1, 2, 3] }
+    return p
+  }
+
+  it('accepts the starter pool on a floor', () => {
+    expect(validateParameters(armed()).errors).toEqual([])
+  })
+
+  it('puts no cap on the pool size', () => {
+    const p = armed()
+    p.mysteryButtons = [...samplePool(), ...Array.from({ length: 300 }, () => ({ loot: [], monsters: [], traps: [] }))]
+    expect(validateParameters(p).errors).toEqual([])
+  })
+
+  it('rejects a name or text that is too long or would break the XML or the file', () => {
+    for (const bad of ['a=b', '<b>', 'fish & chips', 'two\nlines', 'x'.repeat(MYSTERY_TEXT_MAX + 1)]) {
+      const p = armed()
+      p.mysteryButtons![0].text = bad
+      expect(fieldsOf(validateParameters(p).errors), JSON.stringify(bad)).toContain('mysteryButtons.0.text')
+    }
+    const p = armed()
+    p.mysteryButtons![0].name = 'n'.repeat(MYSTERY_NAME_MAX + 1)
+    expect(fieldsOf(validateParameters(p).errors)).toContain('mysteryButtons.0.name')
+  })
+
+  it('warns on announce text outside plain ASCII', () => {
+    const p = armed()
+    p.mysteryButtons![0].text = 'Trésor'
+    expect(fieldsOf(validateParameters(p).warnings)).toContain('mysteryButtons.0.text')
+  })
+
+  it('rejects unknown loot, monsters and projectiles, and out-of-range counts', () => {
+    const p = armed()
+    p.mysteryButtons![0].loot = [{ item: 'golden_toilet', count: 1 }, { item: 'chest_red', count: MAX_PICKUP_COUNT + 1 }]
+    p.mysteryButtons![2].monsters = [{ monster: 'nope', count: 1 }, { monster: 'mb_skeleton', count: MAX_MYSTERY_MONSTERS + 1 }]
+    p.mysteryButtons![3].traps = [
+      { projectile: 'nope', direction: 'up', spread: 0, spawnRateMs: 500, count: 1 },
+      { projectile: 'shooter_arrow', direction: 'up', spread: 3, spawnRateMs: 0, count: MAX_TRAP_COUNT + 1 }
+    ]
+    const fields = fieldsOf(validateParameters(p).errors)
+    for (const f of [
+      'mysteryButtons.0.loot.0.item',
+      'mysteryButtons.0.loot.1.count',
+      'mysteryButtons.2.monsters.0.monster',
+      'mysteryButtons.2.monsters.1.count',
+      'mysteryButtons.3.traps.0.projectile',
+      'mysteryButtons.3.traps.1.spread',
+      'mysteryButtons.3.traps.1.spawnRateMs',
+      'mysteryButtons.3.traps.1.count'
+    ]) {
+      expect(fields).toContain(f)
+    }
+  })
+
+  it('bounds trapSeconds and warns when it has no traps to switch off', () => {
+    const p = armed()
+    p.mysteryButtons![3].trapSeconds = MAX_MYSTERY_TRAP_SECONDS + 1
+    expect(fieldsOf(validateParameters(p).errors)).toContain('mysteryButtons.3.trapSeconds')
+    p.mysteryButtons![3].trapSeconds = 2.5
+    expect(fieldsOf(validateParameters(p).errors)).toContain('mysteryButtons.3.trapSeconds')
+    p.mysteryButtons![3].trapSeconds = 10
+    expect(fieldsOf(validateParameters(p).errors)).not.toContain('mysteryButtons.3.trapSeconds')
+    p.mysteryButtons![0].trapSeconds = 10
+    expect(fieldsOf(validateParameters(p).warnings)).toContain('mysteryButtons.0.trapSeconds')
+  })
+
+  it('bounds a floor count and requires a real pick', () => {
+    for (const bad of [-1, 1.5, MAX_MYSTERY_PER_FLOOR + 1]) {
+      const p = armed()
+      p.levelMystery![0].count = bad
+      expect(fieldsOf(validateParameters(p).errors), `${bad}`).toContain('levelMystery.0.count')
+    }
+    const empty = armed()
+    empty.levelMystery![0].pool = []
+    expect(fieldsOf(validateParameters(empty).errors)).toContain('levelMystery.0.pool')
+    const dangling = armed()
+    dangling.levelMystery![0].pool = [0, 7]
+    expect(fieldsOf(validateParameters(dangling).errors)).toContain('levelMystery.0.pool')
+    const noPool = armed()
+    delete noPool.mysteryButtons
+    expect(fieldsOf(validateParameters(noPool).errors)).toContain('levelMystery.0.pool')
+  })
+
+  it('warns, never blocks, when a floor asks for more than it can hold', () => {
+    const p = armed()
+    p.levelMystery![0].count = MAX_MYSTERY_PER_FLOOR
+    const result = validateParameters(p)
+    expect(result.errors).toEqual([])
+    expect(fieldsOf(result.warnings)).toContain('levelMystery.0.count')
   })
 })
