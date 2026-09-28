@@ -379,9 +379,9 @@ are horizontal while 3–5 are the vertical variants of the same three tiers.
 **Chests are a roll, not fixed loot** `[VERIFIED 2026-09-27]`, read from
 `items/chest_*.xml`: out of 1000, 910 is the chest's diamond (wood 50, green
 100, blue 250, red 500 gold), 50 is `powerup_1up`, 10 each a tier-I upgrade.
-So every chest has ~5% odds of an extra life. `chest_blue` and `chest_green`
-spawn via `SpawnObject` `[VERIFIED 2026-09-28]`. `chest_wood` and the three
-smaller diamonds via `SpawnObject` are still `[UNVERIFIED]`.
+So every chest has ~5% odds of an extra life. All four chests spawn via
+`SpawnObject` `[VERIFIED 2026-09-28]`. The three smaller diamonds via
+`SpawnObject` are still `[UNVERIFIED]`.
 `projectiles/shooter_valuables.xml` grants nothing `[VERIFIED 2026-09-27]`.
 
 **Actors spawned by `SpawnObject`** `[VERIFIED 2026-09-27]`, the owner's
