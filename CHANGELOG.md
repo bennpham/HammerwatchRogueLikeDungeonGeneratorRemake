@@ -54,6 +54,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Boss Rush:** each floor's lock button also drops supplies (potions or rations) for the boss fight.
   - **Lunch Break:** one friendly, loot-heavy plate per floor.
   - Beat the Clock, Pandemonium and Arena Marathon are unchanged.
+- **Two new Claude Generated presets built around mystery buttons.**
+  - **Double or Nothing:** the red lock buttons are in plain sight and always safe. Every other plate is a wager. Win tier-II upgrades, a jackpot, diamonds or even an extra life, or trigger a lich council, a kamikaze pack or a room of death orbs. Plates get more numerous and the odds get worse floor by floor. Monsters are quiet and the starting purse is thin, so winnings are what you spend in the boss-prep shop. About 40 minutes.
+  - **Shell Game:** the lock buttons look exactly like the decoy plates around them, and some of the real ones fire a payload of their own. A real button gives itself away only when pressed, by announcing how many remain. Every floor is timed, with less time per button each floor and a harder hit when the clock runs out. About 30 minutes.
 
 ### Fixed
 

@@ -788,7 +788,7 @@ const PRE_ALPHA_PRESETS: readonly CampaignPreset[] = [
 
 /**
  * Every campaign preset the dropdown offers: the three classics first (castle
- * is the app's default and stays at index 0), then the eight Claude-generated
+ * is the app's default and stays at index 0), then the ten Claude-generated
  * ones — see `claudePresets.ts` — then Pre-Alpha. `PRESET_GROUPS` is what the
  * renderer groups and orders them by; this array's order is the fallback
  * within each group.

@@ -19,6 +19,7 @@ import {
   floorMystery,
   floorLockMystery,
   floorLockButtons,
+  floorLockDisguised,
   mysteryStarterPool,
   MOBILE_BOSS_IDS
 } from '../src/generator'
@@ -413,6 +414,51 @@ describe('campaign presets', () => {
           expect(button.monsters, button.name).toEqual([])
           expect(button.traps, button.name).toEqual([])
         }
+      }
+    })
+
+    it('Double or Nothing: visible locks, and more plates with worse odds the deeper you go', () => {
+      const params = campaignPresetById('claude-double-or-nothing')!.build()
+      const harsh = new Set(['Lich council', 'Double trouble', 'Kamikazes', 'Death trap', 'Inferno', "Dragon's breath", "Anubis' wrath", 'Death orbs'])
+      let lastCount = 0
+      let lastShare = 0
+      for (let level = 0; level < params.levels; level++) {
+        expect(floorLockButtons(params, level), `floor ${level + 1}`).toBeGreaterThan(0)
+        expect(floorLockDisguised(params, level), `floor ${level + 1}`).toBe(false)
+        const floor = floorMystery(params, level)!
+        expect(floor.count).toBeGreaterThanOrEqual(lastCount)
+        const share = floor.pool.filter((n) => harsh.has(params.mysteryButtons![n].name!)).length / floor.pool.length
+        expect(share, `floor ${level + 1}`).toBeGreaterThan(lastShare)
+        lastCount = floor.count
+        lastShare = share
+      }
+      // the top prize exists, and only on the last two floors
+      const extraLife = params.mysteryButtons!.findIndex((b) => b.name === 'Extra life')
+      for (let level = 0; level < params.levels; level++) {
+        expect(floorMystery(params, level)!.pool.includes(extraLife), `floor ${level + 1}`).toBe(level >= 3)
+      }
+    })
+
+    it('Shell Game: every lock is disguised and partly enhanced, among decoys, against a clock', () => {
+      const params = campaignPresetById('claude-shell-game')!.build()
+      for (let level = 0; level < params.levels; level++) {
+        expect(floorLockDisguised(params, level), `floor ${level + 1}`).toBe(true)
+        expect(floorLockMystery(params, level)?.count, `floor ${level + 1}`).toBeGreaterThan(0)
+        expect(floorMystery(params, level)?.count, `floor ${level + 1}`).toBeGreaterThan(0)
+        expect(params.levelTimers![level].enabled, `floor ${level + 1}`).toBe(true)
+      }
+      // less time per button on every floor than the one before it
+      const perButton = params.levelTimers!.map((t, level) => t.seconds / floorLockButtons(params, level))
+      for (let level = 1; level < params.levels; level++) expect(perButton[level]).toBeLessThan(perButton[level - 1])
+
+      // a disguised lock button is drawn with the plate's art, never the red button's
+      const result = generateDungeon(params, 4242)
+      expect(result.ok, result.ok ? '' : result.errors.join(' ')).toBe(true)
+      if (!result.ok) return
+      for (let level = 0; level < params.levels; level++) {
+        const xml = result.files.find((f) => f.path === `levels/level${level}.xml`)!.content
+        expect(xml, `floor ${level + 1}`).not.toContain('boss_door_button.xml')
+        expect(xml, `floor ${level + 1}`).toContain('trigger_button_floor.xml')
       }
     })
 

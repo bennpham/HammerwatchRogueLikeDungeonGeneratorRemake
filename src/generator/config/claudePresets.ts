@@ -11,6 +11,7 @@ import {
   defaultParameters,
   defaultSurvivalOptions,
   escapeFloorTimer,
+  MYSTERY_STARTER_TRAP_SECONDS,
   scatterWave,
   stockWavePickups,
   SHOOTER_ARROW_TRAPS,
@@ -42,9 +43,10 @@ import { MUSIC_DEFAULT } from '../music/tracks'
 import type { CampaignPreset } from './presets'
 
 /**
- * Eight hand-built presets that show off everything added since the beta
+ * Ten hand-built presets that show off everything added since the beta
  * classics: floor bosses, multi-boss arenas and lineups, survival arenas,
- * chained arenas, and per-floor traps/timers/buffs. Grouped separately from
+ * chained arenas, per-floor traps/timers/buffs, and mystery buttons and
+ * enhanced/disguised lock buttons. Grouped separately from
  * the three classic presets in the dropdown (see `PRESET_GROUPS` in
  * `presets.ts`).
  *
@@ -115,7 +117,7 @@ function floorRange(from: number, to: number): CampaignSlot[] {
 }
 
 /**
- * The shape five of the eight presets share: one lobby, every floor, a second
+ * The shape most of the presets share: one lobby, every floor, a second
  * lobby, then a single boss fight — no escape floor after it. Distinct from
  * `shippedOrder()`, which plays one more floor AFTER the boss.
  */
@@ -946,6 +948,181 @@ function longHaul(): DungeonParameters {
   return params
 }
 
+// --- Double or Nothing -----------------------------------------------------------
+
+/** One spewer per wall, all four walls — the shape every custom trap button below uses. */
+function fourWalls(projectile: string, spawnRateMs: number, spread: number): BossTrap[] {
+  return (['up', 'down', 'left', 'right'] as const).map((direction) => ({ projectile, direction, spread, spawnRateMs, count: 1 }))
+}
+
+/**
+ * The red lock buttons are in plain sight and always safe: find them and the
+ * floor opens. Everything else is a wager. The plates draw from a high-stakes
+ * pool — tier-II upgrades, a jackpot and an extra life against lich councils,
+ * kamikaze packs and rooms of death orbs — and the odds tilt toward the house
+ * with every floor. Ignore them and walk into the boss with what you brought;
+ * gamble and walk in a giant, or not at all.
+ */
+function doubleOrNothingMystery(): Pick<DungeonParameters, 'mysteryButtons' | 'levelMystery'> {
+  const kit = mysteryKit([
+    // the house pays out
+    mysteryButton('Safe bet', 'A modest win', { loot: [['health_2', 1], ['valuable_5', 2]] }),
+    mysteryButton('Power surge', 'Power surges through you', { loot: [['upgrade_damage_2', 1], ['potion_3', 1]] }),
+    mysteryButton('Iron skin', 'Your skin turns to iron', { loot: [['upgrade_defense_2', 1], ['upgrade_health', 1]] }),
+    mysteryButton('Vitality', 'You feel unstoppable', { loot: [['upgrade_health_2', 1], ['health_3', 1]] }),
+    mysteryButton('Arcane well', 'Arcane power floods in', { loot: [['upgrade_mana_2', 1], ['mana_2', 2]] }),
+    mysteryButton('Jackpot', 'JACKPOT!', { loot: [['chest_blue', 1], ['chest_green', 1], ['valuable_diamond', 1]] }),
+    mysteryButton('Diamond rain', 'Diamonds!', { loot: [['valuable_diamond', 2], ['valuable_diamond_small_red', 2]] }),
+    mysteryButton('Extra life', 'An extra life!', { loot: [['powerup_1up', 1]] }),
+    // the house collects
+    mysteryButton('Bone pit', 'The pit opens', { monsters: [['mb_skeleton', 2], ['skeleton2', 12], ['archer2', 6]] }),
+    mysteryButton('Double trouble', 'Double or nothing... nothing', {
+      monsters: [['mb_lich', 1], ['lich#0', 3], ['special_beheaded_kamikaze', 3]]
+    }),
+    mysteryButton('Death trap', 'You lose', {
+      monsters: [['special_beheaded_kamikaze', 2]],
+      traps: fourWalls('enemy_magicball_death', 500, 0.5),
+      trapSeconds: MYSTERY_STARTER_TRAP_SECONDS
+    }),
+    mysteryButton('Inferno', 'Burn!', {
+      monsters: [['floater_fire', 4]],
+      traps: fourWalls('enemy_boss_dragon_fireball', 800, 0.5),
+      trapSeconds: MYSTERY_STARTER_TRAP_SECONDS
+    })
+  ])
+  return {
+    mysteryButtons: kit.buttons,
+    levelMystery: [
+      kit.pick(3, [
+        ['Nothing', 10], ['Safe bet', 8], ['Silver stash', 4], ['Refreshments', 4],
+        ['Power surge', 2], ['Iron skin', 2], ['Jackpot', 1], ['Diamond rain', 1],
+        ['Bone pit', 5], ['Skeleton squad', 4], ['Lich council', 1],
+        ['Arrow storm', 3], ['Spike gauntlet', 3], ['Death orbs', 2]
+      ]),
+      kit.pick(4, [
+        ['Nothing', 8], ['Safe bet', 6], ['Silver stash', 3],
+        ['Power surge', 2], ['Iron skin', 2], ['Vitality', 2], ['Arcane well', 1], ['Jackpot', 2], ['Diamond rain', 1],
+        ['Bone pit', 5], ['Necromancer', 3], ['Lich council', 2], ['Kamikazes', 1],
+        ['Death orbs', 3], ['Spike gauntlet', 3], ['Axe mill', 3]
+      ]),
+      kit.pick(4, [
+        ['Nothing', 6], ['Safe bet', 4],
+        ['Power surge', 3], ['Iron skin', 3], ['Vitality', 2], ['Arcane well', 2], ['Jackpot', 2], ['Diamond rain', 2],
+        ['Three chests', 1],
+        ['Lich council', 3], ['Bone pit', 4], ['Kamikazes', 2],
+        ['Death orbs', 3], ['Death trap', 2], ['Boulder run', 2], ["Dragon's breath", 1]
+      ]),
+      kit.pick(5, [
+        ['Nothing', 5], ['Safe bet', 3],
+        ['Power surge', 3], ['Iron skin', 3], ['Vitality', 3], ['Arcane well', 2], ['Jackpot', 3], ['Diamond rain', 2],
+        ['Extra life', 1],
+        ['Lich council', 4], ['Double trouble', 3], ['Kamikazes', 3], ['Mummy tomb', 2],
+        ['Death trap', 3], ['Inferno', 2], ["Dragon's breath", 2], ["Anubis' wrath", 2]
+      ]),
+      kit.pick(5, [
+        ['Nothing', 4],
+        ['Power surge', 3], ['Iron skin', 3], ['Vitality', 3], ['Arcane well', 2], ['Jackpot', 4], ['Diamond rain', 2],
+        ['Extra life', 2],
+        ['Double trouble', 5], ['Lich council', 4], ['Kamikazes', 3],
+        ['Death trap', 4], ['Inferno', 3], ["Dragon's breath", 2], ["Anubis' wrath", 2]
+      ])
+    ]
+  }
+}
+
+function doubleOrNothing(): DungeonParameters {
+  const levels = 5
+  return campaign(levels, {
+    // the floors themselves are quiet — the plates are the danger
+    monsterMultiplier: 0.6,
+    themes: ['b_mixed', 'c_mixed', 'd_mixed', 'e_mixed', 'g_mixed'],
+    levelMonsters: [
+      ['bat1', 'tick1'],
+      ['skeleton1', 'archer1'],
+      ['eye', 'wisp1'],
+      ['skeleton2', 'archer2'],
+      ['lich', 'wisp2']
+    ],
+    floorMusic: ['act1', 'act2', 'act3', 'act3', 'act4'],
+    // the red buttons, never disguised: finding them is always the safe way on
+    levelLock: buttonLocks([1, 1, 2, 2, 2]),
+    ...doubleOrNothingMystery(),
+    // a thin purse to start, so the gold won on the plates is what the
+    // boss-prep shop is spent with
+    lobbies: [
+      lobby('BETA-dungeon-prep', { startingGold: 5000 }),
+      lobby('BETA-boss-prep', { startingGold: 10000, music: 'boss_1' })
+    ],
+    levelOrder: actOrder(levels),
+    boss: { enabled: true, fights: [bossFight({ music: 'boss_final' })] }
+  })
+}
+
+// --- Shell Game --------------------------------------------------------------------
+
+/**
+ * Every plate looks the same. Each floor's lock buttons are drawn as mystery
+ * plates (`disguise`), some of them fire a payload of their own, and decoys
+ * are mixed in among them. A real lock button gives itself away only once
+ * pressed, when it announces how many remain. The clock gives time to check
+ * a few plates, never all of them.
+ */
+function shellGameMystery(): Pick<DungeonParameters, 'mysteryButtons' | 'levelMystery' | 'levelLockMystery'> {
+  const kit = mysteryKit()
+  // what a real lock button may also do — mostly help, sometimes cost time
+  const lockPayload: MysteryPicks = [
+    ['Nothing', 4], ['Refreshments', 3], ['Rejuvenation', 2], ['Fury', 1], ['Invincibility', 1],
+    ['Bat swarm', 2], ['Skeleton squad', 2], ['Arrow storm', 2]
+  ]
+  // the decoys — tempting loot, and squads and trap rooms that eat the clock
+  const decoys: MysteryPicks[] = [
+    [...shallowLoot(), ['Bat swarm', 4], ['Tick nest', 4], ['Arrow storm', 4], ['Fireball ring', 3]],
+    [...shallowLoot(), ['Tick nest', 4], ['Gold beetles', 3], ['Slime pit', 3], ['Arrow storm', 3], ['Axe mill', 3]],
+    [...midLoot(), ['Skeleton squad', 4], ['Bat swarm', 3], ['Archer volley', 3], ['Axe mill', 3], ['Spike gauntlet', 2]],
+    [...midLoot(), ['Skeleton squad', 4], ['Necromancer', 3], ['Gold beetles', 3], ['Spike gauntlet', 3], ['Boulder run', 2]],
+    [...deepLoot(['Damage upgrade II']), ['Necromancer', 3], ['Bat swarm', 3], ['Kamikazes', 1], ['Death orbs', 3], ['Spike gauntlet', 2]]
+  ]
+  const decoyCounts = [2, 2, 3, 3, 4]
+  const enhanced = [1, 1, 1, 2, 2]
+  return {
+    mysteryButtons: kit.buttons,
+    levelMystery: decoys.map((picks, i) => kit.pick(decoyCounts[i], picks)),
+    levelLockMystery: enhanced.map((count) => ({ ...kit.pick(count, lockPayload), disguise: true }))
+  }
+}
+
+function shellGame(): DungeonParameters {
+  const levels = 5
+  const params = campaign(levels, {
+    mapWidth: 64,
+    mapHeight: 48,
+    minRoomCount: 8,
+    maxRoomCount: 10,
+    monsterMultiplier: 0.5,
+    themes: ['b_mixed', 'c_mixed', 'd_mixed', 'e_mixed', 'f_mixed'],
+    levelMonsters: [
+      ['bat1'],
+      ['tick1', 'bat1'],
+      ['skeleton1', 'bat2'],
+      ['skeleton3', 'tick2'],
+      ['skeleton3', 'bat2']
+    ],
+    floorMusic: ['act1', 'act2', 'act2', 'act3', 'act4'],
+    levelLock: buttonLocks([1, 2, 2, 3, 3]),
+    ...shellGameMystery(),
+    lobbies: [lobby('BETA-dungeon-prep'), lobby('BETA-boss-prep', { music: 'boss_1' })],
+    levelOrder: actOrder(levels),
+    boss: { enabled: true, fights: [bossFight({ music: 'boss_final' })] }
+  })
+  // Beat the Clock on steroids: each floor has less time per button (150 s
+  // for one, then down to 30 s each for three), and a floor that runs out
+  // hurts harder and faster.
+  const seconds = [150, 135, 120, 105, 90]
+  const freqMs = [200, 175, 150, 125, 100]
+  params.levelTimers = seconds.map((s, i) => ({ enabled: true, seconds: s, damage: 3, freqMs: freqMs[i], countdown: true }))
+  return params
+}
+
 // --- registry ----------------------------------------------------------------
 
 /** In alphabetical order by label, which is the order the dropdown and the preset guide list them in. */
@@ -972,6 +1149,14 @@ export const CLAUDE_PRESETS: readonly CampaignPreset[] = [
     build: bossRush
   },
   {
+    id: 'claude-double-or-nothing',
+    label: 'Double or Nothing',
+    description:
+      'The red buttons are safe; every other plate is a wager of tier-II upgrades and extra lives against lich councils and death traps. The odds get worse the deeper you go — about 40 minutes.',
+    group: 'claude',
+    build: doubleOrNothing
+  },
+  {
     id: 'claude-frozen-descent',
     label: 'Frozen Descent',
     description: 'A five-floor descent through the ice caves, hunting buttons and frozen mystery plates, ending on Krilith — about 45 minutes.',
@@ -991,6 +1176,14 @@ export const CLAUDE_PRESETS: readonly CampaignPreset[] = [
     description: 'Every floor hosts several roaming bosses at once, then a six-boss finale — about 50 minutes.',
     group: 'claude',
     build: () => withGatewayLocks(pandemonium())
+  },
+  {
+    id: 'claude-shell-game',
+    label: 'Shell Game',
+    description:
+      'Lock buttons look just like the decoy plates around them, and a steep clock gives time to check only a few. Some of the real ones bite back — about 30 minutes.',
+    group: 'claude',
+    build: shellGame
   },
   {
     id: 'claude-long-haul',
