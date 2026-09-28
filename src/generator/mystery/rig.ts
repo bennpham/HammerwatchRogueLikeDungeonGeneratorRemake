@@ -90,18 +90,18 @@ export const MYSTERY_BUTTON_STATE = 'pressed'
 export const MYSTERY_ANNOUNCE_MS = 2500
 
 /**
- * The announcement style: 1, Subtitle — the owner's sample's value. The
- * editor lists 0 Title, 1 Subtitle (global), 2 Regular (timer ticks),
- * 3 Pickup (local to its node). [VERIFIED] in game, owner playtest 2026-09-26.
+ * The announcement style: 3, Pickup — local to the node, so it pops up on the
+ * plate that was pressed and several players pressing different plates each
+ * see their own result. The editor lists 0 Title, 1 Subtitle (global),
+ * 2 Regular (timer ticks), 3 Pickup. The owner's sample used 1; switched by
+ * the owner after the 2026-09-27 playtest.
  */
 export const MYSTERY_ANNOUNCE_TYPE = 3
 
 /**
- * An ENHANCED LOCK BUTTON's payload text goes on Pickup (3), which pops up
- * where its node stands — on the plate — rather than as a global line: a
- * multi-button lock is a floor where several players may press different
- * buttons at once, and each should see what their own press did, not a
- * stack of popups (owner, 2026-09-27).
+ * An ENHANCED LOCK BUTTON's payload text: Pickup (3) as well, on its own
+ * plate, for the same reason (owner, 2026-09-27). Kept as its own constant
+ * so the lock and the plates can diverge without touching emitPayload.
  */
 export const LOCK_PAYLOAD_ANNOUNCE_TYPE = 3
 

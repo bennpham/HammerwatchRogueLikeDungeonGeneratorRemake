@@ -269,8 +269,7 @@ describe('enhanced lock buttons — the rig', () => {
     expect(afterA.filter((t) => t === 'AnnounceText')).toHaveLength(1)
     expect(afterA.filter((t) => t === 'SpawnObject')).toHaveLength(5) // 3 chests + 2 upgrades
 
-    // Its text is a Pickup line on the plate, local to whoever pressed it —
-    // not the Subtitle an ordinary mystery plate uses.
+    // Its text is a Pickup line on the plate, local to whoever pressed it.
     const announce = enhancedButton.trigger.connections.find((n) => n.type === 'AnnounceText') as NodeAnnounceText
     expect(announce.textType).toBe(LOCK_PAYLOAD_ANNOUNCE_TYPE)
     expect(LOCK_PAYLOAD_ANNOUNCE_TYPE).toBe(3)

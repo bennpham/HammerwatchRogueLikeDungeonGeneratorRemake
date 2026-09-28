@@ -850,7 +850,7 @@ UI: the Dungeon tab's second sub-tab (between Standard and Boss), `MysteryButton
   `RectangleShape` → one-shot `AreaTrigger` → `PlaySound button_hatch`,
   `ChangeDoodadState` **`pressed`** (not the lock's `activate`: the plate
   must STAY down, `activate` bobs back up — owner, 2026-09-26), `AnnounceText`
-  only when `text` is non-empty (type 1), one `SpawnObject{trigger-times 1}` per
+  only when `text` is non-empty (type 3, Pickup — local to the plate), one `SpawnObject{trigger-times 1}` per
   loot/monster copy, and per spewer a disabled `ProjectileSpewer` +
   `ToggleElement{state 0}`; with `trapSeconds` a `ToggleElement{state 1}` per
   spewer connected LAST with a real delay (the trigger enters real-delay mode).
@@ -896,9 +896,9 @@ a mystery plate can.
   (`mystery/rig.ts`'s `emitPayload`, extracted from the per-plate body): the
   announcement, loot/monster `SpawnObject`s, and disabled `ProjectileSpewer`s
   with their toggles — wired onto the lock button's OWN `AreaTrigger`. One
-  difference: its text is a Pickup line (`type` 3, local to the plate —
-  `LOCK_PAYLOAD_ANNOUNCE_TYPE`), where a plate's is Subtitle (1, global), so
-  players pressing different lock buttons each see their own result. The
+  thing to know: its text is a Pickup line (`type` 3, local to the plate —
+  `LOCK_PAYLOAD_ANNOUNCE_TYPE`), the same as a plate's, so players pressing
+  different buttons each see their own result. The
   button's `PlaySound` and press are already there; only the payload nodes are
   new, and they sit beside the lock countdown's `ChangeVariable`/
   `CheckVariable` without touching them.

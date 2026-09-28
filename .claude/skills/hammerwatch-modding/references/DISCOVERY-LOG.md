@@ -11,8 +11,9 @@ in the same change.
 ### 2026-09-27 — AnnounceText `type` names; enhanced lock buttons playtested
 **Tag:** [VERIFIED] for the type names (the owner read them off the editor's
 AnnounceText dropdown) and for the playtest facts below (owner, in game).
-"Subtitle is global, Pickup is local to its node" is the owner's statement;
-the Pickup payload text built on it is [EMITTED] until played.
+"Subtitle is global, Pickup is local to its node" is the owner's statement.
+The final assignment below is the one the owner played and signed off
+before merging PR #72.
 **AnnounceText `type`, in dropdown order:** 0 **Title**, 1 **Subtitle** (a
 global announcement), 2 **Regular**, 3 **Pickup** (local: it pops up where
 its node stands). How the shipped campaign uses them (from a tally
@@ -34,12 +35,13 @@ of `editor/campaign/levels/*.xml`):
   now uses Subtitle (1), the global line.
 - The two lines never fire on the same press: the last press takes the count
   to 0, and only the `== 0` check answers that.
-- An ENHANCED lock button's payload text ("A potion", "Something red
-  appears") uses Pickup (3), on its own plate. Several players pressing
-  different lock buttons each see their own result, rather than a stack of
-  global popups.
-- Timer and invulnerability ticks stay on Regular. An ordinary mystery
-  plate's text stays on Subtitle (1).
+- Mystery button text ("A potion", "Something red appears") uses Pickup
+  (3), on the plate that was pressed. This covers ordinary mystery plates
+  (`MYSTERY_ANNOUNCE_TYPE`, previously 1 from the owner's sample) and
+  enhanced lock buttons (`LOCK_PAYLOAD_ANNOUNCE_TYPE`). Several players
+  pressing different buttons each see their own result, rather than a stack
+  of global popups.
+- Timer and invulnerability ticks stay on Regular.
 
 ### 2026-09-27 — enhanced lock buttons: a `TriggerButton` used as a lock plate, a mystery payload on a lock trigger, two announces on one press
 **Tag:** [EMITTED]/[UNVERIFIED] — implemented against the existing
