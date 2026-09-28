@@ -669,26 +669,33 @@ describe('generateDungeon', () => {
           const changes = nodesOfType(xml, 'ChangeVariable')
           const checks = nodesOfType(xml, 'CheckVariable')
           expect(changes).toHaveLength(3)
-          expect(checks.map((c) => /<int name="cmp-val">(\d+)<\/int>/.exec(c.body)?.[1])).toEqual(['0', '1', '2'])
+          // one shared == 0, then each button's own == 1 and == 2
+          expect(checks.map((c) => /<int name="cmp-val">(\d+)<\/int>/.exec(c.body)?.[1])).toEqual(['0', '1', '2', '1', '2', '1', '2'])
+          const done = checks[0]
 
-          // == 0 opens the wall; == 1 and == 2 say how many are left
+          // == 0 opens the wall
           const destroy = nodesOfType(xml, 'DestroyObject')
           expect(destroy).toHaveLength(1)
-          expect(staticIn(checks[0].body, 'on-true')).toContain(destroy[0].id)
+          expect(staticIn(done.body, 'on-true')).toContain(destroy[0].id)
           const announces = nodesOfType(xml, 'AnnounceText')
-          const textOf = (id: number) => /<string name="text">([^<]*)<\/string>/.exec(announces.find((a) => a.id === id)!.body)?.[1]
-          expect(staticIn(checks[1].body, 'on-true').map(textOf)).toEqual(['1 button remains'])
-          expect(staticIn(checks[2].body, 'on-true').map(textOf)).toEqual(['2 buttons remain'])
+          const announceOf = (id: number) => announces.find((a) => a.id === id)!
+          const textOf = (id: number) => /<string name="text">([^<]*)<\/string>/.exec(announceOf(id).body)?.[1]
+          const posOf = (body: string) => /<float name="x">([^<]*)<\/float>\s*<float name="y">([^<]*)<\/float>/.exec(body)?.slice(1, 3)
 
-          // every button: its own subtraction, then every check; its cue; its plate
+          // every button: its own subtraction, then the shared == 0, then its
+          // own "remaining" checks, each announcing on that button's plate
           const buttons = nodesOfType(xml, 'AreaTrigger').filter((t) => changes.some((c) => connections(t.body).includes(c.id)))
           expect(buttons).toHaveLength(3)
           buttons.forEach((b, i) => {
             const to = connections(b.body)
             expect(to).toContain(changes[i].id)
-            for (const c of checks) expect(to).toContain(c.id)
-            expect(to.indexOf(changes[i].id)).toBeLessThan(to.indexOf(checks[0].id))
+            expect(to).toContain(done.id)
+            expect(to.indexOf(changes[i].id)).toBeLessThan(to.indexOf(done.id))
             expect(to).not.toContain(destroy[0].id)
+            const own = checks.slice(1 + 2 * i, 3 + 2 * i)
+            for (const c of own) expect(to).toContain(c.id)
+            expect(own.map((c) => staticIn(c.body, 'on-true').map(textOf))).toEqual([['1 button remains'], ['2 buttons remain']])
+            for (const c of own) expect(posOf(announceOf(staticIn(c.body, 'on-true')[0]).body)).toEqual(posOf(b.body))
           })
           expect(nodesOfType(xml, 'PlaySound')).toHaveLength(3)
           expect(nodesOfType(xml, 'ChangeDoodadState')).toHaveLength(3)
@@ -696,16 +703,16 @@ describe('generateDungeon', () => {
         }
       })
 
-      it('puts "remaining" on Title and "opened" on Pickup, off the Regular line a timer ticks on', () => {
+      it('puts "remaining" on Pickup and "opened" on Subtitle, off the Regular line a timer ticks on', () => {
         const xml = lastLevelXML(generateOk(555, withButtons(3)))
         const typeOf = (text: string) => {
           const a = nodesOfType(xml, 'AnnounceText').find((n) => n.body.includes(`<string name="text">${text}</string>`))!
           return /<int name="type">(\d+)<\/int>/.exec(a.body)?.[1]
         }
         // editor dropdown order: 0 Title, 1 Subtitle, 2 Regular, 3 Pickup
-        expect(typeOf('2 buttons remain')).toBe('0')
-        expect(typeOf('1 button remains')).toBe('0')
-        expect(typeOf('The way to the final room has opened!')).toBe('3')
+        expect(typeOf('2 buttons remain')).toBe('3')
+        expect(typeOf('1 button remains')).toBe('3')
+        expect(typeOf('The way to the final room has opened!')).toBe('1')
       })
 
       it('keeps the buttons apart', () => {

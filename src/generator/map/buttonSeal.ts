@@ -52,19 +52,23 @@ const SEAL_ANNOUNCE_MS = 2500
  * AnnounceText `type`, named as the editor's dropdown lists them: 0 Title,
  * 1 Subtitle, 2 Regular, 3 Pickup (owner, 2026-09-27). Regular is the line
  * timer mode ticks on every second, so anything on it flashes by for a split
- * second on a timed floor — the owner's playtest of the countdown below.
+ * second on a timed floor.
  *
- * "It opened" goes on Pickup, the line a player reads as "you got something".
+ * "It opened" is news for the whole party, so it goes on Subtitle, the global
+ * announcement (owner, 2026-09-27).
  */
-const SEAL_ANNOUNCE_TYPE = 3
+const SEAL_ANNOUNCE_TYPE = 1
 
 /**
- * "k buttons remain" goes on Title — the style the game's own "<n> more to
- * go" (`ig.more-to-go`) uses across the shipped campaign. Never fires on the
- * same press as the opened line: the last press takes the count to 0, which
- * only the `== 0` check answers.
+ * "k buttons remain" goes on Pickup, which pops up at the AnnounceText node's
+ * own position — local to the button pressed, so several players pressing
+ * different buttons see one popup each at their plate rather than a stack of
+ * global lines (owner, 2026-09-27). That is why `buildButtonCountdown` gives
+ * every button its own set of "remaining" checks. Never fires on the same
+ * press as the opened line: the last press takes the count to 0, which only
+ * the `== 0` check answers.
  */
-const REMAINING_ANNOUNCE_TYPE = 0
+const REMAINING_ANNOUNCE_TYPE = 3
 
 const SEAL_TEXT = 'The way to the final room has opened!'
 
@@ -194,17 +198,22 @@ export function buttonsRemainingText(remaining: number): string {
  * Several buttons, all of which must be pressed:
  *
  *   Variable(N)
+ *   CheckVariable(== 0), shared   on-true → whatever the caller connects
  *   per button i:  AreaTrigger(one shot)
  *                    → ChangeVariable(var -= 1)
- *                    → CheckVariable(var == k) for every k in 0..N-1
- *   CheckVariable(== k ≥ 1)  on-true → AnnounceText("k buttons remain")
- *   CheckVariable(== 0)      on-true → whatever the caller connects
+ *                    → the shared CheckVariable(== 0)
+ *                    → its OWN CheckVariable(== k) for every k in 1..N-1,
+ *                        on-true → AnnounceText("k buttons remain") at
+ *                        this button's plate, Pickup style
  *
  * The per-source ChangeVariable-then-CheckVariable shape is the [VERIFIED]
- * multi-boss rig's (`boss/tierSource.ts`); the checks are shared across the
- * buttons rather than one set per button, since each only tests the value.
- * Which button is pressed first does not matter — the count does.
- * [VERIFIED 2026-09-26] in game, on its own and feeding a boss floor's seal.
+ * multi-boss rig's (`boss/tierSource.ts`). Which button is pressed first
+ * does not matter — the count does. [VERIFIED 2026-09-26] in game, on its own
+ * and feeding a boss floor's seal, with the "remaining" checks shared. They
+ * are per button now because a Pickup line shows where its node stands, and
+ * a shared check cannot know which plate was pressed. N buttons cost
+ * N·(N−1) remaining checks and as many announces — 380 each at
+ * MAX_LOCK_BUTTONS.
  *
  * Returns the `== 0` check. Draws no RNG. The nodes are editor markers only,
  * placed just past the map's east edge, clear of the boss rig's column.
@@ -214,19 +223,24 @@ function buildButtonCountdown(ctx: GenerationContext, triggers: readonly ScriptN
   const y = 0
   const remaining = new NodeVariable(ctx, x, y, triggers.length)
   const changes = triggers.map((_, i) => new NodeChangeVariable(ctx, x + 1, y + 1 + i, remaining, CHANGE_VAR_SUB, 1))
-  const checks = triggers.map((_, k) => new NodeCheckVariable(ctx, x + 2, y + 1 + k, remaining, k, []))
-  for (let k = 1; k < checks.length; k++) {
-    const announce = new NodeAnnounceText(ctx, x + 3, y + 1 + k)
-    announce.setText(buttonsRemainingText(k))
-    announce.time = SEAL_ANNOUNCE_MS
-    announce.textType = REMAINING_ANNOUNCE_TYPE
-    checks[k].connectTo(announce)
-  }
+  const done = new NodeCheckVariable(ctx, x + 2, y, remaining, 0, [])
+  const n = triggers.length
   triggers.forEach((trigger, i) => {
     trigger.connectTo(changes[i])
-    for (const check of checks) trigger.connectTo(check)
+    trigger.connectTo(done)
+    for (let k = 1; k < n; k++) {
+      // the check is an editor marker in the east column; the announce stands
+      // on the plate, since a Pickup line shows where its node is
+      const check = new NodeCheckVariable(ctx, x + 2 + k, y + 1 + i, remaining, k, [])
+      const announce = new NodeAnnounceText(ctx, trigger.x, trigger.y)
+      announce.setText(buttonsRemainingText(k))
+      announce.time = SEAL_ANNOUNCE_MS
+      announce.textType = REMAINING_ANNOUNCE_TYPE
+      check.connectTo(announce)
+      trigger.connectTo(check)
+    }
   })
-  return checks[0]
+  return done
 }
 
 /** DestroyObject on `seals` plus the "it opened" line, fired from `from`. */

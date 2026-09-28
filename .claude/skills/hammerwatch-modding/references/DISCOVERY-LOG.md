@@ -11,10 +11,13 @@ in the same change.
 ### 2026-09-27 — AnnounceText `type` names; enhanced lock buttons playtested
 **Tag:** [VERIFIED] for the type names (the owner read them off the editor's
 AnnounceText dropdown) and for the playtest facts below (owner, in game).
-The look of Pickup (3) on the "opened" line is [EMITTED] until it is played.
-**AnnounceText `type`, in dropdown order:** 0 **Title**, 1 **Subtitle**,
-2 **Regular**, 3 **Pickup**. How the shipped campaign uses them (from a tally
-of `editor/campaign/levels/*.xml`):
+"Subtitle is global, Pickup is local to its node" is the owner's statement;
+the per-plate Pickup rig built on it is [EMITTED] until played.
+**AnnounceText `type`, in dropdown order:** 0 **Title**, 1 **Subtitle** (a
+global announcement), 2 **Regular**, 3 **Pickup** (local: it pops up where
+the node stands, so several players pressing different buttons each see
+their own rather than a stack of global lines). How the shipped campaign
+uses them (from a tally of `editor/campaign/levels/*.xml`):
 - 0 for "secret area", "`ig.more-to-go?num=N`" and "sequence complete"
 - 1 for the act headings and countdown numbers
 - 2 for "passage revealed", "spikes off" and bridge events
@@ -26,10 +29,13 @@ of `editor/campaign/levels/*.xml`):
 - On a timed floor, anything on Regular (2) is replaced by the next timer
   tick (also Regular) and is visible for only a split second.
 **Impact:**
-- `buttonSeal.ts` now puts "k buttons remain" on Title (0), the style the
-  game's own "more to go" uses.
+- `buttonSeal.ts` now puts "k buttons remain" on Pickup (3), announced on the
+  pressed button's own plate. Each button has its own `CheckVariable(== k)`
+  set (N·(N−1) checks and announces); only the `== 0` check stays shared.
+  (A same-day first cut used Title (0), after the game's "more to go";
+  the owner corrected it.)
 - "The way … has opened!" (in `buttonSeal.ts` and `dungeonBoss/opener.ts`)
-  now uses Pickup (3).
+  now uses Subtitle (1), the global line.
 - The two lines never fire on the same press: the last press takes the count
   to 0, and only the `== 0` check answers that.
 - Timer and invulnerability ticks stay on Regular. Mystery text stays on
