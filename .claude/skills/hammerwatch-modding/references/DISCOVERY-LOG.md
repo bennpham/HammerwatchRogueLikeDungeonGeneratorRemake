@@ -8,6 +8,23 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-09-28 — `chest_blue` / `chest_green` spawn from a mystery button; preset playtest
+**Tag:** [VERIFIED] (the owner's playtest of PR #73's presets)
+
+- `SpawnObject` with `items/chest_blue.xml` and `items/chest_green.xml` spawns
+  the chest next to the pressed plate with no problem. Several of each were seen
+  (Double or Nothing's `Jackpot`, Frozen Descent's `Frozen chest`, the starter
+  `Two chests` / `Three chests`). `chest_wood` has not been confirmed on its
+  own and stays [UNVERIFIED].
+- Not an asset fact, but found in the same session: always-on floor spewers
+  that fan out lethal ammunition (`shooter_stone_ball`, `shooter_spike`) cannot
+  be dodged, so a lock button or corridor inside the spray is effectively
+  impassable. Presets now fire damage ≥ 50 only in straight lanes (a
+  `tests/presets.test.ts` rule). The retuned Trap Gauntlet, Shell Game and
+  Double or Nothing all played as balanced and beatable.
+
+**Impact:** `objects/mysteryLoot.ts` and ASSET-REGISTRY promote blue/green.
+
 ### 2026-09-27 — AnnounceText `type` names; enhanced lock buttons playtested
 **Tag:** [VERIFIED] for the type names (the owner read them off the editor's
 AnnounceText dropdown) and for the playtest facts below (owner, in game).
