@@ -1601,3 +1601,67 @@ describe('mystery button validation (issue #67)', () => {
     expect(fieldsOf(result.warnings)).toContain('levelMystery.0.count')
   })
 })
+
+describe('enhanced lock button validation', () => {
+  // plainParameters() locks its last floor with one button by default
+  // (withGatewayLocks) — bump it to two so a count of 1 is legitimately
+  // "fewer than the floor has".
+  const armed = () => {
+    const p = plainParameters()
+    p.levelLock![p.levels - 1] = { enabled: true, buttons: 2 }
+    p.mysteryButtons = samplePool()
+    p.levelLockMystery = Array.from({ length: p.levels }, () => ({ count: 0, pool: [] as number[] }))
+    p.levelLockMystery[p.levels - 1] = { count: 1, pool: [0, 1] }
+    return p
+  }
+
+  it('accepts a valid enhancement on a locked floor', () => {
+    expect(validateParameters(armed()).errors).toEqual([])
+  })
+
+  it('bounds count to a whole number from 0 to MAX_LOCK_BUTTONS', () => {
+    for (const bad of [-1, 1.5, MAX_LOCK_BUTTONS + 1]) {
+      const p = armed()
+      p.levelLockMystery![p.levels - 1].count = bad
+      expect(fieldsOf(validateParameters(p).errors), `${bad}`).toContain(`levelLockMystery.${p.levels - 1}.count`)
+    }
+  })
+
+  it('rejects a dangling pool index', () => {
+    const p = armed()
+    p.levelLockMystery![p.levels - 1].pool = [0, 9]
+    expect(fieldsOf(validateParameters(p).errors)).toContain(`levelLockMystery.${p.levels - 1}.pool`)
+  })
+
+  it('requires a real pick when count is positive', () => {
+    const p = armed()
+    p.levelLockMystery![p.levels - 1].pool = []
+    expect(fieldsOf(validateParameters(p).errors)).toContain(`levelLockMystery.${p.levels - 1}.pool`)
+  })
+
+  it('warns, never blocks, when count exceeds the floor\'s own button count', () => {
+    const p = armed()
+    p.levelLockMystery![p.levels - 1].count = 2 // the floor only has 2 buttons — legal
+    expect(fieldsOf(validateParameters(p).warnings)).not.toContain(`levelLockMystery.${p.levels - 1}.count`)
+    p.levelLock![p.levels - 1] = { enabled: true, buttons: 1 }
+    const result = validateParameters(p)
+    expect(result.errors).toEqual([])
+    expect(fieldsOf(result.warnings)).toContain(`levelLockMystery.${p.levels - 1}.count`)
+  })
+
+  it('warns when enhancements or a disguise are set on an unlocked floor', () => {
+    const enhancedOnly = armed()
+    enhancedOnly.levelLockMystery![0] = { count: 1, pool: [0] } // floor 0 is never locked here
+    expect(fieldsOf(validateParameters(enhancedOnly).warnings)).toContain('levelLockMystery.0')
+
+    const disguiseOnly = armed()
+    disguiseOnly.levelLockMystery![0] = { count: 0, pool: [], disguise: true }
+    expect(fieldsOf(validateParameters(disguiseOnly).warnings)).toContain('levelLockMystery.0')
+  })
+
+  it('warns when more floors are configured than the campaign has', () => {
+    const p = armed()
+    p.levelLockMystery!.push({ count: 1, pool: [0] })
+    expect(fieldsOf(validateParameters(p).warnings)).toContain('levelLockMystery')
+  })
+})

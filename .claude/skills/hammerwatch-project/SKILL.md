@@ -339,6 +339,7 @@ reference/hammerwatch-tweak-stats.md
 | `floorMusic[i]` | castle: `act1,act2,act2,act3,act3,act4,act4,act4`; absent otherwise | music mode, one track id per floor (`MUSIC_TRACKS` in `music/tracks.ts` — the base `music.xml` cues plus the desert bank). `default` (`MUSIC_DEFAULT`) emits no `PlayMusic` node and leaves the template's music untouched. `musicN=<track>` in `parameters.txt`, written only for floors that swapped — **but** a file carrying any `musicN=` line rebuilds the whole array from scratch (`explicitMusic` map, `configFile.ts`), so a base object's own per-floor tracks never bleed into an index a shorter import leaves unmentioned. `lobbies[i].music` / `fights[i].arena.music` are the same knob per lobby / per arena (`lobby<i>Music`, `boss<i>Music`). See *Music* below |
 | `mysteryButtons` | absent | the campaign-wide mystery-button POOL (issue #67), `MysteryButton[]`, unbounded (only the parameters.txt importer stops at `MYSTERY_PARSE_LIMIT` = 10000): each `{name?, text?, loot: WavePickup[] (MYSTERY_LOOT_DEFS ids), monsters: {monster, count}[] (arena key grammar, ≤ 100/row, unscaled), traps: BossTrap[] (≤ MAX_TRAP_COUNT, on the plate room's walls), trapSeconds?}`. Name ≤ 40 / text ≤ 120 chars, never `= < > &` or a line break (XML is unescaped; `=` breaks the line split). Empty is stored absent. `mysteryButtons=N`, `mysteryButton<i>Name/Text/Loot/Monsters/Traps/TrapSeconds` |
 | `levelMystery[i]` | absent | per floor `{count ≤ 200, pool: number[]}` — 0-based pool indices repeated to weight, drawn WITH replacement; read through `floorMystery`. Absent/all-zero = none. `mysteryFloorN=<count>:<i,i,j>` |
+| `levelLockMystery[i]` | absent | **enhanced lock buttons**: `{count, pool: number[], disguise?}` — up to `count` (clamped to `floorLockButtons`) of a locked floor's own lock buttons ALSO fire a mystery payload from `pool`, a separate per-floor pick list from `levelMystery`; read through `floorLockMystery` (undefined off an unlocked floor, an empty/dangling pool, or `count ≤ 0`). `disguise` (absent = off, read through `floorLockDisguised`) draws that floor's lock buttons as `TriggerButton`/`pressed` instead of `BossDoorButton`/`activate`, at construction time off zero draws. Purely ADDITIVE like `levelMystery`: draws only from `ctx.mysteryRand`, strictly after every ordinary plate draw on the floor. `mysteryLockN=<count>:<i,j,k>`, `mysteryLockDisguiseN=1` |
 | `lobbySaves` | **`true`** | campaign-wide: every generated lobby gets one `items/trigger_button_save.xml` by its exit. Items-only, no RNG, `levels/level*.xml` byte-identical either way. `lobbySaves=1` in `parameters.txt`. See *Free upgrades and the arrival revive* |
 | `playerTweaks` | `{ 'player.shared.remove.life': 1 }` | sparse `Record<lowercase key, number>` of player-balance overrides; empty = no `tweak/` folder. See below |
 | `lobbies` | **two** — `BETA-dungeon-prep` at 10000g and `BETA-boss-prep` at 20000g, both selling all 21 columns, no free upgrades | the campaign's shop rooms, `LobbyOptions[]`. A lobby exists iff it is in this list: there is no `enabled` flag any more, and `lobbies: []` reproduces the pre-lobby campaign exactly — the same rule `boss.fights` already followed. Any number, each independently placed by `levelOrder`. `lobbies=N` in `parameters.txt`. See *Lobbies* below |
@@ -849,7 +850,7 @@ UI: the Dungeon tab's second sub-tab (between Standard and Boss), `MysteryButton
   `RectangleShape` → one-shot `AreaTrigger` → `PlaySound button_hatch`,
   `ChangeDoodadState` **`pressed`** (not the lock's `activate`: the plate
   must STAY down, `activate` bobs back up — owner, 2026-09-26), `AnnounceText`
-  only when `text` is non-empty (type 1), one `SpawnObject{trigger-times 1}` per
+  only when `text` is non-empty (type 3, Pickup — local to the plate), one `SpawnObject{trigger-times 1}` per
   loot/monster copy, and per spewer a disabled `ProjectileSpewer` +
   `ToggleElement{state 0}`; with `trapSeconds` a `ToggleElement{state 1}` per
   spewer connected LAST with a real delay (the trigger enters real-delay mode).
@@ -872,6 +873,61 @@ UI: the Dungeon tab's second sub-tab (between Standard and Boss), `MysteryButton
 - **parameters.txt** writes nothing for a campaign without them. A file that
   mentions the pool states the whole pool; any `mysteryFloorN` line rebuilds
   `levelMystery` from scratch; a dangling floor index is dropped and reported.
+
+### Enhanced lock buttons
+
+Built on the pool above AND on a locked floor's own buttons
+(`map/buttonSeal.ts`, issue #69): up to `count` (`levelLockMystery[i]`,
+clamped to `floorLockButtons` — read through `floorLockMystery`) of a locked
+floor's `BossDoorButton` plates ALSO fire a mystery payload, on top of
+counting toward the lock as they always have. A separate per-floor pick list
+from `levelMystery` — the dungeon master picks the plate squads and the lock
+squads independently, since pressing a lock button cannot be avoided the way
+a mystery plate can.
+
+- **`Level.lockButtons`** — `buttonSeal.ts`'s `buildButtonRig` pushes
+  `{x, y, roomIndex, trigger}` onto it, in draw order, for every lock button a
+  floor places (zero extra draws — `roomIndex` is the same `iRand` the tile
+  itself already used). `mystery/placement.ts` reads it (instead of scanning
+  for `BossDoorButton` doodads) so a disguised lock plate is still avoided by
+  ordinary mystery plates, and `mystery/rig.ts` reads it to find the enhanced
+  buttons: the first `count` entries, in placement order.
+- **The payload** is exactly what a mystery plate fires
+  (`mystery/rig.ts`'s `emitPayload`, extracted from the per-plate body): the
+  announcement, loot/monster `SpawnObject`s, and disabled `ProjectileSpewer`s
+  with their toggles — wired onto the lock button's OWN `AreaTrigger`. One
+  thing to know: its text is a Pickup line (`type` 3, local to the plate —
+  `LOCK_PAYLOAD_ANNOUNCE_TYPE`), the same as a plate's, so players pressing
+  different buttons each see their own result. The
+  button's `PlaySound` and press are already there; only the payload nodes are
+  new, and they sit beside the lock countdown's `ChangeVariable`/
+  `CheckVariable` without touching them.
+- **RNG.** Phase C: one `ctx.mysteryRand.iRand` per enhanced button for its
+  pool entry, all of them before any is emitted. Phase D: `emitPayload` on
+  each in the same order (one `iRand` per placed spewer) — same shape as the
+  ordinary plates' phase A/B, run strictly AFTER them, so arming the
+  enhancement never moves this floor's own plates, only a later floor's
+  mysteryRand draws. A floor with neither ordinary plates nor lock
+  enhancements configured returns before touching the stream or allocating an
+  id.
+- **Disguise** (`levelLockMystery[i].disguise`, read through
+  `floorLockDisguised`) draws that floor's lock buttons with the mystery
+  plate's own `TriggerButton` art and `pressed` state instead of
+  `BossDoorButton`/`activate`, so every plate on the floor looks the same.
+  Construction time, zero draws, same id count either way — a lossless art
+  swap, the same shape as the arena's bodyguard-twin substitution.
+  `DISGUISE_BUTTON_STATE` in `buttonSeal.ts` duplicates the `'pressed'`
+  literal rather than importing `mystery/rig.ts`'s `MYSTERY_BUTTON_STATE`,
+  because `mystery/rig.ts` already imports `SEAL_SOUND` from `buttonSeal.ts`
+  and the reverse import would cycle.
+- **A lock button may sit in an Entrance or Shop room** — `pickButtonTile`
+  only refuses locked rooms — and the payload spawns there anyway. That is
+  documented, and it is part of the gamble.
+- **parameters.txt**: `mysteryLockN=<count>:<i,j,k>` (`parsePoolLine`, shared
+  with `mysteryFloorN`), `mysteryLockDisguiseN=1`. Either line on a floor
+  rebuilds `levelLockMystery` from scratch, the same rule `mysteryFloorN`
+  follows; a dangling pool index is dropped and reported. All-empty (no
+  enhancement anywhere, no disguise) is stored absent.
 
 ## Timer mode (`src/generator/timer/`)
 

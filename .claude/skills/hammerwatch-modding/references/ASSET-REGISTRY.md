@@ -709,7 +709,7 @@ and the four `_v2` corners.
 | `RectangleShape` | area geometry other nodes attach to | width/height |
 | `AreaTrigger` | fires when players enter a shape | `event`, `types`, `shape` |
 | `ToggleElement` | enable/disable another node (used to one-shot the level banner) | `state`, `element` |
-| `AnnounceText` | on-screen text; `textType` 0 = centred banner, 1 = the mystery buttons' style `[VERIFIED 2026-09-26]`, 2 = timer line | `text`, `time`, `textType` |
+| `AnnounceText` | on-screen text; `textType` = the editor dropdown: 0 Title (centred banner; "k buttons remain"), 1 Subtitle (global: "opened" lines), 2 Regular (timer ticks), 3 Pickup (local to its node: mystery plate and enhanced lock button text) `[VERIFIED 2026-09-27 names]` | `text`, `time`, `textType` |
 | `ObjectEventTrigger` | fires on an item event (orb pickup) | item id |
 | `ShopArea` | vendor area; carries the vendor doodad type | shop type |
 | `GameEnd` | ends the campaign (final floor orb) | — |

@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
-import { MUSIC_DEFAULT, THEME_DEFS, defaultDungeonBoss, defaultFloorLock, defaultFloorMystery, defaultFloorTimer, floorMystery, isDefaultOrder, normalizeOrder } from '../../generator'
-import type { CampaignCounts, DungeonParameters, ValidationIssue } from '../../generator'
+import { MUSIC_DEFAULT, THEME_DEFS, defaultDungeonBoss, defaultFloorLock, defaultFloorLockMystery, defaultFloorMystery, defaultFloorTimer, floorMystery, isDefaultOrder, normalizeOrder } from '../../generator'
+import type { CampaignCounts, DungeonParameters, FloorLockMystery, ValidationIssue } from '../../generator'
 import { NumberField, Section } from './fields'
 import { MusicPicker } from './MusicPicker'
 import { MonsterPoolsEditor } from './MonsterPoolsEditor'
@@ -109,6 +109,13 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
         next.levelMystery = levelMystery.slice(0, Math.max(levels, 1))
       }
 
+      // Enhanced lock buttons: same padding rule, absent stays absent.
+      if (params.levelLockMystery !== undefined) {
+        const levelLockMystery = params.levelLockMystery.map((f): FloorLockMystery => ({ count: f.count, pool: [...f.pool], ...(f.disguise ? { disguise: true } : {}) }))
+        while (levelLockMystery.length < levels) levelLockMystery.push(defaultFloorLockMystery())
+        next.levelLockMystery = levelLockMystery.slice(0, Math.max(levels, 1))
+      }
+
       if (params.levelOrder !== undefined) {
         const counts: CampaignCounts = {
           levels,
@@ -136,9 +143,14 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
   }
 
   const enabledBossFloors = (params.levelBoss ?? []).slice(0, params.levels).filter((b) => b.enabled).length
-  const mysteryFloors = Array.from({ length: Math.max(params.levels, 0) || 0 }, (_, i) => floorMystery(params, i)).filter(
-    (f) => f !== undefined
-  ).length
+  // The Mystery Buttons tab now covers two independent configs — plates
+  // (levelMystery) and enhanced lock buttons (levelLockMystery) — so the tab
+  // badge counts a floor once whichever (or both) it uses.
+  const levelCount = Math.max(params.levels, 0) || 0
+  const mysteryFloors = Array.from({ length: levelCount }, (_, i) => {
+    const lock = params.levelLockMystery?.[i]
+    return floorMystery(params, i) !== undefined || (lock !== undefined && (lock.count > 0 || lock.disguise))
+  }).filter(Boolean).length
 
   return (
     <div className="parameter-form">

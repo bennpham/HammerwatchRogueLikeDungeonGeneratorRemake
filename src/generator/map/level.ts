@@ -1,5 +1,6 @@
 import { Room, roomSpawnBox } from './room'
 import { sealRoomWall, sealRoomWallWithButton, sealRoomWithButton } from './buttonSeal'
+import type { LockButton } from './buttonSeal'
 import { Passage } from './passage'
 import { Tile } from './tile'
 import { searchPatterns } from './wallPattern'
@@ -59,6 +60,15 @@ export class Level {
    * opens its own wall, and a boss-only floor has none.
    */
   sealButtons: ScriptNode[] = []
+
+  /**
+   * Every lock button this floor placed (issue #69, and the enhanced-lock-
+   * button feature on top of it), in draw order: tile, room index and its own
+   * press trigger. Empty on an unlocked floor. Read by `mystery/placement.ts`
+   * (so a disguised lock plate is still avoided like an ordinary one) and
+   * `mystery/rig.ts` (the first N of them are the enhanced buttons).
+   */
+  lockButtons: LockButton[] = []
 
   /**
    * Where this floor's boss(es) stand, when it has any (issue #61, and issue
@@ -273,7 +283,7 @@ export class Level {
           // Boss AND button: the button is hidden and wired to animate, but
           // opens nothing by itself — the post-pass feeds it and the boss's
           // death into one countdown (see dungeonBoss/opener.ts).
-          const sealed = sealRoomWallWithButton(orbRoom, ctx, this.rooms, ctx.floorLockButtons)
+          const sealed = sealRoomWallWithButton(orbRoom, ctx, this, ctx.floorLockButtons)
           gated = sealed !== null
           if (sealed !== null) {
             this.seals = sealed.seals
@@ -287,7 +297,7 @@ export class Level {
           gated = seals !== null
           if (seals !== null) this.seals = seals
         } else {
-          gated = sealRoomWithButton(orbRoom, ctx, this.rooms, ctx.floorLockButtons)
+          gated = sealRoomWithButton(orbRoom, ctx, this, ctx.floorLockButtons)
         }
         // the same consolation powerup, off the same three draws, that
         // lockRoom() grants — see Room.grantLockLoot

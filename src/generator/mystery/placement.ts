@@ -63,8 +63,14 @@ export function mysteryButtonSlots(level: Level, ctx: GenerationContext): Button
 
   const avoid: Array<{ x: number; y: number; gap: number }> = []
   for (const item of ctx.items) avoid.push({ x: Math.trunc(item.x), y: Math.trunc(item.y), gap: ITEM_CLEARANCE })
-  for (const d of ctx.doodads) {
-    if (d.type === 'BossDoorButton') avoid.push({ x: Math.trunc(d.x), y: Math.trunc(d.y), gap: PLATE_CLEARANCE })
+  // Read off level.lockButtons rather than scanning for BossDoorButton doodads
+  // — a disguised lock button (enhanced lock buttons' per-floor tickbox) wears
+  // the mystery plate's own TriggerButton art and would not be found by type,
+  // but it still needs the same clearance an ordinary lock plate gets. Same
+  // tiles either way, since these are exactly the coordinates buttonSeal.ts
+  // drew for the doodad.
+  for (const b of level.lockButtons) {
+    avoid.push({ x: Math.trunc(b.x), y: Math.trunc(b.y), gap: PLATE_CLEARANCE })
   }
   for (const spot of level.bossSpots) {
     avoid.push({ x: Math.trunc(spot.x), y: Math.trunc(spot.y), gap: PLATE_CLEARANCE })

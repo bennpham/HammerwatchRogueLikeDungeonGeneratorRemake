@@ -696,6 +696,18 @@ describe('generateDungeon', () => {
         }
       })
 
+      it('puts "remaining" on Title and "opened" on Subtitle, off the Regular line a timer ticks on', () => {
+        const xml = lastLevelXML(generateOk(555, withButtons(3)))
+        const typeOf = (text: string) => {
+          const a = nodesOfType(xml, 'AnnounceText').find((n) => n.body.includes(`<string name="text">${text}</string>`))!
+          return /<int name="type">(\d+)<\/int>/.exec(a.body)?.[1]
+        }
+        // editor dropdown order: 0 Title, 1 Subtitle, 2 Regular, 3 Pickup
+        expect(typeOf('2 buttons remain')).toBe('0')
+        expect(typeOf('1 button remains')).toBe('0')
+        expect(typeOf('The way to the final room has opened!')).toBe('1')
+      })
+
       it('keeps the buttons apart', () => {
         for (const seed of [4, 555, 90210]) {
           const xml = lastLevelXML(generateOk(seed, withButtons(6)))
