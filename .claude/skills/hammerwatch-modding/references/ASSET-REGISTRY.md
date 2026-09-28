@@ -376,6 +376,22 @@ are horizontal while 3–5 are the vertical variants of the same three tiers.
 `valuable_diamond_red` 500. `valuable_1..9` spawn via `SpawnObject`
 `[VERIFIED 2026-09-26]` (mystery buttons, `objects/mysteryLoot.ts`).
 
+**Chests are a roll, not fixed loot** `[VERIFIED 2026-09-27]`, read from
+`items/chest_*.xml`: out of 1000, 910 is the chest's diamond (wood 50, green
+100, blue 250, red 500 gold), 50 is `powerup_1up`, 10 each a tier-I upgrade.
+So every chest has ~5% odds of an extra life. `chest_wood/green/blue` and the
+three smaller diamonds via `SpawnObject` are still `[UNVERIFIED]`.
+`projectiles/shooter_valuables.xml` grants nothing `[VERIFIED 2026-09-27]`.
+
+**Actors spawned by `SpawnObject`** `[VERIFIED 2026-09-27]`, the owner's
+playtest of `mysteryStarterPool()`: `tower_flower_1_small/1/2`,
+`tower_nova_1/2`, `tower_tracking_1/2/3`, `pillar_fire`, `floater_fire`,
+`special_beheaded_kamikaze`, `spider_1`, `lich_1/_elite/2/3`, the
+`*_mb` mini-bosses (tick, skeleton, maggot, eye, lich, mummy), mummies, ticks,
+bats, wisps, maggots, eyes, archers, skeletons, and the nests
+`spawners/tick_1.xml` and `slime_1_host.xml`. `pillar_fire` takes no damage
+(`armor` `dmg-mul 0`), chases at 0.65 and removes itself ~12 s after spawning.
+
 ### Health and life pickups beyond `Food` `[VERIFIED 2026-08-28]`
 
 Not in `item.ts`'s categories — individually addressable, used by the boss

@@ -8,10 +8,11 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
-### 2026-09-27 — chest roll tables; `shooter_valuables` does nothing; the mystery starter set's first spawns
+### 2026-09-27 — chest roll tables; `shooter_valuables` does nothing; the mystery starter set verified in game
 **Tag:** [VERIFIED] for the chest tables (read from
 `editor/assetsExtract/items/chest_*.xml`) and for `shooter_valuables` (owner,
-in game). [EMITTED] for the starter-set actors listed below.
+in game). [VERIFIED] for every starter-set monster spawn and trap below
+(owner playtest, 2026-09-27); the reward items stay [UNVERIFIED].
 **Chests are a weighted roll out of 1000, not fixed loot:**
 
 | chest | 910 | 50 | 10 each |
@@ -33,14 +34,18 @@ was far too rich.
 that it grants nothing, so it cannot be a coin fountain.
 
 **Spawned via `SpawnObject` for the first time** by `mysteryStarterPool()`
-(`[EMITTED]`, awaiting a playtest): `tower_flower_1_small`, `tower_flower_1`,
+(`[VERIFIED]`, owner playtest 2026-09-27): `tower_flower_1_small`, `tower_flower_1`,
 `tower_flower_2`, `tower_nova_1/2`, `tower_tracking_1/2/3`, `pillar_fire`,
 `floater_fire`, `special_beheaded_kamikaze` (speed 1.45, 25-dmg
 splash-2 blast), `spider_1`, `lich_1/_elite/2/3`, `lich_1_mb`, `mummy_1*`,
 `mummy_ranged_1/2`, `mummy_1_mb`, `eye_1_mb`, `maggot_1_mb`, `tick_1_mb`,
 `tick_2*`, the bats and wisps, and two nests rather than creatures:
-`spawners/tick_1.xml` and `slime_1_host.xml`. Also the first spawns of
-`chest_wood/green/blue` and the three smaller diamonds.
+`spawners/tick_1.xml` and `slime_1_host.xml`.
+
+**Still `[UNVERIFIED]`:** the rewards were not part of that playtest, so
+`chest_wood/green/blue` and `valuable_diamond_small` / `_small_red` /
+`valuable_diamond` via `SpawnObject` remain untested (the owner was happy to
+leave them).
 
 **`pillar_fire` is a timed chaser, not a permanent hazard:** read from
 `actors/pillar_fire.xml`, and it matches the owner's experience of outrunning
@@ -55,11 +60,11 @@ them until they vanish.
 So spawning several cannot block a room for good.
 
 **First fired from a mystery button:** `shooter_spike`,
-`shooter_stone_ball`, `enemy_boss_krilith_frostball` (all `[EMITTED]`), and
+`shooter_stone_ball`, `enemy_boss_krilith_frostball` (all `[VERIFIED]`, owner
+playtest 2026-09-27), and
 the arena-verified dragon, Anubis, Krilith-confusion and maggot-nova shots.
 **Impact:** `mysteryStarterPool()` leaves out red chests and the red diamond,
-and gives tier-II upgrades one per button. Record the first playtest of the
-actors and projectiles above here.
+and gives tier-II upgrades one per button. Promoted in `ASSET-REGISTRY.md`.
 
 ### 2026-09-26 — mystery buttons work in game; coin and diamond values read from the assets
 **Tag:** [VERIFIED] (owner playtest of PR #71) for the rig; [VERIFIED] for the

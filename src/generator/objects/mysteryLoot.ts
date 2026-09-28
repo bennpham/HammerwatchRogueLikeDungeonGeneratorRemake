@@ -13,7 +13,9 @@
  *   [VERIFIED]   chest_red via SpawnObject — the owner's sample and the
  *                mystery-button playtest, 2026-09-26
  *   [UNVERIFIED] chest_wood / chest_blue / chest_green via SpawnObject — same
- *                asset family, already placed as items by objects/item.ts
+ *                asset family, already placed as items by objects/item.ts.
+ *                Left untested on purpose in the 2026-09-27 playtest, which
+ *                covered the starter set's monsters and traps only
  *   [VERIFIED]   valuable_1..9 via SpawnObject — owner playtest 2026-09-26.
  *                Gold amounts read from assetsExtract/items/valuable_*.xml
  *                (`behavior="money"`, `amount`); the metal is the sprite's

@@ -63,6 +63,10 @@
  *              `enemy_tower_*_overload` beams, both wisps, `boss_maggot_nova`,
  *              `enemy_boss_dragon_fireball` and `enemy_boss_krilith_confusion`
  *              all fire cleanly from a generated arena, 2026-09-02.
+ *   [VERIFIED] `shooter_fireball`, `shooter_fireball_2`, `shooter_arrow`,
+ *              `shooter_spike`, `shooter_stone_ball`, both `enemy_magicball_*`
+ *              and `enemy_boss_krilith_frostball` fire cleanly from the mystery
+ *              starter set's trap rooms (owner playtest, 2026-09-27).
  *   [EMITTED]  The rest are the same asset kind referenced the same way, and
  *              have not been fired from a generated spewer yet. Nothing further
  *              is suspected of the `sorcerer_ice_orb` crash — see DISCOVERY-LOG.
