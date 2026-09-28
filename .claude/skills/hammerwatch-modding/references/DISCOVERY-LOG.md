@@ -12,12 +12,11 @@ in the same change.
 **Tag:** [VERIFIED] for the type names (the owner read them off the editor's
 AnnounceText dropdown) and for the playtest facts below (owner, in game).
 "Subtitle is global, Pickup is local to its node" is the owner's statement;
-the per-plate Pickup rig built on it is [EMITTED] until played.
+the Pickup payload text built on it is [EMITTED] until played.
 **AnnounceText `type`, in dropdown order:** 0 **Title**, 1 **Subtitle** (a
 global announcement), 2 **Regular**, 3 **Pickup** (local: it pops up where
-the node stands, so several players pressing different buttons each see
-their own rather than a stack of global lines). How the shipped campaign
-uses them (from a tally of `editor/campaign/levels/*.xml`):
+its node stands). How the shipped campaign uses them (from a tally
+of `editor/campaign/levels/*.xml`):
 - 0 for "secret area", "`ig.more-to-go?num=N`" and "sequence complete"
 - 1 for the act headings and countdown numbers
 - 2 for "passage revealed", "spikes off" and bridge events
@@ -29,17 +28,18 @@ uses them (from a tally of `editor/campaign/levels/*.xml`):
 - On a timed floor, anything on Regular (2) is replaced by the next timer
   tick (also Regular) and is visible for only a split second.
 **Impact:**
-- `buttonSeal.ts` now puts "k buttons remain" on Pickup (3), announced on the
-  pressed button's own plate. Each button has its own `CheckVariable(== k)`
-  set (N·(N−1) checks and announces); only the `== 0` check stays shared.
-  (A same-day first cut used Title (0), after the game's "more to go";
-  the owner corrected it.)
+- `buttonSeal.ts` now puts "k buttons remain" on Title (0), the style the
+  game's own "more to go" uses.
 - "The way … has opened!" (in `buttonSeal.ts` and `dungeonBoss/opener.ts`)
   now uses Subtitle (1), the global line.
 - The two lines never fire on the same press: the last press takes the count
   to 0, and only the `== 0` check answers that.
-- Timer and invulnerability ticks stay on Regular. Mystery text stays on
-  Subtitle (1).
+- An ENHANCED lock button's payload text ("A potion", "Something red
+  appears") uses Pickup (3), on its own plate. Several players pressing
+  different lock buttons each see their own result, rather than a stack of
+  global popups.
+- Timer and invulnerability ticks stay on Regular. An ordinary mystery
+  plate's text stays on Subtitle (1).
 
 ### 2026-09-27 — enhanced lock buttons: a `TriggerButton` used as a lock plate, a mystery payload on a lock trigger, two announces on one press
 **Tag:** [EMITTED]/[UNVERIFIED] — implemented against the existing

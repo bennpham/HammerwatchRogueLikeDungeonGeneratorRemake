@@ -182,12 +182,8 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    then boss-only, any other floor unlocked, byte-identical to both. One button
    keeps the direct wiring above node for node. With N ≥ 2, `buttonSeal.ts`'s
    `buildButtonCountdown` makes a `Variable(N)`. Each button does its own
-   `ChangeVariable(-1)`, then fires the one shared `CheckVariable(== 0)`,
-   which opens the wall, and then its OWN `CheckVariable(== k)` for each
-   `k ≥ 1`. Those announce "k buttons remain" as a Pickup line (`type` 3) on
-   that button's plate: Pickup shows where its node stands, so a shared check
-   could not say which plate was pressed. "Opened" goes on Subtitle (1),
-   the global line; Regular (2) is left to the timer ticks. On
+   `ChangeVariable(-1)` and then fires every shared `CheckVariable(== k)`: the
+   `k ≥ 1` checks announce "k buttons remain", and `== 0` opens the wall. On
    a boss floor, `== 0` is instead the one "buttons done" source that feeds
    the seal countdown. Buttons are drawn one after another off `ctx.rand` and
    kept `MIN_BUTTON_SPACING` apart, a rule that can never fire for the first

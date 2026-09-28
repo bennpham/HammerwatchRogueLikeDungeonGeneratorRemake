@@ -39,7 +39,8 @@ import { generateDungeon } from '../src/generator'
 import type { DungeonResult } from '../src/generator'
 import { GenerationContext } from '../src/generator/core/context'
 import { Level } from '../src/generator/map/level'
-import { buildMysteryButtonRig } from '../src/generator/mystery/rig'
+import { LOCK_PAYLOAD_ANNOUNCE_TYPE, buildMysteryButtonRig } from '../src/generator/mystery/rig'
+import type { NodeAnnounceText } from '../src/generator/objects/nodes'
 import { allIds, nodesOfType } from './xmlHelpers'
 import { plainParameters } from './params'
 import { samplePool } from './mysterySample'
@@ -267,6 +268,13 @@ describe('enhanced lock buttons — the rig', () => {
     expect(afterA.slice(0, beforeTypes.a.length)).toEqual(beforeTypes.a)
     expect(afterA.filter((t) => t === 'AnnounceText')).toHaveLength(1)
     expect(afterA.filter((t) => t === 'SpawnObject')).toHaveLength(5) // 3 chests + 2 upgrades
+
+    // Its text is a Pickup line on the plate, local to whoever pressed it —
+    // not the Subtitle an ordinary mystery plate uses.
+    const announce = enhancedButton.trigger.connections.find((n) => n.type === 'AnnounceText') as NodeAnnounceText
+    expect(announce.textType).toBe(LOCK_PAYLOAD_ANNOUNCE_TYPE)
+    expect(LOCK_PAYLOAD_ANNOUNCE_TYPE).toBe(3)
+    expect([announce.x, announce.y]).toEqual([enhancedButton.trigger.x, enhancedButton.trigger.y])
 
     // The un-enhanced button is untouched.
     expect(afterB).toEqual(beforeTypes.b)
