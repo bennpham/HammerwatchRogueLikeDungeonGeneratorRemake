@@ -7,6 +7,7 @@ import {
   validateParameters
 } from '../src/generator'
 import { buildRepairMessage, buildSystemPrompt } from '../src/shared/llm/prompt'
+import { LLM_PROVIDERS, isProviderId, providerById } from '../src/shared/llm/providers'
 import { diffParams, expandShorthands, extractParametersBlock, fillPerFloorLists } from '../src/shared/llm/reply'
 import { describeHttpError } from '../src/main/llm/client'
 
@@ -170,6 +171,21 @@ describe('fillPerFloorLists', () => {
   it('leaves complete lists alone', () => {
     const params = defaultParameters()
     expect(fillPerFloorLists(params)).toEqual({ params, note: null })
+  })
+})
+
+describe('LLM_PROVIDERS', () => {
+  it('offers Claude as a bring-your-own-key provider on the Anthropic API', () => {
+    expect(isProviderId('claude')).toBe(true)
+    const claude = providerById('claude')
+    expect(claude.api).toBe('anthropic')
+    expect(claude.needsKey).toBe(true)
+    expect(claude.defaultModel).toBe('claude-opus-5-5')
+  })
+
+  it('keeps every other provider on the keyless-or-free OpenAI-compatible path', () => {
+    expect(LLM_PROVIDERS.filter((p) => p.api === 'anthropic').map((p) => p.id)).toEqual(['claude'])
+    expect(new Set(LLM_PROVIDERS.map((p) => p.id)).size).toBe(LLM_PROVIDERS.length)
   })
 })
 

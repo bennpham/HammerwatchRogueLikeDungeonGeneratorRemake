@@ -2,6 +2,8 @@ import type { LlmProviderId } from './types'
 
 export interface LlmProviderDef {
   id: LlmProviderId
+  /** the wire format: OpenAI chat-completions, or Anthropic's Messages API through its SDK */
+  api: 'openai' | 'anthropic'
   label: string
   /** shown under the radio button */
   blurb: string
@@ -40,6 +42,7 @@ export interface LlmProviderDef {
 export const LLM_PROVIDERS: readonly LlmProviderDef[] = [
   {
     id: 'pollinations',
+    api: 'openai',
     label: 'Pollinations (no key)',
     blurb: 'Free, no account. Quality varies; the free model is small.',
     baseUrl: 'https://text.pollinations.ai',
@@ -56,6 +59,7 @@ export const LLM_PROVIDERS: readonly LlmProviderDef[] = [
   },
   {
     id: 'ollama',
+    api: 'openai',
     label: 'Ollama (local)',
     blurb: 'Runs on your own machine. Nothing leaves it.',
     baseUrl: 'http://localhost:11434/v1',
@@ -68,6 +72,7 @@ export const LLM_PROVIDERS: readonly LlmProviderDef[] = [
   },
   {
     id: 'groq',
+    api: 'openai',
     label: 'Groq (free key)',
     blurb: 'Fast hosted open models on a free tier.',
     baseUrl: 'https://api.groq.com/openai/v1',
@@ -81,6 +86,7 @@ export const LLM_PROVIDERS: readonly LlmProviderDef[] = [
   },
   {
     id: 'openrouter',
+    api: 'openai',
     label: 'OpenRouter (free key)',
     blurb: 'Many models; pick one ending in ":free".',
     baseUrl: 'https://openrouter.ai/api/v1',
@@ -94,6 +100,7 @@ export const LLM_PROVIDERS: readonly LlmProviderDef[] = [
   },
   {
     id: 'gemini',
+    api: 'openai',
     label: 'Google Gemini (free key)',
     blurb: 'Free tier through Google AI Studio.',
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
@@ -106,7 +113,22 @@ export const LLM_PROVIDERS: readonly LlmProviderDef[] = [
     privacyNote: 'Your prompts and your current settings are sent to Google. Free-tier prompts may be used to improve Google products.'
   },
   {
+    id: 'claude',
+    api: 'anthropic',
+    label: 'Claude (your own key)',
+    blurb: 'Anthropic\'s models. Best results, but paid: no free tier, billed to your API account.',
+    baseUrl: 'https://api.anthropic.com',
+    chatPath: '/v1/messages',
+    modelsPath: '/v1/models',
+    needsKey: true,
+    defaultModel: 'claude-opus-5-5',
+    signupUrl: 'https://platform.claude.com/settings/keys',
+    minIntervalMs: 0,
+    privacyNote: 'Your prompts and your current settings are sent to Anthropic, and each message is billed to your API key.'
+  },
+  {
     id: 'custom',
+    api: 'openai',
     label: 'Custom (OpenAI-compatible)',
     blurb: 'LM Studio, OpenAI, Mistral, or any /chat/completions server.',
     baseUrl: '',

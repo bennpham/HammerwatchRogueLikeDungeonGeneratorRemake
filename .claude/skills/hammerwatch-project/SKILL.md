@@ -1607,7 +1607,9 @@ Optional chat that turns a description into `parameters.txt` lines. Boundaries:
   exports. `buildSystemPrompt` is deterministic and built from the registries
   (`THEMES`, `MONSTER_TYPES`, `BOSS_IDS`, ...), so it cannot drift from the parser.
 - **Network and keys live in `src/main/llm/` only** (`client.ts` is plain
-  `fetch`, no SDK; `store.ts` is `userData/llm.json` with `safeStorage`). Keys
+  `fetch` for every OpenAI-compatible provider; `anthropic.ts` is Claude through
+  `@anthropic-ai/sdk`, the one dependency the feature adds, chosen by the
+  provider's `api: 'anthropic'`; `store.ts` is `userData/llm.json` with `safeStorage`). Keys
   never go in `AppSettings` and never cross IPC; `llm:get-config` returns
   `hasKey` booleans. The renderer sends the messages, main adds the auth header.
 - **LLM output enters the app only as parameters.txt text**:

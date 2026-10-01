@@ -1,8 +1,12 @@
 import { effectiveModel, joinUrl, providerById } from '../../shared/llm/providers'
 import type { LlmProviderDef } from '../../shared/llm/providers'
 import type { ChatMessage, LlmChatResult, LlmModelsResult } from '../../shared/llm/types'
+import { claudeChat, claudeModels } from './anthropic'
 
-/** Plain `fetch` against any OpenAI chat-completions compatible endpoint. No SDK. */
+/**
+ * Plain `fetch` against any OpenAI chat-completions compatible endpoint. Claude
+ * is the exception and goes through its own SDK in `./anthropic`.
+ */
 
 export const CHAT_TIMEOUT_MS = 60_000
 const MODELS_TIMEOUT_MS = 15_000
@@ -117,6 +121,14 @@ export async function chatCompletion(
 
   const controller = new AbortController()
   active = controller
+  if (provider.api === 'anthropic') {
+    // the SDK owns its own timeout; the controller is only for Cancel
+    try {
+      return await claudeChat(endpoint.key ?? '', chosen, messages, controller.signal)
+    } finally {
+      if (active === controller) active = null
+    }
+  }
   let timedOut = false
   const timer = setTimeout(() => {
     timedOut = true
@@ -167,6 +179,10 @@ export async function chatCompletion(
 export async function listModels(endpoint: Endpoint): Promise<LlmModelsResult> {
   const { provider } = endpoint
   if (provider.modelsPath === null) return { ok: false, message: `${provider.label} has no model list; type a model name.` }
+  if (provider.api === 'anthropic') {
+    if (endpoint.key === undefined || endpoint.key === '') return { ok: false, message: `Save your ${provider.label} key first.` }
+    return claudeModels(endpoint.key)
+  }
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), MODELS_TIMEOUT_MS)
   try {

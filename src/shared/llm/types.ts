@@ -1,6 +1,6 @@
 /** Shared by the renderer, preload and main. No electron, no DOM. */
 
-export type LlmProviderId = 'pollinations' | 'ollama' | 'groq' | 'openrouter' | 'gemini' | 'custom'
+export type LlmProviderId = 'pollinations' | 'ollama' | 'groq' | 'openrouter' | 'gemini' | 'claude' | 'custom'
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant'

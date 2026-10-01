@@ -249,6 +249,10 @@ screen; the checkbox under *Hammerwatch install folder* brings it back.
   message / 15 s), Ollama (local, nothing leaves your machine), Groq, OpenRouter
   (use a `:free` model) and Google Gemini (free keys), or any custom
   OpenAI-compatible URL such as LM Studio.
+- **Claude** (your own Anthropic API key) gives the best presets but is paid:
+  the Claude API has no free tier, so each message is billed to your account.
+  It defaults to `claude-opus-5-5`; *Refresh models* lists the others, such as
+  `claude-sonnet-5-5` or `claude-haiku-4-5` for cheaper runs.
 - **Keys** are stored only by the main process in `llm.json` in the user-data
   folder, encrypted with the OS keyring (Electron `safeStorage`); the UI warns
   when no keyring exists. The renderer is only ever told *whether* a key exists.
