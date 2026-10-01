@@ -7,7 +7,7 @@ import {
   validateParameters
 } from '../src/generator'
 import { buildRepairMessage, buildSystemPrompt } from '../src/shared/llm/prompt'
-import { diffParams, extractParametersBlock } from '../src/shared/llm/reply'
+import { diffParams, expandShorthands, extractParametersBlock, fillPerFloorLists } from '../src/shared/llm/reply'
 import { describeHttpError } from '../src/main/llm/client'
 
 const CLAUDE = CAMPAIGN_PRESETS.filter((p) => p.group === 'claude')
@@ -118,6 +118,58 @@ describe('buildSystemPrompt', () => {
 
   it('stays compact enough for a small free model', () => {
     expect(buildSystemPrompt(defaultParameters()).length).toBeLessThan(32000)
+  })
+})
+
+describe('expandShorthands', () => {
+  it('expands floor ranges, keeps suffixes, and pulls out playerFullyUpgraded', () => {
+    const { text, fullyUpgraded } = expandShorthands(
+      'levels=3\nbossFloor0-2=1|boss_knight|1.0|1\nbossFloor1-2Invuln=off\nplayerFullyUpgraded=1'
+    )
+    expect(fullyUpgraded).toBe(true)
+    expect(text.split('\n')).toEqual([
+      'levels=3',
+      'bossFloor0=1|boss_knight|1.0|1',
+      'bossFloor1=1|boss_knight|1.0|1',
+      'bossFloor2=1|boss_knight|1.0|1',
+      'bossFloor1Invuln=off',
+      'bossFloor2Invuln=off'
+    ])
+  })
+
+  it('expands lockFloors ranges with their button counts', () => {
+    expect(expandShorthands('lockFloors=0-2:2,5').text).toBe('lockFloors=0:2,1:2,2:2,5')
+  })
+
+  it('leaves ordinary lines and other keys with dashes alone', () => {
+    expect(expandShorthands('themes=a,b\nlockFloors=3,5:2')).toEqual({ text: 'themes=a,b\nlockFloors=3,5:2', fullyUpgraded: false })
+  })
+
+  it('a 99-floor boss run written with ranges validates', () => {
+    const { text } = expandShorthands(
+      'levels=99\nlobbies=0\nboss=0\nlevelOrder=\nthemes=f_frozen\nmonsters0-98=skeleton1,archer1\nbossFloor0-98=1|boss_knight,boss_lich|1.0|1\nlockFloors=0-49:1,50-98:2'
+    )
+    const { params } = fillPerFloorLists(parseParametersTxt(text, defaultParameters()).params)
+    expect(params.levelBoss?.filter((b) => b?.enabled)).toHaveLength(99)
+    expect(validateParameters(params).errors).toEqual([])
+  })
+})
+
+describe('fillPerFloorLists', () => {
+  it('turns a short 99-floor, no-lobby answer into a valid campaign', () => {
+    const parsed = parseParametersTxt('levels=99\nlobbies=0\nthemes=f_frozen,f_mixed\nmonsters0=bat1\nmonsters1=skeleton1', defaultParameters())
+    expect(validateParameters(parsed.params).valid).toBe(false)
+    const { params, note } = fillPerFloorLists(parsed.params)
+    expect(params.themes).toHaveLength(99)
+    expect(params.themes[2]).toBe('f_frozen')
+    expect(params.levelMonsters).toHaveLength(99)
+    expect(note).toContain('99 floors')
+    expect(validateParameters(params).errors).toEqual([])
+  })
+
+  it('leaves complete lists alone', () => {
+    const params = defaultParameters()
+    expect(fillPerFloorLists(params)).toEqual({ params, note: null })
   })
 })
 

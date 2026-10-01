@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { parseParametersTxt, validateParameters } from '../../generator'
+import { applyFullyUpgraded, parseParametersTxt, validateParameters } from '../../generator'
 import type { DungeonParameters, ValidationIssue } from '../../generator'
 import { buildRepairMessage, buildSystemPrompt } from '../../shared/llm/prompt'
 import { LLM_PROVIDERS, effectiveModel, providerById } from '../../shared/llm/providers'
-import { diffParams, extractParametersBlock } from '../../shared/llm/reply'
+import { diffParams, expandShorthands, extractParametersBlock, fillPerFloorLists } from '../../shared/llm/reply'
 import type { ParamChange } from '../../shared/llm/reply'
 import type { ChatMessage, LlmConfig, LlmSettings } from '../../shared/llm/types'
 
@@ -44,17 +44,23 @@ const toSettings = (config: LlmConfig): LlmSettings => ({
 function evaluate(reply: string, base: DungeonParameters, original: DungeonParameters): Proposal | null {
   const block = extractParametersBlock(reply)
   if (block === null) return null
-  const parsed = parseParametersTxt(block, base)
-  const validation = validateParameters(parsed.params)
+  const expanded = expandShorthands(block)
+  const parsed = parseParametersTxt(expanded.text, base)
+  if (expanded.fullyUpgraded) parsed.params.playerTweaks = applyFullyUpgraded(parsed.params.playerTweaks)
+  const filled = fillPerFloorLists(parsed.params)
+  const validation = validateParameters(filled.params)
   return {
-    params: parsed.params,
-    changes: diffParams(original, parsed.params),
+    params: filled.params,
+    changes: diffParams(original, filled.params),
     errors: validation.errors,
-    warnings: validation.warnings,
+    warnings: filled.note === null ? validation.warnings : [{ field: 'levels', message: filled.note }, ...validation.warnings],
     unknownKeys: parsed.unknownKeys,
     applied: false
   }
 }
+
+// a 99-floor proposal or a fully upgraded roster changes hundreds of lines
+const MAX_CHANGES_SHOWN = 40
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -270,7 +276,7 @@ export function PresetChat({ params, config, onConfigChange, onApply, disabled }
         </strong>
         {proposal.changes.length > 0 && (
           <ul className="chat-changes">
-            {proposal.changes.map((c) => (
+            {proposal.changes.slice(0, MAX_CHANGES_SHOWN).map((c) => (
               <li key={c.key}>
                 <code>{c.key}</code>
                 <span className="chat-before">{c.before ?? '(unset)'}</span>
@@ -278,6 +284,9 @@ export function PresetChat({ params, config, onConfigChange, onApply, disabled }
                 <span className="chat-after">{c.after ?? '(removed)'}</span>
               </li>
             ))}
+            {proposal.changes.length > MAX_CHANGES_SHOWN && (
+              <li className="chat-dim">…and {proposal.changes.length - MAX_CHANGES_SHOWN} more</li>
+            )}
           </ul>
         )}
         {proposal.errors.length > 0 && (

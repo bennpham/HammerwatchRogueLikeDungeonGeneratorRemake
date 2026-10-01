@@ -39,6 +39,86 @@ export function extractParametersBlock(reply: string): string | null {
   return bare.length > 0 ? bare.join('\n') : null
 }
 
+/** Per-floor key families a model may write as a range, `trap0-98=...`. */
+const RANGE_LINE = /^(monsters|trap|timer|music|buff|bossFloor)(\d+)-(\d+)([A-Za-z]\w*)?\s*=(.*)$/i
+/** No real campaign gets near this; it only stops a typo like `0-99999` freezing the UI. */
+const MAX_RANGE_FLOOR = 999
+const LOCK_FLOORS_LINE = /^lockFloors\s*=(.*)$/i
+const LOCK_RANGE_TOKEN = /^(\d+)-(\d+)(:\d+)?$/
+const FULLY_UPGRADED_LINE = /^playerFullyUpgraded\s*=\s*(1|true|yes)\s*$/i
+
+/**
+ * Assistant-only shorthands, rewritten into plain parameters.txt lines before
+ * the parser sees them, so a small model can describe a 99-floor run in a few
+ * lines instead of hundreds:
+ * - `bossFloor0-98=...` (any per-floor family, any suffix such as
+ *   `bossFloor0-98Invuln=off`) becomes one line per floor, inclusive.
+ * - `lockFloors=0-98:2` (a range token, optional button count) becomes one
+ *   token per floor.
+ * - `playerFullyUpgraded=1` is removed and reported, for the caller to apply
+ *   the same "fully upgraded" action as the Player tab's button.
+ * An imported parameters.txt never goes through this; it is the chat's dialect.
+ */
+export function expandShorthands(block: string): { text: string; fullyUpgraded: boolean } {
+  let fullyUpgraded = false
+  const out: string[] = []
+  for (const raw of block.split('\n')) {
+    const line = raw.trim()
+    if (FULLY_UPGRADED_LINE.test(line)) {
+      fullyUpgraded = true
+      continue
+    }
+    const lock = LOCK_FLOORS_LINE.exec(line)
+    if (lock !== null) {
+      const tokens = lock[1].split(',').map((t) => t.trim()).filter((t) => t !== '')
+      const expanded = tokens.flatMap((token) => {
+        const r = LOCK_RANGE_TOKEN.exec(token)
+        if (r === null) return [token]
+        const from = parseInt(r[1], 10)
+        const to = Math.min(parseInt(r[2], 10), MAX_RANGE_FLOOR)
+        return Array.from({ length: Math.max(0, to - from + 1) }, (_, k) => `${from + k}${r[3] ?? ''}`)
+      })
+      out.push(`lockFloors=${expanded.join(',')}`)
+      continue
+    }
+    const m = RANGE_LINE.exec(line)
+    if (m === null) {
+      out.push(raw)
+      continue
+    }
+    const from = parseInt(m[2], 10)
+    const to = Math.min(parseInt(m[3], 10), MAX_RANGE_FLOOR)
+    for (let i = from; i <= to; i++) out.push(`${m[1]}${i}${m[4] ?? ''}=${m[5].trim()}`)
+  }
+  return { text: out.join('\n'), fullyUpgraded }
+}
+
+/**
+ * The prompt lets a model write fewer `themes` / `monstersN` than floors (a
+ * 99-floor run would otherwise be ~200 lines a small model rarely finishes).
+ * This repeats what it gave, in order, until every floor has one. Returns the
+ * filled params and a note for the preview, or the input and null when no
+ * floor was missing a theme or pool. Assistant-side only: an imported
+ * parameters.txt still gets the validator's error for a short list.
+ */
+export function fillPerFloorLists(params: DungeonParameters): { params: DungeonParameters; note: string | null } {
+  const levels = params.levels
+  const short = (list: readonly unknown[]) => list.length > 0 && list.length < levels
+  if (!short(params.themes) && !short(params.levelMonsters)) return { params, note: null }
+  const cycle = <T>(list: readonly T[]): T[] => Array.from({ length: levels }, (_, i) => list[i % list.length])
+  const filled: string[] = []
+  const next = { ...params }
+  if (short(params.themes)) {
+    filled.push(`themes (${params.themes.length} given)`)
+    next.themes = cycle(params.themes)
+  }
+  if (short(params.levelMonsters)) {
+    filled.push(`monster pools (${params.levelMonsters.length} given)`)
+    next.levelMonsters = cycle(params.levelMonsters).map((pool) => [...pool])
+  }
+  return { params: next, note: `Repeated the ${filled.join(' and ')} to cover all ${levels} floors.` }
+}
+
 /** `key -> value` for every non-comment line, in file order. */
 function linesByKey(text: string): Map<string, string> {
   const map = new Map<string, string>()
