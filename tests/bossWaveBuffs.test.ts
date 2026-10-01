@@ -185,7 +185,9 @@ describe('boss wave buffs — the field rig', () => {
     // What every preset now ships: nothing is buffed for the whole health
     // fight, and the horde that spawns on the kill fights strengthened. One
     // field, switched on by Boss Died, with no earlier field to switch off.
+    // Shell Game is the one exception, enraged at 25% on purpose — below.
     for (const preset of CAMPAIGN_PRESETS) {
+      if (preset.id === 'claude-shell-game') continue
       const waves = preset.build().boss.fights[0].arena.waves
       expect(waves.map(waveBuffs), preset.id).toEqual([
         [],
@@ -210,6 +212,24 @@ describe('boss wave buffs — the field rig', () => {
       expect(togglesFrom(triggers[0])).toEqual([{ state: 0, element: areas[0].id }])
       expect(connectionsResolve(ctx)).toBe(true)
     }
+  })
+
+  it('Shell Game enrages its arena at 25%, then hands over to the stock death field', () => {
+    const preset = CAMPAIGN_PRESETS.find((p) => p.id === 'claude-shell-game')!
+    const waves = preset.build().boss.fights[0].arena.waves
+    const bloodlust = [{ buff: 'bloodlust', target: 'monsters' }]
+    expect(waves.map(waveBuffs)).toEqual([[], [], [], bloodlust, bloodlust])
+
+    const ctx = freshCtx()
+    buildRig(ctx, waves)
+    const areas = fields(ctx)
+    expect(areas).toHaveLength(2)
+    for (const area of areas) {
+      expect(area.enabled).toBe(false)
+      expect(area.buff).toBe('buffs/bloodlust.xml')
+    }
+    expect(nodesOfType(ctx, 'GlobalEventTrigger')).toHaveLength(2)
+    expect(connectionsResolve(ctx)).toBe(true)
   })
 
   it('switches off the nearest EARLIER buffed tier, skipping tiers that carry none', () => {

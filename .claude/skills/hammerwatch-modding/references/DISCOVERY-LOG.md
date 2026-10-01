@@ -8,6 +8,21 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-10-01 — does a monsters-only buff field reach a boss actor?
+**Tag:** [UNVERIFIED] (open question, raised by the owner)
+
+- The clock presets (Beat the Clock, Shell Game) now enrage with `bloodlust`
+  aimed at `monsters` (`RectangleShape{types: 2}`). The hunt floor boss and
+  Shell Game's arena boss get it at their 25% tier, and both survival arenas
+  get it for their last 30 s.
+- Nobody has recorded whether an `actors/boss_*` unit catches such a field.
+  The owner suspects it does not, and that only regular monsters do. The
+  `types: 2` = monsters mapping itself is still [UNVERIFIED] (2026-08-24 entry).
+- Until this is settled, every enrage lands together with fresh minions, so the
+  window bites either way.
+- **To settle:** play Shell Game to its arena boss's 25% and see whether the
+  boss's move speed jumps (+50%). Then promote or refute it here.
+
 ### 2026-09-28 — `chest_wood` / `chest_blue` / `chest_green` spawn from a mystery button; preset playtest
 **Tag:** [VERIFIED] (the owner's playtest of PR #73's presets)
 

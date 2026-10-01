@@ -412,8 +412,21 @@ Jackpot and an Extra life (`powerup_1up`), set against Double trouble, Death
 trap and Inferno, and a test checks that the harsh share rises every floor.
 **Shell Game** disguises every lock button (`disguise: true`) and enhances
 some of them. It adds decoy plates and runs a Beat the Clock–style timer
-(damage 3) whose seconds per lock button fall every floor. Both are
-registered WITHOUT `withGatewayLocks`. The header text lives only in
+(damage 3) whose seconds per lock button fall every locked floor. Both are
+registered WITHOUT `withGatewayLocks`.
+
+The two clock presets (Beat the Clock, Shell Game) share an ending
+(`huntFloorBoss`, `clockArena`). Their last timed floor is a **hunt**: one
+random mobile boss, no lock buttons, 180 s. The boss-prep lobby follows it.
+Beat the Clock then ends in a 120 s survival arena led by minibosses (no boss
+arena). Shell Game plays a boss arena with invulnerability OFF (small anchored
+adds plus arrow traps on each tier), then the same kind of survival arena.
+Neither preset runs boss invulnerability anywhere: playtesters disliked it
+under a clock. Instead, three `bloodlust`-on-monsters enrage windows (`enrage()`)
+give the late fight its spike: the hunt boss's 25% tier, Shell Game's arena 25%
+tier, and the last 30 s of each survival arena. Each lands together with fresh
+minions, because whether a boss actor catches a monsters-only buff field is
+still `[UNVERIFIED]` (DISCOVERY-LOG). The header text lives only in
 `PRESET_GROUPS`. The escape-floor / shared-arena-size tests in
 `tests/presets.test.ts` apply to the `classic` group only. Every preset in either
 group must validate, generate, stay deterministic and round-trip through
