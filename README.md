@@ -235,6 +235,29 @@ User-data folder: `%APPDATA%/hammerwatch-roguelike-dungeon-generator` (Windows),
 `~/.config/hammerwatch-roguelike-dungeon-generator` (Linux),
 `~/Library/Application Support/hammerwatch-roguelike-dungeon-generator` (macOS).
 
+### AI preset assistant (optional)
+
+A chat icon in the header (left of the presets "i") opens an assistant that turns
+"4 icy floors, a boss on the last one, lots of traps" into settings. It is
+**strictly opt-in**: the icon only opens a setup screen, and the app makes no
+network request until you pick a provider and send a message (or press
+*Refresh models*). To remove the icon, tick *Hide the chat icon* in its setup
+screen; the checkbox under *Hammerwatch install folder* brings it back.
+
+- **Providers** (all OpenAI chat-completions compatible): Pollinations (no key,
+  the default; your prompts and current settings go to pollinations.ai, limit 1
+  message / 15 s), Ollama (local, nothing leaves your machine), Groq, OpenRouter
+  (use a `:free` model) and Google Gemini (free keys), or any custom
+  OpenAI-compatible URL such as LM Studio.
+- **Keys** are stored only by the main process in `llm.json` in the user-data
+  folder, encrypted with the OS keyring (Electron `safeStorage`); the UI warns
+  when no keyring exists. The renderer is only ever told *whether* a key exists.
+- **How it edits**: the model writes `parameters.txt` lines for just what you
+  asked to change, on top of your current settings. The app parses and validates
+  them like an imported file, asks the model once to fix any errors, and shows
+  the changed keys and remaining errors. **Apply** is disabled while errors
+  remain, and the toast after applying has an **Undo**.
+
 ## Parameters reference
 
 | Parameter | Default | Meaning |

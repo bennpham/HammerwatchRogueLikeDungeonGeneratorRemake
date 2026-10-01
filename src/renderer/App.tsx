@@ -20,10 +20,14 @@ import { LevelPreview } from './components/LevelPreview'
 import { LoadoutSheet } from './components/LoadoutSheet'
 import { OutputPanel } from './components/OutputPanel'
 import { PresetGuide } from './components/PresetGuide'
+import { PresetChat } from './components/PresetChat'
+import type { LlmConfig } from '../shared/llm/types'
 
 interface Toast {
   kind: 'ok' | 'error' | 'info'
   text: string
+  /** shown as an Undo button when present */
+  undo?: () => void
 }
 
 export function App() {
@@ -33,6 +37,8 @@ export function App() {
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<GenerateResponse | null>(null)
   const [toast, setToast] = useState<Toast | null>(null)
+  // null until main answers; the chat icon is not drawn before then
+  const [llmConfig, setLlmConfig] = useState<LlmConfig | null>(null)
   // the lobby is where a run starts, so it is where the app opens; the dungeon
   // and player passes are the optional ones
   const [leftTab, setLeftTab] = useState<'lobby' | 'dungeon' | 'boss' | 'order' | 'player'>('lobby')
@@ -72,8 +78,8 @@ export function App() {
     return parts.join(' · ')
   }, [params.boss])
 
-  const showToast = (kind: Toast['kind'], text: string) => {
-    setToast({ kind, text })
+  const showToast = (kind: Toast['kind'], text: string, undo?: () => void) => {
+    setToast({ kind, text, undo })
     clearTimeout(toastTimer.current)
     toastTimer.current = setTimeout(() => setToast(null), 6000)
   }
@@ -88,6 +94,8 @@ export function App() {
         showToast('info', `Loaded defaults from parameters.txt override${unknown}`)
       }
     })
+    // reads a local file only; the assistant makes no request until a message is sent
+    window.api.llmGetConfig().then(setLlmConfig)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -174,6 +182,24 @@ export function App() {
     showToast('ok', `Loaded the ${preset.label} preset — ${next.levels} floors.${lost}`)
   }
 
+  /**
+   * The AI assistant's Apply: the same replace-the-params path as a preset, but
+   * the toast carries an Undo that puts the previous parameters back.
+   */
+  const applyAssistantProposal = (next: DungeonParameters, changedKeys: number) => {
+    const previous = params
+    setParams(next)
+    showToast('ok', `Applied the assistant's proposal — ${changedKeys} setting${changedKeys === 1 ? '' : 's'} changed.`, () => {
+      setParams(previous)
+      showToast('info', 'Undid the assistant\'s changes.')
+    })
+  }
+
+  const setChatIconHidden = async (hideIcon: boolean) => {
+    if (llmConfig === null) return
+    setLlmConfig(await window.api.llmSaveConfig({ ...llmConfig, hideIcon }))
+  }
+
   const importParams = async () => {
     const imported = await window.api.importParametersTxt()
     if (imported === null) return
@@ -218,6 +244,15 @@ export function App() {
           <p className="subtitle">Rogue-like campaign generator — remake of the classic forum tool</p>
         </div>
         <div className="header-actions">
+          {llmConfig !== null && !llmConfig.hideIcon && (
+            <PresetChat
+              params={params}
+              config={llmConfig}
+              onConfigChange={setLlmConfig}
+              onApply={applyAssistantProposal}
+              disabled={busy}
+            />
+          )}
           <PresetGuide onLoad={applyPreset} disabled={busy} />
           <label className="preset-picker">
             <span className="field-label">Preset</span>
@@ -385,6 +420,8 @@ export function App() {
             hasResult={result !== null}
             busy={busy}
             onSettingsChange={persistSettings}
+            chatIconHidden={llmConfig?.hideIcon ?? null}
+            onChatIconHiddenChange={setChatIconHidden}
             onPickPath={async () => {
               const picked = await window.api.pickHammerwatchPath()
               if (picked !== null) persistSettings({ ...settings, hammerwatchPath: picked })
@@ -396,7 +433,22 @@ export function App() {
         </main>
       </div>
 
-      {toast && <div className={`toast toast-${toast.kind}`}>{toast.text}</div>}
+      {toast && (
+        <div className={`toast toast-${toast.kind}`}>
+          {toast.text}
+          {toast.undo && (
+            <button
+              type="button"
+              className="toast-undo"
+              onClick={() => {
+                toast.undo?.()
+              }}
+            >
+              Undo
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { AppSettings, RendererApi } from '../shared/ipc'
 import type { DungeonParameters } from '../generator'
+import type { LlmChatRequest, LlmProviderId, LlmSettings } from '../shared/llm/types'
 
 const api: RendererApi = {
   getInitialState: () => ipcRenderer.invoke('app:init'),
@@ -11,7 +12,13 @@ const api: RendererApi = {
   pickHammerwatchPath: () => ipcRenderer.invoke('settings:pick-path'),
   saveSettings: (settings: AppSettings) => ipcRenderer.invoke('settings:save', settings),
   importParametersTxt: () => ipcRenderer.invoke('params:import'),
-  exportParametersTxt: (params: DungeonParameters) => ipcRenderer.invoke('params:export', params)
+  exportParametersTxt: (params: DungeonParameters) => ipcRenderer.invoke('params:export', params),
+  llmGetConfig: () => ipcRenderer.invoke('llm:get-config'),
+  llmSaveConfig: (settings: LlmSettings) => ipcRenderer.invoke('llm:save-config', settings),
+  llmSetKey: (provider: LlmProviderId, key: string) => ipcRenderer.invoke('llm:set-key', provider, key),
+  llmListModels: (provider: LlmProviderId) => ipcRenderer.invoke('llm:list-models', provider),
+  llmChat: (request: LlmChatRequest) => ipcRenderer.invoke('llm:chat', request),
+  llmCancel: () => ipcRenderer.invoke('llm:cancel')
 }
 
 contextBridge.exposeInMainWorld('api', api)

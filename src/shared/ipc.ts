@@ -1,4 +1,13 @@
 import type { DungeonError, DungeonParameters, LevelPreview } from '../generator'
+import type {
+  LlmChatRequest,
+  LlmChatResult,
+  LlmConfig,
+  LlmKeyResult,
+  LlmModelsResult,
+  LlmProviderId,
+  LlmSettings
+} from './llm/types'
 
 /** App-level settings persisted in the Electron userData folder. */
 export interface AppSettings {
@@ -52,4 +61,12 @@ export interface RendererApi {
   saveSettings(settings: AppSettings): Promise<void>
   importParametersTxt(): Promise<ImportParamsResult | null>
   exportParametersTxt(params: DungeonParameters): Promise<ActionResult>
+  /** AI preset assistant. Opt-in: nothing here touches the network except chat and listModels. */
+  llmGetConfig(): Promise<LlmConfig>
+  llmSaveConfig(settings: LlmSettings): Promise<LlmConfig>
+  /** an empty key removes it; the key itself is never sent back */
+  llmSetKey(provider: LlmProviderId, key: string): Promise<LlmKeyResult>
+  llmListModels(provider: LlmProviderId): Promise<LlmModelsResult>
+  llmChat(request: LlmChatRequest): Promise<LlmChatResult>
+  llmCancel(): Promise<void>
 }

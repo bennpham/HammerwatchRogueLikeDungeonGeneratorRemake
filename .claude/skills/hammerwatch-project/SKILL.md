@@ -1598,6 +1598,27 @@ same `GeneratedFile[]` the levels produce.
   is the typed-a-big-number mistake the messages exist for.
 - Emitted XML is *not* the level dialect — see the `hammerwatch-modding` skill.
 
+## AI preset assistant (`src/shared/llm/`, `src/main/llm/`, issue #74)
+
+Optional chat that turns a description into `parameters.txt` lines. Boundaries:
+
+- **Pure helpers in `src/shared/llm/`** (`providers.ts`, `prompt.ts`, `reply.ts`,
+  `types.ts`) — no electron, no DOM; they import the generator only for its
+  exports. `buildSystemPrompt` is deterministic and built from the registries
+  (`THEMES`, `MONSTER_TYPES`, `BOSS_IDS`, ...), so it cannot drift from the parser.
+- **Network and keys live in `src/main/llm/` only** (`client.ts` is plain
+  `fetch`, no SDK; `store.ts` is `userData/llm.json` with `safeStorage`). Keys
+  never go in `AppSettings` and never cross IPC; `llm:get-config` returns
+  `hasKey` booleans. The renderer sends the messages, main adds the auth header.
+- **LLM output enters the app only as parameters.txt text**:
+  `extractParametersBlock` -> `parseParametersTxt(block, currentParams)` ->
+  `validateParameters`, then the user's Apply through `setParams`. No new schema,
+  and nothing under `src/generator/**` knows the feature exists.
+- Opt-in is a contract: no request until the user sends a message or presses
+  Refresh models. Do not add a startup or on-open fetch.
+- Pollinations' keyless endpoint (`text.pollinations.ai/openai`, model `openai`)
+  was verified 2026-10-01; its newer `gen.pollinations.ai` needs a key.
+
 ## Working rules
 
 - **Match the surrounding style.** No linter is configured. 2-space indent, no
