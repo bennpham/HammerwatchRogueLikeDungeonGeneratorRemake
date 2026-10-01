@@ -21,6 +21,8 @@ export interface LlmProviderDef {
   minIntervalMs: number
   /** a one-line notice shown on the setup screen */
   privacyNote: string
+  /** extra top-level fields merged into every chat request body */
+  extraBody?: Record<string, unknown>
 }
 
 /**
@@ -29,7 +31,8 @@ export interface LlmProviderDef {
  * (GPT-OSS 20B), `"tier":"anonymous"`, aliases `openai`/`gpt-oss`. `POST
  * https://text.pollinations.ai/openai` is the keyless OpenAI-compatible
  * endpoint. The newer `gen.pollinations.ai/v1` needs a bearer key per APIDOCS.md,
- * so it is not used here. Anonymous limit per the docs: 1 request / 15 s.
+ * so it is not used here. Anonymous limit per the docs: 1 request / 15 s; a
+ * busy anonymous quota answers HTTP 402 with an empty `{}` body.
  *
  * The default models below for the other providers are suggestions, not
  * verified against live catalogues; the setup screen's model list overrides them.
@@ -45,7 +48,11 @@ export const LLM_PROVIDERS: readonly LlmProviderDef[] = [
     needsKey: false,
     defaultModel: 'openai',
     minIntervalMs: 15000,
-    privacyNote: 'Your prompts and your current settings are sent to pollinations.ai. Limit: 1 message / 15 s.'
+    privacyNote: 'Your prompts and your current settings are sent to pollinations.ai. Limit: 1 message / 15 s.',
+    // The anonymous tier caps a reply at 1500 tokens, and gpt-oss spends them
+    // all on hidden reasoning at its default effort with our ~9k-token prompt:
+    // finish_reason "length", no content. "low" finished 3 of 3 (2026-10-01).
+    extraBody: { reasoning_effort: 'low' }
   },
   {
     id: 'ollama',

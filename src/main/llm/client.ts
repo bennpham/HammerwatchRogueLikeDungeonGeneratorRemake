@@ -65,6 +65,11 @@ export function describeHttpError(
   if (status === 401 || status === 403) {
     return { message: `${providerLabel} rejected the API key (HTTP ${status}). Check it in the assistant's settings.` }
   }
+  if (status === 402) {
+    return {
+      message: `${providerLabel} turned the request down (HTTP 402); its free quota is busy or used up. Wait a minute, or switch to a free-key provider such as Groq or Gemini.`
+    }
+  }
   if (status === 429) {
     const seconds = retryAfterHeader !== null ? Number(retryAfterHeader) : NaN
     if (Number.isFinite(seconds) && seconds > 0) {
@@ -121,7 +126,7 @@ export async function chatCompletion(
     const response = await fetch(joinUrl(endpoint.baseUrl, provider.chatPath), {
       method: 'POST',
       headers: headers(endpoint.key, true),
-      body: JSON.stringify({ model: chosen, messages, stream: false }),
+      body: JSON.stringify({ ...provider.extraBody, model: chosen, messages, stream: false }),
       signal: controller.signal
     })
     const raw = await response.text()
@@ -129,10 +134,20 @@ export async function chatCompletion(
       return { ok: false, ...describeHttpError(provider.label, response.status, response.headers.get('retry-after'), raw) }
     }
     let text: unknown
+    let finishReason: unknown
     try {
-      text = (JSON.parse(raw) as { choices?: Array<{ message?: { content?: unknown } }> }).choices?.[0]?.message?.content
+      const choice = (JSON.parse(raw) as { choices?: Array<{ message?: { content?: unknown }; finish_reason?: unknown }> })
+        .choices?.[0]
+      text = choice?.message?.content
+      finishReason = choice?.finish_reason
     } catch {
       return { ok: false, message: `${provider.label} sent a reply that is not valid JSON: ${bodyExcerpt(raw)}` }
+    }
+    if ((typeof text !== 'string' || text.trim() === '') && finishReason === 'length') {
+      return {
+        ok: false,
+        message: `${provider.label} ran out of reply length before it wrote an answer (reasoning models can spend it all thinking). Try again, a shorter request, or another model.`
+      }
     }
     if (typeof text !== 'string' || text.trim() === '') {
       return { ok: false, message: `${provider.label} returned an empty reply. Try again, or pick another model.` }

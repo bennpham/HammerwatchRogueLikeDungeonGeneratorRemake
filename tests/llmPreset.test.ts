@@ -124,6 +124,7 @@ describe('buildSystemPrompt', () => {
 describe('describeHttpError', () => {
   it('maps the common statuses to actionable text', () => {
     expect(describeHttpError('Groq', 401, null, '').message).toContain('API key')
+    expect(describeHttpError('Pollinations', 402, null, '{}').message).toContain('free quota')
     const limited = describeHttpError('Groq', 429, '12', '')
     expect(limited.message).toContain('12 s')
     expect(limited.retryAfterMs).toBe(12000)
