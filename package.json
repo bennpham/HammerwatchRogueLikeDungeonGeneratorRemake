@@ -57,6 +57,7 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
     "jszip": "^3.10.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"

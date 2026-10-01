@@ -13,6 +13,10 @@ import {
 import { findParametersOverride, loadSettings, saveSettings } from './settings'
 import { installCampaign, writeCampaign } from './packer'
 import type { ActionResult, AppSettings, ImportParamsResult, InitialState } from '../shared/ipc'
+import { isProviderId } from '../shared/llm/providers'
+import type { ChatMessage, LlmChatRequest, LlmChatResult, LlmKeyResult, LlmModelsResult, LlmProviderId, LlmSettings } from '../shared/llm/types'
+import { cancelChat, chatCompletion, checkBaseUrl, endpointFor, listModels } from './llm/client'
+import * as llmStore from './llm/store'
 
 /** The last successful generation, kept in main so exports don't re-send MBs over IPC. */
 let lastResult: DungeonResult | null = null
@@ -169,5 +173,48 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     const content = serializeParametersTxt(params, settings.hammerwatchPath || undefined, settings.cleanupFiles)
     await writeFile(picked.filePath, content, 'utf-8')
     return { ok: true, message: 'Exported parameters.txt.', outputPath: picked.filePath }
+  })
+
+  // AI preset assistant. Handlers return messages, never throw across IPC, and
+  // no key value ever leaves main.
+  ipcMain.handle('llm:get-config', () => llmStore.loadConfig())
+
+  ipcMain.handle('llm:save-config', (_event, settings: LlmSettings) => llmStore.saveSettings(settings))
+
+  ipcMain.handle('llm:set-key', (_event, provider: LlmProviderId, key: string): LlmKeyResult => {
+    if (!isProviderId(provider) || typeof key !== 'string') {
+      return { ok: false, message: 'Unknown provider.', config: llmStore.loadConfig() }
+    }
+    const outcome = llmStore.setKey(provider, key)
+    return { ...outcome, config: llmStore.loadConfig() }
+  })
+
+  ipcMain.handle('llm:list-models', async (_event, provider: LlmProviderId): Promise<LlmModelsResult> => {
+    if (!isProviderId(provider)) return { ok: false, message: 'Unknown provider.' }
+    const endpoint = endpointFor(provider, llmStore.loadSettings().customBaseUrl, llmStore.getKey(provider))
+    if (provider === 'custom') {
+      const problem = checkBaseUrl(endpoint.baseUrl)
+      if (problem !== null) return { ok: false, message: problem }
+    }
+    return listModels(endpoint)
+  })
+
+  ipcMain.handle('llm:chat', async (_event, request: LlmChatRequest): Promise<LlmChatResult> => {
+    if (!isProviderId(request?.provider) || !Array.isArray(request.messages)) {
+      return { ok: false, message: 'Malformed chat request.' }
+    }
+    const messages: ChatMessage[] = request.messages.filter(
+      (m) => (m.role === 'system' || m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string'
+    )
+    const endpoint = endpointFor(request.provider, llmStore.loadSettings().customBaseUrl, llmStore.getKey(request.provider))
+    if (request.provider === 'custom') {
+      const problem = checkBaseUrl(endpoint.baseUrl)
+      if (problem !== null) return { ok: false, message: problem }
+    }
+    return chatCompletion(endpoint, String(request.model ?? ''), messages)
+  })
+
+  ipcMain.handle('llm:cancel', () => {
+    cancelChat()
   })
 }

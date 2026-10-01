@@ -6,6 +6,9 @@ interface OutputPanelProps {
   hasResult: boolean
   busy: boolean
   onSettingsChange: (settings: AppSettings) => void
+  /** AI assistant icon visibility; null while the config is still loading */
+  chatIconHidden: boolean | null
+  onChatIconHiddenChange: (hidden: boolean) => void
   onPickPath: () => void
   onInstall: () => void
   onExportFolder: () => void
@@ -18,6 +21,8 @@ export function OutputPanel({
   hasResult,
   busy,
   onSettingsChange,
+  chatIconHidden,
+  onChatIconHiddenChange,
   onPickPath,
   onInstall,
   onExportFolder,
@@ -46,6 +51,16 @@ export function OutputPanel({
           />
           Remove intermediate editor files after packing
         </label>
+        {chatIconHidden !== null && (
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              checked={!chatIconHidden}
+              onChange={(e) => onChatIconHiddenChange(!e.target.checked)}
+            />
+            Show the AI preset assistant icon in the header (optional, off the network until used)
+          </label>
+        )}
       </div>
       <div className="output-actions">
         <button
