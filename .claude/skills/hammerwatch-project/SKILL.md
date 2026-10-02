@@ -427,7 +427,7 @@ give the late fight its spike: the hunt boss's 25% tier, Shell Game's arena 25%
 tier, and the last 30 s of each survival arena. Each lands together with fresh
 minions, because a boss actor does NOT catch a monsters-only buff field
 (`[VERIFIED]`, DISCOVERY-LOG 2026-10-01). Shell Game's boss arena never revives
-players (`respawnPlayers: 'never'`). Both survival arenas count down every
+players and never saves mid-fight (both checkpoints `'never'`). Both survival arenas count down every
 second (`countdown: 'seconds'`), because `milestones` read as no goal at all.
 Their filler rows use the toughest regulars (`skeleton3`, `archer3`,
 `bat2#2`, `lich#2`), since an upgraded party clears the easy ones instantly. The header text lives only in

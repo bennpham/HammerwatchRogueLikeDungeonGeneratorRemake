@@ -427,6 +427,7 @@ describe('campaign presets', () => {
           expect(fight.arena.invulnerability.enabled).toBe(false)
           // no revives in a clock preset's boss fight (playtest: too easy)
           expect(fight.arena.checkpoints.respawnPlayers).toBe('never')
+          expect(fight.arena.checkpoints.saveGame).toBe('never')
         }
         expect(arenaMode(fights.at(-1)!)).toBe('survival')
 
