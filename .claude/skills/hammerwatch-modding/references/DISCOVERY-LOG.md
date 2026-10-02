@@ -8,20 +8,26 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
-### 2026-10-01 — does a monsters-only buff field reach a boss actor?
-**Tag:** [UNVERIFIED] (open question, raised by the owner)
+### 2026-10-01 — a monsters-only buff field does NOT reach a boss actor; survival `milestones` reads as no clock
+**Tag:** [VERIFIED] (owner playtest of PR #76, Shell Game)
 
-- The clock presets (Beat the Clock, Shell Game) now enrage with `bloodlust`
-  aimed at `monsters` (`RectangleShape{types: 2}`). The hunt floor boss and
-  Shell Game's arena boss get it at their 25% tier, and both survival arenas
-  get it for their last 30 s.
-- Nobody has recorded whether an `actors/boss_*` unit catches such a field.
-  The owner suspects it does not, and that only regular monsters do. The
-  `types: 2` = monsters mapping itself is still [UNVERIFIED] (2026-08-24 entry).
-- Until this is settled, every enrage lands together with fresh minions, so the
-  window bites either way.
-- **To settle:** play Shell Game to its arena boss's 25% and see whether the
-  boss's move speed jumps (+50%). Then promote or refute it here.
+- **A boss is immune to a `bloodlust` field aimed at `monsters`**
+  (`RectangleShape{types: 2}`). Shell Game's arena enrages at `Boss 25%`; the
+  owner saw no speed-up on the boss. This refutes the open question (the owner
+  suspected it beforehand). Enrage windows therefore work only through the
+  minions spawned in them. The clock presets already pair every enrage with
+  fresh minions. Whether the field reaches those regular monsters was not
+  reported separately, so `types: 2` = monsters stays as tagged in the
+  2026-08-24 entry.
+- **A survival arena on `countdown: 'milestones'` reads as having no goal.**
+  A 120 s round announces "2:00" once, for 1000 ms, at `LevelLoaded` delay 0,
+  which lands during the load fade. Nothing follows until "1:00". With no boss
+  and no visible clock, the owner could not tell what the level wanted. The
+  clock presets now use `'seconds'`, the same per-second M:SS the floor timers
+  show.
+- Not an asset fact, but from the same session: the stock arena checkpoints
+  (`respawnPlayers: '75-50-25-dead'`) made Shell Game's no-invulnerability
+  boss fight too easy. Its arena now uses `'never'`.
 
 ### 2026-09-28 — `chest_wood` / `chest_blue` / `chest_green` spawn from a mystery button; preset playtest
 **Tag:** [VERIFIED] (the owner's playtest of PR #73's presets)

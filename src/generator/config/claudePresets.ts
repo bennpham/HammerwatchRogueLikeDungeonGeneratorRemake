@@ -318,8 +318,9 @@ function lunchBreak(): DungeonParameters {
 
 /**
  * Monsters at +50% damage and speed — the clock presets' late-fight spike.
- * Whether a boss actor catches a monsters-only field is unverified, so every
- * enrage below lands together with fresh minions that certainly do.
+ * A boss actor does NOT catch a monsters-only field (owner playtest,
+ * 2026-10-01, DISCOVERY-LOG), so every enrage below lands together with fresh
+ * minions — they are what it actually reaches.
  */
 function enrage(): FloorBuff[] {
   return [{ buff: 'bloodlust', target: 'monsters' }]
@@ -361,7 +362,10 @@ function clockArena(waves: SurvivalWave[]): BossFight {
     { theme: 'g_mixed', minWidth: 32, maxWidth: 42, minHeight: 32, maxHeight: 42, music: 'boss_final' },
     {
       seconds: 120,
-      countdown: 'milestones',
+      // a tick every second, the same clock as the five timed floors:
+      // `milestones` flashed one "2:00" during the load fade and then went
+      // silent for a minute, and playtesters could not tell what the goal was
+      countdown: 'seconds',
       waves,
       // the last 30 seconds enraged, on the lich miniboss's push
       buffs: [survivalBuffRow('bloodlust', 'monsters', 90, 120)],
@@ -383,13 +387,18 @@ function beatTheClockArena(): BossFight {
   return clockArena([
     survivalWaveRow('tick1#2', 12, 0, 800),
     survivalWaveRow('mb_tick', 1, 0),
-    survivalWaveRow('skeleton3', 10, 30, 1200),
+    survivalWaveRow('skeleton3', 12, 30, 1200),
     survivalWaveRow('archer2', 6, 30),
     survivalWaveRow('mb_skeleton', 2, 30, 3000),
     survivalWaveRow('lich', 6, 60),
     survivalWaveRow('mb_eye', 1, 60),
     survivalWaveRow('mb_lich', 1, 90),
-    survivalWaveRow('lich#0', 4, 90)
+    survivalWaveRow('lich#0', 4, 90),
+    // filler between the pushes, so the arena never goes quiet — the
+    // toughest regulars, since an upgraded party vaporizes the easy ones
+    survivalWaveRow('bat2#2', 16, 15),
+    survivalWaveRow('skeleton3', 12, 45, 2000),
+    survivalWaveRow('archer3', 8, 75, 2000)
   ])
 }
 
@@ -1194,6 +1203,9 @@ function shellGameBossFight(): BossFight {
     minHeight: 32,
     maxHeight: 42,
     invulnerability: noInvulnerability(),
+    // no revives: with the stock '75-50-25-dead' the fight played too easy.
+    // The one save at 50% stays — it moves the respawn point, revives no one.
+    checkpoints: { respawnPlayers: 'never', saveGame: '50' },
     waves: [
       scatterWave([], [['skeleton2', 8]], 2000),
       scatterWave([], [['archer2', 6], ['mb_skeleton', 1]], 2000, [], [], SHOOTER_ARROW_TRAPS),
@@ -1216,7 +1228,12 @@ function shellGameArena(): BossFight {
     survivalWaveRow('archer2', 6, 60),
     survivalWaveRow('mb_doomspawn', 1, 60),
     survivalWaveRow('mb_lich', 1, 90),
-    survivalWaveRow('lich#0', 4, 90)
+    survivalWaveRow('lich#0', 4, 90),
+    // filler, as in Beat the Clock's, a notch tougher
+    survivalWaveRow('skeleton3', 12, 0, 2000),
+    survivalWaveRow('bat2#2', 16, 20),
+    survivalWaveRow('archer3', 8, 45, 2000),
+    survivalWaveRow('lich#2', 6, 75, 2000)
   ])
 }
 

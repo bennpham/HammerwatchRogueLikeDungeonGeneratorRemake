@@ -421,8 +421,12 @@ describe('campaign presets', () => {
         for (let level = 0; level < last; level++) expect(floorBossAt(params, level), `floor ${level + 1}`).toBeUndefined()
 
         const fights = bossFights(params.boss)
+        expect(hunt!.checkpoints.respawnPlayers).toBe('never')
         for (const fight of fights) {
-          if (arenaMode(fight) === 'boss') expect(fight.arena.invulnerability.enabled).toBe(false)
+          if (arenaMode(fight) !== 'boss') continue
+          expect(fight.arena.invulnerability.enabled).toBe(false)
+          // no revives in a clock preset's boss fight (playtest: too easy)
+          expect(fight.arena.checkpoints.respawnPlayers).toBe('never')
         }
         expect(arenaMode(fights.at(-1)!)).toBe('survival')
 
@@ -433,6 +437,8 @@ describe('campaign presets', () => {
         expect(enraged(hunt!.waves[3].buffs)).toBe(true)
         expect(hunt!.waves[3].monsters.length).toBeGreaterThan(0)
         const survival = fights.at(-1)!.survival!
+        // a visible clock every second — milestones left the goal unclear
+        expect(survival.countdown).toBe('seconds')
         expect(survival.buffs.some((b) => b.buff === 'bloodlust' && b.target === 'monsters' && b.startSeconds === 90 && b.endSeconds === survival.seconds)).toBe(true)
         expect(survival.waves.some((w) => w.atSeconds === 90)).toBe(true)
         for (const fight of fights) {

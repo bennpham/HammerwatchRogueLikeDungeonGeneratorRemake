@@ -897,6 +897,11 @@ Four carry a duration barely longer than a field’s 100ms reapply interval
 what makes them read as "only while standing in it" rather than as a lingering
 debuff.
 
+A field aimed at `monsters` does **not** reach a boss actor (`actors/boss_*`):
+a `bloodlust` enrage at `Boss 25%` left the boss's speed unchanged
+`[VERIFIED 2026-10-01]`. To make an enrage bite, spawn minions in the same
+window.
+
 ### Connection delays `[VERIFIED 2026-08-22 for the schema, EMITTED for ours]`
 
 A node staggers its own fan-out; there is no delay node. Both delay array names
