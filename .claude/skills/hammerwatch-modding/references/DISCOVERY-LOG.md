@@ -19,6 +19,12 @@ in the same change.
   fresh minions. Whether the field reaches those regular monsters was not
   reported separately, so `types: 2` = monsters stays as tagged in the
   2026-08-24 entry.
+- **Does the field reach regular monsters? Inconclusive.** In the last 30 s of
+  a clock survival arena (bloodlust window 90–120 s), the owner saw the
+  monsters speed up. But the `mb_lich` miniboss and its `lich#0` escort spawn
+  at 90 s too, so the speed-up may come from them, not the field. `types: 2` =
+  monsters stays [UNVERIFIED]. **To settle:** play a survival round whose
+  bloodlust window opens on a row of plain `skeleton3` with no miniboss in it.
 - **A survival arena on `countdown: 'milestones'` reads as having no goal.**
   A 120 s round announces "2:00" once, for 1000 ms, at `LevelLoaded` delay 0,
   which lands during the load fade. Nothing follows until "1:00". With no boss
