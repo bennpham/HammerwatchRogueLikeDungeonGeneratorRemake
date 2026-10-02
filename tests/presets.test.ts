@@ -405,6 +405,57 @@ describe('campaign presets', () => {
       for (const timer of params.levelTimers!) expect(timer.enabled).toBe(true)
     })
 
+    // the clock presets end on a hunt: the last timed floor hides one random
+    // mobile boss (and no lock), then every arena runs with no invulnerability
+    // and the campaign ends in a survival arena
+    for (const id of ['claude-beat-the-clock', 'claude-shell-game']) {
+      it(`${id}: hunt the last floor's boss, no invulnerability, end on survival`, () => {
+        const params = campaignPresetById(id)!.build()
+        const last = params.levels - 1
+        const hunt = floorBossAt(params, last)
+        expect(hunt).toBeDefined()
+        expect(hunt!.invulnerability.enabled).toBe(false)
+        expect(hunt!.bossPool.every((b) => (MOBILE_BOSS_IDS as readonly string[]).includes(b))).toBe(true)
+        expect(params.levelTimers![last].enabled).toBe(true)
+        expect(floorLockButtons(params, last)).toBe(0)
+        for (let level = 0; level < last; level++) expect(floorBossAt(params, level), `floor ${level + 1}`).toBeUndefined()
+
+        const fights = bossFights(params.boss)
+        expect(hunt!.checkpoints.respawnPlayers).toBe('never')
+        for (const fight of fights) {
+          if (arenaMode(fight) !== 'boss') continue
+          expect(fight.arena.invulnerability.enabled).toBe(false)
+          // no revives in a clock preset's boss fight (playtest: too easy)
+          expect(fight.arena.checkpoints.respawnPlayers).toBe('never')
+          expect(fight.arena.checkpoints.saveGame).toBe('never')
+        }
+        expect(arenaMode(fights.at(-1)!)).toBe('survival')
+
+        // enrage windows, each landing with fresh minions in case the boss
+        // itself does not catch a monsters-only field
+        const enraged = (buffs: readonly { buff: string; target: string }[] | undefined) =>
+          (buffs ?? []).some((b) => b.buff === 'bloodlust' && b.target === 'monsters')
+        expect(enraged(hunt!.waves[3].buffs)).toBe(true)
+        expect(hunt!.waves[3].monsters.length).toBeGreaterThan(0)
+        const survival = fights.at(-1)!.survival!
+        // a visible clock every second — milestones left the goal unclear
+        expect(survival.countdown).toBe('seconds')
+        expect(survival.buffs.some((b) => b.buff === 'bloodlust' && b.target === 'monsters' && b.startSeconds === 90 && b.endSeconds === survival.seconds)).toBe(true)
+        expect(survival.waves.some((w) => w.atSeconds === 90)).toBe(true)
+        for (const fight of fights) {
+          if (arenaMode(fight) !== 'boss') continue
+          expect(enraged(fight.arena.waves[3].buffs)).toBe(true)
+          expect(fight.arena.waves[3].monsters.length).toBeGreaterThan(0)
+        }
+        const order = params.levelOrder!
+        expect(order.at(-1)).toEqual({ kind: 'boss', index: fights.length - 1 })
+        // the boss-prep lobby comes right after the hunt
+        expect(order.findIndex((s) => s.kind === 'lobby' && s.index === 1)).toBe(
+          order.findIndex((s) => s.kind === 'floor' && s.index === last) + 1
+        )
+      })
+    }
+
     it('Arena Marathon: chains a survival fight and a boss fight', () => {
       const params = campaignPresetById('claude-arena-marathon')!.build()
       const modes = bossFights(params.boss).map(arenaMode)
@@ -468,21 +519,24 @@ describe('campaign presets', () => {
 
     it('Shell Game: every lock is disguised and partly enhanced, among decoys, against a clock', () => {
       const params = campaignPresetById('claude-shell-game')!.build()
+      // every floor but the last, the hunt, which has a boss instead of a lock
+      const locked = params.levels - 1
       for (let level = 0; level < params.levels; level++) {
-        expect(floorLockDisguised(params, level), `floor ${level + 1}`).toBe(true)
-        expect(floorLockMystery(params, level)?.count, `floor ${level + 1}`).toBeGreaterThan(0)
         expect(floorMystery(params, level)?.count, `floor ${level + 1}`).toBeGreaterThan(0)
         expect(params.levelTimers![level].enabled, `floor ${level + 1}`).toBe(true)
+        if (level >= locked) continue
+        expect(floorLockDisguised(params, level), `floor ${level + 1}`).toBe(true)
+        expect(floorLockMystery(params, level)?.count, `floor ${level + 1}`).toBeGreaterThan(0)
       }
-      // less time per button on every floor than the one before it
-      const perButton = params.levelTimers!.map((t, level) => t.seconds / floorLockButtons(params, level))
-      for (let level = 1; level < params.levels; level++) expect(perButton[level]).toBeLessThan(perButton[level - 1])
+      // less time per button on every locked floor than the one before it
+      const perButton = params.levelTimers!.slice(0, locked).map((t, level) => t.seconds / floorLockButtons(params, level))
+      for (let level = 1; level < locked; level++) expect(perButton[level]).toBeLessThan(perButton[level - 1])
 
       // a disguised lock button is drawn with the plate's art, never the red button's
       const result = generateDungeon(params, 4242)
       expect(result.ok, result.ok ? '' : result.errors.join(' ')).toBe(true)
       if (!result.ok) return
-      for (let level = 0; level < params.levels; level++) {
+      for (let level = 0; level < locked; level++) {
         const xml = result.files.find((f) => f.path === `levels/level${level}.xml`)!.content
         expect(xml, `floor ${level + 1}`).not.toContain('boss_door_button.xml')
         expect(xml, `floor ${level + 1}`).toContain('trigger_button_floor.xml')

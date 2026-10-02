@@ -24,6 +24,7 @@ import type {
   BossWave,
   DungeonBoss,
   DungeonParameters,
+  FloorBuff,
   FloorLock,
   SurvivalBuff,
   SurvivalOptions,
@@ -313,7 +314,93 @@ function lunchBreak(): DungeonParameters {
   })
 }
 
+// --- the clock presets' shared ending ---------------------------------------
+
+/**
+ * Monsters at +50% damage and speed — the clock presets' late-fight spike.
+ * A boss actor does NOT catch a monsters-only field (owner playtest,
+ * 2026-10-01, DISCOVERY-LOG), so every enrage below lands together with fresh
+ * minions — they are what it actually reaches.
+ */
+function enrage(): FloorBuff[] {
+  return [{ buff: 'bloodlust', target: 'monsters' }]
+}
+
+/**
+ * The clock presets' last floor: one random mobile boss, no lock buttons, so
+ * the seal opens on its death alone and the clock is spent hunting it, not
+ * plates. Invulnerability stays off — it may not share a floor with a timer.
+ * At 25% the boss is cornered: `cornered` joins it, enraged. Sized to the last
+ * floor (`levels` long), the only enabled entry — see the comment on
+ * `campaign()`.
+ */
+function huntFloorBoss(
+  levels: number,
+  tier0: readonly WaveEntry[],
+  cornered: readonly WaveEntry[],
+  death: readonly WaveEntry[]
+): DungeonBoss[] {
+  const bosses = Array.from({ length: levels }, () => defaultDungeonBoss())
+  const waves = floorTierAndDeathWaves(tier0, death)
+  // a floor wave keeps `traps: []` present — see floorTierAndDeathWaves
+  waves[3] = { ...scatterWave([], cornered, 1500, enrage()), traps: [] }
+  // `bossCount` left absent (= 1): `parameters.txt` writes no count for a
+  // single boss, so an explicit 1 would not round-trip
+  const { bossCount: _single, ...boss } = floorBossRandom(MOBILE_BOSS_IDS, 1, waves)
+  bosses[levels - 1] = boss
+  return bosses
+}
+
+/** A boss arena's invulnerability, switched off — the seconds stay on the object, unread. */
+function noInvulnerability(): BossArenaOptions['invulnerability'] {
+  return { ...defaultBossFight().arena.invulnerability, enabled: false }
+}
+
+/** A small survival arena, the clock presets' finale. */
+function clockArena(waves: SurvivalWave[]): BossFight {
+  return survivalFight(
+    { theme: 'g_mixed', minWidth: 32, maxWidth: 42, minHeight: 32, maxHeight: 42, music: 'boss_final' },
+    {
+      seconds: 120,
+      // a tick every second, the same clock as the five timed floors:
+      // `milestones` flashed one "2:00" during the load fade and then went
+      // silent for a minute, and playtesters could not tell what the goal was
+      countdown: 'seconds',
+      waves,
+      // the last 30 seconds enraged, on the lich miniboss's push
+      buffs: [survivalBuffRow('bloodlust', 'monsters', 90, 120)],
+      // one health drop at the halfway mark, then the arrows for the last minute
+      pickups: [survivalPickupRow('powerup_health', 1, 60)],
+      traps: [survivalTrapRow(SHOOTER_ARROW_TRAPS[0], 60, 120), survivalTrapRow(SHOOTER_ARROW_TRAPS[1], 60, 120)]
+    }
+  )
+}
+
 // --- Beat the Clock ----------------------------------------------------------
+
+/**
+ * Two minutes in the clock arena, getting meaner every 30 seconds — the party
+ * arrives from the boss-prep lobby, upgraded, so a miniboss leads each push
+ * and the lich miniboss closes it.
+ */
+function beatTheClockArena(): BossFight {
+  return clockArena([
+    survivalWaveRow('tick1#2', 12, 0, 800),
+    survivalWaveRow('mb_tick', 1, 0),
+    survivalWaveRow('skeleton3', 12, 30, 1200),
+    survivalWaveRow('archer2', 6, 30),
+    survivalWaveRow('mb_skeleton', 2, 30, 3000),
+    survivalWaveRow('lich', 6, 60),
+    survivalWaveRow('mb_eye', 1, 60),
+    survivalWaveRow('mb_lich', 1, 90),
+    survivalWaveRow('lich#0', 4, 90),
+    // filler between the pushes, so the arena never goes quiet — the
+    // toughest regulars, since an upgraded party vaporizes the easy ones
+    survivalWaveRow('bat2#2', 16, 15),
+    survivalWaveRow('skeleton3', 12, 45, 2000),
+    survivalWaveRow('archer3', 8, 75, 2000)
+  ])
+}
 
 function beatTheClock(): DungeonParameters {
   const levels = 5
@@ -331,17 +418,22 @@ function beatTheClock(): DungeonParameters {
       ['skeleton3', 'bat1', 'tick1']
     ],
     floorMusic: ['act1', 'act1', 'act2', 'act2', 'act3'],
+    // the last floor is the hunt: kill its boss before the clock does
+    levelBoss: huntFloorBoss(levels, [['skeleton3', 6]], [['skeleton3', 4]], [['skeleton3', 4]]),
     lobbies: [lobby('BETA-dungeon-prep'), lobby('BETA-boss-prep', { music: 'boss_1' })],
+    // L0 -> F0-F4 -> L1 -> AS0: the lobby is the reward for the hunt, and
+    // the campaign ends on one more clock instead of a boss
     levelOrder: actOrder(levels),
-    boss: { enabled: true, fights: [bossFight({ music: 'boss_final' })] }
+    boss: { enabled: true, fights: [beatTheClockArena()] }
   })
-  // every floor timed, clock shrinking as the damage rate ramps
-  const seconds = [150, 120, 100, 80, 60]
+  // every floor timed, clock shrinking as the damage rate ramps — except the
+  // hunt, which gets three minutes because a boss fight eats the clock
+  const seconds = [150, 120, 100, 80, 180]
   const freqMs = [250, 212, 175, 137, 100]
   params.levelTimers = seconds.map((s, i) => ({ enabled: true, seconds: s, damage: 2, freqMs: freqMs[i], countdown: true }))
-  // No sprinting for the stairs: the middle floors hide two buttons each, but
-  // the 60-second last floor stays at one — two there is a coin flip.
-  params.levelLock = buttonLocks([1, 2, 2, 2, 1])
+  // No sprinting for the stairs: the middle floors hide two buttons each. The
+  // hunt has none — its boss is the lock.
+  params.levelLock = buttonLocks([1, 2, 2, 2, 0])
   return params
 }
 
@@ -1089,12 +1181,61 @@ function shellGameMystery(): Pick<DungeonParameters, 'mysteryButtons' | 'levelMy
     [...deepLoot(['Damage upgrade II']), ['Necromancer', 3], ['Bat swarm', 3], ['Kamikazes', 1], ['Death orbs', 3], ['Spike gauntlet', 2]]
   ]
   const decoyCounts = [2, 2, 3, 3, 4]
-  const enhanced = [1, 1, 1, 2, 2]
+  // the hunt floor has no lock to disguise — its decoys just waste the clock
+  const enhanced = [1, 1, 1, 2]
   return {
     mysteryButtons: kit.buttons,
     levelMystery: decoys.map((picks, i) => kit.pick(decoyCounts[i], picks)),
-    levelLockMystery: enhanced.map((count) => ({ ...kit.pick(count, lockPayload), disguise: true }))
+    levelLockMystery: [...enhanced.map((count) => ({ ...kit.pick(count, lockPayload), disguise: true })), { count: 0, pool: [] }]
   }
+}
+
+/**
+ * The boss after the hunt, with no invulnerability to hide behind: a small
+ * anchored add and a set of arrow traps on every health tier, so clearing
+ * the bodyguards never buys a free kite, but never a horde either.
+ */
+function shellGameBossFight(): BossFight {
+  const drops = stockWavePickups()
+  return bossFight({
+    minWidth: 32,
+    maxWidth: 42,
+    minHeight: 32,
+    maxHeight: 42,
+    invulnerability: noInvulnerability(),
+    // no revives and no saves: with the stock '75-50-25-dead' the fight
+    // played too easy, and a mid-fight save can lock a party into a doomed
+    // state (written while someone is being torn apart)
+    checkpoints: { respawnPlayers: 'never', saveGame: 'never' },
+    waves: [
+      scatterWave([], [['skeleton2', 8]], 2000),
+      scatterWave([], [['archer2', 6], ['mb_skeleton', 1]], 2000, [], [], SHOOTER_ARROW_TRAPS),
+      scatterWave([], [['skeleton3', 6], ['lich', 2]], 2000, [], drops.half, SHOOTER_ARROW_TRAPS),
+      // 25%: enraged, standing in for the invulnerability this fight skips
+      scatterWave([], [['lich#2', 3], ['mb_eye', 1]], 2000, enrage(), drops.quarter, SHOOTER_ARROW_TRAPS),
+      scatterWave([], [['lich', 3]], 1500, bossDeathBuffs(), drops.death)
+    ],
+    music: 'boss_1'
+  })
+}
+
+/** The clock arena after the boss — Beat the Clock's, a notch meaner from the first second. */
+function shellGameArena(): BossFight {
+  return clockArena([
+    survivalWaveRow('skeleton3', 10, 0, 1200),
+    survivalWaveRow('mb_skeleton', 1, 0),
+    survivalWaveRow('lich', 6, 30),
+    survivalWaveRow('mb_eye', 1, 30),
+    survivalWaveRow('archer2', 6, 60),
+    survivalWaveRow('mb_doomspawn', 1, 60),
+    survivalWaveRow('mb_lich', 1, 90),
+    survivalWaveRow('lich#0', 4, 90),
+    // filler, as in Beat the Clock's, a notch tougher
+    survivalWaveRow('skeleton3', 12, 0, 2000),
+    survivalWaveRow('bat2#2', 16, 20),
+    survivalWaveRow('archer3', 8, 45, 2000),
+    survivalWaveRow('lich#2', 6, 75, 2000)
+  ])
 }
 
 function shellGame(): DungeonParameters {
@@ -1114,16 +1255,19 @@ function shellGame(): DungeonParameters {
       ['skeleton3', 'bat2']
     ],
     floorMusic: ['act1', 'act2', 'act2', 'act3', 'act4'],
-    levelLock: buttonLocks([1, 2, 2, 3, 3]),
+    // the last floor is the hunt, as in Beat the Clock — no lock, its boss is the way out
+    levelLock: buttonLocks([1, 2, 2, 3, 0]),
+    levelBoss: huntFloorBoss(levels, [['skeleton3', 6]], [['skeleton3', 4]], [['skeleton3', 4]]),
     ...shellGameMystery(),
     lobbies: [lobby('BETA-dungeon-prep'), lobby('BETA-boss-prep', { music: 'boss_1' })],
-    levelOrder: actOrder(levels),
-    boss: { enabled: true, fights: [bossFight({ music: 'boss_final' })] }
+    // the hunt, the lobby, then a boss to finish and a clock to outlast
+    levelOrder: [L(0), ...floorRange(0, levels - 1), L(1), B(0), B(1)],
+    boss: { enabled: true, fights: [shellGameBossFight(), shellGameArena()] }
   })
-  // Beat the Clock on steroids: each floor has less time per button (150 s
-  // for one, then down to 30 s each for three), and a floor that runs out
-  // hurts harder and faster.
-  const seconds = [150, 135, 120, 105, 90]
+  // Beat the Clock on steroids: each locked floor has less time per button
+  // (150 s for one, then down to 35 s each for three), and a floor that runs
+  // out hurts harder and faster. The hunt gets three minutes for its boss.
+  const seconds = [150, 135, 120, 105, 180]
   const freqMs = [200, 175, 150, 125, 100]
   params.levelTimers = seconds.map((s, i) => ({ enabled: true, seconds: s, damage: 3, freqMs: freqMs[i], countdown: true }))
   return params
@@ -1143,7 +1287,7 @@ export const CLAUDE_PRESETS: readonly CampaignPreset[] = [
   {
     id: 'claude-beat-the-clock',
     label: 'Beat the Clock',
-    description: 'Every floor runs on a shrinking hazard timer, with hidden buttons to find before it hits — about 30 minutes.',
+    description: 'Every floor runs on a shrinking hazard timer with hidden buttons to find, the last one hides a boss to kill before it hits, then two minutes in a miniboss-led survival arena — about 30 minutes.',
     group: 'claude',
     build: beatTheClock
   },
@@ -1187,7 +1331,7 @@ export const CLAUDE_PRESETS: readonly CampaignPreset[] = [
     id: 'claude-shell-game',
     label: 'Shell Game',
     description:
-      'Lock buttons look just like the decoy plates around them, and a steep clock gives time to check only a few. Some of the real ones bite back — about 30 minutes.',
+      'Lock buttons look just like the decoy plates around them, and a steep clock gives time to check only a few. Then hunt a boss against the clock, finish a boss with no invulnerability, and outlast a survival arena — about 35 minutes.',
     group: 'claude',
     build: shellGame
   },
