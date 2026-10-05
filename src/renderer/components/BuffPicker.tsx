@@ -34,14 +34,29 @@ interface BuffPickerProps {
  * carries none, so every row here always names a buff.
  */
 export function BuffPicker({ buff, target, onChange, children }: BuffPickerProps) {
+  return (
+    <div className="buff-row">
+      <BuffSelect buff={buff} onChange={(next) => onChange({ buff: next })} />
+      <BuffTargetSelect className="buff-target" target={target} onChange={(next) => onChange({ target: next })} />
+      {children}
+    </div>
+  )
+}
+
+/**
+ * BuffPicker's grouped buff dropdown plus its InfoTip, on their own — for an
+ * editor that lays the target and its other fields out under the buff rather
+ * than beside it (the survival arena's timed windows).
+ */
+export function BuffSelect({ buff, onChange }: { buff: string; onChange: (buff: string) => void }) {
   const selected = buffById(buff)
 
   return (
-    <div className="buff-row">
+    <>
       <select
         className="buff-select"
         value={buff}
-        onChange={(e) => onChange({ buff: e.target.value })}
+        onChange={(e) => onChange(e.target.value)}
         title={selected?.description ?? 'Pick a buff'}
       >
         {BUFF_GROUPS.map((group) => (
@@ -55,19 +70,30 @@ export function BuffPicker({ buff, target, onChange, children }: BuffPickerProps
         ))}
       </select>
       {selected && <InfoTip text={selected.description} />}
-      <select
-        className="buff-target"
-        value={target}
-        onChange={(e) => onChange({ target: e.target.value as BuffTarget })}
-        title="Who the field catches. Monsters and players are separate — a buff aimed at the horde never touches the party."
-      >
-        {BUFF_TARGETS.map((t) => (
-          <option key={t} value={t}>
-            {TARGET_LABELS[t]}
-          </option>
-        ))}
-      </select>
-      {children}
-    </div>
+    </>
+  )
+}
+
+interface BuffTargetSelectProps {
+  target: BuffTarget
+  onChange: (target: BuffTarget) => void
+  className?: string
+}
+
+/** Who a buff catches — BuffPicker's second control, on its own for the same reason as BuffSelect. */
+export function BuffTargetSelect({ target, onChange, className }: BuffTargetSelectProps) {
+  return (
+    <select
+      className={className}
+      value={target}
+      onChange={(e) => onChange(e.target.value as BuffTarget)}
+      title="Who the field catches. Monsters and players are separate — a buff aimed at the horde never touches the party."
+    >
+      {BUFF_TARGETS.map((t) => (
+        <option key={t} value={t}>
+          {TARGET_LABELS[t]}
+        </option>
+      ))}
+    </select>
   )
 }

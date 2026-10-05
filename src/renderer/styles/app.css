@@ -437,8 +437,10 @@ select:focus {
 }
 
 /* Beats the global `select { width: 100% }` so the (i) and Remove keep their
-   place on the header line. */
-.trap-head .trap-projectile {
+   place on the header line. The survival pickup/buff cards put the same
+   grouped .buff-select there. */
+.trap-head .trap-projectile,
+.trap-head .buff-select {
   flex: 1 1 auto;
   min-width: 0;
   width: auto;
@@ -460,14 +462,6 @@ select:focus {
 .trap-field select,
 .trap-field input {
   width: 100%;
-}
-
-/* The two seconds marks a survival buff/pickup row bolts onto BuffPicker's and
-   PickupPicker's row — small and fixed-width, like .buff-target, so Remove
-   still lands at the right edge instead of stretching to fill the row. */
-.survival-window-field {
-  flex: 0 0 70px;
-  width: 70px;
 }
 
 /* A survival trap window's start/end pair sits under TrapPicker's own card

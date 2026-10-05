@@ -49,27 +49,9 @@ export function PickupPicker({
   groups = PICKUP_GROUPS,
   countTitle = PAD_COUNT_TITLE
 }: PickupPickerProps) {
-  const selected = defs.find((def) => def.id === item)
-
   return (
     <div className="buff-row">
-      <select
-        className="buff-select"
-        value={item}
-        onChange={(e) => onChange({ item: e.target.value })}
-        title={selected?.description ?? 'Pick an item'}
-      >
-        {groups.map((group) => (
-          <optgroup key={group} label={group}>
-            {defs.filter((def) => def.group === group).map((def) => (
-              <option key={def.id} value={def.id} title={def.description}>
-                {def.label}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
-      {selected && <InfoTip text={selected.description} />}
+      <PickupSelect item={item} onChange={(next) => onChange({ item: next })} defs={defs} groups={groups} />
       <input
         className="buff-target"
         type="number"
@@ -84,5 +66,43 @@ export function PickupPicker({
       />
       {children}
     </div>
+  )
+}
+
+interface PickupSelectProps {
+  item: string
+  onChange: (item: string) => void
+  defs?: readonly PickupChoice[]
+  groups?: readonly string[]
+}
+
+/**
+ * PickupPicker's grouped item dropdown plus its InfoTip, on their own — for an
+ * editor that lays the count and its other fields out under the item rather
+ * than beside it (the survival arena's timed drops).
+ */
+export function PickupSelect({ item, onChange, defs = PICKUP_DEFS, groups = PICKUP_GROUPS }: PickupSelectProps) {
+  const selected = defs.find((def) => def.id === item)
+
+  return (
+    <>
+      <select
+        className="buff-select"
+        value={item}
+        onChange={(e) => onChange(e.target.value)}
+        title={selected?.description ?? 'Pick an item'}
+      >
+        {groups.map((group) => (
+          <optgroup key={group} label={group}>
+            {defs.filter((def) => def.group === group).map((def) => (
+              <option key={def.id} value={def.id} title={def.description}>
+                {def.label}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+      {selected && <InfoTip text={selected.description} />}
+    </>
   )
 }
