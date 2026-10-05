@@ -594,11 +594,11 @@ describe('campaign presets', () => {
       )
     })
 
-    it('drops 4 Health (Large) and 4 Mana (Large) on survival arena 2, and nothing on any other', () => {
+    it('drops 4 Health (Large) and 4 Mana (Large) on every survival arena but the first', () => {
       fights.forEach((fight, i) => {
         if (BOSS_ROOMS.includes(i)) return
         const expected =
-          i === 1
+          i > 0
             ? [
                 { item: 'health_3', count: 4, atSeconds: 0 },
                 { item: 'mana_2', count: 4, atSeconds: 0 }

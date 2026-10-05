@@ -14,9 +14,11 @@ import type { CampaignPreset } from './presets'
  * they were authored in, and the parser is pure, draws nothing, and hands back
  * a fresh object every call — exactly what `CampaignPreset.build()` needs.
  * Changes from the authored file: no `path=`/`cleanupFiles=` (machine-local),
- * the four boss rooms drop 8 Health (Large), 8 Mana (Large) and 4
- * rejuvenation potions at the start of the fight, and their dead death-tier
- * bloodlust (it caught monsters in a tier that spawns none) is gone.
+ * every survival arena but the first drops 4 Health (Large) and 4 Mana
+ * (Large) at the start of the round, the four boss rooms drop 8 Health
+ * (Large), 8 Mana (Large) and 4 rejuvenation potions at the start of the
+ * fight, and their dead death-tier bloodlust (it caught monsters in a tier
+ * that spawns none) is gone.
  *
  * The survival arenas' boss-only fields (tier waves, pickups, traps) are
  * carried verbatim and unread — flipping one to boss mode is lossless.
@@ -211,7 +213,7 @@ boss2Mode=survival
 boss2Survival=60,seconds
 boss2SurvivalWaves=maggot:-1:0:1700
 boss2SurvivalBuffs=
-boss2SurvivalPickups=
+boss2SurvivalPickups=health_3:4:0|mana_2:4:0
 boss2SurvivalTraps=
 boss2Theme=a_mixed
 boss2Music=act1
@@ -241,7 +243,7 @@ boss3Mode=survival
 boss3Survival=60,seconds
 boss3SurvivalWaves=bat2:-1:0:1000
 boss3SurvivalBuffs=
-boss3SurvivalPickups=
+boss3SurvivalPickups=health_3:4:0|mana_2:4:0
 boss3SurvivalTraps=
 boss3Theme=a_mixed
 boss3Music=act1
@@ -290,7 +292,7 @@ boss5Mode=survival
 boss5Survival=60,seconds
 boss5SurvivalWaves=slime:-1:0:500
 boss5SurvivalBuffs=
-boss5SurvivalPickups=
+boss5SurvivalPickups=health_3:4:0|mana_2:4:0
 boss5SurvivalTraps=
 boss5Theme=b_mixed
 boss5Music=act2
@@ -315,7 +317,7 @@ boss6Mode=survival
 boss6Survival=60,seconds
 boss6SurvivalWaves=skeleton1:-1:0:1500|skeleton1#2:-1:0:3500|skeleton1#3:20:0:5000
 boss6SurvivalBuffs=
-boss6SurvivalPickups=
+boss6SurvivalPickups=health_3:4:0|mana_2:4:0
 boss6SurvivalTraps=
 boss6Theme=b_mixed
 boss6Music=act2
@@ -340,7 +342,7 @@ boss7Mode=survival
 boss7Survival=60,seconds
 boss7SurvivalWaves=archer1:-1:0:2500
 boss7SurvivalBuffs=
-boss7SurvivalPickups=
+boss7SurvivalPickups=health_3:4:0|mana_2:4:0
 boss7SurvivalTraps=
 boss7Theme=b_mixed
 boss7Music=act2
@@ -365,7 +367,7 @@ boss8Mode=survival
 boss8Survival=60,seconds
 boss8SurvivalWaves=archer3:-1:0:2500|skeleton1#2:-1:0:2000
 boss8SurvivalBuffs=
-boss8SurvivalPickups=
+boss8SurvivalPickups=health_3:4:0|mana_2:4:0
 boss8SurvivalTraps=
 boss8Theme=b_mixed
 boss8Music=act2
@@ -409,7 +411,7 @@ boss10Mode=survival
 boss10Survival=60,seconds
 boss10SurvivalWaves=eye#2:150:0:1000|eye#2:-1:30:1500
 boss10SurvivalBuffs=
-boss10SurvivalPickups=
+boss10SurvivalPickups=health_3:4:0|mana_2:4:0
 boss10SurvivalTraps=
 boss10Theme=c_mixed
 boss10Music=act3
@@ -434,7 +436,7 @@ boss11Mode=survival
 boss11Survival=60,seconds
 boss11SurvivalWaves=wisp1:-1:0:2500
 boss11SurvivalBuffs=
-boss11SurvivalPickups=
+boss11SurvivalPickups=health_3:4:0|mana_2:4:0
 boss11SurvivalTraps=
 boss11Theme=c_mixed
 boss11Music=act3
@@ -459,7 +461,7 @@ boss12Mode=survival
 boss12Survival=60,seconds
 boss12SurvivalWaves=lich#0:-1:0:5000
 boss12SurvivalBuffs=
-boss12SurvivalPickups=
+boss12SurvivalPickups=health_3:4:0|mana_2:4:0
 boss12SurvivalTraps=
 boss12Theme=c_mixed
 boss12Music=act3
@@ -484,7 +486,7 @@ boss13Mode=survival
 boss13Survival=60,seconds
 boss13SurvivalWaves=wisp1#2:-1:0:3600
 boss13SurvivalBuffs=
-boss13SurvivalPickups=
+boss13SurvivalPickups=health_3:4:0|mana_2:4:0
 boss13SurvivalTraps=
 boss13Theme=c_mixed
 boss13Music=act3
@@ -530,7 +532,7 @@ boss15Mode=survival
 boss15Survival=60,seconds
 boss15SurvivalWaves=skeleton3:-1:0:500
 boss15SurvivalBuffs=
-boss15SurvivalPickups=
+boss15SurvivalPickups=health_3:4:0|mana_2:4:0
 boss15SurvivalTraps=
 boss15Theme=d_mixed
 boss15Music=act4
@@ -557,7 +559,7 @@ boss16Mode=survival
 boss16Survival=60,seconds
 boss16SurvivalWaves=skeleton3:-1:0:1000|archer3:-1:0:2000
 boss16SurvivalBuffs=
-boss16SurvivalPickups=
+boss16SurvivalPickups=health_3:4:0|mana_2:4:0
 boss16SurvivalTraps=
 boss16Theme=d_mixed
 boss16Music=act4
@@ -584,7 +586,7 @@ boss17Mode=survival
 boss17Survival=60,seconds
 boss17SurvivalWaves=lich:24:0:2000
 boss17SurvivalBuffs=
-boss17SurvivalPickups=
+boss17SurvivalPickups=health_3:4:0|mana_2:4:0
 boss17SurvivalTraps=
 boss17Theme=d_mixed
 boss17Music=act4
@@ -611,7 +613,7 @@ boss18Mode=survival
 boss18Survival=60,seconds
 boss18SurvivalWaves=lich#3:24:0:2000
 boss18SurvivalBuffs=
-boss18SurvivalPickups=
+boss18SurvivalPickups=health_3:4:0|mana_2:4:0
 boss18SurvivalTraps=
 boss18Theme=d_mixed
 boss18Music=act4

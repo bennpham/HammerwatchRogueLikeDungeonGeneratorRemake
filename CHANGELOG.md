@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Survival in Colosseum preset**, under a new **Colosseum** header (a nod to the Steam workshop map). No dungeon floors: 16 one-minute survival arenas and 4 boss fights (queen, knight, lich, dragon), with a lobby before each block. Survival arena 2 drops 4 large health and 4 large mana; each boss room starts with 8 large health, 8 large mana and 4 rejuvenation potions.
+- **Survival in Colosseum preset**, under a new **Colosseum** header (a nod to the Steam workshop map). No dungeon floors: 16 one-minute survival arenas and 4 boss fights (queen, knight, lich, dragon), with a lobby before each block. Every survival arena after the first drops 4 large health and 4 large mana at the start; each boss room starts with 8 large health, 8 large mana and 4 rejuvenation potions.
 - **Grouped preset dropdown.** The preset picker now has two greyed section headers. **Beta Classic** holds Castle, Desert and Bonus Gauntlet. **Claude Generated** holds eight new campaigns.
 - **Eight Claude Generated presets** built on the newer features:
   - **Lunch Break**: 3 small floors and one arena, a ~20-minute run.
