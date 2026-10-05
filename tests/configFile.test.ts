@@ -1079,6 +1079,25 @@ describe('bossWaveBuffN — per-tier arena buffs', () => {
     expect(waveBuffs(parsed.params.boss.fights[0].arena.waves[0])).toEqual([{ buff: 'frost', target: 'players' }])
     expect(parsed.unknownKeys).toEqual([])
   })
+  // The serializer writes no line for a buff-less tier, so the parser has to
+  // read a described tier with no buff line as "none" — or the stock death
+  // tier's bloodlust came back on every import of a fight that had removed it.
+  it('round-trips a death tier whose stock buff was removed', () => {
+    const params = defaultParameters()
+    delete params.boss.fights[0].arena.waves[BOSS_DEATH_WAVE].buffs
+    const text = serializeParametersTxt(params)
+    expect(text).not.toMatch(/^boss0WaveBuff\d=/m)
+    const reparsed = parseParametersTxt(text)
+    expect(waveBuffs(reparsed.params.boss.fights[0].arena.waves[BOSS_DEATH_WAVE])).toEqual([])
+    expect(reparsed.params).toEqual(params)
+  })
+
+  it('keeps the stock death-tier buff when the file says nothing about that tier', () => {
+    const parsed = parseParametersTxt('boss0Wave1=bat1|1000|bat1:10||')
+    expect(waveBuffs(parsed.params.boss.fights[0].arena.waves[BOSS_DEATH_WAVE])).toEqual([
+      { buff: 'bloodlust', target: 'monsters' }
+    ])
+  })
 })
 
 describe('buffN — per-floor buff auras', () => {
