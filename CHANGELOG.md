@@ -9,61 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Survival in Colosseum preset**, under a new **Colosseum** header (a nod to the Steam workshop map). No dungeon floors: 16 one-minute survival arenas and 4 boss fights (queen, knight, lich, dragon), with a lobby before each block. Every survival arena after the first drops 4 large health and 4 large mana at the start; each boss room starts with 8 large health, 8 large mana and 4 rejuvenation potions.
-- **Grouped preset dropdown.** The preset picker now has two greyed section headers. **Beta Classic** holds Castle, Desert and Bonus Gauntlet. **Claude Generated** holds eight new campaigns.
-- **Eight Claude Generated presets** built on the newer features:
-  - **Lunch Break**: 3 small floors and one arena, a ~20-minute run.
-  - **Beat the Clock**: every floor is timed, and the clock shrinks floor by floor.
-  - **Boss Rush**: every floor is sealed by a boss, with a dragon + queen finale.
-  - **Arena Marathon**: survival rounds and boss fights back to back.
-  - **Trap Gauntlet**: fewer monsters and escalating wall traps.
-  - **Frozen Descent**: an ice-cave run ending on Krilith.
-  - **Pandemonium**: several bosses on every floor and six in the finale.
-  - **The Long Haul**: a 13-floor, multi-act epic with two arenas and an escape floor.
+- **Grouped preset dropdown.** The preset picker is split under four greyed headers: **Classic** (Castle, Desert, Bonus Gauntlet), **Claude Generated** (ten new campaigns), **Colosseum** and **Pre-Alpha**.
 - **Preset guide.** An (i) button left of the preset dropdown opens a list of every preset and its description, each with a **Load** button. Claude Generated presets are listed alphabetically.
-- **Pre-Alpha preset** under its own greyed **Pre-Alpha** header: the original Java tool's `parameters.txt`. It has 8 floors of themes a–d, the Java monster caps, and no lobbies, bosses or extras. Java's `army1`/`army2`/`lich2` pools are split into today's skeleton, archer and lich types.
-- **Lock any floor (issue #69, part 1).** The campaign-wide "Lock final room" checkbox is replaced by a per-floor **Locked rooms** section on the Dungeon tab. A locked floor puts its way out behind a destructible wall that a hidden floor button opens.
+- **Ten Claude Generated presets** built on the newer features. Most lock their floors behind several buttons, so running straight to the exit doesn't work.
+  - **Lunch Break**: 3 small floors and one arena, a ~20-minute run. One friendly, loot-heavy mystery plate per floor.
+  - **Beat the Clock**: every floor is timed, and the clock shrinks floor by floor. Up to 2 lock buttons per floor; the 60-second last floor has 1.
+  - **Boss Rush**: every floor is sealed by a boss, with a dragon + queen finale. Each boss floor also has 1 lock button, which drops supplies (potions or rations) for the fight.
+  - **Arena Marathon**: survival rounds and boss fights back to back.
+  - **Trap Gauntlet**: fewer monsters, escalating wall traps, and 1 → 3 lock buttons rising with them. Two mystery plates per floor, mostly trap rooms firing that floor's projectiles; from floor 2 on, some lock buttons are trapped too, or pay out for braving them. Lethal ammunition (boulders, large fireballs, spikes) fires only in straight lanes you can time (one boulder lane per wall every 2.5 s; fewer, slower spikes and large fireballs), so no always-on trap can surround a button or block the last corridor; trap rooms rolled by plates switch off after 30 seconds. A test holds every preset to this rule.
+  - **Frozen Descent**: an ice-cave run ending on Krilith, with 2 lock buttons from floor 3 on. Frost plates hide chests frozen into the caves, Krilith's own dead, and rooms of frost or confusion.
+  - **Pandemonium**: several bosses on every floor and six in the finale.
+  - **The Long Haul**: a 13-floor, multi-act epic with two arenas and an escape floor. 1 lock button in the first act, 2 after that, 3 on the escape floor. Plates on every floor but the escape floor, with stakes rising act by act: coins and vermin in the castle, frost around Krilith, tombs and scarabs in the desert, and lich councils, kamikazes and dragonfire in the bonus act.
+  - **Double or Nothing**: the red lock buttons are in plain sight and always safe. Every other plate is a wager. Win tier-II upgrades, a jackpot, diamonds or even an extra life, or trigger a lich council, a kamikaze pack or a room of death orbs. Plates get more numerous and the odds get worse floor by floor. Monsters are quiet and the starting purse is thin, so winnings are what you spend in the boss-prep shop. About 40 minutes.
+  - **Shell Game**: the lock buttons look exactly like the decoy plates around them, and some of the real ones fire a payload of their own. A real button gives itself away only when pressed, by announcing how many remain. Every floor is timed, with less time per button each floor and a harder hit when the clock runs out. About 30 minutes.
+- **Survival in Colosseum preset** (a nod to the Steam workshop map). No dungeon floors: 16 one-minute survival arenas and 4 boss fights (queen, knight, lich, dragon), with a lobby before each block. Every survival arena after the first drops 4 large health and 4 large mana at the start; each boss room starts with 8 large health, 8 large mana and 4 rejuvenation potions. Survival arena pickups and buffs are laid out as cards, like the wave rows.
+- **Pre-Alpha preset**: the original Java tool's `parameters.txt`. It has 8 floors of themes a–d, the Java monster caps, and no lobbies, bosses or extras. Java's `army1`/`army2`/`lich2` pools are split into today's skeleton, archer and lich types.
+- **Locked floors (issue #69).** The campaign-wide "Lock final room" checkbox is replaced by a per-floor **Locked rooms** section on the Dungeon tab. Each floor takes a button count (0–20; 0 is unlocked). A locked floor puts its way out behind a destructible wall that opens once every hidden floor button is pressed; each press announces how many remain.
   - A locked floor that would normally lead on by stairs gets the blue teleport instead, since stairs can't be sealed.
-  - On a floor that also has a boss, the wall opens only once the boss (or every boss) is dead **and** the button has been pressed.
-  - Every preset locks the same floors the old checkbox did, so existing seeds are unchanged. Pre-Alpha stays unlocked.
-  - `parameters.txt` writes `lockFloors=6,7` (0-based floor list) instead of `lockFinalRoom=`. An old `lockFinalRoom=1` still imports, as the floors it used to lock.
-- **Several buttons per locked floor (issue #69, part 2).** Each floor in **Locked rooms** now takes a button count (0–20) instead of a checkbox.
-  - Every button must be pressed to open the wall. Each press announces how many buttons remain.
-  - 0 leaves a floor unlocked. A boss floor with 0 buttons is opened by the boss alone.
-  - `parameters.txt` writes a count other than one as `floor:buttons`, e.g. `lockFloors=2:3,7`.
-- **Five Claude presets now make you explore for buttons.** Running straight to the stairs no longer works. Their seeds produce different dungeons from before.
-  - **Trap Gauntlet:** 1 → 3 buttons, rising with the traps.
-  - **Beat the Clock:** up to 2 buttons against the timer; the 60-second last floor keeps 1.
-  - **Frozen Descent:** 2 buttons from floor 3 on, including Krilith's floor.
-  - **The Long Haul:** 1 button in the first act, 2 after that, 3 on the escape floor.
-  - **Boss Rush:** 1 button on each boss floor, on top of the boss.
-  - Lunch Break, Pandemonium and Arena Marathon are unchanged.
+  - On a floor that also has a boss, the wall opens only once the boss (or every boss) is dead **and** every button has been pressed. A boss floor with 0 buttons is opened by the boss alone.
+  - The Classic presets lock the same floors the old checkbox did, so their seeds are unchanged. Pre-Alpha stays unlocked.
+  - `parameters.txt` writes `lockFloors=` (0-based floor list, `floor:buttons` for a count other than one, e.g. `lockFloors=2:3,7`) instead of `lockFinalRoom=`. An old `lockFinalRoom=1` still imports, as the floors it used to lock.
 - **Mystery buttons (issue #67).** A new **Mystery Buttons** sub-tab on the Dungeon tab hides floor plates that reward or punish whoever steps on them.
   - **Button pool:** as many buttons as you like for the whole campaign. Each can spawn loot (chests, bronze/silver/gold coins and all four diamonds, each labelled with its gold value, plus upgrades and potions), spawn monsters, switch on wall traps in its room (optionally only for N seconds), and announce a message. A button with none of these is a dud. **Add starter set** adds 56 ready-made buttons to edit from: a dud; rewards from a few coins up to three chests, plus potions and one upgrade per button, tier I or II (no red chest or red diamond); 20 monster squads (a tick nest, 80 bats, 70 slimes, a necromancer pack, a lich council, a mummy tomb, fire pillars and more); and 13 trap rooms (fireballs, arrows, axes, magic balls, spikes, boulders, and dragon, Anubis, Krilith and maggot-boss shots) that fire from all four walls for 30 seconds. It leaves every floor's picks alone, so you choose which floors can roll the dangerous ones.
   - **Buttons per floor:** how many plates a floor hides (0–200), and which pool buttons they can be, each with a weight. Each plate is picked independently, so a button can appear more than once.
   - A plate stays pressed after one use. All plates look the same.
   - Off by default. Buttons are placed after the floor is built, from their own random stream, so arming a floor never changes any floor's layout and existing seeds are unchanged.
   - `parameters.txt` gains `mysteryButtons=`, `mysteryButton<i>Name/Text/Loot/Monsters/Traps/TrapSeconds=` and `mysteryFloor<N>=<count>:<buttons>`. None of them are written for a campaign that doesn't use buttons.
-- **The Beta Classic presets hide mystery buttons.** Castle, Desert and Bonus Gauntlet now hide two plates on every floor and one on the escape floor. Their dungeons are unchanged for every seed; the plates are added on top.
-  - Risk and reward grow together. Early floors give coins, snacks and small squads (ticks, bats, maggots). Deeper floors give chests, diamonds and tier-II upgrades, against lich councils, mummy tombs and death orbs. Kamikazes and dragon or Anubis fire only turn up near the end.
-  - Each preset keeps to its theme. Castle follows its acts. Desert is a temple treasury, with scarabs guarding gold, temple guards and sun priests. Bonus springs ambushes of its own skeletons and archers.
-  - The app still opens on the plate-free defaults, so an imported `parameters.txt` gets no plates it didn't ask for.
-- **Five Claude presets use mystery buttons.** Their dungeons are unchanged for every seed.
-  - **Trap Gauntlet:** two plates per floor, mostly trap rooms firing that floor's projectiles. From floor 2 on, some of the lock buttons you have to press are trapped too, or pay out for braving them.
-  - **The Long Haul:** plates on every floor but the escape floor. The stakes rise act by act: coins and vermin in the castle, frost around Krilith, tombs and scarabs in the desert, and lich councils, kamikazes and dragonfire in the bonus act.
-  - **Frozen Descent:** frost plates, with chests frozen into the caves, Krilith's own dead, and rooms of frost or confusion.
-  - **Boss Rush:** each floor's lock button also drops supplies (potions or rations) for the boss fight.
-  - **Lunch Break:** one friendly, loot-heavy plate per floor.
-  - Beat the Clock, Pandemonium and Arena Marathon are unchanged.
-- **Trap Gauntlet's last two floors are survivable.** Their always-on wall traps fanned out boulders and spikes, which can't be dodged and could surround a lock button or block the last corridor. Lethal ammunition (boulders, large fireballs, spikes) now fires only in straight lanes you can time: one boulder lane per wall every 2.5 s, and fewer, slower spikes and large fireballs. Mystery buttons can still roll deadly rooms, but those switch off after 30 seconds. A test holds every preset to this rule.
-- **Two new Claude Generated presets built around mystery buttons.**
-  - **Double or Nothing:** the red lock buttons are in plain sight and always safe. Every other plate is a wager. Win tier-II upgrades, a jackpot, diamonds or even an extra life, or trigger a lich council, a kamikaze pack or a room of death orbs. Plates get more numerous and the odds get worse floor by floor. Monsters are quiet and the starting purse is thin, so winnings are what you spend in the boss-prep shop. About 40 minutes.
-  - **Shell Game:** the lock buttons look exactly like the decoy plates around them, and some of the real ones fire a payload of their own. A real button gives itself away only when pressed, by announcing how many remain. Every floor is timed, with less time per button each floor and a harder hit when the clock runs out. About 30 minutes.
 
 ### Changed
 
-- **The Beta Classic preset header is now just Classic.**
-- **Survival arena pickups and buffs are laid out as cards**, like the wave rows. On one line the item or buff name was squeezed down to an arrow in the narrow boss panel.
+- **The Classic presets hide mystery buttons.** Castle, Desert and Bonus Gauntlet now hide two plates on every floor and one on the escape floor. Their dungeons are unchanged for every seed; the plates are added on top.
+  - Risk and reward grow together. Early floors give coins, snacks and small squads (ticks, bats, maggots). Deeper floors give chests, diamonds and tier-II upgrades, against lich councils, mummy tombs and death orbs. Kamikazes and dragon or Anubis fire only turn up near the end.
+  - Each preset keeps to its theme. Castle follows its acts. Desert is a temple treasury, with scarabs guarding gold, temple guards and sun priests. Bonus springs ambushes of its own skeletons and archers.
+  - The app still opens on the plate-free defaults, so an imported `parameters.txt` gets no plates it didn't ask for.
 
 ### Fixed
 
