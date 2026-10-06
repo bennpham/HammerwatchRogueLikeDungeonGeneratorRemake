@@ -385,13 +385,18 @@ enabled, **no upper bound** (mirrors `levels`), written as `bossFights` in
 
 ### Campaign presets
 
-**Three groups.** Every `CampaignPreset` carries a `group`. The dropdown renders
+**Four groups.** Every `CampaignPreset` carries a `group`. The dropdown renders
 one native `<optgroup>` per `PRESET_GROUPS` entry, in that array's order, and
 each shows as a greyed, unselectable header. `preAlpha` ("Pre-Alpha") holds
 `pre-alpha`: the Java original's `parameters.txt` with every remake layer off,
 and `army1`/`army2`/`lich2` split into today's types. `classic`
-("Beta Classic") holds castle / desert / bonus. Castle stays at index 0 of
-`CAMPAIGN_PRESETS` because it is the app default. `claude` ("Claude Generated") holds the ten presets in
+("Classic") holds castle / desert / bonus. Castle stays at index 0 of
+`CAMPAIGN_PRESETS` because it is the app default. `colosseum` ("Colosseum")
+holds `colosseum`, labelled "Survival in Colosseum" after the Steam workshop map
+(`config/colosseumPreset.ts`): the dungeon master's own `parameters.txt`,
+embedded verbatim and parsed by `build()` — zero floors, eight lobbies, sixteen
+survival arenas and four boss arenas. A zero-floor preset keeps one theme and
+one monster pool, as the form does. `claude` ("Claude Generated") holds the ten presets in
 `config/claudePresets.ts`: Lunch Break, Beat the Clock, Boss Rush, Arena
 Marathon, Trap Gauntlet, Frozen Descent, Pandemonium, The Long Haul, Double or
 Nothing and Shell Game. They
@@ -432,7 +437,7 @@ second (`countdown: 'seconds'`), because `milestones` read as no goal at all.
 Their filler rows use the toughest regulars (`skeleton3`, `archer3`,
 `bat2#2`, `lich#2`), since an upgraded party clears the easy ones instantly. The header text lives only in
 `PRESET_GROUPS`. The escape-floor / shared-arena-size tests in
-`tests/presets.test.ts` apply to the `classic` group only. Every preset in either
+`tests/presets.test.ts` apply to the `classic` group only. Every preset in every
 group must validate, generate, stay deterministic and round-trip through
 `parameters.txt`.
 

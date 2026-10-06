@@ -1,7 +1,7 @@
 import React from 'react'
 import { BUFF_DEFS } from '../../generator'
 import type { SurvivalBuff, ValidationIssue } from '../../generator'
-import { BuffPicker } from './BuffPicker'
+import { BuffSelect, BuffTargetSelect } from './BuffPicker'
 
 /** What "Add buff" starts a new row on — the first entry of the first group. */
 const FIRST_BUFF = BUFF_DEFS[0].id
@@ -19,6 +19,10 @@ interface SurvivalBuffListEditorProps {
  * with a start/end pair bolted on. Windows are independent: unlike a boss
  * tier's buffs they do NOT replace one another, so two overlapping windows
  * both apply and each owns its own on/off pair.
+ *
+ * Laid out as a card like the wave rows, not on BuffPicker's single line: buff,
+ * target, both seconds marks and Remove on one line squeezed the buff name down
+ * to a caret in the narrow boss panel.
  */
 export function SurvivalBuffListEditor({ value, onChange, issuePrefix, issues }: SurvivalBuffListEditorProps) {
   const patch = (index: number, change: Partial<SurvivalBuff>) => {
@@ -38,35 +42,16 @@ export function SurvivalBuffListEditor({ value, onChange, issuePrefix, issues }:
       {value.map((entry, index) => {
         const prefix = `${issuePrefix}.${index}`
         const fieldIssues = (suffix: string) => issues.filter((i) => i.field === `${prefix}.${suffix}`)
+        const messages = (suffix: string) =>
+          fieldIssues(suffix).map((issue, i) => (
+            <span key={i} className="field-message">
+              {issue.message}
+            </span>
+          ))
         return (
-          <React.Fragment key={index}>
-            <BuffPicker
-              buff={entry.buff}
-              target={entry.target}
-              onChange={(change) => patch(index, change)}
-            >
-              <input
-                className="survival-window-field"
-                type="number"
-                min={0}
-                step={1}
-                value={entry.startSeconds}
-                onChange={(e) =>
-                  patch(index, { startSeconds: e.target.value === '' ? 0 : parseInt(e.target.value, 10) })
-                }
-                title="Seconds into the round when this window switches on"
-              />
-              <input
-                className="survival-window-field"
-                type="number"
-                min={0}
-                step={1}
-                value={entry.endSeconds}
-                onChange={(e) =>
-                  patch(index, { endSeconds: e.target.value === '' ? 0 : parseInt(e.target.value, 10) })
-                }
-                title="Seconds into the round when this window switches off"
-              />
+          <div key={index} className="trap-row">
+            <div className="trap-head">
+              <BuffSelect buff={entry.buff} onChange={(buff) => patch(index, { buff })} />
               <button
                 type="button"
                 className="buff-remove"
@@ -75,15 +60,48 @@ export function SurvivalBuffListEditor({ value, onChange, issuePrefix, issues }:
               >
                 Remove
               </button>
-            </BuffPicker>
-            {['buff', 'target', 'startSeconds', 'endSeconds'].flatMap((suffix) =>
-              fieldIssues(suffix).map((issue, i) => (
-                <p key={`${suffix}-${i}`} className="field-message">
-                  {issue.message}
-                </p>
-              ))
-            )}
-          </React.Fragment>
+            </div>
+            {fieldIssues('buff').map((issue, i) => (
+              <p key={i} className="field-message">
+                {issue.message}
+              </p>
+            ))}
+            <div className="trap-fields">
+              <label className="trap-field">
+                <span className="field-label">Target</span>
+                <BuffTargetSelect target={entry.target} onChange={(target) => patch(index, { target })} />
+                {messages('target')}
+              </label>
+              <label className="trap-field">
+                <span className="field-label">Starts at (s)</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={entry.startSeconds}
+                  onChange={(e) =>
+                    patch(index, { startSeconds: e.target.value === '' ? 0 : parseInt(e.target.value, 10) })
+                  }
+                  title="Seconds into the round when this window switches on"
+                />
+                {messages('startSeconds')}
+              </label>
+              <label className="trap-field">
+                <span className="field-label">Ends at (s)</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={entry.endSeconds}
+                  onChange={(e) =>
+                    patch(index, { endSeconds: e.target.value === '' ? 0 : parseInt(e.target.value, 10) })
+                  }
+                  title="Seconds into the round when this window switches off"
+                />
+                {messages('endSeconds')}
+              </label>
+            </div>
+          </div>
         )
       })}
       {issues

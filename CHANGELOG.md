@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Survival in Colosseum preset**, under a new **Colosseum** header (a nod to the Steam workshop map). No dungeon floors: 16 one-minute survival arenas and 4 boss fights (queen, knight, lich, dragon), with a lobby before each block. Every survival arena after the first drops 4 large health and 4 large mana at the start; each boss room starts with 8 large health, 8 large mana and 4 rejuvenation potions.
 - **Grouped preset dropdown.** The preset picker now has two greyed section headers. **Beta Classic** holds Castle, Desert and Bonus Gauntlet. **Claude Generated** holds eight new campaigns.
 - **Eight Claude Generated presets** built on the newer features:
   - **Lunch Break**: 3 small floors and one arena, a ~20-minute run.
@@ -59,8 +60,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Double or Nothing:** the red lock buttons are in plain sight and always safe. Every other plate is a wager. Win tier-II upgrades, a jackpot, diamonds or even an extra life, or trigger a lich council, a kamikaze pack or a room of death orbs. Plates get more numerous and the odds get worse floor by floor. Monsters are quiet and the starting purse is thin, so winnings are what you spend in the boss-prep shop. About 40 minutes.
   - **Shell Game:** the lock buttons look exactly like the decoy plates around them, and some of the real ones fire a payload of their own. A real button gives itself away only when pressed, by announcing how many remain. Every floor is timed, with less time per button each floor and a harder hit when the clock runs out. About 30 minutes.
 
+### Changed
+
+- **The Beta Classic preset header is now just Classic.**
+- **Survival arena pickups and buffs are laid out as cards**, like the wave rows. On one line the item or buff name was squeezed down to an arrow in the narrow boss panel.
+
 ### Fixed
 
+- **A boss tier with its buff removed now stays buff-less on import.** `parameters.txt` writes no line for a tier without buffs, and the import used to put the stock bloodlust back on the boss-death tier.
 - **`parameters.txt` export no longer loses switched-off settings.** Importing overlays the file onto the Castle defaults, and the export used to skip any setting that was off. So if you turned off something Castle has on, it came back on re-import: the escape-floor timer or traps, per-floor, lobby or arena music, or the no-extra-lives tweak. The level order could also come back as Castle's. Exports now write an explicit line (`timer7=0|…`, an empty `trapN=`, `musicN=default`, the tweak at its stock value, `levelOrder=`) wherever the value differs from Castle's. Old files import exactly as before. This also fixes Desert's escape floor, which picked up Castle's `act4` music after an export/re-import.
 
 ### Notes

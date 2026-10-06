@@ -216,10 +216,18 @@ interface BossFightParseState {
   sawWaveLine: Set<number>
   sawPickupLine: Set<number>
   sawTrapLine: Set<number>
+  sawBuffLine: Set<number>
 }
 
 function newBossFightParseState(): BossFightParseState {
-  return { sawAnyWave: false, sawDeathWave: false, sawWaveLine: new Set(), sawPickupLine: new Set(), sawTrapLine: new Set() }
+  return {
+    sawAnyWave: false,
+    sawDeathWave: false,
+    sawWaveLine: new Set(),
+    sawPickupLine: new Set(),
+    sawTrapLine: new Set(),
+    sawBuffLine: new Set()
+  }
 }
 
 /**
@@ -1143,6 +1151,7 @@ function parseBossFightKey(
     }
 
     arena.waves[idx].buffs = entries
+    state.sawBuffLine.add(idx)
     return true
   }
 
@@ -1969,6 +1978,10 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       if (!state.sawPickupLine.has(idx)) delete arena.waves[idx].pickups
       // Same rule, same reason, for the tier's wall traps.
       if (!state.sawTrapLine.has(idx)) delete arena.waves[idx].traps
+      // And its buffs: the serializer writes no line for a tier without any,
+      // so without this a tier saved buff-less (e.g. a death tier with its
+      // stock bloodlust removed) came back with the stock buff on import.
+      if (!state.sawBuffLine.has(idx)) delete arena.waves[idx].buffs
     }
 
     // A file written before the boss-death tier existed carries wave1..4 and

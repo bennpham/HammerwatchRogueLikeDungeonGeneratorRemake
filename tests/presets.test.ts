@@ -33,8 +33,14 @@ import {
   resolveActorPath
 } from '../src/generator/objects/monsterTypes'
 import { corpseCollision } from '../src/generator/objects/actorCollision'
-import { isScatterMode, waveSpawnMode } from '../src/generator/config/parameters'
+import {
+  isScatterMode,
+  survivalPickups,
+  wavePickups,
+  waveSpawnMode
+} from '../src/generator/config/parameters'
 import { mysteryKit } from '../src/generator/config/presetMystery'
+import { COLOSSEUM_PARAMETERS_TXT } from '../src/generator/config/colosseumPreset'
 import { projectileById } from '../src/generator/objects/projectileTypes'
 
 const CLASSIC_PRESETS = CAMPAIGN_PRESETS.filter((p) => p.group === 'classic')
@@ -49,7 +55,9 @@ const CLASSIC_PRESETS = CAMPAIGN_PRESETS.filter((p) => p.group === 'classic')
 function expectWaveScatterSafe(wave: BossWave, label: string): void {
   for (const key of wave.monsters) {
     expect(isKnownMonsterKey(key), `${label}: ${key}`).toBe(true)
-    expect(wave.monsterMax[key], `${label}: ${key}`).toBeGreaterThan(0)
+    // -1 is the endless sentinel — a positive cap or that, never 0.
+    const max = wave.monsterMax[key]
+    expect(max === -1 || max > 0, `${label}: ${key} capped at ${max}`).toBe(true)
     if (corpseCollision(resolveActorPath(key)) === 'blocking') {
       expect(isScatterMode(waveSpawnMode(wave, key)), `${label}: ${key}`).toBe(false)
     }
@@ -295,9 +303,11 @@ describe('campaign presets', () => {
     describe(`preset: ${preset.id}`, () => {
       const params = preset.build()
 
+      // A zero-floor campaign (Colosseum) keeps one of each, as the form does:
+      // it never shrinks the per-floor lists below one entry.
       it('has one theme and one monster pool per level', () => {
-        expect(params.themes).toHaveLength(params.levels)
-        expect(params.levelMonsters).toHaveLength(params.levels)
+        expect(params.themes).toHaveLength(Math.max(params.levels, 1))
+        expect(params.levelMonsters).toHaveLength(Math.max(params.levels, 1))
       })
 
       it('names only real, non-deprecated themes and monsters', () => {
@@ -559,6 +569,57 @@ describe('campaign presets', () => {
       const finalArena = result.files.find((f) => f.path === 'levels/boss1.xml')!.content
       expect(finalArena).not.toContain('>GameEnd<')
       expect(finalArena).toContain('<string name="level">12</string>')
+    })
+  })
+
+  // The dungeon master's own all-arena parameters.txt, shipped as a preset.
+  describe('Colosseum', () => {
+    const params = campaignPresetById('colosseum')!.build()
+    const fights = bossFights(params.boss)
+    const BOSS_ROOMS = [4, 9, 14, 19]
+
+    it('parses its embedded file with no unknown keys', () => {
+      expect(parseParametersTxt(COLOSSEUM_PARAMETERS_TXT).unknownKeys).toEqual([])
+    })
+
+    it('has no dungeon floors: 8 lobbies, 16 survival arenas, 4 boss arenas', () => {
+      expect(params.levels).toBe(0)
+      expect(params.lobbies).toHaveLength(8)
+      expect(fights).toHaveLength(20)
+      fights.forEach((fight, i) => {
+        expect(arenaMode(fight), `fight ${i}`).toBe(BOSS_ROOMS.includes(i) ? 'boss' : 'survival')
+      })
+      expect(serializeParametersTxt(params)).toContain(
+        'levelOrder=L1,AS1,AS2,AS3,AS4,L2,AB5,L3,AS6,AS7,AS8,AS9,L4,AB10,L5,AS11,AS12,AS13,AS14,L6,AB15,L7,AS16,AS17,AS18,AS19,L8,AB20'
+      )
+    })
+
+    it('drops 4 Health (Large) and 4 Mana (Large) on every survival arena but the first', () => {
+      fights.forEach((fight, i) => {
+        if (BOSS_ROOMS.includes(i)) return
+        const expected =
+          i > 0
+            ? [
+                { item: 'health_3', count: 4, atSeconds: 0 },
+                { item: 'mana_2', count: 4, atSeconds: 0 }
+              ]
+            : []
+        expect(survivalPickups(fight.survival), `fight ${i}`).toEqual(expected)
+      })
+    })
+
+    it('stocks every boss room at the start of the fight, and drops the dead death-tier buff', () => {
+      for (const i of BOSS_ROOMS) {
+        const waves = fights[i].arena.waves
+        expect(wavePickups(waves[0]), `fight ${i}`).toEqual([
+          { item: 'health_3', count: 8 },
+          { item: 'mana_2', count: 8 },
+          { item: 'potion_2', count: 4 }
+        ])
+        expect(waves[BOSS_DEATH_WAVE].buffs ?? [], `fight ${i}`).toEqual([])
+      }
+      const warnings = validateParameters(params).warnings.map((w) => w.field)
+      expect(warnings.filter((f) => /waves\.\d+\.buffs/.test(f))).toEqual([])
     })
   })
 
