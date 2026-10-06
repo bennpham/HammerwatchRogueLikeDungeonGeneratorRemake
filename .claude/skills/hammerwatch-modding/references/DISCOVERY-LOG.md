@@ -8,6 +8,44 @@ live in a chat transcript are lost the moment the session ends. Every agent
 that confirms or refutes something about the game's asset surface writes here
 in the same change.
 
+### 2026-10-05 — Arena Marathon's survival rounds were too weak; phased rows
+**Tag:** [VERIFIED] for the playtest finding (owner, in game);
+[UNVERIFIED] for the fix below until it is replayed.
+
+- Not an asset fact. Arena Marathon's two survival rounds (AS0 `bat1` ×60
+  then `skeleton1` ×20; AS2 `skeleton2` ×40 then `wisp1` ×20, in 32–42 rooms)
+  trickled in as intended, but the party killed every monster on arrival.
+  The round played as two minutes of easy clicking. Survival filler has to
+  match the gear a party carries out of a lobby, not the floor before it.
+- The owner's rule for endless rows: they are fine only if no monster sits
+  idle out of aggro range. In a big room those monsters pile up and lag the
+  game.
+- The rework uses phases. Each finite row is sized to run out at its phase
+  boundary: `count = 9 × window / interval`, because a row is dealt over the 9
+  anchors with one spawn per anchor per interval. A miniboss joins each push,
+  and the room is Colosseum-sized (16–24 × 18–26).
+- **Second playtest, same day:** the phased AS0 wiped a 10 000-gold party
+  (the warlock went down first). It ran about 4.4 spawns a second of elites
+  (`bat2`, `tick2`, `skeleton1#2`, `skeleton3`, `bat2#2`) plus three
+  minibosses. It is now retuned to about 2 a second of floor-1 monsters
+  (`bat1`, `tick1`, `skeleton1`, `maggot`, `archer1`, `bat2` at the end) and
+  one `mb_tick`. A round fought straight off the first lobby needs floor-1
+  tier monsters, and rate is the dial to turn.
+  The owner pinned the break point: it came at 0:30, when the elite archer
+  (`archer_1_elite`, triple shot), `mb_tick` and the elite skeleton
+  (`skeleton_1_elite`) landed together. `mb_tick` now spawns at 1:30, with no
+  archers alongside it.
+- **AS2 overran the party.** The frost-spitting `lich#2` did most of the
+  killing. It is now floor 2-3 monsters at about 1.8 a second, with no
+  liches, no bloodlust, and two minibosses (`mb_maggot` at 1:00, `mb_tick`
+  at 2:30). Arrows fire only in the last phase.
+- **AB1:** invulnerability and checkpoints are pointless when the 75/50/25%
+  tiers spawn nothing — the window is just a wait. A single-boss arena needs
+  adds on every tier. AB1 now has them, at floor 2-3 strength.
+- **Status: [UNVERIFIED].** The final AS0, AS2 and AB1 tunings in
+  `arenaMarathon()` have not been played. The owner stopped before a replay.
+  Replay all three before changing their numbers again.
+
 ### 2026-10-01 — a monsters-only buff field does NOT reach a boss actor; survival `milestones` reads as no clock
 **Tag:** [VERIFIED] (owner playtest of PR #76, Shell Game)
 

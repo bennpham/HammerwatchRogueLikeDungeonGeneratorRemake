@@ -473,6 +473,29 @@ describe('campaign presets', () => {
       expect(modes).toContain('boss')
     })
 
+    // A finite row is dealt over the 9 arena anchors, one spawn per anchor per
+    // interval, so it runs for ceil(count / 9) intervals from its start.
+    it('Arena Marathon: survival rounds run in phases that never go quiet or run past the clock', () => {
+      const params = campaignPresetById('claude-arena-marathon')!.build()
+      const rounds = bossFights(params.boss).filter((fight) => arenaMode(fight) === 'survival')
+      expect(rounds.length).toBe(2)
+      for (const fight of rounds) {
+        const survival = fight.survival!
+        expect(survival.countdown).toBe('seconds')
+        expect(fight.arena.maxWidth).toBeLessThanOrEqual(24)
+        expect(fight.arena.monsterMultiplier).toBe(1)
+        const windows = survival.waves.map((row) => {
+          expect(row.count).toBeGreaterThan(0) // no endless row
+          return { from: row.atSeconds, to: row.atSeconds + (Math.ceil(row.count / 9) * row.intervalMs) / 1000 }
+        })
+        for (const window of windows) expect(window.to).toBeLessThanOrEqual(survival.seconds)
+        for (let slice = 0; slice < survival.seconds; slice += 30) {
+          expect(windows.some((w) => w.from <= slice && w.to >= slice + 30 - 1)).toBe(true)
+        }
+        expect(survival.waves.some((row) => row.monster.startsWith('mb_'))).toBe(true)
+      }
+    })
+
     it('Trap Gauntlet: plates on every floor, and trapped lock buttons from floor 2 on', () => {
       const params = campaignPresetById('claude-trap-gauntlet')!.build()
       for (let level = 0; level < params.levels; level++) {

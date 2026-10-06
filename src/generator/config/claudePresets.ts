@@ -251,6 +251,24 @@ function survivalWaveRow(monster: string, count: number, atSeconds: number, inte
   return { monster, count, atSeconds, intervalMs }
 }
 
+/**
+ * Every survival arena spawns from boss/anchors.ts's 9 fixed anchors, and a
+ * finite row is dealt round-robin over them (survival/waves.ts).
+ */
+const SURVIVAL_ANCHORS = 9
+
+/**
+ * A finite row sized to run out at `toSeconds`: each anchor spawns one monster
+ * per `intervalMs`, so `count / 9 × interval` is how long the row lasts. Phases
+ * built from these hand over to the next monster on the clock, without an
+ * endless row left running and without the arena filling up behind the party.
+ * Assumes the arena's `monsterMultiplier` is 1, which scales the count.
+ */
+function phaseRow(monster: string, fromSeconds: number, toSeconds: number, intervalMs: number): SurvivalWave {
+  const count = Math.floor((SURVIVAL_ANCHORS * (toSeconds - fromSeconds) * 1000) / intervalMs)
+  return survivalWaveRow(monster, count, fromSeconds, intervalMs)
+}
+
 function survivalBuffRow(buff: string, target: SurvivalBuff['target'], startSeconds: number, endSeconds: number): SurvivalBuff {
   return { buff, target, startSeconds, endSeconds }
 }
@@ -530,35 +548,87 @@ function arenaMarathon(): DungeonParameters {
     boss: {
       enabled: true,
       fights: [
-        // AS0 — a warm-up round
+        // AS0 — the warm-up, on a party carrying only the first lobby's 10 000
+        // gold: four 30-second phases of floor-1 monsters, about 2 a second,
+        // and one miniboss in the last phase. The first cut (bat1 ×60, then skeleton1 ×20) died
+        // on arrival; the second (elites, ~4.4 a second, three minibosses)
+        // wiped the party (owner playtests, 2026-10-05). The room is
+        // Colosseum-sized, so every anchor sits inside aggro range and nothing
+        // piles up idle. Intervals divide each phase into whole rounds of 9.
         survivalFight(
-          { theme: 'b_mixed', minWidth: 32, maxWidth: 42, minHeight: 32, maxHeight: 42, music: 'boss_1' },
+          { theme: 'b_mixed', minWidth: 16, maxWidth: 20, minHeight: 18, maxHeight: 22, music: 'boss_1' },
           {
             seconds: 120,
-            countdown: 'milestones',
-            waves: [survivalWaveRow('bat1', 60, 0, 1200), survivalWaveRow('skeleton1', 20, 40, 1800)],
+            countdown: 'seconds',
+            waves: [
+              phaseRow('bat1', 0, 30, 5000),
+              phaseRow('tick1', 0, 30, 15000),
+              phaseRow('skeleton1', 30, 60, 10000),
+              phaseRow('bat1', 30, 60, 10000),
+              phaseRow('maggot', 60, 90, 10000),
+              phaseRow('archer1', 60, 90, 15000),
+              // the closing push: the miniboss arrives alone, never alongside
+              // archers (the second playtest broke at mb_tick + elite archers
+              // + elite skeletons landing together)
+              phaseRow('skeleton1', 90, 120, 10000),
+              phaseRow('bat2', 90, 120, 7500),
+              survivalWaveRow('mb_tick', 1, 90)
+            ],
             pickups: [survivalPickupRow('powerup_health', 2, 60), survivalPickupRow('mana_2', 2, 60)]
           }
         ),
-        // AB1 — a single random boss, knight or lich
+        // AB1 — a single random boss, knight or lich. Every health tier
+        // spawns adds, so each invulnerability window has something to fight
+        // (with empty 75/50/25% tiers it was only a wait — owner playtest,
+        // 2026-10-05). Floor 2-3 strength for a party carrying the 20 000-gold
+        // lobby's gear: no liches until the boss is dead.
         bossFight({
           theme: 'c_mixed',
           bossPool: ['boss_knight', 'boss_lich'],
-          waves: tierAndDeathWaves([['skeleton1', 15], ['archer1', 10]], [['lich', 4]]),
+          waves: (() => {
+            const drops = stockWavePickups()
+            return [
+              scatterWave([], [['skeleton1', 12], ['archer1', 6]], 2000),
+              scatterWave([], [['skeleton1', 12], ['maggot', 8]], 2000),
+              scatterWave([], [['skeleton2', 10], ['archer1', 6]], 2000, [], drops.half),
+              scatterWave([], [['skeleton2', 10], ['bat2', 12]], 2000, [], drops.quarter),
+              scatterWave([], [['lich', 4]], 1500, bossDeathBuffs(), drops.death)
+            ]
+          })(),
           music: 'boss_1'
         }),
-        // AS2 — a longer round with a buff window and a trap window
+        // AS2 — six 30-second phases on floor 2-3 monsters, about 1.8 spawns
+        // a second, against the 20 000-gold lobby's gear. The first cut
+        // (skeleton3, frost-spitting lich#2, lich#0, bloodlust, five
+        // minibosses, ~4 a second) overran the party (owner playtest,
+        // 2026-10-05): no liches now, no bloodlust, one miniboss per half and
+        // never alongside archers, arrows only in the last phase.
         survivalFight(
-          { theme: 'd_mixed', minWidth: 32, maxWidth: 42, minHeight: 32, maxHeight: 42, music: 'boss_1' },
+          { theme: 'd_mixed', minWidth: 16, maxWidth: 24, minHeight: 18, maxHeight: 26, music: 'boss_1' },
           {
             seconds: 180,
-            countdown: 'milestones',
-            waves: [survivalWaveRow('skeleton2', 40, 0, 1500), survivalWaveRow('wisp1', 20, 60, 1800)],
-            buffs: [survivalBuffRow('bloodlust', 'monsters', 90, 150)],
-            pickups: [survivalPickupRow('potion_2', 1, 120)],
+            countdown: 'seconds',
+            waves: [
+              phaseRow('skeleton1', 0, 30, 10000),
+              phaseRow('archer1', 0, 30, 10000),
+              phaseRow('skeleton2', 30, 60, 10000),
+              phaseRow('bat2', 30, 60, 10000),
+              phaseRow('maggot', 60, 90, 10000),
+              phaseRow('wisp1', 60, 90, 10000),
+              survivalWaveRow('mb_maggot', 1, 60),
+              phaseRow('skeleton2', 90, 120, 10000),
+              phaseRow('archer1', 90, 120, 10000),
+              phaseRow('skeleton1', 120, 150, 10000),
+              phaseRow('eye', 120, 150, 10000),
+              // the last push: the miniboss, then the arrows
+              phaseRow('skeleton2', 150, 180, 10000),
+              phaseRow('bat2', 150, 180, 10000),
+              survivalWaveRow('mb_tick', 1, 150)
+            ],
+            pickups: [survivalPickupRow('powerup_health', 1, 60), survivalPickupRow('potion_2', 1, 120)],
             traps: [
-              survivalTrapRow(SHOOTER_ARROW_TRAPS[0], 0, 180),
-              survivalTrapRow(SHOOTER_ARROW_TRAPS[1], 0, 180)
+              survivalTrapRow(SHOOTER_ARROW_TRAPS[0], 150, 180),
+              survivalTrapRow(SHOOTER_ARROW_TRAPS[1], 150, 180)
             ]
           }
         ),
@@ -1280,7 +1350,8 @@ export const CLAUDE_PRESETS: readonly CampaignPreset[] = [
   {
     id: 'claude-arena-marathon',
     label: 'Arena Marathon',
-    description: 'One warm-up floor, then four chained arenas — survival, boss, survival, a 3-boss finale — about 40 minutes.',
+    description:
+      'One warm-up floor, then four chained arenas — survival, boss, survival, a 3-boss finale. The survival rounds change monsters every 30 seconds — about 40 minutes.',
     group: 'claude',
     build: () => withGatewayLocks(arenaMarathon())
   },
