@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Load preset button (issue #77).** The header's preset dropdown is gone; one misclick there could replace your parameters before you had exported them. **Load preset…** opens the preset guide instead, so you read a preset's description before loading it. The (i) button it replaces is gone too; the chat button stays on the left.
-- **Collapsible preset groups.** In the preset guide, Pre-Alpha, Classic, Colosseum and Claude Generated each fold into a header showing how many presets it holds. All four start collapsed.
+- **Collapsible preset groups.** In the preset guide, Pre-Alpha, Classic, Colosseum and Claude Generated each fold into a header showing how many presets it holds. Classic starts open; the others start collapsed.
 
 ## [0.9.0]
 

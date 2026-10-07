@@ -393,7 +393,7 @@ enabled, **no upper bound** (mirrors `levels`), written as `bossFights` in
 from the header's **Load preset…** button, which opens `PresetGuide`'s dialog
 (issue #77 removed the quick dropdown: one misclick there replaced a parameter
 set before it was exported). The dialog renders one native `<details>` per
-`PRESET_GROUPS` entry, in that array's order, all collapsed on open, each row
+`PRESET_GROUPS` entry, in that array's order, Classic open and the rest collapsed on open, each row
 a description and a Load button. That is the dialog's **Campaign presets** tab;
 its **Player presets** tab lists `PLAYER_PRESETS` (`tweak/presets.ts` — `{id,
 label, description, build(): PlayerTweaks}`, empty so far), whose Load replaces
