@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The per-tab Reset asks first.** It is now orange and opens the same "are you sure?" dialog as Reset all, naming the tab it will reset, since even one tab can hold a lot of work. Its toast now has an **Undo** too.
 - **Load preset button (issue #77).** The header's preset dropdown is gone; one misclick there could replace your parameters before you had exported them. **Load preset…** opens the preset guide instead, so you read a preset's description before loading it. The chat button stays on its left, and the (i) left of the chat button now opens the header help (below) instead of the preset guide.
 - **Collapsible preset groups.** In the preset guide, Pre-Alpha, Classic, Colosseum and Claude Generated each fold into a header showing how many presets it holds. Classic starts open; the others start collapsed.
 
