@@ -3,9 +3,10 @@ import {
   parseParametersTxt,
   parsePlayerSettingsTxt,
   serializeParametersTxt,
-  serializePlayerSettingsTxt
+  serializePlayerSettingsTxt,
+  validateParameters
 } from '../src/generator'
-import { TWEAK_FIELD_MAP, pruneTweaks } from '../src/generator/tweak'
+import { PLAYER_PRESETS, TWEAK_FIELD_MAP, playerPresetById, pruneTweaks } from '../src/generator/tweak'
 import { defaultParameters } from '../src/generator/config/parameters'
 import type { PlayerTweaks } from '../src/generator/tweak/types'
 
@@ -99,5 +100,36 @@ describe('playersettings.txt', () => {
     const parsed = parseParametersTxt(serializePlayerSettingsTxt(tweaks))
     expect(parsed.params.playerTweaks[INT_KEY]).toBe(222)
     expect(parsed.unknownKeys).toEqual([])
+  })
+})
+
+describe('player presets', () => {
+  // The registry ships empty (issue #77). These hold the first build anyone
+  // adds to the same rules the campaign presets follow.
+  it('have unique ids, and playerPresetById finds each one', () => {
+    const ids = PLAYER_PRESETS.map((preset) => preset.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    for (const preset of PLAYER_PRESETS) expect(playerPresetById(preset.id)).toBe(preset)
+    expect(playerPresetById('no-such-preset')).toBeUndefined()
+  })
+
+  it('build a fresh, pruned record of real tweak keys that validates', () => {
+    for (const preset of PLAYER_PRESETS) {
+      const first = preset.build()
+      const second = preset.build()
+      expect(first).not.toBe(second)
+      expect(first).toEqual(second)
+      expect(first).toEqual(pruneTweaks(first))
+      for (const key of Object.keys(first)) expect(TWEAK_FIELD_MAP.has(key)).toBe(true)
+      const result = validateParameters({ ...defaultParameters(), playerTweaks: first })
+      expect(result.errors, preset.id).toEqual([])
+    }
+  })
+
+  it('survive a playersettings.txt round trip', () => {
+    for (const preset of PLAYER_PRESETS) {
+      const tweaks = preset.build()
+      expect(parsePlayerSettingsTxt(serializePlayerSettingsTxt(tweaks)).tweaks).toEqual(tweaks)
+    }
   })
 })

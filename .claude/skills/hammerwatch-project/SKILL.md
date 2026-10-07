@@ -173,6 +173,8 @@ src/
 │   │   ├── bulk.ts       whole-roster knobs: stat factors, shop policy,
 │   │   │                 skill unlocks, fully-upgraded preset, removals
 │   │   ├── loadout.ts    buildLoadouts() — start/maxed character sheets
+│   │   ├── presets.ts    PLAYER_PRESETS — named player builds for the preset
+│   │   │                 dialog's Player tab (empty so far)
 │   │   └── xml.ts        the tweak XML dialect (separate from xml/)
 │   └── index.ts          generateDungeon() + all public types
 ├── main/                 index.ts (window), ipc.ts (handlers + last-result
@@ -392,7 +394,12 @@ from the header's **Load preset…** button, which opens `PresetGuide`'s dialog
 (issue #77 removed the quick dropdown: one misclick there replaced a parameter
 set before it was exported). The dialog renders one native `<details>` per
 `PRESET_GROUPS` entry, in that array's order, all collapsed on open, each row
-a description and a Load button. `preAlpha` ("Pre-Alpha") holds
+a description and a Load button. That is the dialog's **Campaign presets** tab;
+its **Player presets** tab lists `PLAYER_PRESETS` (`tweak/presets.ts` — `{id,
+label, description, build(): PlayerTweaks}`, empty so far), whose Load replaces
+only `playerTweaks`, the same as importing a playersettings.txt.
+`tests/playerSettings.test.ts` holds each entry to fresh/pruned/real keys/
+validates. `preAlpha` ("Pre-Alpha") holds
 `pre-alpha`: the Java original's `parameters.txt` with every remake layer off,
 and `army1`/`army2`/`lich2` split into today's types. `classic`
 ("Classic") holds castle / desert / bonus. Castle stays at index 0 of

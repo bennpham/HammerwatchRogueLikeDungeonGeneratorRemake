@@ -194,7 +194,9 @@ When hosting a generated campaign in Hammerwatch 1.41:
 1. **Set your Hammerwatch folder** (bottom panel) — the folder containing
    `editor/` and `levels/`. It's saved for next time.
 2. Optionally start from a preset: **Load preset…** in the header lists every
-   preset with a description, grouped and collapsed by family.
+   preset with a description. The **Campaign presets** tab is grouped and
+   collapsed by family; the **Player presets** tab holds player builds that
+   replace only the Player tab.
 3. **Tweak parameters** in the left panel, across five tabs — **Lobby** (the
    shop rooms and their presets), **Dungeon** (floors, rooms, monsters),
    **Boss** (the arena, its waves and its spawn modes), **Floor order** (how
