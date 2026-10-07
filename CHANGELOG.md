@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **playersettings.txt (issue #77).** **Import playersettings.txt** and **Export playersettings.txt** sit under the parameters.txt buttons and cover only the Player tab: class stats, upgrade costs, shop removals and difficulty multipliers. Importing replaces the Player tab and leaves the Dungeon, Lobby, Arena and Floor order tabs alone, so you can load a campaign first and then layer a player build on top. A setting the file doesn't mention goes back to stock. The toast has an **Undo**. Importing a whole parameters.txt this way takes only its player settings.
 - **Campaign and Player preset tabs.** The preset guide has two tabs. **Campaign presets** lists the existing presets, which replace everything. **Player presets** will list player builds that, like playersettings.txt, replace only the Player tab. None ship yet.
+- **Reset all.** A red **Reset all** button under the per-tab Reset puts every tab back to the defaults. An "are you sure?" dialog asks first (Cancel has the focus), and the toast afterwards has an **Undo**. Your Hammerwatch folder and other app settings are kept.
 - **Header help.** An (i) button at the left of the header explains every header control: how parameters.txt and playersettings.txt differ and the order to import them in, Campaign vs Player presets, what Reset resets, the AI assistant, and the startup parameters.txt override.
 
 ### Changed

@@ -20,6 +20,7 @@ import { LoadoutSheet } from './components/LoadoutSheet'
 import { OutputPanel } from './components/OutputPanel'
 import { PresetGuide } from './components/PresetGuide'
 import { HeaderGuide } from './components/HeaderGuide'
+import { ResetAllButton } from './components/ResetAllButton'
 import { PresetChat } from './components/PresetChat'
 import type { LlmConfig } from '../shared/llm/types'
 
@@ -168,6 +169,21 @@ export function App() {
   }
 
   /**
+   * Every tab back to `defaultParameters()` — what the app opens with when no
+   * parameters.txt override exists. Confirmed in `ResetAllButton` first, and
+   * the toast still offers an Undo. App settings (the Hammerwatch folder) are
+   * not parameters and are left alone.
+   */
+  const resetAll = () => {
+    const previous = params
+    setParams(defaultParameters())
+    showToast('info', 'Every tab reset to the defaults.', () => {
+      setParams(previous)
+      showToast('info', 'Restored your settings from before Reset all.')
+    })
+  }
+
+  /**
    * Presets are a full parameter baseline, not a patch: picking one replaces
    * everything on the Dungeon, Player and Lobby tabs. The header never shows
    * which preset was loaded, because the very next edit to any field would
@@ -312,17 +328,20 @@ export function App() {
               Export playersettings.txt
             </button>
           </div>
-          <button onClick={resetDefaults} disabled={busy}>
-            {leftTab === 'player'
-              ? 'Reset player tweaks'
-              : leftTab === 'lobby'
-                ? 'Reset lobbies'
-                : leftTab === 'boss'
-                  ? 'Reset arena tab'
-                  : leftTab === 'order'
-                    ? 'Reset floor order'
-                    : 'Reset defaults'}
-          </button>
+          <div className="reset-actions">
+            <button onClick={resetDefaults} disabled={busy}>
+              {leftTab === 'player'
+                ? 'Reset player tweaks'
+                : leftTab === 'lobby'
+                  ? 'Reset lobbies'
+                  : leftTab === 'boss'
+                    ? 'Reset arena tab'
+                    : leftTab === 'order'
+                      ? 'Reset floor order'
+                      : 'Reset defaults'}
+            </button>
+            <ResetAllButton onConfirm={resetAll} disabled={busy} />
+          </div>
         </div>
       </header>
 
