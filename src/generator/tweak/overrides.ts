@@ -222,6 +222,29 @@ export function pruneTweaks(tweaks: PlayerTweaks): PlayerTweaks {
   return pruned
 }
 
+/**
+ * One override as a `key=value` line. parameters.txt and playersettings.txt
+ * both write through this, so the two files cannot disagree on a value.
+ */
+export function formatTweakLine(key: string, value: number): string {
+  const field = TWEAK_FIELD_MAP.get(key)
+  return `${key}=${field?.type === 'float' ? value.toFixed(6) : value}`
+}
+
+/**
+ * Reads one `player.*` line's value the way both text formats do: `undefined`
+ * for an unknown key or a value that is not a number, `'stock'` for the stock
+ * value (which is how a file clears an override its base object carried), and
+ * otherwise the number, truncated for an int field.
+ */
+export function parseTweakValue(keyLower: string, raw: string): number | 'stock' | undefined {
+  const field = TWEAK_FIELD_MAP.get(keyLower)
+  const n = parseFloat(raw)
+  if (field === undefined || Number.isNaN(n)) return undefined
+  if (n === field.stock) return 'stock'
+  return field.type === 'int' ? Math.trunc(n) : n
+}
+
 /** File ids that have at least one real override. */
 export function changedFileIds(tweaks: PlayerTweaks): string[] {
   const ids = new Set<string>()

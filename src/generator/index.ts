@@ -157,6 +157,8 @@ export {
 } from './boss'
 export { parseParametersTxt, serializeParametersTxt } from './config/configFile'
 export type { ParsedConfig } from './config/configFile'
+export { parsePlayerSettingsTxt, serializePlayerSettingsTxt } from './config/playerSettingsFile'
+export type { ParsedPlayerSettings } from './config/playerSettingsFile'
 export {
   ALL_LOBBY_CATEGORIES,
   DEFAULT_LOBBY_PRESET_ID,

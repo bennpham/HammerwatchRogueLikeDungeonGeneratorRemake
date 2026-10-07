@@ -76,7 +76,7 @@ import { isLobbyCategory } from '../lobby/shops'
 import { DEFAULT_LOBBY_PRESET_ID, LOBBY_PRESETS } from '../lobby/presets'
 import { campaignOrder, isDefaultOrder, normalizeOrder, parseSlotLabel, slotLabeller } from '../campaign'
 import type { CampaignSlot } from '../campaign'
-import { TWEAK_FIELD_MAP, pruneTweaks } from '../tweak/overrides'
+import { TWEAK_FIELD_MAP, formatTweakLine, parseTweakValue, pruneTweaks } from '../tweak/overrides'
 import { MUSIC_DEFAULT, isKnownMusicId } from '../music/tracks'
 
 export interface ParsedConfig {
@@ -1723,18 +1723,17 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     }
 
     if (keyLower.startsWith('player.')) {
-      const field = TWEAK_FIELD_MAP.get(keyLower)
-      const n = parseFloat(value)
-      if (field === undefined || Number.isNaN(n)) {
+      const tweak = parseTweakValue(keyLower, value)
+      if (tweak === undefined) {
         result.unknownKeys.push(key)
-      } else if (n === field.stock) {
+      } else if (tweak === 'stock') {
         // An explicit stock value is how the serializer clears an override the
         // base object inherited (e.g. castle's stock `player.shared.remove.life`)
         // — without this, a file naming the key back at stock would silently
         // leave the base's non-stock value in place rather than removing it.
         delete params.playerTweaks[keyLower]
       } else {
-        params.playerTweaks[keyLower] = field.type === 'int' ? Math.trunc(n) : n
+        params.playerTweaks[keyLower] = tweak
       }
       continue
     }
@@ -2303,9 +2302,7 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
       }
       const allKeys = new Set([...Object.keys(tweaks), ...explicitStock])
       for (const tweakKey of Array.from(allKeys).sort()) {
-        const field = TWEAK_FIELD_MAP.get(tweakKey)
-        const value = tweaks[tweakKey] ?? field?.stock ?? 0
-        lines.push(`${tweakKey}=${field?.type === 'float' ? value.toFixed(6) : value}`)
+        lines.push(formatTweakLine(tweakKey, tweaks[tweakKey] ?? TWEAK_FIELD_MAP.get(tweakKey)?.stock ?? 0))
       }
     }
   }

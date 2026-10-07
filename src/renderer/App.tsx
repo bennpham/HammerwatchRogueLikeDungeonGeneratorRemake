@@ -224,6 +224,37 @@ export function App() {
     showToast(exported.ok ? 'ok' : 'info', exported.message)
   }
 
+  /**
+   * playersettings.txt replaces the Player tab and nothing else, so it layers
+   * onto whatever campaign parameters.txt or a preset set up. Undo puts the
+   * previous player tweaks back.
+   */
+  const importPlayerSettings = async () => {
+    const imported = await window.api.importPlayerSettingsTxt()
+    if (imported === null) return
+    if (!imported.ok || !imported.tweaks) {
+      showToast('error', imported.message)
+      return
+    }
+    const previous = params.playerTweaks ?? {}
+    setParams({ ...params, playerTweaks: imported.tweaks })
+    const unknown =
+      imported.unknownKeys && imported.unknownKeys.length > 0
+        ? ` Ignored unknown keys: ${imported.unknownKeys.join(', ')}.`
+        : ''
+    const ignored = imported.ignoredKeys?.length ?? 0
+    const nonPlayer = ignored > 0 ? ` Skipped ${ignored} non-player key${ignored === 1 ? '' : 's'}.` : ''
+    showToast('ok', `${imported.message}.${unknown}${nonPlayer}`, () => {
+      setParams((current) => ({ ...current, playerTweaks: previous }))
+      showToast('info', 'Restored the previous player settings.')
+    })
+  }
+
+  const exportPlayerSettings = async () => {
+    const exported = await window.api.exportPlayerSettingsTxt(params.playerTweaks ?? {})
+    showToast(exported.ok ? 'ok' : 'info', exported.message)
+  }
+
   const runAction = async (action: () => Promise<{ ok: boolean; message: string }>) => {
     setBusy(true)
     try {
@@ -252,8 +283,17 @@ export function App() {
             />
           )}
           <PresetGuide onLoad={applyPreset} disabled={busy} />
-          <button onClick={importParams} disabled={busy}>Import parameters.txt</button>
-          <button onClick={exportParams} disabled={busy}>Export parameters.txt</button>
+          {/* two rows, in the order they layer: the campaign, then a player build on top */}
+          <div className="file-actions">
+            <button onClick={importParams} disabled={busy}>Import parameters.txt</button>
+            <button onClick={exportParams} disabled={busy}>Export parameters.txt</button>
+            <button onClick={importPlayerSettings} disabled={busy} title="Replaces only the Player tab">
+              Import playersettings.txt
+            </button>
+            <button onClick={exportPlayerSettings} disabled={busy} title="Saves only the Player tab">
+              Export playersettings.txt
+            </button>
+          </div>
           <button onClick={resetDefaults} disabled={busy}>
             {leftTab === 'player'
               ? 'Reset player tweaks'

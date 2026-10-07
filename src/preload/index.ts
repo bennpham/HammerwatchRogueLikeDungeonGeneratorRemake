@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { AppSettings, RendererApi } from '../shared/ipc'
-import type { DungeonParameters } from '../generator'
+import type { DungeonParameters, PlayerTweaks } from '../generator'
 import type { LlmChatRequest, LlmProviderId, LlmSettings } from '../shared/llm/types'
 
 const api: RendererApi = {
@@ -13,6 +13,8 @@ const api: RendererApi = {
   saveSettings: (settings: AppSettings) => ipcRenderer.invoke('settings:save', settings),
   importParametersTxt: () => ipcRenderer.invoke('params:import'),
   exportParametersTxt: (params: DungeonParameters) => ipcRenderer.invoke('params:export', params),
+  importPlayerSettingsTxt: () => ipcRenderer.invoke('playerSettings:import'),
+  exportPlayerSettingsTxt: (tweaks: PlayerTweaks) => ipcRenderer.invoke('playerSettings:export', tweaks),
   llmGetConfig: () => ipcRenderer.invoke('llm:get-config'),
   llmSaveConfig: (settings: LlmSettings) => ipcRenderer.invoke('llm:save-config', settings),
   llmSetKey: (provider: LlmProviderId, key: string) => ipcRenderer.invoke('llm:set-key', provider, key),

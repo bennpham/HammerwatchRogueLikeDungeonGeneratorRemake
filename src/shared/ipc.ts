@@ -1,4 +1,4 @@
-import type { DungeonError, DungeonParameters, LevelPreview } from '../generator'
+import type { DungeonError, DungeonParameters, LevelPreview, PlayerTweaks } from '../generator'
 import type {
   LlmChatRequest,
   LlmChatResult,
@@ -50,6 +50,16 @@ export interface ImportParamsResult {
   unknownKeys?: string[]
 }
 
+/** An imported playersettings.txt — it replaces the Player tab and nothing else. */
+export interface ImportPlayerSettingsResult {
+  ok: boolean
+  message: string
+  tweaks?: PlayerTweaks
+  unknownKeys?: string[]
+  /** non-player keys the file carried (e.g. a whole parameters.txt), skipped */
+  ignoredKeys?: string[]
+}
+
 /** The API exposed to the renderer through the preload bridge. */
 export interface RendererApi {
   getInitialState(): Promise<InitialState>
@@ -61,6 +71,8 @@ export interface RendererApi {
   saveSettings(settings: AppSettings): Promise<void>
   importParametersTxt(): Promise<ImportParamsResult | null>
   exportParametersTxt(params: DungeonParameters): Promise<ActionResult>
+  importPlayerSettingsTxt(): Promise<ImportPlayerSettingsResult | null>
+  exportPlayerSettingsTxt(tweaks: PlayerTweaks): Promise<ActionResult>
   /** AI preset assistant. Opt-in: nothing here touches the network except chat and listModels. */
   llmGetConfig(): Promise<LlmConfig>
   llmSaveConfig(settings: LlmSettings): Promise<LlmConfig>
