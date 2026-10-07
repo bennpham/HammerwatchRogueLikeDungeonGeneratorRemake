@@ -227,6 +227,68 @@ body {
   color: var(--text-dim);
 }
 
+/* the header's (i) help — plain prose sections under small caps headings */
+.header-guide {
+  width: min(720px, calc(100vw - 32px));
+}
+
+.header-guide h3 {
+  margin: 18px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.header-guide p,
+.header-guide ul {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.header-guide ul {
+  padding-left: 18px;
+}
+
+.header-guide li + li {
+  margin-top: 4px;
+}
+
+.header-guide-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.header-guide-table th,
+.header-guide-table td {
+  padding: 6px 8px;
+  border-top: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.header-guide-table thead th {
+  border-top: none;
+  font-family: monospace;
+}
+
+.header-guide-table tbody th {
+  width: 84px;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.header-guide .header-guide-tip {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--accent);
+  background: var(--bg);
+}
+
 .app-body {
   display: flex;
   flex: 1;

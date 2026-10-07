@@ -19,6 +19,7 @@ import { LevelPreview } from './components/LevelPreview'
 import { LoadoutSheet } from './components/LoadoutSheet'
 import { OutputPanel } from './components/OutputPanel'
 import { PresetGuide } from './components/PresetGuide'
+import { HeaderGuide } from './components/HeaderGuide'
 import { PresetChat } from './components/PresetChat'
 import type { LlmConfig } from '../shared/llm/types'
 
@@ -289,6 +290,7 @@ export function App() {
           <p className="subtitle">Rogue-like campaign generator — remake of the classic forum tool</p>
         </div>
         <div className="header-actions">
+          <HeaderGuide />
           {llmConfig !== null && !llmConfig.hideIcon && (
             <PresetChat
               params={params}
