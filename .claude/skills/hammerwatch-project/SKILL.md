@@ -1572,7 +1572,8 @@ same `GeneratedFile[]` the levels produce.
   whole parameters.txt imported there yields just its player half. IPC is
   `playerSettings:import` / `playerSettings:export`, carrying only the tweak
   record; the header shows the two buttons as the second row of a 2×2 grid
-  under the parameters.txt pair.
+  under the parameters.txt pair. `HeaderGuide.tsx` (the header's leftmost (i))
+  explains the two files side by side — keep it in step if either changes.
 - **Upgrades set, they don't add.** An upgrade writes an absolute value, so a
   ladder left at stock while its starting stat is raised turns into a paid
   downgrade. `chains.ts` groups upgrades into ladders and derives a
