@@ -259,7 +259,9 @@ export {
   pruneTweaks,
   resetQuickSetup,
   shopPrice,
-  totalShopCost
+  totalShopCost,
+  PLAYER_PRESETS,
+  playerPresetById
 } from './tweak'
 export type {
   ClassLoadout,
@@ -267,6 +269,7 @@ export type {
   CostPolicy,
   CurveMode,
   LoadoutStat,
+  PlayerPreset,
   PlayerTweaks,
   ShopRemoval,
   StatFactor,

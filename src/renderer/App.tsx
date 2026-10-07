@@ -4,6 +4,7 @@ import {
   campaignPresetById,
   defaultParameters,
   floorMystery,
+  playerPresetById,
   pruneTweaks,
   validateParameters
 } from '../generator'
@@ -181,6 +182,21 @@ export function App() {
   }
 
   /**
+   * A player preset replaces only the Player tab — the same shape as importing
+   * a playersettings.txt, Undo included.
+   */
+  const applyPlayerPreset = (id: string) => {
+    const preset = playerPresetById(id)
+    if (preset === undefined) return
+    const previous = params.playerTweaks ?? {}
+    setParams({ ...params, playerTweaks: preset.build() })
+    showToast('ok', `Loaded the ${preset.label} player preset.`, () => {
+      setParams((current) => ({ ...current, playerTweaks: previous }))
+      showToast('info', 'Restored the previous player settings.')
+    })
+  }
+
+  /**
    * The AI assistant's Apply: the same replace-the-params path as a preset, but
    * the toast carries an Undo that puts the previous parameters back.
    */
@@ -282,7 +298,7 @@ export function App() {
               disabled={busy}
             />
           )}
-          <PresetGuide onLoad={applyPreset} disabled={busy} />
+          <PresetGuide onLoad={applyPreset} onLoadPlayer={applyPlayerPreset} disabled={busy} />
           {/* two rows, in the order they layer: the campaign, then a player build on top */}
           <div className="file-actions">
             <button onClick={importParams} disabled={busy}>Import parameters.txt</button>

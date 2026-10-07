@@ -128,6 +128,21 @@ body {
   color: var(--text-dim);
 }
 
+/* Campaign / Player presets — the app's own tab buttons, without the side
+   padding .panel-tabs carries for the left panel */
+.preset-guide-tabs {
+  padding: 12px 0 4px;
+}
+
+.preset-guide-empty {
+  margin: 16px 0 4px;
+  padding: 16px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
 .preset-guide dl {
   margin: 0;
 }

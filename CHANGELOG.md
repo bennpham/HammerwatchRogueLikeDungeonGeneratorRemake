@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **playersettings.txt (issue #77).** **Import playersettings.txt** and **Export playersettings.txt** sit under the parameters.txt buttons and cover only the Player tab: class stats, upgrade costs, shop removals and difficulty multipliers. Importing replaces the Player tab and leaves the Dungeon, Lobby, Arena and Floor order tabs alone, so you can load a campaign first and then layer a player build on top. A setting the file doesn't mention goes back to stock. The toast has an **Undo**. Importing a whole parameters.txt this way takes only its player settings.
+- **Campaign and Player preset tabs.** The preset guide has two tabs. **Campaign presets** lists the existing presets, which replace everything. **Player presets** will list player builds that, like playersettings.txt, replace only the Player tab. None ship yet.
 
 ### Changed
 
