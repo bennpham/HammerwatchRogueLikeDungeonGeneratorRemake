@@ -21,8 +21,8 @@ import { deepLoot, escapePicks, midLoot, mysteryButton, mysteryKit, shallowLoot 
 import type { MysteryPicks } from './presetMystery'
 
 /**
- * The headers the preset dropdown groups presets under — rendered as greyed,
- * unselectable `<optgroup>` labels in the renderer, in this order (oldest
+ * The headers the preset dialog groups presets under — each rendered as a
+ * collapsible section of the renderer's `PresetGuide`, in this order (oldest
  * campaign style first). `label` is the only user-visible text; the id is what
  * a preset's `group` field carries and is never shown.
  */
@@ -46,13 +46,13 @@ export const PRESET_GROUPS: readonly { id: PresetGroupId; label: string }[] = [
  * to seed a form, and the same preset must always produce the same parameters.
  */
 export interface CampaignPreset {
-  /** stable id used by the dropdown; never shown to the user */
+  /** stable id the preset dialog loads by; never shown to the user */
   id: string
-  /** dropdown text */
+  /** the name the preset dialog lists */
   label: string
   /** one-line description of what the preset is for */
   description: string
-  /** which `PRESET_GROUPS` header this preset's dropdown entry sits under */
+  /** which `PRESET_GROUPS` section of the preset dialog this preset sits under */
   group: PresetGroupId
   /** a fresh parameter object every call — never a shared mutable one */
   build(): DungeonParameters
@@ -441,7 +441,7 @@ function bonusMystery(): Pick<DungeonParameters, 'mysteryButtons' | 'levelMyster
 }
 
 /**
- * The presets, in dropdown order. `castle` is `defaultParameters()` plus its
+ * The presets, in the order the preset dialog lists them. `castle` is `defaultParameters()` plus its
  * mystery plates; the app itself opens on the plate-free `defaultParameters()`.
  */
 const CLASSIC_PRESETS: readonly CampaignPreset[] = [
@@ -789,7 +789,7 @@ const PRE_ALPHA_PRESETS: readonly CampaignPreset[] = [
 ]
 
 /**
- * Every campaign preset the dropdown offers: the three classics first (castle
+ * Every campaign preset the preset dialog offers: the three classics first (castle
  * is the app's default and stays at index 0), then Colosseum — see
  * `colosseumPreset.ts` — then the ten Claude-generated ones — see
  * `claudePresets.ts` — then Pre-Alpha. `PRESET_GROUPS` is what the renderer
