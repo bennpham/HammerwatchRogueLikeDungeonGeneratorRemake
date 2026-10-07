@@ -6,13 +6,22 @@ import {
   defaultParameters,
   generateDungeon,
   parseParametersTxt,
+  parsePlayerSettingsTxt,
   serializeParametersTxt,
+  serializePlayerSettingsTxt,
   DungeonParameters,
-  DungeonResult
+  DungeonResult,
+  PlayerTweaks
 } from '../generator'
 import { findParametersOverride, loadSettings, saveSettings } from './settings'
 import { installCampaign, writeCampaign } from './packer'
-import type { ActionResult, AppSettings, ImportParamsResult, InitialState } from '../shared/ipc'
+import type {
+  ActionResult,
+  AppSettings,
+  ImportParamsResult,
+  ImportPlayerSettingsResult,
+  InitialState
+} from '../shared/ipc'
 import { isProviderId } from '../shared/llm/providers'
 import type { ChatMessage, LlmChatRequest, LlmChatResult, LlmKeyResult, LlmModelsResult, LlmProviderId, LlmSettings } from '../shared/llm/types'
 import { cancelChat, chatCompletion, checkBaseUrl, endpointFor, listModels } from './llm/client'
@@ -173,6 +182,49 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     const content = serializeParametersTxt(params, settings.hammerwatchPath || undefined, settings.cleanupFiles)
     await writeFile(picked.filePath, content, 'utf-8')
     return { ok: true, message: 'Exported parameters.txt.', outputPath: picked.filePath }
+  })
+
+  // playersettings.txt — the Player tab on its own. The payload is the sparse
+  // tweak record, so it stays small however large the campaign is.
+  ipcMain.handle('playerSettings:import', async (): Promise<ImportPlayerSettingsResult | null> => {
+    const window = getWindow()
+    if (!window) return null
+    const picked = await dialog.showOpenDialog(window, {
+      title: 'Import playersettings.txt',
+      filters: [{ name: 'Player settings', extensions: ['txt'] }],
+      properties: ['openFile']
+    })
+    if (picked.canceled || picked.filePaths.length === 0) return null
+
+    try {
+      const content = await readFile(picked.filePaths[0], 'utf-8')
+      const parsed = parsePlayerSettingsTxt(content)
+      return {
+        ok: true,
+        message: `Imported player settings from ${picked.filePaths[0]}`,
+        tweaks: parsed.tweaks,
+        unknownKeys: parsed.unknownKeys,
+        ignoredKeys: parsed.ignoredKeys
+      }
+    } catch (error) {
+      return { ok: false, message: `Could not read file: ${(error as Error).message}` }
+    }
+  })
+
+  ipcMain.handle('playerSettings:export', async (_event, tweaks: PlayerTweaks): Promise<ActionResult> => {
+    const window = getWindow()
+    if (!window) return { ok: false, message: 'No window.' }
+    const picked = await dialog.showSaveDialog(window, {
+      title: 'Export playersettings.txt',
+      defaultPath: 'playersettings.txt',
+      filters: [{ name: 'Player settings', extensions: ['txt'] }]
+    })
+    if (picked.canceled || !picked.filePath) {
+      return { ok: false, message: 'Export cancelled.' }
+    }
+
+    await writeFile(picked.filePath, serializePlayerSettingsTxt(tweaks), 'utf-8')
+    return { ok: true, message: 'Exported playersettings.txt.', outputPath: picked.filePath }
   })
 
   // AI preset assistant. Handlers return messages, never throw across IPC, and

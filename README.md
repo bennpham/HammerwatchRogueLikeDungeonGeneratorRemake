@@ -232,6 +232,11 @@ override**:
   load/save the same format, so configs from the original tool carry over
   (its old monster keys like `maxBats` are reported and ignored — the modified
   roster uses `maxBats1` etc.).
+- **Import playersettings.txt** / **Export playersettings.txt** (the row
+  below) do the same for the **Player** tab alone — its `player.*` lines,
+  same format. Importing one replaces the Player tab and nothing else, so the
+  intended order is parameters.txt (or a preset) first, then a player build on
+  top. A key the file leaves out is stock.
 
 User-data folder: `%APPDATA%/hammerwatch-roguelike-dungeon-generator` (Windows),
 `~/.config/hammerwatch-roguelike-dungeon-generator` (Linux),

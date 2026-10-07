@@ -42,6 +42,8 @@ src/
 │   │   ├── claudePresets.ts CLAUDE_PRESETS — the 10 "Claude Generated" presets
 │   │   ├── themes.ts     THEME_DEFS — tileset path, tile count, doodad token
 │   │   ├── configFile.ts parameters.txt parse/serialize (original format)
+│   │   ├── playerSettingsFile.ts playersettings.txt — the Player tab's
+│   │   │                 `player.*` lines alone; import REPLACES playerTweaks
 │   │   └── validation.ts every crash path of the original, as a rule
 │   ├── campaign.ts       the campaign's PLAY ORDER and level ids —
 │   │                     CampaignSlot (floor | boss | lobby), CampaignCounts,
@@ -1554,6 +1556,16 @@ same `GeneratedFile[]` the levels produce.
 - **Round-trip.** `serializeParametersTxt` appends the pruned overrides in
   sorted key order (floats as `toFixed(6)`); the parser routes any `player.*`
   key through `TWEAK_FIELD_MAP` and reports unrecognized ones in `unknownKeys`.
+  Both directions go through `formatTweakLine` / `parseTweakValue`
+  (`tweak/overrides.ts`), which **playersettings.txt** shares
+  (`config/playerSettingsFile.ts`, issue #77): the same `player.*` lines on
+  their own, CRLF, behind a `#` header. Unlike parameters.txt it is **not** an
+  overlay — importing it *replaces* `playerTweaks` (a key it omits is stock), so
+  export-then-import is exact. Non-`player.*` keys land in `ignoredKeys`, so a
+  whole parameters.txt imported there yields just its player half. IPC is
+  `playerSettings:import` / `playerSettings:export`, carrying only the tweak
+  record; the header shows the two buttons as the second row of a 2×2 grid
+  under the parameters.txt pair.
 - **Upgrades set, they don't add.** An upgrade writes an absolute value, so a
   ladder left at stock while its starting stat is raised turns into a paid
   downgrade. `chains.ts` groups upgrades into ladders and derives a

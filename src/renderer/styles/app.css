@@ -56,8 +56,17 @@ body {
 
 .header-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+/* parameters.txt on the top row, playersettings.txt under it — the order the
+   two are meant to be layered in */
+.file-actions {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 6px 8px;
 }
 
 /* the round header icon (the assistant's chat button) — same circle as
