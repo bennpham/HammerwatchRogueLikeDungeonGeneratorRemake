@@ -147,8 +147,8 @@ body {
   margin: 0;
 }
 
-/* one collapsible group per PRESET_GROUPS entry, all closed when the dialog
-   opens; the summary reads like the old h3 header */
+/* one collapsible group per PRESET_GROUPS entry, Classic open and the rest
+   closed when the dialog opens; the summary reads like the old h3 header */
 .preset-group {
   border-top: 1px solid var(--border);
 }
