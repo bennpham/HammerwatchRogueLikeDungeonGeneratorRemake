@@ -82,11 +82,17 @@ export function HeaderGuide() {
             </li>
           </ul>
 
-          <h3>Reset</h3>
-          <p>
-            Resets only the left-panel tab you are looking at, which is why its label changes (Reset lobbies,
-            Reset player tweaks, …). The other tabs are left alone.
-          </p>
+          <h3>Reset and Reset all</h3>
+          <ul>
+            <li>
+              <strong>Reset</strong> resets only the left-panel tab you are looking at, which is why its label
+              changes (Reset lobbies, Reset player tweaks, …). The other tabs are left alone.
+            </li>
+            <li>
+              <strong>Reset all</strong> (red) puts every tab back to the defaults. It asks first, and the toast
+              afterwards has an <strong>Undo</strong>. Your Hammerwatch folder is kept.
+            </li>
+          </ul>
 
           <h3>AI assistant (chat icon)</h3>
           <ul>

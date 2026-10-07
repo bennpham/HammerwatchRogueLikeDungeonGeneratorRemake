@@ -69,6 +69,33 @@ body {
   gap: 6px 8px;
 }
 
+/* the per-tab Reset over the red Reset all, same row height as .file-actions */
+.reset-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.confirm-dialog {
+  width: min(440px, calc(100vw - 32px));
+}
+
+.confirm-dialog h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.confirm-dialog p {
+  margin: 0 0 8px;
+  line-height: 1.5;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
 /* the round header icon (the assistant's chat button) — same circle as
    .info-tip, but a real button because it opens a dialog */
 .preset-guide-button {
@@ -929,6 +956,19 @@ button.primary {
 
 button.primary:hover:not(:disabled) {
   background: #e0b54f;
+}
+
+/* destructive actions — Reset all and its confirm */
+button.danger {
+  background: #a8382c;
+  border-color: var(--error);
+  color: #fff;
+  font-weight: 600;
+}
+
+button.danger:hover:not(:disabled) {
+  background: #c24536;
+  border-color: #f08a7c;
 }
 
 /* banners */
