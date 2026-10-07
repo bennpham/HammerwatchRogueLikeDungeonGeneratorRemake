@@ -193,7 +193,9 @@ When hosting a generated campaign in Hammerwatch 1.41:
 
 1. **Set your Hammerwatch folder** (bottom panel) — the folder containing
    `editor/` and `levels/`. It's saved for next time.
-2. **Tweak parameters** in the left panel, across five tabs — **Lobby** (the
+2. Optionally start from a preset: **Load preset…** in the header lists every
+   preset with a description, grouped and collapsed by family.
+3. **Tweak parameters** in the left panel, across five tabs — **Lobby** (the
    shop rooms and their presets), **Dungeon** (floors, rooms, monsters),
    **Boss** (the arena, its waves and its spawn modes), **Floor order** (how
    the lobbies, floors and boss fights interleave) and **Player** (class
@@ -202,13 +204,13 @@ When hosting a generated campaign in Hammerwatch 1.41:
    combinations show inline errors and disable the Generate button, with an
    explanation of what to fix; purely cosmetic caveats show as warnings and
    still generate.
-3. Optionally enter a **seed** to reproduce a dungeon; leave blank for random.
-4. Press **Generate dungeon** and browse the per-floor map preview
+4. Optionally enter a **seed** to reproduce a dungeon; leave blank for random.
+5. Press **Generate dungeon** and browse the per-floor map preview
    (rooms are color-coded — entrance, exit, orb, shop, vault, lairs, locks).
    Re-roll until you like the layout.
-5. Press **Install into Hammerwatch** (runs LevelPacker automatically), or
+6. Press **Install into Hammerwatch** (runs LevelPacker automatically), or
    **Export folder…** / **Export .zip…** to pack manually.
-6. In Hammerwatch: the campaign appears in the level list as
+7. In Hammerwatch: the campaign appears in the level list as
    `Dungeon #<seed>`.
 
 > **Note (Linux/macOS):** `LevelPacker.exe` is a Windows tool that ships with
@@ -237,7 +239,7 @@ User-data folder: `%APPDATA%/hammerwatch-roguelike-dungeon-generator` (Windows),
 
 ### AI preset assistant (optional)
 
-A chat icon in the header (left of the presets "i") opens an assistant that turns
+A chat icon in the header (left of **Load preset…**) opens an assistant that turns
 "4 icy floors, a boss on the last one, lots of traps" into settings. It is
 **strictly opt-in**: the icon only opens a setup screen, and the app makes no
 network request until you pick a provider and send a message (or press

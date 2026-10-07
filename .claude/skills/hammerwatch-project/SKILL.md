@@ -385,9 +385,12 @@ enabled, **no upper bound** (mirrors `levels`), written as `bossFights` in
 
 ### Campaign presets
 
-**Four groups.** Every `CampaignPreset` carries a `group`. The dropdown renders
-one native `<optgroup>` per `PRESET_GROUPS` entry, in that array's order, and
-each shows as a greyed, unselectable header. `preAlpha` ("Pre-Alpha") holds
+**Four groups.** Every `CampaignPreset` carries a `group`. Presets load only
+from the header's **Load preset…** button, which opens `PresetGuide`'s dialog
+(issue #77 removed the quick dropdown: one misclick there replaced a parameter
+set before it was exported). The dialog renders one native `<details>` per
+`PRESET_GROUPS` entry, in that array's order, all collapsed on open, each row
+a description and a Load button. `preAlpha` ("Pre-Alpha") holds
 `pre-alpha`: the Java original's `parameters.txt` with every remake layer off,
 and `army1`/`army2`/`lich2` split into today's types. `classic`
 ("Classic") holds castle / desert / bonus. Castle stays at index 0 of
@@ -505,8 +508,8 @@ three levels deep on purpose (`boss` -> the `fights` array -> `fights[0]` ->
 `arena`): a shallow `{...base, boss}` would share one `arena` object between
 callers. All three presets ship the boss-death tier
 **populated**. `build()` must return a
-fresh object every call and draw no random values — the header dropdown in
-`App.tsx` calls it to replace the whole parameter set. Changing a preset's pools
+fresh object every call and draw no random values — the preset dialog's Load
+button (`App.tsx`'s `applyPreset`) calls it to replace the whole parameter set. Changing a preset's pools
 is a content change, not an RNG change: it does not move any seed generated with
 explicitly-supplied parameters, but it does change what the *default* produces.
 

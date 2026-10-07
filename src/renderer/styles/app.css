@@ -60,16 +60,8 @@ body {
   flex-wrap: wrap;
 }
 
-/* sits in the header button row, so it lines up with the buttons rather than
-   stacking label-over-control like the form fields do */
-.preset-picker {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-/* the (i) left of the preset dropdown — same circle as .info-tip, but a real
-   button because it opens the preset guide */
+/* the round header icon (the assistant's chat button) — same circle as
+   .info-tip, but a real button because it opens a dialog */
 .preset-guide-button {
   align-self: center;
   width: 22px;
@@ -127,17 +119,66 @@ body {
   color: var(--text-dim);
 }
 
-.preset-guide h3 {
-  margin: 16px 0 6px;
+.preset-guide dl {
+  margin: 0;
+}
+
+/* one collapsible group per PRESET_GROUPS entry, all closed when the dialog
+   opens; the summary reads like the old h3 header */
+.preset-group {
+  border-top: 1px solid var(--border);
+}
+
+.preset-group:first-of-type {
+  margin-top: 12px;
+}
+
+.preset-group > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
 }
 
-.preset-guide dl {
-  margin: 0;
+.preset-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+.preset-group > summary::before {
+  content: '▸';
+  display: inline-block;
+  width: 10px;
+  transition: transform 0.1s;
+}
+
+.preset-group[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.preset-group > summary:hover,
+.preset-group > summary:focus-visible {
+  color: var(--accent);
+}
+
+.preset-group-count {
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--border);
+  color: var(--text);
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.preset-group > dl {
+  padding-bottom: 8px;
 }
 
 .preset-guide-row {

@@ -2,15 +2,20 @@ import React, { useRef } from 'react'
 import { CAMPAIGN_PRESETS, PRESET_GROUPS } from '../../generator'
 
 interface PresetGuideProps {
-  /** Loads a preset by id — the same handler the dropdown uses. */
+  /** Loads a preset by id. */
   onLoad: (id: string) => void
   disabled?: boolean
 }
 
 /**
- * An (i) button beside the preset dropdown that opens every preset's
- * description in one list, so a player can compare them without hovering each
- * option. A native `<dialog>` opened with `showModal()` supplies the backdrop,
+ * The header's "Load preset…" button and the dialog it opens: every preset with
+ * its description and a Load button. This is the only way to load a preset —
+ * the quick dropdown it replaced (issue #77) let one misclick overwrite a
+ * parameter set before it had been exported, so a preset is now picked after
+ * reading what it does. Each group is a native `<details>`, collapsed on open,
+ * so the list starts as a handful of headers rather than a long scroll.
+ *
+ * A native `<dialog>` opened with `showModal()` supplies the backdrop,
  * Escape-to-close and focus handling; clicking the backdrop also closes it.
  */
 export function PresetGuide({ onLoad, disabled }: PresetGuideProps) {
@@ -21,12 +26,12 @@ export function PresetGuide({ onLoad, disabled }: PresetGuideProps) {
     <>
       <button
         type="button"
-        className="preset-guide-button"
-        aria-label="What do the presets mean?"
-        title="What do the presets mean?"
+        className="preset-load-button"
+        disabled={disabled}
+        title="Browse the presets and load one"
         onClick={() => dialog.current?.showModal()}
       >
-        i
+        Load preset…
       </button>
       <dialog
         ref={dialog}
@@ -47,31 +52,37 @@ export function PresetGuide({ onLoad, disabled }: PresetGuideProps) {
           <p className="preset-guide-note">
             Loading a preset replaces everything on the Dungeon, Player and Lobby tabs.
           </p>
-          {PRESET_GROUPS.map((group) => (
-            <section key={group.id}>
-              <h3>{group.label}</h3>
-              <dl>
-                {CAMPAIGN_PRESETS.filter((preset) => preset.group === group.id).map((preset) => (
-                  <div key={preset.id} className="preset-guide-row">
-                    <div>
-                      <dt>{preset.label}</dt>
-                      <dd>{preset.description}</dd>
+          {PRESET_GROUPS.map((group) => {
+            const presets = CAMPAIGN_PRESETS.filter((preset) => preset.group === group.id)
+            return (
+              <details key={group.id} className="preset-group">
+                <summary>
+                  {group.label}
+                  <span className="preset-group-count">{presets.length}</span>
+                </summary>
+                <dl>
+                  {presets.map((preset) => (
+                    <div key={preset.id} className="preset-guide-row">
+                      <div>
+                        <dt>{preset.label}</dt>
+                        <dd>{preset.description}</dd>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => {
+                          onLoad(preset.id)
+                          close()
+                        }}
+                      >
+                        Load
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => {
-                        onLoad(preset.id)
-                        close()
-                      }}
-                    >
-                      Load
-                    </button>
-                  </div>
-                ))}
-              </dl>
-            </section>
-          ))}
+                  ))}
+                </dl>
+              </details>
+            )
+          })}
         </div>
       </dialog>
     </>

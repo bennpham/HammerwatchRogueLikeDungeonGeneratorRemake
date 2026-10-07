@@ -1,7 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  CAMPAIGN_PRESETS,
-  PRESET_GROUPS,
   arenaMode,
   campaignPresetById,
   defaultParameters,
@@ -169,9 +167,9 @@ export function App() {
 
   /**
    * Presets are a full parameter baseline, not a patch: picking one replaces
-   * everything on the Dungeon, Player and Lobby tabs. The dropdown snaps back to
-   * its placeholder rather than showing the chosen preset, because the very next
-   * edit to any field would make that label a lie.
+   * everything on the Dungeon, Player and Lobby tabs. The header never shows
+   * which preset was loaded, because the very next edit to any field would
+   * make that label a lie.
    */
   const applyPreset = (id: string) => {
     const preset = campaignPresetById(id)
@@ -254,29 +252,6 @@ export function App() {
             />
           )}
           <PresetGuide onLoad={applyPreset} disabled={busy} />
-          <label className="preset-picker">
-            <span className="field-label">Preset</span>
-            <select
-              value=""
-              disabled={busy}
-              onChange={(e) => {
-                applyPreset(e.target.value)
-                e.target.value = ''
-              }}
-            >
-              <option value="">Load a preset…</option>
-              {/* one greyed, unselectable header per group — native optgroup */}
-              {PRESET_GROUPS.map((group) => (
-                <optgroup key={group.id} label={group.label}>
-                  {CAMPAIGN_PRESETS.filter((preset) => preset.group === group.id).map((preset) => (
-                    <option key={preset.id} value={preset.id} title={preset.description}>
-                      {preset.label}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </label>
           <button onClick={importParams} disabled={busy}>Import parameters.txt</button>
           <button onClick={exportParams} disabled={busy}>Export parameters.txt</button>
           <button onClick={resetDefaults} disabled={busy}>
