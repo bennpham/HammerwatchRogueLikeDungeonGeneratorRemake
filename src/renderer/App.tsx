@@ -20,7 +20,7 @@ import { LoadoutSheet } from './components/LoadoutSheet'
 import { OutputPanel } from './components/OutputPanel'
 import { PresetGuide } from './components/PresetGuide'
 import { HeaderGuide } from './components/HeaderGuide'
-import { ResetAllButton } from './components/ResetAllButton'
+import { ConfirmButton } from './components/ConfirmButton'
 import { PresetChat } from './components/PresetChat'
 import type { LlmConfig } from '../shared/llm/types'
 
@@ -139,38 +139,52 @@ export function App() {
     setParams({ ...params, playerTweaks })
   }
 
-  /** Resets whichever tab you are looking at, leaving the others alone. */
+  /**
+   * Resets whichever tab you are looking at, leaving the others alone.
+   * Confirmed in `ConfirmButton` first, and the toast still offers an Undo —
+   * one tab can hold a lot of careful work.
+   */
   const resetDefaults = () => {
+    const previous = params
+    let next: DungeonParameters
+    let message: string
     if (leftTab === 'player') {
-      setParams({ ...params, playerTweaks: {} })
-      showToast('info', 'Player tweaks cleared — no tweak files will be written.')
-      return
-    }
-    if (leftTab === 'lobby') {
-      setParams({ ...params, lobbies: defaultParameters().lobbies })
-      showToast('info', 'Lobbies reset to defaults.')
-      return
-    }
-    if (leftTab === 'boss') {
-      setParams({ ...params, boss: defaultParameters().boss })
-      showToast('info', 'Boss tab reset to defaults.')
-      return
-    }
-    if (leftTab === 'order') {
+      next = { ...params, playerTweaks: {} }
+      message = 'Player tweaks cleared — no tweak files will be written.'
+    } else if (leftTab === 'lobby') {
+      next = { ...params, lobbies: defaultParameters().lobbies }
+      message = 'Lobbies reset to defaults.'
+    } else if (leftTab === 'boss') {
+      next = { ...params, boss: defaultParameters().boss }
+      message = 'Arena tab reset to defaults.'
+    } else if (leftTab === 'order') {
       // Absent IS the default order, so resetting means dropping the key.
-      const next = { ...params }
+      next = { ...params }
       delete next.levelOrder
-      setParams(next)
-      showToast('info', 'Floor order reset — every floor, then every boss fight.')
-      return
+      message = 'Floor order reset — every floor, then every boss fight.'
+    } else {
+      next = { ...defaultParameters(), playerTweaks: params.playerTweaks, lobbies: params.lobbies, boss: params.boss }
+      message = 'Dungeon parameters reset to defaults.'
     }
-    setParams({ ...defaultParameters(), playerTweaks: params.playerTweaks, lobbies: params.lobbies, boss: params.boss })
-    showToast('info', 'Dungeon parameters reset to defaults.')
+    setParams(next)
+    showToast('info', message, () => {
+      setParams(previous)
+      showToast('info', 'Undid the reset.')
+    })
   }
+
+  /** The per-tab Reset's label and the tab name its confirm dialog names. */
+  const resetTab = {
+    player: { label: 'Reset player tweaks', tab: 'Player' },
+    lobby: { label: 'Reset lobbies', tab: 'Lobby' },
+    boss: { label: 'Reset arena tab', tab: 'Arena' },
+    order: { label: 'Reset floor order', tab: 'Floor order' },
+    dungeon: { label: 'Reset defaults', tab: 'Dungeon' }
+  }[leftTab]
 
   /**
    * Every tab back to `defaultParameters()` — what the app opens with when no
-   * parameters.txt override exists. Confirmed in `ResetAllButton` first, and
+   * parameters.txt override exists. Confirmed in `ConfirmButton` first, and
    * the toast still offers an Undo. App settings (the Hammerwatch folder) are
    * not parameters and are left alone.
    */
@@ -329,18 +343,32 @@ export function App() {
             </button>
           </div>
           <div className="reset-actions">
-            <button onClick={resetDefaults} disabled={busy}>
-              {leftTab === 'player'
-                ? 'Reset player tweaks'
-                : leftTab === 'lobby'
-                  ? 'Reset lobbies'
-                  : leftTab === 'boss'
-                    ? 'Reset arena tab'
-                    : leftTab === 'order'
-                      ? 'Reset floor order'
-                      : 'Reset defaults'}
-            </button>
-            <ResetAllButton onConfirm={resetAll} disabled={busy} />
+            <ConfirmButton
+              label={resetTab.label}
+              variant="warning"
+              title={`Reset the ${resetTab.tab} tab to the defaults`}
+              heading={`Reset the ${resetTab.tab} tab?`}
+              body={
+                <>
+                  This puts everything on the <strong>{resetTab.tab}</strong> tab back to the defaults. The other
+                  tabs are left alone. Anything you have not exported will be lost, unless you press Undo right
+                  afterwards.
+                </>
+              }
+              confirmLabel={resetTab.label}
+              disabled={busy}
+              onConfirm={resetDefaults}
+            />
+            <ConfirmButton
+              label="Reset all"
+              variant="danger"
+              title="Reset every tab to the defaults"
+              heading="Reset everything?"
+              body="This puts the Lobby, Dungeon, Arena, Floor order and Player tabs back to the defaults. Anything you have not exported to parameters.txt will be lost, unless you press Undo right afterwards."
+              confirmLabel="Reset everything"
+              disabled={busy}
+              onConfirm={resetAll}
+            />
           </div>
         </div>
       </header>

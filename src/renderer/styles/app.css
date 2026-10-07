@@ -958,6 +958,20 @@ button.primary:hover:not(:disabled) {
   background: #e0b54f;
 }
 
+/* the per-tab Reset and its confirm — orange, so it reads as a step down from
+   Reset all's red and is not mistaken for the gold Generate button */
+button.warning {
+  background: #b8641c;
+  border-color: #e08a3c;
+  color: #fff;
+  font-weight: 600;
+}
+
+button.warning:hover:not(:disabled) {
+  background: #cf7526;
+  border-color: #f2a65e;
+}
+
 /* destructive actions — Reset all and its confirm */
 button.danger {
   background: #a8382c;
