@@ -1061,6 +1061,43 @@ button.primary:hover:not(:disabled) {
   color: var(--text-dim);
 }
 
+/* a skill with no bool flag (the warlock's gargoyle): an (i) where the
+   checkbox would be, opening a note on how to unlock it by hand */
+.stat-gated-skill-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: inherit;
+  text-align: left;
+}
+
+/* in the checkbox's column, not after a label like a normal .info-tip */
+.stat-gated-skill-toggle .info-tip {
+  margin-left: 0;
+  cursor: pointer;
+}
+
+.stat-gated-skill-toggle:hover .info-tip,
+.stat-gated-skill-toggle:focus-visible .info-tip,
+.stat-gated-skill-toggle[aria-expanded='true'] .info-tip {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.stat-gated-skill-note {
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  border-left: 3px solid var(--accent);
+  background: var(--bg);
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 /* the ladder's shop limit sits on the heading row, right-aligned */
 .chain-limit {
   margin-left: auto;

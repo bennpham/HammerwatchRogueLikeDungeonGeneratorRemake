@@ -27,7 +27,7 @@ import {
   resetQuickSetup,
   shopPrice
 } from '../src/generator/tweak'
-import { applyTweaks } from '../src/generator/tweak'
+import { TWEAK_BASELINE, applyTweaks } from '../src/generator/tweak'
 import type { TweakChain, TweakUnitFile } from '../src/generator/tweak'
 import { SKILL_UNLOCKS, fieldsOfGroup } from '../src/generator/tweak/bulk'
 import { validateParameters } from '../src/generator/config/validation'
@@ -309,6 +309,21 @@ describe('skill unlocks', () => {
     expect(knight).toContain('heal')
     expect(SKILL_UNLOCKS.some((u) => u.fileId === 'sorcerer' && u.flag === 'nova')).toBe(true)
     expect(SKILL_UNLOCKS.some((u) => u.fileId === 'wizard' && u.flag === 'meteor')).toBe(true)
+  })
+
+  // QuickSetup's STAT_GATED_SKILLS explains the gargoyle by hand instead of
+  // giving it a checkbox. If the baseline ever gains a bool for it, that note
+  // is wrong and the gargoyle belongs in SKILL_UNLOCKS like every other skill.
+  it('leaves the warlock gargoyle out: it is gated by 0 stats, not a bool', () => {
+    expect(SKILL_UNLOCKS.some((u) => u.fileId === 'warlock' && u.upgradeId === 'garg')).toBe(false)
+    const warlock = TWEAK_BASELINE.find((file) => file.id === 'warlock')
+    if (warlock?.kind !== 'unit') throw new Error('no warlock unit file')
+    const stock = (name: string) => warlock.params.find((p) => p.name === name)?.value
+    expect(stock('garg-dmg')).toBe(0)
+    expect(stock('garg-dur')).toBe(0)
+    const garg = warlock.upgrades.find((u) => u.id === 'garg')
+    expect(garg?.children.some((c) => c.type === 'bool')).toBe(false)
+    expect(garg?.children.map((c) => c.name)).toEqual(expect.arrayContaining(['garg-dmg', 'garg-dur']))
   })
 
   it('fills in the stats a locked skill leaves on sentinels', () => {

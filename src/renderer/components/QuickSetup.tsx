@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import {
   SHOP_PRICE_MAX,
   EXTRA_LIFE_UPGRADES,
@@ -46,7 +46,60 @@ const SKILLS_BY_CLASS = ((): Array<{ fileId: string; label: string; flags: strin
   }))
 })()
 
-type ShopChoice = Exclude<CostPolicy, 'mixed'> | 'mixed'
+/**
+ * Skills the game switches on by STATS rather than a bool flag, so
+ * SKILL_UNLOCKS (which collects bool flags) never lists them and they get no
+ * checkbox. Only the warlock's gargoyle: stock `garg-dmg` and `garg-dur` are 0,
+ * and its shop upgrade `garg` raises them — there is no `garg=true`. Each one
+ * gets an explanation in the checkbox's place instead; the stats are read off
+ * the baseline upgrade so the note cannot drift from the numbers.
+ */
+const STAT_GATED_SKILLS = [{ fileId: 'warlock', name: 'gargoyle', upgradeId: 'garg' }].map((skill) => {
+  const file = TWEAK_BASELINE.find((candidate) => candidate.id === skill.fileId)
+  const upgrade = file?.kind === 'unit' ? file.upgrades.find((u) => u.id === skill.upgradeId) : undefined
+  return {
+    ...skill,
+    cost: upgrade?.cost,
+    stats: (upgrade?.children ?? [])
+      .filter((child) => child.name !== 'lvl' && typeof child.value === 'number')
+      .map((child) => `${child.name} ${String(child.value)}`)
+  }
+})
+
+/** A checkbox-shaped row whose (i) opens the note on how to unlock the skill. */
+function StatGatedSkill({ skill }: { skill: (typeof STAT_GATED_SKILLS)[number] }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="stat-gated-skill">
+      <button
+        type="button"
+        className="stat-gated-skill-toggle"
+        aria-expanded={open}
+        title={`Why ${skill.name} has no checkbox`}
+        onClick={() => setOpen(!open)}
+      >
+        <span className="info-tip" aria-hidden="true">
+          i
+        </span>
+        <span>{skill.name}</span>
+      </button>
+      {open && (
+        <p className="stat-gated-skill-note">
+          The {skill.name} has no on/off switch in the game&apos;s files, so it cannot be ticked here and{' '}
+          <em>Start with all skills unlocked</em> leaves it out. The game keeps it locked by giving it 0 damage
+          and 0 duration. To start with it, open the{' '}
+          {TWEAK_BASELINE.find((file) => file.id === skill.fileId)?.label ?? skill.fileId} section below and,
+          under <em>Starting stats</em>, set {skill.stats.join(', ')} — what its shop upgrade (
+          <code>{skill.upgradeId}</code>
+          {skill.cost !== undefined && `, ${gold(skill.cost)}g`}) gives. Or keep that upgrade in the shop and
+          buy it as usual.
+        </p>
+      )}
+    </div>
+  )
+}
+
+type ShopChoice =Exclude<CostPolicy, 'mixed'> | 'mixed'
 
 const SHOP_OPTIONS: Array<{ value: ShopChoice; label: string; title: string }> = [
   { value: 'stock', label: 'Stock prices', title: 'The prices the game ships with' },
@@ -213,6 +266,9 @@ export function QuickSetup({ tweaks, onChange }: QuickSetupProps) {
                   checked={tweaks[`player.${group.fileId}.param.${flag}`] === 1}
                   onChange={(on) => onChange(applySkillUnlock(group.fileId, flag, on, tweaks))}
                 />
+              ))}
+              {STAT_GATED_SKILLS.filter((skill) => skill.fileId === group.fileId).map((skill) => (
+                <StatGatedSkill key={skill.name} skill={skill} />
               ))}
             </div>
           ))}
