@@ -6,7 +6,7 @@ import {
   serializePlayerSettingsTxt,
   validateParameters
 } from '../src/generator'
-import { PLAYER_PRESETS, TWEAK_FIELD_MAP, playerPresetById, pruneTweaks } from '../src/generator/tweak'
+import { PLAYER_PRESETS, PLAYER_PRESET_GROUPS, TWEAK_FIELD_MAP, playerPresetById, pruneTweaks } from '../src/generator/tweak'
 import { defaultParameters } from '../src/generator/config/parameters'
 import type { PlayerTweaks } from '../src/generator/tweak/types'
 
@@ -104,8 +104,13 @@ describe('playersettings.txt', () => {
 })
 
 describe('player presets', () => {
-  // The registry ships empty (issue #77). These hold the first build anyone
-  // adds to the same rules the campaign presets follow.
+  // Every build, present and future, is held to the same rules the campaign
+  // presets follow.
+  it('each sit in a known Player-tab group', () => {
+    const groups = new Set(PLAYER_PRESET_GROUPS.map((group) => group.id))
+    for (const preset of PLAYER_PRESETS) expect(groups.has(preset.group), preset.id).toBe(true)
+  })
+
   it('have unique ids, and playerPresetById finds each one', () => {
     const ids = PLAYER_PRESETS.map((preset) => preset.id)
     expect(new Set(ids).size).toBe(ids.length)

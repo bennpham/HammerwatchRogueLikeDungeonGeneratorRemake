@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react'
-import { CAMPAIGN_PRESETS, PLAYER_PRESETS, PRESET_GROUPS } from '../../generator'
+import { CAMPAIGN_PRESETS, PLAYER_PRESETS, PLAYER_PRESET_GROUPS, PRESET_GROUPS } from '../../generator'
 import type { PresetGroupId } from '../../generator'
 
 /** The one group open when the dialog first shows — Classic holds the default Castle. */
@@ -144,20 +144,34 @@ export function PresetGuide({ onLoad, onLoadPlayer, disabled }: PresetGuideProps
               {PLAYER_PRESETS.length === 0 ? (
                 <p className="preset-guide-empty">No player presets yet.</p>
               ) : (
-                <dl>
-                  {PLAYER_PRESETS.map((preset) => (
-                    <PresetRow
-                      key={preset.id}
-                      label={preset.label}
-                      description={preset.description}
-                      disabled={disabled}
-                      onLoad={() => {
-                        onLoadPlayer(preset.id)
-                        close()
-                      }}
-                    />
-                  ))}
-                </dl>
+                // same collapsible sections as the campaign tab; all open, since
+                // the player list is short
+                PLAYER_PRESET_GROUPS.map((group) => {
+                  const presets = PLAYER_PRESETS.filter((preset) => preset.group === group.id)
+                  if (presets.length === 0) return null
+                  return (
+                    <details key={group.id} className="preset-group" open>
+                      <summary>
+                        {group.label}
+                        <span className="preset-group-count">{presets.length}</span>
+                      </summary>
+                      <dl>
+                        {presets.map((preset) => (
+                          <PresetRow
+                            key={preset.id}
+                            label={preset.label}
+                            description={preset.description}
+                            disabled={disabled}
+                            onLoad={() => {
+                              onLoadPlayer(preset.id)
+                              close()
+                            }}
+                          />
+                        ))}
+                      </dl>
+                    </details>
+                  )
+                })
               )}
             </>
           )}

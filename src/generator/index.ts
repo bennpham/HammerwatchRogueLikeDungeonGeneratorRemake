@@ -261,6 +261,7 @@ export {
   shopPrice,
   totalShopCost,
   PLAYER_PRESETS,
+  PLAYER_PRESET_GROUPS,
   playerPresetById
 } from './tweak'
 export type {
@@ -270,6 +271,7 @@ export type {
   CurveMode,
   LoadoutStat,
   PlayerPreset,
+  PlayerPresetGroupId,
   PlayerTweaks,
   ShopRemoval,
   StatFactor,
