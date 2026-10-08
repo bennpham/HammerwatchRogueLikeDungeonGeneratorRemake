@@ -415,6 +415,11 @@ holds four presets — levels 1, 10, 25 and 50. HW2 is an RPG, so only class
 base attributes, largest remainder), and `bodyOverrides` shifts the class's own
 health/mana ladders by the start's delta and scales its mana-regen ladder by
 the start's ratio, read off `TWEAK_BASELINE`, so no tier becomes a downgrade.
+Priest and sorcerer have no HW2 class: `HW2_ANCHORED` scales both off HW2's
+wizard by their stock ratios to it (sorcerer = the wizard's twin; priest
+frailest), and takes their mana-regen LADDER from the wizard's tier by tier ×
+that ratio so the priest stays the fastest-regen class even fully upgraded
+(owner's call — the stock priest ladder tops out slower than the wizard's).
 A dozen HW2 skill values are copied faithfully (even where weaker), removing
 original tiers HW2 lacks. Every preset must add **no** validation warning over
 the stock Player tab (test-enforced); that is why `removalCascade` no longer

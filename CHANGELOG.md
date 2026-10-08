@@ -30,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Mana regen** grows with level.
   - **Shop upgrades** move up with the new starting stats, so every upgrade still improves the character.
   - **HW2 skill values** carry over where they mean the same thing: a weaker knight stun and a longer charge, thief dodge capped at 20% with a 3/5/7 knife fan, ranger crit 10/20/30% and longer roots, a stronger starting wizard bolt with 12 nova shards and at most 5 meteors, and a longer warlock storm with lightning that hits fewer targets.
-  - **Priest and sorcerer** aren't in HW2, so they keep the original values.
+  - **Priest and sorcerer** aren't in HW2, so they're scaled off HW2's wizard to keep up with the other classes. The sorcerer stays the wizard's twin (same body, plus HW2's 12-shard frost nova). The priest stays the frailest class, with the fastest mana regen at every upgrade tier and the biggest mana pool when fully upgraded. Level 50: priest 240 HP / 552 mana, sorcerer 280 / 591.
   - **Not included:** HW2's attributes, stamina, cooldowns, gear and most of its skills, which the original game can't express.
   - Extra lives stay out of the shop.
   - The research is in `reference/hammerwatch-2-comparison.md`.
