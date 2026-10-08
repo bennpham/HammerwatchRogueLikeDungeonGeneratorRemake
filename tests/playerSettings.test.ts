@@ -126,6 +126,14 @@ describe('player presets', () => {
     }
   })
 
+  // This generator's campaigns never sell extra lives. Loading a preset
+  // replaces the whole Player tab, so each one has to carry the removal itself.
+  it('never put extra lives back in the shop', () => {
+    for (const preset of PLAYER_PRESETS) {
+      expect(preset.build()['player.shared.remove.life'], preset.id).toBe(1)
+    }
+  })
+
   it('survive a playersettings.txt round trip', () => {
     for (const preset of PLAYER_PRESETS) {
       const tweaks = preset.build()

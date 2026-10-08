@@ -149,8 +149,10 @@ export function App() {
     let next: DungeonParameters
     let message: string
     if (leftTab === 'player') {
-      next = { ...params, playerTweaks: {} }
-      message = 'Player tweaks cleared — no tweak files will be written.'
+      // the default, not `{}`: it carries the extra-life removal, and this
+      // generator's campaigns never sell lives
+      next = { ...params, playerTweaks: defaultParameters().playerTweaks }
+      message = 'Player tweaks reset to defaults — extra lives stay out of the shop.'
     } else if (leftTab === 'lobby') {
       next = { ...params, lobbies: defaultParameters().lobbies }
       message = 'Lobbies reset to defaults.'

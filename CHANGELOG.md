@@ -15,13 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Movement:** everyone moves at 1.1 instead of 0.9, and the shop's speed upgrades give 1.2 / 1.3 / 1.4. AE gives ranged classes 1.0 and melee classes 1.2; the original has one speed for everyone, so this splits the difference.
   - **Damage:** stronger knight sword (13, up to 46) and wizard fireball (16, up to 40), plus AE's thief knife tiers.
   - **Combo and shop:** a longer combo window, AE's shop prices (cheaper first tiers, a 1000g damage potion), knight armor 10/12 at the top tiers, and cheaper warlock lightning.
-  - **Not included:** moving while casting, which only AE's engine supports.
+  - **Not included:** moving while casting, which only AE's engine supports. AE's extra-life shop is left out too: this generator's campaigns never sell lives.
   - The full comparison is in `reference/hammerwatch-ae-comparison.md`.
 - **Reset all.** A red **Reset all** button under the per-tab Reset puts every tab back to the defaults. An "are you sure?" dialog asks first (Cancel has the focus), and the toast afterwards has an **Undo**. Your Hammerwatch folder and other app settings are kept.
 - **Header help.** An (i) button at the left of the header explains every header control: how parameters.txt and playersettings.txt differ and the order to import them in, Campaign vs Player presets, what Reset resets, the AI assistant, and the startup parameters.txt override.
 
 ### Changed
 
+- **Resets never reopen the life shop.** **Reset player tweaks** now resets the Player tab to the campaign default instead of clearing it, and the Quick setup's **Reset** keeps the extra-life removal. Both used to put buyable extra lives back in the shop, which this generator's campaigns never sell.
 - **The per-tab Reset asks first.** It is now orange and opens the same "are you sure?" dialog as Reset all, naming the tab it will reset, since even one tab can hold a lot of work. Its toast now has an **Undo** too.
 - **Load preset button (issue #77).** The header's preset dropdown is gone; one misclick there could replace your parameters before you had exported them. **Load preset…** opens the preset guide instead, so you read a preset's description before loading it. The chat button stays on its left, and the (i) left of the chat button now opens the header help (below) instead of the preset guide.
 - **Collapsible preset groups.** In the preset guide, Pre-Alpha, Classic, Colosseum and Claude Generated each fold into a header showing how many presets it holds. Classic starts open; the others start collapsed.

@@ -292,7 +292,8 @@ export function QuickSetup({ tweaks, onChange }: QuickSetupProps) {
           <strong>Fully upgraded</strong> bakes every upgrade&apos;s result into the starting stats
           and unlocks every skill, so nobody has to shop at all — set your multipliers first, since
           it captures the ladder as it stands. <strong>Reset</strong> returns every character stat,
-          price and skill to the stock game, leaving enemy difficulty alone.
+          price and skill to the stock game, leaving enemy difficulty alone and extra lives out of
+          the shop.
         </p>
       </Subsection>
     </>

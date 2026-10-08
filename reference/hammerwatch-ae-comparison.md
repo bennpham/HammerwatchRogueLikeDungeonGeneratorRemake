@@ -49,6 +49,10 @@ mana/heal and the gargoyle's stats.
 
 ## Differs, but not copied
 
+- **Extra lives.** AE sells them (350g, `PowerShopMenuContent.as`), but this
+  generator's campaigns never do, so the preset keeps
+  `player.shared.remove.life`. That is a house rule, not an AE difference.
+
 - **Built differently in AE, so the numbers aren't comparable:**
   - **Wizard flame spray:** AE fires 2 piercing projectiles every 150 ms (damage 4…18, mana 2…4).
   - **Ranges and projectile speeds:** fireball range, shard bounce, comet drop distance, smite range, bow projectile speed, thief chain speed.

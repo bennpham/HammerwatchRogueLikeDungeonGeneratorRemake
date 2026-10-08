@@ -1,4 +1,4 @@
-import { costKey, effectKey, paramKey } from './chains'
+import { costKey, effectKey, paramKey, removeKey } from './chains'
 import type { PlayerTweaks } from './types'
 
 /**
@@ -11,6 +11,11 @@ import type { PlayerTweaks } from './types'
  * (pruned) record every call and draw no random values. Every key must be a
  * `TWEAK_FIELD_MAP` key — `tests/playerSettings.test.ts` holds each entry to
  * that and to validating cleanly on top of `defaultParameters()`.
+ *
+ * Every preset must keep `player.shared.remove.life`: this generator's
+ * campaigns never sell extra lives, and since loading a preset replaces the
+ * Player tab, a preset without it would put lives back in the shop. A test
+ * enforces it.
  */
 export interface PlayerPreset {
   /** stable id the preset dialog loads by; never shown to the user */
@@ -71,6 +76,10 @@ function anniversaryEdition(): PlayerTweaks {
       'combo-time-5': 2.25
     }),
     ...costs('shared', { 'pot-dmg': 1000 }),
+    // AE sells extra lives (350g), but this generator's campaigns never do —
+    // a preset replaces the whole Player tab, so it must carry the removal
+    // `defaultParameters()` ships, or loading it would reopen the life shop
+    [removeKey('shared', 'life')]: 1,
 
     // paladin/skills/ — AE's paladin is the original's knight
     [paramKey('knight', 'sword-dmg')]: 13,
