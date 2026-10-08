@@ -10,7 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **playersettings.txt (issue #77).** **Import playersettings.txt** and **Export playersettings.txt** sit under the parameters.txt buttons and cover only the Player tab: class stats, upgrade costs, shop removals and difficulty multipliers. Importing replaces the Player tab and leaves the Dungeon, Lobby, Arena and Floor order tabs alone, so you can load a campaign first and then layer a player build on top. A setting the file doesn't mention goes back to stock. The toast has an **Undo**. Importing a whole parameters.txt this way takes only its player settings.
-- **Campaign and Player preset tabs.** The preset guide has two tabs. **Campaign presets** lists the existing presets, which replace everything. **Player presets** will list player builds that, like playersettings.txt, replace only the Player tab. None ship yet.
+- **Campaign and Player preset tabs.** The preset guide has two tabs. **Campaign presets** lists the existing presets, which replace everything. **Player presets** lists player builds that, like playersettings.txt, replace only the Player tab.
+- **Anniversary Edition player preset.** The first player preset makes the original game's classes play like Hammerwatch Anniversary Edition:
+  - **Movement:** everyone moves at 1.1 instead of 0.9, and the shop's speed upgrades give 1.2 / 1.3 / 1.4. AE gives ranged classes 1.0 and melee classes 1.2; the original has one speed for everyone, so this splits the difference.
+  - **Damage:** stronger knight sword (13, up to 46) and wizard fireball (16, up to 40), plus AE's thief knife tiers.
+  - **Combo and shop:** a longer combo window, AE's shop prices (cheaper first tiers, a 1000g damage potion), knight armor 10/12 at the top tiers, and cheaper warlock lightning.
+  - **Not included:** moving while casting, which only AE's engine supports.
+  - The full comparison is in `reference/hammerwatch-ae-comparison.md`.
 - **Reset all.** A red **Reset all** button under the per-tab Reset puts every tab back to the defaults. An "are you sure?" dialog asks first (Cancel has the focus), and the toast afterwards has an **Undo**. Your Hammerwatch folder and other app settings are kept.
 - **Header help.** An (i) button at the left of the header explains every header control: how parameters.txt and playersettings.txt differ and the order to import them in, Campaign vs Player presets, what Reset resets, the AI assistant, and the startup parameters.txt override.
 

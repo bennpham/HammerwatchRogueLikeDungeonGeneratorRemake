@@ -174,7 +174,7 @@ src/
 │   │   │                 skill unlocks, fully-upgraded preset, removals
 │   │   ├── loadout.ts    buildLoadouts() — start/maxed character sheets
 │   │   ├── presets.ts    PLAYER_PRESETS — named player builds for the preset
-│   │   │                 dialog's Player tab (empty so far)
+│   │   │                 dialog's Player tab: `anniversary` (AE balance)
 │   │   └── xml.ts        the tweak XML dialect (separate from xml/)
 │   └── index.ts          generateDungeon() + all public types
 ├── main/                 index.ts (window), ipc.ts (handlers + last-result
@@ -396,10 +396,14 @@ set before it was exported). The dialog renders one native `<details>` per
 `PRESET_GROUPS` entry, in that array's order, Classic open and the rest collapsed on open, each row
 a description and a Load button. That is the dialog's **Campaign presets** tab;
 its **Player presets** tab lists `PLAYER_PRESETS` (`tweak/presets.ts` — `{id,
-label, description, build(): PlayerTweaks}`, empty so far), whose Load replaces
-only `playerTweaks`, the same as importing a playersettings.txt.
+label, description, build(): PlayerTweaks}`), whose Load replaces only
+`playerTweaks`, the same as importing a playersettings.txt.
 `tests/playerSettings.test.ts` holds each entry to fresh/pruned/real keys/
-validates. `preAlpha` ("Pre-Alpha") holds
+validates. The first entry, `anniversary`, ports Hammerwatch Anniversary
+Edition's player balance (shared move-speed 1.1 — AE splits it 1.0 ranged /
+1.2 melee, the original has one key — plus AE's damage and prices, 61 keys);
+`reference/hammerwatch-ae-comparison.md` records the full AE comparison, what
+was copied, what was skipped as not comparable, and AE's data bugs. `preAlpha` ("Pre-Alpha") holds
 `pre-alpha`: the Java original's `parameters.txt` with every remake layer off,
 and `army1`/`army2`/`lich2` split into today's types. `classic`
 ("Classic") holds castle / desert / bonus. Castle stays at index 0 of
