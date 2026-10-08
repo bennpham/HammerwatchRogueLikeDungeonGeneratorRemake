@@ -13,8 +13,8 @@ import type { PlayerTweaks, TweakUnitFile } from './types'
  * HW2 is an RPG (attributes, levels to 50, weapon-based damage, stamina,
  * cooldowns, percentage armor), so most of it has no tweak key here. What does
  * carry over is a class's health, mana and mana regen, which HW2 derives from
- * its level and attributes. Priest and sorcerer are not playable in HW2 and
- * stay at the original's values.
+ * its level and attributes. Priest and sorcerer are not playable in HW2, so
+ * they are scaled off HW2's wizard — see `HW2_ANCHORED`.
  */
 
 /** One HW2 class, from `players/classes.inc`, mapped onto the original's unit id. */
@@ -113,9 +113,10 @@ function stockParam(file: TweakUnitFile, name: string): number {
  * own upgrade ladders with them, read off the baseline, so every upgrade still
  * improves on the new start: health and mana tiers shift by the same amount
  * the start moved; mana-regen tiers (a period — lower is better) scale by the
- * same ratio.
+ * same ratio. `regenLadder`, when given, replaces the mana-regen tiers outright,
+ * in tier order (see `HW2_ANCHORED`).
  */
-function bodyOverrides(unit: string, body: Hw2Body): PlayerTweaks {
+function bodyOverrides(unit: string, body: Hw2Body, regenLadder?: readonly number[]): PlayerTweaks {
   const file = unitFile(unit)
   const healthDelta = body.maxHealth - stockParam(file, 'max-health')
   const manaDelta = body.maxMana - stockParam(file, 'max-mana')
@@ -125,16 +126,71 @@ function bodyOverrides(unit: string, body: Hw2Body): PlayerTweaks {
     [paramKey(unit, 'max-mana')]: body.maxMana,
     [paramKey(unit, 'mana-regen')]: body.manaRegenMs
   }
+  let regenTier = 0
   for (const upgrade of file.upgrades) {
     for (const child of upgrade.children) {
       if (typeof child.value !== 'number') continue
       const key = effectKey(unit, upgrade.id, child.name)
       if (child.name === 'max-health') out[key] = child.value + healthDelta
       else if (child.name === 'max-mana') out[key] = child.value + manaDelta
-      else if (child.name === 'mana-regen') out[key] = Math.round(child.value * regenRatio)
+      else if (child.name === 'mana-regen') {
+        out[key] = regenLadder?.[regenTier] ?? Math.round(child.value * regenRatio)
+        regenTier++
+      }
     }
   }
   return out
+}
+
+/** A class's stock mana-regen tiers, in upgrade order. */
+function stockRegenLadder(file: TweakUnitFile): number[] {
+  const tiers: number[] = []
+  for (const upgrade of file.upgrades) {
+    for (const child of upgrade.children) {
+      if (child.name === 'mana-regen' && typeof child.value === 'number') tiers.push(child.value)
+    }
+  }
+  return tiers
+}
+
+/**
+ * The original classes HW2 has no playable counterpart for. Each is anchored on
+ * its nearest HW2 sibling — the wizard, a fellow caster — and keeps the stock
+ * relationship it has to that sibling in the original game:
+ * - the sorcerer starts with exactly the wizard's body (35 / 75 / 600), so it
+ *   stays the wizard's twin, the other offensive caster;
+ * - the priest is the wizard × 30/35 health, × 70/75 mana and × 570/600 regen
+ *   period, so it stays the frailest class with the fastest regen.
+ * The mana-regen LADDER also comes from the anchor, tier by tier, × the same
+ * regen ratio: in the original the priest's ladder (→ 285 ms) tops out slower
+ * than the wizard's (→ 250 ms), and the owner wants the priest to stay the
+ * regen class even fully upgraded (2026-10-08). Health and mana ladders are the
+ * class's own, shifted — so the priest keeps its larger mana pool.
+ */
+const HW2_ANCHORED: readonly { unit: 'sorcerer' | 'priest'; anchor: Hw2Class['unit'] }[] = [
+  { unit: 'sorcerer', anchor: 'wizard' },
+  { unit: 'priest', anchor: 'wizard' }
+]
+
+/** Body and regen ladder for an anchored class at `level`. */
+function anchoredOverrides(unit: string, anchorUnit: Hw2Class['unit'], level: number): PlayerTweaks {
+  const anchorClass = HW2_CLASSES.find((cls) => cls.unit === anchorUnit)
+  if (anchorClass === undefined) throw new Error(`no HW2 class for ${anchorUnit}`)
+  const anchorBody = hw2Body(anchorClass, level)
+  const own = unitFile(unit)
+  const anchor = unitFile(anchorUnit)
+  const ratio = (stat: string) => stockParam(own, stat) / stockParam(anchor, stat)
+  const body: Hw2Body = {
+    maxHealth: Math.round(anchorBody.maxHealth * ratio('max-health')),
+    maxMana: Math.round(anchorBody.maxMana * ratio('max-mana')),
+    manaRegenMs: Math.round(anchorBody.manaRegenMs * ratio('mana-regen'))
+  }
+  // the anchor's own ladder as the anchor's preset shifts it, then × the ratio
+  const anchorRegenRatio = anchorBody.manaRegenMs / stockParam(anchor, 'mana-regen')
+  const regenLadder = stockRegenLadder(anchor).map((tier) =>
+    Math.round(tier * anchorRegenRatio * ratio('mana-regen'))
+  )
+  return bodyOverrides(unit, body, regenLadder)
 }
 
 /**
@@ -196,6 +252,10 @@ function hw2SkillOverrides(): PlayerTweaks {
     [effectKey('wizard', 'fnovanum-1', 'fnova-flames')]: 15,
     [effectKey('wizard', 'fnovanum-2', 'fnova-flames')]: 18,
     [effectKey('wizard', 'fnovanum-3', 'fnova-flames')]: 20,
+    // ...and the same ice ring is the sorcerer's own nova; ladder +3
+    [effectKey('sorcerer', 'nova', 'nova-shards')]: 12,
+    [effectKey('sorcerer', 'novanum-1', 'nova-shards')]: 16,
+    [effectKey('sorcerer', 'novanum-2', 'nova-shards')]: 20,
     // meteor shower tops out at 5 meteors (wiz_meteor.sval)
     [removeKey('wizard', 'meteornum-2')]: 1,
     [removeKey('wizard', 'meteornum-3')]: 1,
@@ -220,10 +280,12 @@ function hw2SkillOverrides(): PlayerTweaks {
 function hw2Build(level: number): PlayerTweaks {
   const tweaks: PlayerTweaks = { ...hw2SkillOverrides() }
   for (const cls of HW2_CLASSES) Object.assign(tweaks, bodyOverrides(cls.unit, hw2Body(cls, level)))
+  for (const { unit, anchor } of HW2_ANCHORED) Object.assign(tweaks, anchoredOverrides(unit, anchor, level))
   return pruneTweaks(tweaks)
 }
 
-const SKILLS_NOTE = 'HW2’s skill values where they carry over; priest and sorcerer stay original.'
+const SKILLS_NOTE =
+  'HW2’s skill values where they carry over. Priest and sorcerer, not in HW2, are scaled off the wizard (the priest stays frailest with the fastest mana regen).'
 
 export const HW2_PRESETS: readonly PlayerPreset[] = [
   {

@@ -221,10 +221,60 @@ describe('Hammerwatch 2 player presets', () => {
     expect(ladder).toEqual([70, 85, 95, 110, 125])
   })
 
-  it('leave priest and sorcerer at the original values', () => {
-    for (const preset of PLAYER_PRESETS.filter((p) => p.group === 'hw2')) {
-      const keys = Object.keys(preset.build())
-      expect(keys.some((key) => key.startsWith('player.priest.') || key.startsWith('player.sorcerer.')), preset.id).toBe(false)
-    }
+  describe('priest and sorcerer (not in HW2, anchored on the wizard)', () => {
+    const hw2 = () => PLAYER_PRESETS.filter((p) => p.group === 'hw2')
+    const body = (tweaks: PlayerTweaks, unit: string) => ({
+      maxHealth: tweaks[`player.${unit}.param.max-health`],
+      maxMana: tweaks[`player.${unit}.param.max-mana`],
+      manaRegenMs: tweaks[`player.${unit}.param.mana-regen`]
+    })
+    const regenLadder = (tweaks: PlayerTweaks, unit: string) =>
+      [1, 2, 3, 4, 5].map((n) => tweaks[`player.${unit}.effect.mana-${n}.mana-regen`])
+
+    it('give the sorcerer the wizard’s body at every level', () => {
+      for (const preset of hw2()) {
+        const tweaks = preset.build()
+        expect(body(tweaks, 'sorcerer'), preset.id).toEqual(body(tweaks, 'wizard'))
+      }
+    })
+
+    it('scale the priest off the wizard by their stock ratios', () => {
+      for (const preset of hw2()) {
+        const tweaks = preset.build()
+        const wizard = body(tweaks, 'wizard')
+        expect(body(tweaks, 'priest'), preset.id).toEqual({
+          maxHealth: Math.round((wizard.maxHealth * 30) / 35),
+          maxMana: Math.round((wizard.maxMana * 70) / 75),
+          manaRegenMs: Math.round((wizard.manaRegenMs * 570) / 600)
+        })
+      }
+    })
+
+    it('keep the priest the frailest class', () => {
+      const units = ['knight', 'ranger', 'thief', 'wizard', 'warlock', 'sorcerer']
+      for (const preset of hw2()) {
+        const tweaks = preset.build()
+        for (const unit of units) {
+          expect(tweaks['player.priest.param.max-health'], `${preset.id} vs ${unit}`).toBeLessThan(
+            tweaks[`player.${unit}.param.max-health`]
+          )
+        }
+      }
+    })
+
+    it('keep the priest’s mana regen fastest, start and every tier', () => {
+      for (const preset of hw2()) {
+        const tweaks = preset.build()
+        expect(body(tweaks, 'priest').manaRegenMs).toBeLessThan(body(tweaks, 'wizard').manaRegenMs)
+        const priest = regenLadder(tweaks, 'priest')
+        const wizard = regenLadder(tweaks, 'wizard')
+        priest.forEach((tier, i) => expect(tier, `${preset.id} tier ${i + 1}`).toBeLessThan(wizard[i]))
+      }
+    })
+
+    it('give the sorcerer HW2’s 12-shard frost nova', () => {
+      const tweaks = playerPresetById('hw2-level-1')!.build()
+      expect(tweaks['player.sorcerer.effect.nova.nova-shards']).toBe(12)
+    })
   })
 })

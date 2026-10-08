@@ -56,6 +56,22 @@ In HW2 the endgame is balanced by gear, percentage armor and enemies with
 and mana ladders by the same amount its start moved, and scale its mana-regen
 ladder by the same ratio, so every upgrade still improves on the new start.
 
+### Priest and sorcerer (no HW2 class; anchored on the wizard)
+
+Both are casters, and the wizard is their nearest HW2 sibling. Each keeps the
+relationship it has to the wizard in the original game, and the ratios are read
+from the baseline:
+
+- **Sorcerer:** the original sorcerer starts with exactly the wizard's body (35 / 75 / 600), so it gets HW2's wizard body unchanged. It stays the wizard's twin, the other offensive caster.
+- **Priest:** the wizard × 30/35 health, × 70/75 mana and × 570/600 regen period. It stays the frailest class, with the fastest regen.
+- **Priest regen ladder:** this comes from the wizard's ladder tier by tier, × 570/600, instead of shifting the priest's own ladder. In the original, the priest's ladder (→ 285 ms) tops out slower than the wizard's (→ 250 ms); the owner wanted the priest to stay the regen class even when fully upgraded.
+- **Priest health and mana ladders:** the priest's own, shifted, so it keeps its larger fully upgraded mana pool (393 vs 375 at level 1).
+
+| Class | Lvl 1 | Lvl 10 | Lvl 25 | Lvl 50 | Original start |
+|---|---|---|---|---|---|
+| sorcerer | 60 / 100 / 625 | 100 / 191 / 313 | 168 / 340 / 172 | 280 / 591 / 98 | 35 / 75 / 600 |
+| priest | 51 / 93 / 594 | 86 / 178 / 297 | 144 / 317 / 163 | 240 / 552 / 93 | 30 / 70 / 570 |
+
 ## Skill values that carry over
 
 | HW2 | Original key | HW2 → original |
@@ -69,6 +85,7 @@ ladder by the same ratio, so every upgrade still improves on the new start.
 | entangle 4 → 6 s | `ranger growth-duration` | 3/4/5 → 4/5/6 |
 | arcane bolt: wand 14 × 1.0…2.0 | `wizard fireball-dmg`, `dmg1..5` | 10…28 → 14/17/20/22/25/28 |
 | frost nova, 12 shards | `wizard fnova-flames` | 10 → 12 (ladder 15/18/20) |
+| the same ice ring as the sorcerer's nova | `sorcerer nova-shards` | 9 → 12 (ladder 13/17 → 16/20) |
 | meteor shower, at most 5 | `wizard remove.meteornum-2/-3` | 3/5/6/7 → 3/5 |
 | soul vortex 8/10/12 s | `warlock storm-dur` | 7/9/11 → 8/10/12 |
 | arc lightning, 3–6 targets | `warlock param.lightning-bounces`, `lightningtrg1..3`, `remove.lightningtrg4` | 5…9 → 3/4/5/6 |
@@ -83,7 +100,7 @@ Not copied:
 - **Damage.** Weapon-scaled damage (every basic attack and most skills) and spell damage tuned for HW2's late enemies, which is about 6–7× the original's. HW2 meteor does 400 against the original's 60, and arc lightning 120 against warlock lightning's 18.
 - **Systems the original lacks.** Stamina and dashes, cooldowns, percentage armor and elemental resistances, crit damage, attack and cast speed, and HP regen on every class.
 - **HW2-only skills.** Hammer, judgement, battle banner, wolves, rain of arrows, possession, ritual, the soul economy, haste, duplicate, barrier and around 40 more.
-- **Missing classes.** HW2 has no priest or sorcerer.
+- **Missing classes.** HW2 has no priest or sorcerer, so the presets scale both off HW2's wizard (see below).
 - **The original's ranger bomb.** It has no HW2 counterpart.
 
 Data that disagrees with its own description text:
