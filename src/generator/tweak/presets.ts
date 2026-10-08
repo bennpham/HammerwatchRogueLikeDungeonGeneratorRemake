@@ -17,6 +17,18 @@ import type { PlayerTweaks } from './types'
  * Player tab, a preset without it would put lives back in the shop. A test
  * enforces it.
  */
+export type PlayerPresetGroupId = 'anniversary' | 'hw2'
+
+/**
+ * The collapsible sections the preset dialog's Player tab groups presets under,
+ * in this order — the Player tab's counterpart of `PRESET_GROUPS`. One section
+ * per game a build is modelled on.
+ */
+export const PLAYER_PRESET_GROUPS: readonly { id: PlayerPresetGroupId; label: string }[] = [
+  { id: 'anniversary', label: 'Anniversary Edition' },
+  { id: 'hw2', label: 'Hammerwatch 2' }
+]
+
 export interface PlayerPreset {
   /** stable id the preset dialog loads by; never shown to the user */
   id: string
@@ -24,6 +36,8 @@ export interface PlayerPreset {
   label: string
   /** one-line description of what the build is for */
   description: string
+  /** which `PLAYER_PRESET_GROUPS` section this preset sits under */
+  group: PlayerPresetGroupId
   /** a fresh override record every call — never a shared mutable one */
   build(): PlayerTweaks
 }
@@ -124,7 +138,8 @@ function anniversaryEdition(): PlayerTweaks {
 export const PLAYER_PRESETS: readonly PlayerPreset[] = [
   {
     id: 'anniversary',
-    label: 'Anniversary Edition',
+    label: 'AE player balance',
+    group: 'anniversary',
     description:
       'Approximates Hammerwatch Anniversary Edition’s player balance: everyone moves faster, AE’s stronger sword, knives and fireball, a longer combo window and AE’s shop prices. Moving while casting is AE-only and not included.',
     build: anniversaryEdition

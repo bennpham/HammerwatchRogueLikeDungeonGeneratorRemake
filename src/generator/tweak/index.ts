@@ -80,5 +80,5 @@ export type {
   TweakUpgrade,
   TweakValueType
 } from './types'
-export { PLAYER_PRESETS, playerPresetById } from './presets'
-export type { PlayerPreset } from './presets'
+export { PLAYER_PRESETS, PLAYER_PRESET_GROUPS, playerPresetById } from './presets'
+export type { PlayerPreset, PlayerPresetGroupId } from './presets'
