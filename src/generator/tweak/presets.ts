@@ -1,4 +1,5 @@
 import { costKey, effectKey, paramKey, removeKey } from './chains'
+import { HW2_PRESETS } from './hw2Presets'
 import type { PlayerTweaks } from './types'
 
 /**
@@ -134,7 +135,7 @@ function anniversaryEdition(): PlayerTweaks {
   }
 }
 
-/** Every player preset, in the order the dialog lists them. */
+/** Every player preset, in the order the dialog lists them within each group. */
 export const PLAYER_PRESETS: readonly PlayerPreset[] = [
   {
     id: 'anniversary',
@@ -143,7 +144,8 @@ export const PLAYER_PRESETS: readonly PlayerPreset[] = [
     description:
       'Approximates Hammerwatch Anniversary Edition’s player balance: everyone moves faster, AE’s stronger sword, knives and fireball, a longer combo window and AE’s shop prices. Moving while casting is AE-only and not included.',
     build: anniversaryEdition
-  }
+  },
+  ...HW2_PRESETS
 ]
 
 export function playerPresetById(id: string): PlayerPreset | undefined {

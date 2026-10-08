@@ -596,6 +596,24 @@ describe('tiers sold', () => {
     expect(all.errors).toEqual([])
   })
 
+  it('does not count a dependent that is removed explicitly too', () => {
+    // health-4 and -5 require health-3; removing all three by hand takes
+    // nothing extra, so there is nothing to warn about
+    const all = validateParameters(
+      params({
+        'player.knight.remove.health-3': 1,
+        'player.knight.remove.health-4': 1,
+        'player.knight.remove.health-5': 1
+      })
+    )
+    expect(all.warnings.filter((w) => w.message.includes('missing entry'))).toEqual([])
+    // with health-5 left in, the cascade takes it, and that still warns
+    const some = validateParameters(
+      params({ 'player.knight.remove.health-3': 1, 'player.knight.remove.health-4': 1 })
+    )
+    expect(some.warnings.filter((w) => w.message.includes('missing entry'))).toHaveLength(1)
+  })
+
   it('clamps out-of-range counts', () => {
     const chain = healthChain()
     expect(pruneTweaks(applyTiersSold(chain, 99, {}))).toEqual({})

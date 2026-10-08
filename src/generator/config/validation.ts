@@ -1758,7 +1758,7 @@ function validatePlayerTweaks(
       if (field.group === 'remove' && value === 1) {
         // collected and summarised below: shortening one ladder is worth a note,
         // but the fully-upgraded preset shortens every ladder in the game
-        const cascade = removalCascade(field)
+        const cascade = removalCascade(field, tweaks)
         if (cascade > 0) cascades.push({ key, id: field.upgradeId ?? key, extra: cascade })
       }
       continue
@@ -1954,9 +1954,11 @@ function isEvasionStat(stat: string): boolean {
  * An upgrade names its prerequisite by id, so `applyTweaks` removes the whole
  * dependent subtree rather than leaving a `req` pointing at an entry the file no
  * longer contains. That is the right behaviour, but it can remove more than the
- * user picked, so it is worth saying out loud.
+ * user picked, so it is worth saying out loud. A dependent the user ALSO
+ * removed is not "more than they picked", so it is not counted — removing a
+ * whole ladder's tail tier by tier (as a player preset may) warns about nothing.
  */
-function removalCascade(field: TweakFieldDef): number {
+function removalCascade(field: TweakFieldDef, tweaks: PlayerTweaks): number {
   const file = TWEAK_BASELINE.find((candidate) => candidate.id === field.fileId)
   if (file === undefined || file.kind !== 'unit' || field.upgradeId === undefined) return 0
 
@@ -1973,7 +1975,12 @@ function removalCascade(field: TweakFieldDef): number {
     }
   }
 
-  return doomed.size - 1
+  let extra = 0
+  for (const id of doomed) {
+    if (id === field.upgradeId) continue
+    if (tweaks[`player.${field.fileId}.remove.${id}`.toLowerCase()] !== 1) extra++
+  }
+  return extra
 }
 
 /**
