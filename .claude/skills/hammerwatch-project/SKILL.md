@@ -407,7 +407,8 @@ Edition's player balance (shared move-speed 1.1 — AE splits it 1.0 ranged /
 1.2 melee, the original has one key — plus AE's damage and prices, 61 keys);
 `reference/hammerwatch-ae-comparison.md` records the full AE comparison, what
 was copied, what was skipped as not comparable, and AE's data bugs.
-The tab groups presets in collapsible `PLAYER_PRESET_GROUPS` sections (every
+The tab groups presets in collapsible `PLAYER_PRESET_GROUPS` sections, all
+collapsed on open (every
 preset carries a `group`). The **Hammerwatch 2** group (`tweak/hw2Presets.ts`)
 holds four presets — levels 1, 10, 25 and 50. HW2 is an RPG, so only class
 *bodies* carry over: `hw2Body` derives health/mana/mana-regen from HW2's
