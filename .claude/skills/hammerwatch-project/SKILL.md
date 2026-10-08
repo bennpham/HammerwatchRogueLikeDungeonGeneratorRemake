@@ -174,7 +174,10 @@ src/
 │   │   │                 skill unlocks, fully-upgraded preset, removals
 │   │   ├── loadout.ts    buildLoadouts() — start/maxed character sheets
 │   │   ├── presets.ts    PLAYER_PRESETS — named player builds for the preset
-│   │   │                 dialog's Player tab: `anniversary` (AE balance)
+│   │   │                 dialog's Player tab, in PLAYER_PRESET_GROUPS
+│   │   │                 (Anniversary Edition, Hammerwatch 2)
+│   │   ├── hw2Presets.ts the four Hammerwatch 2 presets: HW2 class bodies
+│   │   │                 at levels 1/10/25/50 + the skill values that carry over
 │   │   └── xml.ts        the tweak XML dialect (separate from xml/)
 │   └── index.ts          generateDungeon() + all public types
 ├── main/                 index.ts (window), ipc.ts (handlers + last-result
@@ -403,7 +406,20 @@ validates. The first entry, `anniversary`, ports Hammerwatch Anniversary
 Edition's player balance (shared move-speed 1.1 — AE splits it 1.0 ranged /
 1.2 melee, the original has one key — plus AE's damage and prices, 61 keys);
 `reference/hammerwatch-ae-comparison.md` records the full AE comparison, what
-was copied, what was skipped as not comparable, and AE's data bugs. `preAlpha` ("Pre-Alpha") holds
+was copied, what was skipped as not comparable, and AE's data bugs.
+The tab groups presets in collapsible `PLAYER_PRESET_GROUPS` sections (every
+preset carries a `group`). The **Hammerwatch 2** group (`tweak/hw2Presets.ts`)
+holds four presets — levels 1, 10, 25 and 50. HW2 is an RPG, so only class
+*bodies* carry over: `hw2Body` derives health/mana/mana-regen from HW2's
+`classes.inc` and its attribute formulas (points split in proportion to the
+base attributes, largest remainder), and `bodyOverrides` shifts the class's own
+health/mana ladders by the start's delta and scales its mana-regen ladder by
+the start's ratio, read off `TWEAK_BASELINE`, so no tier becomes a downgrade.
+A dozen HW2 skill values are copied faithfully (even where weaker), removing
+original tiers HW2 lacks. Every preset must add **no** validation warning over
+the stock Player tab (test-enforced); that is why `removalCascade` no longer
+counts a dependent the user removed explicitly too.
+`reference/hammerwatch-2-comparison.md` has the research. `preAlpha` ("Pre-Alpha") holds
 `pre-alpha`: the Java original's `parameters.txt` with every remake layer off,
 and `army1`/`army2`/`lich2` split into today's types. `classic`
 ("Classic") holds castle / desert / bonus. Castle stays at index 0 of

@@ -7,6 +7,7 @@ import {
   validateParameters
 } from '../src/generator'
 import { PLAYER_PRESETS, PLAYER_PRESET_GROUPS, TWEAK_FIELD_MAP, playerPresetById, pruneTweaks } from '../src/generator/tweak'
+import { HW2_CLASSES, hw2AttributePoints, hw2Body } from '../src/generator/tweak/hw2Presets'
 import { defaultParameters } from '../src/generator/config/parameters'
 import type { PlayerTweaks } from '../src/generator/tweak/types'
 
@@ -160,12 +161,70 @@ describe('Anniversary Edition player preset', () => {
     const ladder = ['speed-1', 'speed-2', 'speed-3'].map((id) => tweaks[`player.shared.effect.${id}.move-speed`])
     expect(ladder).toEqual([1.2, 1.3, 1.4])
   })
+})
 
+describe('every player preset', () => {
+  // A preset that leaves a downgrade tier (an upgrade below its own new start)
+  // or a misleading note in the panel is a bug; it should add no warnings at
+  // all over the stock Player tab.
   it('adds no validation warnings over the stock Player tab', () => {
     const messages = (playerTweaks: PlayerTweaks) =>
       new Set(validateParameters({ ...defaultParameters(), playerTweaks }).warnings.map((w) => w.message))
     const stock = messages({})
-    const added = [...messages(ae())].filter((message) => !stock.has(message))
-    expect(added).toEqual([])
+    for (const preset of PLAYER_PRESETS) {
+      const added = [...messages(preset.build())].filter((message) => !stock.has(message))
+      expect(added, preset.id).toEqual([])
+    }
+  })
+})
+
+describe('Hammerwatch 2 player presets', () => {
+  const byUnit = (unit: string) => {
+    const cls = HW2_CLASSES.find((candidate) => candidate.unit === unit)
+    if (cls === undefined) throw new Error(`no HW2 class for ${unit}`)
+    return cls
+  }
+
+  it('derive level-1 bodies from HW2 classes.inc', () => {
+    expect(hw2Body(byUnit('knight'), 1)).toEqual({ maxHealth: 91, maxMana: 60, manaRegenMs: 1250 })
+    expect(hw2Body(byUnit('ranger'), 1)).toEqual({ maxHealth: 69, maxMana: 64, manaRegenMs: 1163 })
+    expect(hw2Body(byUnit('thief'), 1)).toEqual({ maxHealth: 69, maxMana: 60, manaRegenMs: 1250 })
+    expect(hw2Body(byUnit('wizard'), 1)).toEqual({ maxHealth: 60, maxMana: 100, manaRegenMs: 625 })
+    expect(hw2Body(byUnit('warlock'), 1)).toEqual({ maxHealth: 74, maxMana: 86, manaRegenMs: 649 })
+  })
+
+  it('reach the endgame table at level 50', () => {
+    expect(hw2Body(byUnit('knight'), 50)).toEqual({ maxHealth: 507, maxMana: 280, manaRegenMs: 133 })
+    expect(hw2Body(byUnit('wizard'), 50)).toEqual({ maxHealth: 280, maxMana: 591, manaRegenMs: 98 })
+  })
+
+  it('spend exactly 5 attribute points per level gained', () => {
+    for (const cls of HW2_CLASSES) {
+      for (const level of [1, 2, 10, 25, 50]) {
+        const placed = hw2AttributePoints(cls.attributes, level)
+        expect(placed.reduce((sum, value) => sum + value, 0)).toBe(5 * (level - 1))
+      }
+    }
+  })
+
+  it('get tougher with every level', () => {
+    const hw2 = PLAYER_PRESETS.filter((preset) => preset.group === 'hw2')
+    expect(hw2.map((preset) => preset.id)).toEqual(['hw2-level-1', 'hw2-level-10', 'hw2-level-25', 'hw2-level-50'])
+    const health = hw2.map((preset) => preset.build()['player.knight.param.max-health'])
+    for (let i = 1; i < health.length; i++) expect(health[i]).toBeGreaterThan(health[i - 1])
+  })
+
+  it('shift a health ladder the new start overtook', () => {
+    // stock wizard: 35 HP, health tiers 45/60/70/85/100; HW2 level 1 starts at 60
+    const tweaks = playerPresetById('hw2-level-1')!.build()
+    const ladder = [1, 2, 3, 4, 5].map((n) => tweaks[`player.wizard.effect.health-${n}.max-health`])
+    expect(ladder).toEqual([70, 85, 95, 110, 125])
+  })
+
+  it('leave priest and sorcerer at the original values', () => {
+    for (const preset of PLAYER_PRESETS.filter((p) => p.group === 'hw2')) {
+      const keys = Object.keys(preset.build())
+      expect(keys.some((key) => key.startsWith('player.priest.') || key.startsWith('player.sorcerer.')), preset.id).toBe(false)
+    }
   })
 })

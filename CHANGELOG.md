@@ -17,6 +17,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Combo and shop:** a longer combo window, AE's shop prices (cheaper first tiers, a 1000g damage potion), knight armor 10/12 at the top tiers, and cheaper warlock lightning.
   - **Not included:** moving while casting, which only AE's engine supports. AE's extra-life shop is left out too: this generator's campaigns never sell lives.
   - The full comparison is in `reference/hammerwatch-ae-comparison.md`.
+- **Hammerwatch 2 player presets.** Four presets give the original game's classes Hammerwatch 2 bodies at a chosen HW2 level:
+
+  | Preset | Knight HP / mana | Wizard HP / mana |
+  |---|---|---|
+  | **Starting characters** (level 1) | 91 / 60 | 60 / 100 |
+  | **Tier 1** (level 10) | 167 / 100 | 100 / 191 |
+  | **Halfway** (level 25) | 295 / 168 | 168 / 340 |
+  | **Endgame** (level 50) | 507 / 280 | 280 / 591 |
+
+  - **Toughness:** halfway starts about as tough as the original's fully upgraded characters, and endgame is 2–3× past them.
+  - **Mana regen** grows with level.
+  - **Shop upgrades** move up with the new starting stats, so every upgrade still improves the character.
+  - **HW2 skill values** carry over where they mean the same thing: a weaker knight stun and a longer charge, thief dodge capped at 20% with a 3/5/7 knife fan, ranger crit 10/20/30% and longer roots, a stronger starting wizard bolt with 12 nova shards and at most 5 meteors, and a longer warlock storm with lightning that hits fewer targets.
+  - **Priest and sorcerer** aren't in HW2, so they keep the original values.
+  - **Not included:** HW2's attributes, stamina, cooldowns, gear and most of its skills, which the original game can't express.
+  - Extra lives stay out of the shop.
+  - The research is in `reference/hammerwatch-2-comparison.md`.
+- **Grouped player presets.** The Player presets tab now has collapsible sections like the campaign tab: **Anniversary Edition** and **Hammerwatch 2**.
 - **Reset all.** A red **Reset all** button under the per-tab Reset puts every tab back to the defaults. An "are you sure?" dialog asks first (Cancel has the focus), and the toast afterwards has an **Undo**. Your Hammerwatch folder and other app settings are kept.
 - **Header help.** An (i) button at the left of the header explains every header control: how parameters.txt and playersettings.txt differ and the order to import them in, Campaign vs Player presets, what Reset resets, the AI assistant, and the startup parameters.txt override.
 
