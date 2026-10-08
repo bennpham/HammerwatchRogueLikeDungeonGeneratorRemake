@@ -133,3 +133,26 @@ describe('player presets', () => {
     }
   })
 })
+
+describe('Anniversary Edition player preset', () => {
+  const ae = () => {
+    const preset = playerPresetById('anniversary')
+    if (preset === undefined) throw new Error('anniversary preset missing')
+    return preset.build()
+  }
+
+  it('moves everyone at 1.1 with a shop ladder that stays above it', () => {
+    const tweaks = ae()
+    expect(tweaks['player.shared.param.move-speed']).toBe(1.1)
+    const ladder = ['speed-1', 'speed-2', 'speed-3'].map((id) => tweaks[`player.shared.effect.${id}.move-speed`])
+    expect(ladder).toEqual([1.2, 1.3, 1.4])
+  })
+
+  it('adds no validation warnings over the stock Player tab', () => {
+    const messages = (playerTweaks: PlayerTweaks) =>
+      new Set(validateParameters({ ...defaultParameters(), playerTweaks }).warnings.map((w) => w.message))
+    const stock = messages({})
+    const added = [...messages(ae())].filter((message) => !stock.has(message))
+    expect(added).toEqual([])
+  })
+})

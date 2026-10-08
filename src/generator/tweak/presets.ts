@@ -1,3 +1,4 @@
+import { costKey, effectKey, paramKey } from './chains'
 import type { PlayerTweaks } from './types'
 
 /**
@@ -22,8 +23,104 @@ export interface PlayerPreset {
   build(): PlayerTweaks
 }
 
-/** Every player preset, in the order the dialog lists them. None ship yet. */
-export const PLAYER_PRESETS: readonly PlayerPreset[] = []
+/** `{ upgradeId: value }` for one stat across a ladder, as effect keys. */
+function ladder(fileId: string, stat: string, tiers: Record<string, number>): PlayerTweaks {
+  const out: PlayerTweaks = {}
+  for (const [upgradeId, value] of Object.entries(tiers)) out[effectKey(fileId, upgradeId, stat)] = value
+  return out
+}
+
+/** `{ upgradeId: gold }` as cost keys. */
+function costs(fileId: string, tiers: Record<string, number>): PlayerTweaks {
+  const out: PlayerTweaks = {}
+  for (const [upgradeId, gold] of Object.entries(tiers)) out[costKey(fileId, upgradeId)] = gold
+  return out
+}
+
+/**
+ * Hammerwatch Anniversary Edition's player balance, ported onto the original.
+ * Source: AE's `unpacked_assets_66/players/` — `classes.sval` and each class's
+ * `skills/*.sval`; the full comparison is `reference/hammerwatch-ae-comparison.md`.
+ *
+ * Only values whose AE number means the same thing in the original are copied
+ * (enemy HP is identical in both games, so AE damage carries over 1:1). Left
+ * out on purpose:
+ * - anything AE builds differently — flame spray, ranges and projectile
+ *   speeds, charge distance, the lightning orb and falloff, the gargoyle's
+ *   projectile fan, the smoke stun's length;
+ * - AE values that contradict AE's own description text (knight whirl-dur
+ *   tier 2, priest smite-speed tier 5 and mana-regen tier 5) — the original
+ *   number stays;
+ * - moving while casting: per-skill AE data with no original tweak key.
+ *
+ * Move speed: the original has ONE shared `move-speed`, while AE gives ranged
+ * classes 1.0 (shop 1.1/1.2/1.3) and melee classes 1.2 (1.3/1.4/1.5). 1.1 with
+ * a 1.2/1.3/1.4 shop splits the difference (owner's call, 2026-10-08).
+ */
+function anniversaryEdition(): PlayerTweaks {
+  return {
+    // shared_speed(_melee).sval, shared_combo.sval, PowerShopMenuContent.as
+    [paramKey('shared', 'move-speed')]: 1.1,
+    ...ladder('shared', 'move-speed', { 'speed-1': 1.2, 'speed-2': 1.3, 'speed-3': 1.4 }),
+    [paramKey('shared', 'combo-timer')]: 1.0,
+    ...ladder('shared', 'combo-timer', {
+      'combo-time-1': 1.25,
+      'combo-time-2': 1.5,
+      'combo-time-3': 1.75,
+      'combo-time-4': 2.0,
+      'combo-time-5': 2.25
+    }),
+    ...costs('shared', { 'pot-dmg': 1000 }),
+
+    // paladin/skills/ — AE's paladin is the original's knight
+    [paramKey('knight', 'sword-dmg')]: 13,
+    ...ladder('knight', 'sword-dmg', { dmg1: 20, dmg2: 26, dmg3: 33, dmg4: 40, dmg5: 46 }),
+    ...costs('knight', { dmg1: 600, arc1: 200, 'health-2': 1000, 'health-3': 2200, 'health-4': 2900, 'health-5': 3600 }),
+    ...ladder('knight', 'dmg-reduction', { 'armor-4': 10, 'armor-5': 12 }),
+    // AE regen is per second (1.1/1.2/1.3/1.4); the original's is ms per point
+    ...ladder('knight', 'mana-regen', { 'mana-2': 909, 'mana-3': 833, 'mana-4': 769, 'mana-5': 714 }),
+
+    // thief/skills/
+    ...ladder('thief', 'knives-dmg', { dmg1: 7, dmg2: 11, dmg3: 15 }),
+    ...costs('thief', { dmg1: 700, aspeed1: 150 }),
+
+    // wizard/skills/ — AE's fireball has no separate splash damage, so its
+    // proj-damage is the original's fireball-dmg
+    [paramKey('wizard', 'fireball-dmg')]: 16,
+    ...ladder('wizard', 'fireball-dmg', { dmg1: 21, dmg2: 26, dmg3: 30, dmg4: 35, dmg5: 40 }),
+    ...costs('wizard', { dmg1: 650, rng1: 400, 'health-2': 1000 }),
+
+    // sorcerer/skills/
+    ...costs('sorcerer', { dmg1: 700, rng1: 450, 'health-2': 1000 }),
+
+    // priest/skills/
+    ...costs('priest', { dmg1: 500, sspeed1: 150 }),
+
+    // ranger/skills/
+    ...costs('ranger', { dmg1: 700, pen1: 550, 'armor-3': 1800, 'armor-4': 2400 }),
+
+    // warlock/skills/
+    ...costs('warlock', { dmg1: 700, dmg4: 3900, dmg5: 5200, poison1: 200 }),
+    [paramKey('warlock', 'lightning-mana-cost')]: 20,
+    ...ladder('warlock', 'lightning-mana-cost', {
+      lightningtrg1: 23,
+      lightningtrg2: 26,
+      lightningtrg3: 29,
+      lightningtrg4: 32
+    })
+  }
+}
+
+/** Every player preset, in the order the dialog lists them. */
+export const PLAYER_PRESETS: readonly PlayerPreset[] = [
+  {
+    id: 'anniversary',
+    label: 'Anniversary Edition',
+    description:
+      'Approximates Hammerwatch Anniversary Edition’s player balance: everyone moves faster, AE’s stronger sword, knives and fireball, a longer combo window and AE’s shop prices. Moving while casting is AE-only and not included.',
+    build: anniversaryEdition
+  }
+]
 
 export function playerPresetById(id: string): PlayerPreset | undefined {
   return PLAYER_PRESETS.find((preset) => preset.id === id)
