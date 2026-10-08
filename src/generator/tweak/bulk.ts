@@ -743,15 +743,18 @@ export function deriveShopRemovals(targets: ShopRemoval[], tweaks: PlayerTweaks)
  *
  * That includes hand edits to those same fields — the section owns all starting
  * stats, upgrade effects, prices and skill flags, so this is "undo the roster",
- * not "undo only my knob presses". Enemy difficulty is untouched.
+ * not "undo only my knob presses". Enemy difficulty is untouched, and so is
+ * the extra-life removal: this generator's campaigns never sell lives
+ * (`defaultParameters()` ships the removal), so a reset must not reopen them.
  */
 export function resetQuickSetup(tweaks: PlayerTweaks): PlayerTweaks {
+  const keep = new Set(EXTRA_LIFE_UPGRADES.map((target) => removeKey(target.fileId, target.upgradeId)))
   const next: PlayerTweaks = {}
   for (const [key, value] of Object.entries(tweaks)) {
     const field = TWEAK_FIELD_MAP.get(key.toLowerCase())
     // dropping by field rather than by knob: a stat whose stock is 0 carries no
     // factor, so scaling it back to ×1 would leave it behind
-    if (field !== undefined && field.fileId !== 'general') continue
+    if (field !== undefined && field.fileId !== 'general' && !keep.has(key.toLowerCase())) continue
     next[key] = value
   }
   return next

@@ -671,7 +671,12 @@ describe('reset', () => {
     tweaks = applyFullyUpgraded(tweaks)
     expect(Object.keys(pruneTweaks(tweaks)).length).toBeGreaterThan(100)
 
-    expect(pruneTweaks(resetQuickSetup(tweaks))).toEqual({})
+    // everything but the extra-life removal, which outlives a reset on purpose
+    expect(pruneTweaks(resetQuickSetup(tweaks))).toEqual({ 'player.shared.remove.life': 1 })
+  })
+
+  it('never puts extra lives back in the shop', () => {
+    expect(resetQuickSetup(defaultParameters().playerTweaks)['player.shared.remove.life']).toBe(1)
   })
 
   it('leaves enemy difficulty alone', () => {
