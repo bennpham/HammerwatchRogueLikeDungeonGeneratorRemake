@@ -34,7 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Not included:** HW2's attributes, stamina, cooldowns, gear and most of its skills, which the original game can't express.
   - Extra lives stay out of the shop.
   - The research is in `reference/hammerwatch-2-comparison.md`.
-- **Grouped player presets.** The Player presets tab now has collapsible sections like the campaign tab: **Anniversary Edition** and **Hammerwatch 2**.
+- **Grouped player presets.** The Player presets tab now has collapsible sections like the campaign tab: **Anniversary Edition** and **Hammerwatch 2**. Both start collapsed.
 - **Reset all.** A red **Reset all** button under the per-tab Reset puts every tab back to the defaults. An "are you sure?" dialog asks first (Cancel has the focus), and the toast afterwards has an **Undo**. Your Hammerwatch folder and other app settings are kept.
 - **Header help.** An (i) button at the left of the header explains every header control: how parameters.txt and playersettings.txt differ and the order to import them in, Campaign vs Player presets, what Reset resets, the AI assistant, and the startup parameters.txt override.
 
