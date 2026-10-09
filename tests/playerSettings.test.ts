@@ -278,3 +278,41 @@ describe('Hammerwatch 2 player presets', () => {
     })
   })
 })
+
+describe('Dungeon Rebalanced player preset', () => {
+  const build = () => playerPresetById('dungeon-rebalanced')!.build()
+
+  it('sits first, in the Generic section', () => {
+    expect(PLAYER_PRESET_GROUPS[0].id).toBe('generic')
+    expect(playerPresetById('dungeon-rebalanced')?.group).toBe('generic')
+  })
+
+  it('shares the AE preset’s movement and combo window exactly', () => {
+    const ae = playerPresetById('anniversary')!.build()
+    const tweaks = build()
+    const shared = Object.keys(ae).filter((key) => /^player\.shared\.(param|effect\.(speed|combo-time)-\d)\.?(move-speed|combo-timer)/.test(key))
+    expect(shared.length).toBe(10)
+    for (const key of shared) expect(tweaks[key], key).toBe(ae[key])
+  })
+
+  it('buffs the priest’s start', () => {
+    const tweaks = build()
+    expect(tweaks['player.priest.param.max-health']).toBe(40)
+    expect(tweaks['player.priest.param.smite-dmg']).toBe(9)
+  })
+
+  it('leaves the strong classes alone', () => {
+    const keys = Object.keys(build())
+    for (const unit of ['knight', 'ranger', 'wizard']) {
+      expect(keys.some((key) => key.startsWith(`player.${unit}.`)), unit).toBe(false)
+    }
+  })
+
+  it('does not raise the warlock’s storm ceiling', () => {
+    expect(Object.keys(build()).some((key) => key.includes('storm'))).toBe(false)
+  })
+
+  it('leaves the AE preset as it was after sharing its movement block', () => {
+    expect(Object.keys(playerPresetById('anniversary')!.build())).toHaveLength(62)
+  })
+})

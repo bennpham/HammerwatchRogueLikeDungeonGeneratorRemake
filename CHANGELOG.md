@@ -34,7 +34,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Not included:** HW2's attributes, stamina, cooldowns, gear and most of its skills, which the original game can't express.
   - Extra lives stay out of the shop.
   - The research is in `reference/hammerwatch-2-comparison.md`.
-- **Grouped player presets.** The Player presets tab now has collapsible sections like the campaign tab: **Anniversary Edition** and **Hammerwatch 2**. Both start collapsed.
+- **Dungeon Rebalanced player preset** (Generic section). The original game, tuned for this generator's long, gold-limited, no-lives runs. It buffs the classes that players and the numbers agree are weak or unfun, and nerfs nothing:
+  - **Priest:** 40 HP with health upgrades up to 100, smite 9, a mana shield as strong as its first upgrade from the start, better beam healing, a 1,200g draining field and half-price armor.
+  - **Warlock:** cheaper lightning and half-price armor. Storm is unchanged, so the maxed warlock is no stronger.
+  - **Thief:** 50 HP and 6-damage knives at the start.
+  - **Sorcerer:** 40 HP and a cheaper comet.
+  - **Paladin, ranger and wizard** are left alone.
+  - **Everyone** gets AE's faster movement and longer combo window, and extra lives stay out of the shop.
+  - The research (old forum, Steam, developer patch notes, and a stat comparison) is in `reference/hammerwatch-class-balance.md`.
+- **Grouped player presets.** The Player presets tab now has collapsible sections like the campaign tab: **Generic**, **Anniversary Edition** and **Hammerwatch 2**. All start collapsed.
 - **Reset all.** A red **Reset all** button under the per-tab Reset puts every tab back to the defaults. An "are you sure?" dialog asks first (Cancel has the focus), and the toast afterwards has an **Undo**. Your Hammerwatch folder and other app settings are kept.
 - **Header help.** An (i) button at the left of the header explains every header control: how parameters.txt and playersettings.txt differ and the order to import them in, Campaign vs Player presets, what Reset resets, the AI assistant, and the startup parameters.txt override.
 

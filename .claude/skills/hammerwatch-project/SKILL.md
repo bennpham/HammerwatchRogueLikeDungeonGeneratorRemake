@@ -175,7 +175,11 @@ src/
 │   │   ├── loadout.ts    buildLoadouts() — start/maxed character sheets
 │   │   ├── presets.ts    PLAYER_PRESETS — named player builds for the preset
 │   │   │                 dialog's Player tab, in PLAYER_PRESET_GROUPS
-│   │   │                 (Anniversary Edition, Hammerwatch 2)
+│   │   │                 (Generic, Anniversary Edition, Hammerwatch 2)
+│   │   ├── genericPresets.ts Dungeon Rebalanced: buffs the weak classes
+│   │   │                 (priest, warlock, thief, sorcerer), nerfs nothing
+│   │   ├── presetParts.ts ladder()/costs() + aeMovementAndCombo(), shared
+│   │   │                 by more than one preset (no import cycle)
 │   │   ├── hw2Presets.ts the four Hammerwatch 2 presets: HW2 class bodies
 │   │   │                 at levels 1/10/25/50 + the skill values that carry over
 │   │   └── xml.ts        the tweak XML dialect (separate from xml/)
@@ -407,6 +411,13 @@ Edition's player balance (shared move-speed 1.1 — AE splits it 1.0 ranged /
 1.2 melee, the original has one key — plus AE's damage and prices, 61 keys);
 `reference/hammerwatch-ae-comparison.md` records the full AE comparison, what
 was copied, what was skipped as not comparable, and AE's data bugs.
+The **Generic** group (`tweak/genericPresets.ts`) leads with **Dungeon
+Rebalanced**: buffs-only (owner's call) for the priest (most), warlock (early
+only — storm untouched, so the maxed ceiling doesn't rise), thief and sorcerer,
+nothing for the consensus-strong paladin/ranger/wizard, plus
+`aeMovementAndCombo()` (`tweak/presetParts.ts`, shared with the AE preset so
+the two cannot drift). The research — forum, Steam, patch history, numbers —
+is `reference/hammerwatch-class-balance.md`.
 The tab groups presets in collapsible `PLAYER_PRESET_GROUPS` sections, all
 collapsed on open (every
 preset carries a `group`). The **Hammerwatch 2** group (`tweak/hw2Presets.ts`)
