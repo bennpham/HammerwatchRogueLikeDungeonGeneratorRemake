@@ -418,9 +418,9 @@ nothing for the consensus-strong paladin/ranger/wizard, plus
 `aeMovementAndCombo()` (`tweak/presetParts.ts`, shared with the AE preset so
 the two cannot drift). The research — forum, Steam, patch history, numbers —
 is `reference/hammerwatch-class-balance.md`.
-The tab groups presets in collapsible `PLAYER_PRESET_GROUPS` sections, all
-collapsed on open (every
-preset carries a `group`). The **Hammerwatch 2** group (`tweak/hw2Presets.ts`)
+The tab groups presets in collapsible `PLAYER_PRESET_GROUPS` sections (every
+preset carries a `group`). Generic starts open so Dungeon Rebalanced shows at
+once; the rest start collapsed. The **Hammerwatch 2** group (`tweak/hw2Presets.ts`)
 holds four presets — levels 1, 10, 25 and 50. HW2 is an RPG, so only class
 *bodies* carry over: `hw2Body` derives health/mana/mana-regen from HW2's
 `classes.inc` and its attribute formulas (points split in proportion to the

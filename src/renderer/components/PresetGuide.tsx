@@ -144,13 +144,13 @@ export function PresetGuide({ onLoad, onLoadPlayer, disabled }: PresetGuideProps
               {PLAYER_PRESETS.length === 0 ? (
                 <p className="preset-guide-empty">No player presets yet.</p>
               ) : (
-                // same collapsible sections as the campaign tab, all collapsed
-                // on open so the tab starts as a list of game names
+                // same collapsible sections as the campaign tab; Generic starts
+                // open so Dungeon Rebalanced shows at once, the rest start collapsed
                 PLAYER_PRESET_GROUPS.map((group) => {
                   const presets = PLAYER_PRESETS.filter((preset) => preset.group === group.id)
                   if (presets.length === 0) return null
                   return (
-                    <details key={group.id} className="preset-group">
+                    <details key={group.id} className="preset-group" open={group.id === 'generic'}>
                       <summary>
                         {group.label}
                         <span className="preset-group-count">{presets.length}</span>
