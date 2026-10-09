@@ -1,5 +1,7 @@
-import { costKey, effectKey, paramKey, removeKey } from './chains'
+import { paramKey, removeKey } from './chains'
+import { GENERIC_PRESETS } from './genericPresets'
 import { HW2_PRESETS } from './hw2Presets'
+import { aeMovementAndCombo, costs, ladder } from './presetParts'
 import type { PlayerTweaks } from './types'
 
 /**
@@ -18,14 +20,16 @@ import type { PlayerTweaks } from './types'
  * Player tab, a preset without it would put lives back in the shop. A test
  * enforces it.
  */
-export type PlayerPresetGroupId = 'anniversary' | 'hw2'
+export type PlayerPresetGroupId = 'generic' | 'anniversary' | 'hw2'
 
 /**
  * The collapsible sections the preset dialog's Player tab groups presets under,
- * in this order — the Player tab's counterpart of `PRESET_GROUPS`. One section
+ * in this order — the Player tab's counterpart of `PRESET_GROUPS`. Generic
+ * (builds not modelled on another game) leads; then one section
  * per game a build is modelled on.
  */
 export const PLAYER_PRESET_GROUPS: readonly { id: PlayerPresetGroupId; label: string }[] = [
+  { id: 'generic', label: 'Generic' },
   { id: 'anniversary', label: 'Anniversary Edition' },
   { id: 'hw2', label: 'Hammerwatch 2' }
 ]
@@ -41,20 +45,6 @@ export interface PlayerPreset {
   group: PlayerPresetGroupId
   /** a fresh override record every call — never a shared mutable one */
   build(): PlayerTweaks
-}
-
-/** `{ upgradeId: value }` for one stat across a ladder, as effect keys. */
-function ladder(fileId: string, stat: string, tiers: Record<string, number>): PlayerTweaks {
-  const out: PlayerTweaks = {}
-  for (const [upgradeId, value] of Object.entries(tiers)) out[effectKey(fileId, upgradeId, stat)] = value
-  return out
-}
-
-/** `{ upgradeId: gold }` as cost keys. */
-function costs(fileId: string, tiers: Record<string, number>): PlayerTweaks {
-  const out: PlayerTweaks = {}
-  for (const [upgradeId, gold] of Object.entries(tiers)) out[costKey(fileId, upgradeId)] = gold
-  return out
 }
 
 /**
@@ -73,23 +63,13 @@ function costs(fileId: string, tiers: Record<string, number>): PlayerTweaks {
  *   number stays;
  * - moving while casting: per-skill AE data with no original tweak key.
  *
- * Move speed: the original has ONE shared `move-speed`, while AE gives ranged
- * classes 1.0 (shop 1.1/1.2/1.3) and melee classes 1.2 (1.3/1.4/1.5). 1.1 with
- * a 1.2/1.3/1.4 shop splits the difference (owner's call, 2026-10-08).
+ * Movement and combo come from `aeMovementAndCombo()` (shared with Dungeon
+ * Rebalanced), which documents the 1.1 move-speed split.
  */
 function anniversaryEdition(): PlayerTweaks {
   return {
-    // shared_speed(_melee).sval, shared_combo.sval, PowerShopMenuContent.as
-    [paramKey('shared', 'move-speed')]: 1.1,
-    ...ladder('shared', 'move-speed', { 'speed-1': 1.2, 'speed-2': 1.3, 'speed-3': 1.4 }),
-    [paramKey('shared', 'combo-timer')]: 1.0,
-    ...ladder('shared', 'combo-timer', {
-      'combo-time-1': 1.25,
-      'combo-time-2': 1.5,
-      'combo-time-3': 1.75,
-      'combo-time-4': 2.0,
-      'combo-time-5': 2.25
-    }),
+    ...aeMovementAndCombo(),
+    // PowerShopMenuContent.as
     ...costs('shared', { 'pot-dmg': 1000 }),
     // AE sells extra lives (350g), but this generator's campaigns never do —
     // a preset replaces the whole Player tab, so it must carry the removal
@@ -137,6 +117,7 @@ function anniversaryEdition(): PlayerTweaks {
 
 /** Every player preset, in the order the dialog lists them within each group. */
 export const PLAYER_PRESETS: readonly PlayerPreset[] = [
+  ...GENERIC_PRESETS,
   {
     id: 'anniversary',
     label: 'AE player balance',
