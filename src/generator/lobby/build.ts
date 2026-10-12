@@ -13,7 +13,6 @@ import {
   replaceInElement,
   itemsBody,
   respawnOnEntryNodes,
-  saveButtonArray,
   setItems,
   upgradeArrays
 } from '../levelTemplate/surgery'
@@ -41,16 +40,11 @@ export const LOBBY_DIAMOND_VALUE = DIAMOND_VALUE
  * somehow ends up last (validation forbids that; the generator falls back
  * rather than throwing). One lobby, one exit: unlike a boss fight a lobby
  * slot has nothing else to wire up.
- *
- * `saves` places `items/trigger_button_save.xml` by the room's exit (a plain
- * checkpoint item, no scripting) — the campaign-wide `lobbySaves` toggle. Off
- * leaves the template's items untouched apart from the gold/upgrade payout.
  */
 export function buildLobby(
   preset: LobbyPresetDef,
   options: LobbyOptions,
-  exitTarget: string,
-  saves: boolean
+  exitTarget: string
 ): string {
   let xml = preset.template
 
@@ -116,8 +110,7 @@ export function buildLobby(
     xml,
     itemsBody([
       ...diamondArray(options.startingGold, preset.diamondSlots, preset.itemIdBase),
-      ...upgradeArrays(options.upgrades, preset.upgradeSlots, preset.upgradeIdBase),
-      ...saveButtonArray(saves, preset.saveButtonSlot, preset.saveButtonId)
+      ...upgradeArrays(options.upgrades, preset.upgradeSlots, preset.upgradeIdBase)
     ]),
     preset.surgeryLabel
   )

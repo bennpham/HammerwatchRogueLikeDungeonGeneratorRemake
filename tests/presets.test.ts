@@ -42,6 +42,7 @@ import {
 import { mysteryKit } from '../src/generator/config/presetMystery'
 import { COLOSSEUM_PARAMETERS_TXT } from '../src/generator/config/colosseumPreset'
 import { projectileById } from '../src/generator/objects/projectileTypes'
+import { floorPath, isArenaPath, isFloorPath } from './levelFiles'
 
 const CLASSIC_PRESETS = CAMPAIGN_PRESETS.filter((p) => p.group === 'classic')
 
@@ -169,14 +170,14 @@ describe('campaign presets', () => {
           expect(result.ok, result.ok ? '' : result.errors.join(' ')).toBe(true)
           if (!result.ok) return
 
-          const escape = result.files.find((f) => f.path === `levels/level${last}.xml`)!.content
-          const arena = result.files.find((f) => f.path === 'levels/boss0.xml')!.content
+          const escape = result.files.find((f) => isFloorPath(f.path, last))!.content
+          const arena = result.files.find((f) => isArenaPath(f.path, 0))!.content
           expect(escape).toContain('>GameEnd<')
           expect(arena).not.toContain('>GameEnd<')
           expect(arena).toContain(`<string name="level">${last}</string>`)
           expect(escape).toContain('>DangerArea<')
           for (let i = 0; i < last; i++) {
-            expect(result.files.find((f) => f.path === `levels/level${i}.xml`)!.content).not.toContain(
+            expect(result.files.find((f) => isFloorPath(f.path, i))!.content).not.toContain(
               '>DangerArea<'
             )
           }
@@ -347,7 +348,7 @@ describe('campaign presets', () => {
         // "+1" only held because every preset shipped exactly one fight.
         expect(result.levels).toHaveLength(params.levels + bossFights(params.boss).length)
         for (let i = 0; i < params.levels; i++) {
-          expect(result.files.map((f) => f.path)).toContain(`levels/level${i}.xml`)
+          expect(result.files.filter((f) => isFloorPath(f.path, i)), `floor ${i}`).toHaveLength(1)
         }
       })
 
@@ -370,7 +371,7 @@ describe('campaign presets', () => {
         if (!a.ok || !b.ok) return
         const tilemap = (xml: string) => xml.slice(0, xml.indexOf('<dictionary name="doodads">'))
         for (let i = 0; i < params.levels; i++) {
-          const path = `levels/level${i}.xml`
+          const path = floorPath(a, i)
           const before = a.files.find((f) => f.path === path)!.content
           const after = b.files.find((f) => f.path === path)!.content
           expect(tilemap(after), path).toBe(tilemap(before))
@@ -570,7 +571,7 @@ describe('campaign presets', () => {
       expect(result.ok, result.ok ? '' : result.errors.join(' ')).toBe(true)
       if (!result.ok) return
       for (let level = 0; level < locked; level++) {
-        const xml = result.files.find((f) => f.path === `levels/level${level}.xml`)!.content
+        const xml = result.files.find((f) => isFloorPath(f.path, level))!.content
         expect(xml, `floor ${level + 1}`).not.toContain('boss_door_button.xml')
         expect(xml, `floor ${level + 1}`).toContain('trigger_button_floor.xml')
       }
@@ -587,9 +588,9 @@ describe('campaign presets', () => {
       const result = generateDungeon(params, 4242)
       expect(result.ok, result.ok ? '' : result.errors.join(' ')).toBe(true)
       if (!result.ok) return
-      const escape = result.files.find((f) => f.path === 'levels/level12.xml')!.content
+      const escape = result.files.find((f) => isFloorPath(f.path, 12))!.content
       expect(escape).toContain('>GameEnd<')
-      const finalArena = result.files.find((f) => f.path === 'levels/boss1.xml')!.content
+      const finalArena = result.files.find((f) => isArenaPath(f.path, 1))!.content
       expect(finalArena).not.toContain('>GameEnd<')
       expect(finalArena).toContain('<string name="level">12</string>')
     })
@@ -679,9 +680,9 @@ describe('campaign presets', () => {
       expect(result.ok, result.ok ? '' : result.errors.join(' ')).toBe(true)
       if (!result.ok) return
       const levelFiles = result.files.map((f) => f.path).filter((p) => p.startsWith('levels/'))
-      expect(levelFiles).toEqual(Array.from({ length: 8 }, (_, i) => `levels/level${i}.xml`))
+      expect(levelFiles).toEqual(Array.from({ length: 8 }, (_, i) => `levels/0${i + 1}_floor${i + 1}.xml`))
       expect(result.files.some((f) => f.path.startsWith('tweak/'))).toBe(false)
-      expect(result.files.find((f) => f.path === 'levels/level7.xml')!.content).toContain('>GameEnd<')
+      expect(result.files.find((f) => isFloorPath(f.path, 7))!.content).toContain('>GameEnd<')
     })
   })
 })

@@ -23,11 +23,13 @@ Hammerwatch editor's `LevelPacker.exe` expects:
 dungeon<seed>/
 ├── info.xml            campaign name & lives
 ├── levels.xml          the act/level list
-├── levels/
-│   ├── lobby0.xml      optional shop room, placed anywhere in the order
-│   ├── level0.xml      one Hammerwatch level per floor
+├── levels/            one file per slot, numbered in play order (Floor order tab)
+│   ├── 01_lobby1.xml       optional shop room, placed anywhere in the order
+│   ├── 02_floor1_boss.xml  a dungeon floor (_boss when it hosts a floor boss)
+│   ├── 03_floor2.xml
 │   ├── …
-│   └── boss0.xml       optional boss arena; the last slot holds the reward orb
+│   └── 10_arena_boss1.xml  optional arena (arena_survivalN for a survival round);
+│                           the last slot holds the reward orb
 └── tweak/
     └── shared.xml      optional player-balance overrides
 ```

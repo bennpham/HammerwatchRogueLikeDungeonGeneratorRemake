@@ -4,8 +4,9 @@ import type { DungeonParameters, DungeonResult } from '../src/generator'
 import { plainParameters } from './params'
 import { defaultLobby, defaultParameters, type BossFight } from '../src/generator/config/parameters'
 import { DEFAULT_LOBBY_PRESET_ID } from '../src/generator/lobby/presets'
-import { parseSlotLabel } from '../src/generator/campaign'
+import { campaignFilePaths, parseSlotLabel } from '../src/generator/campaign'
 import type { CampaignSlot } from '../src/generator/campaign'
+import { arenaXml, floorPath, floorXml, isFloorPath, lobbyXml } from './levelFiles'
 
 const slots = (spec: string): CampaignSlot[] =>
   spec.split(',').map((token) => {
@@ -102,13 +103,13 @@ describe('campaign order — rearranged', () => {
     const result = generateOk(campaign(SPEC), SEED)
 
     // B1's arena leads into floor 1 (id 0) directly — no room between them
-    expect(exitTargets(levelOf(result, 'levels/boss0.xml'))).toContain('0')
+    expect(exitTargets(arenaXml(result, 0))).toContain('0')
     // floor 1 -> floor 2 by stairs
-    expect(exitTargets(levelOf(result, 'levels/level0.xml'))).toContain('1')
+    expect(exitTargets(floorXml(result, 0))).toContain('1')
     // floor 2 -> B2's arena directly, by portal (no lobby sits between them)
-    expect(exitTargets(levelOf(result, 'levels/level1.xml'))).toContain('boss1')
+    expect(exitTargets(floorXml(result, 1))).toContain('boss1')
     // B2's arena -> floor 3, the last slot
-    expect(exitTargets(levelOf(result, 'levels/boss1.xml'))).toContain('2')
+    expect(exitTargets(arenaXml(result, 1))).toContain('2')
   })
 
   it('ends the campaign on the last slot, wherever that is', () => {
@@ -118,16 +119,16 @@ describe('campaign order — rearranged', () => {
     )
     // floor 3 is last, so the victory orb is on a DUNGEON floor and the final
     // arena is just another fight
-    expect(ends.map((f) => f.path)).toEqual(['levels/level2.xml'])
-    expect(levelOf(result, 'levels/level2.xml')).toContain('items/crystal_purple.xml')
+    expect(ends.map((f) => f.path)).toEqual([floorPath(result, 2)])
+    expect(floorXml(result, 2)).toContain('items/crystal_purple.xml')
   })
 
   it('gives a mid-campaign floor the boss portal rather than stairs', () => {
     const result = generateOk(campaign(SPEC), SEED)
     // floor 2 leads into a fight, so it carries the portal art and no ExitDn
-    expect(levelOf(result, 'levels/level1.xml')).toContain('exit_teleport_boss.xml')
+    expect(floorXml(result, 1)).toContain('exit_teleport_boss.xml')
     // floor 1 leads to floor 2, so it keeps the stairs
-    expect(levelOf(result, 'levels/level0.xml')).not.toContain('exit_teleport_boss.xml')
+    expect(floorXml(result, 0)).not.toContain('exit_teleport_boss.xml')
   })
 
   it('labels the preview tabs in play order', () => {
@@ -147,7 +148,7 @@ describe('campaign order — rearranged', () => {
     const result = generateOk(campaign(SPEC), SEED)
     // generateDungeon refuses a floor reachability rejects, so reaching here at
     // all is the assertion; this pins that every floor really was emitted
-    expect(result.files.filter((f) => /^levels\/level\d+\.xml$/.test(f.path))).toHaveLength(3)
+    expect(result.files.filter((f) => isFloorPath(f.path))).toHaveLength(3)
   })
 
   it('is deterministic', () => {
@@ -166,10 +167,10 @@ describe('campaign order — rearranged', () => {
     const plain = generateOk(campaign(undefined), SEED)
     // the last arena in the default order holds the orb; in this arrangement
     // neither does, so compare the one that is a portal either way
-    expect(levelOf(rearranged, 'levels/boss0.xml').length).toBeGreaterThan(0)
-    for (const path of ['levels/boss0.xml']) {
-      const a = levelOf(rearranged, path)
-      const b = levelOf(plain, path)
+    expect(arenaXml(rearranged, 0).length).toBeGreaterThan(0)
+    {
+      const a = arenaXml(rearranged, 0)
+      const b = arenaXml(plain, 0)
       // same tilemap — the geometry the RNG produced did not move
       const tilemap = (xml: string) => xml.slice(0, xml.indexOf('<array name="doodads">'))
       expect(tilemap(a)).toBe(tilemap(b))
@@ -194,18 +195,18 @@ describe('campaign order — a lobby in the chain', () => {
     // floor 2 leads to the LOBBY through its own blue portal — three visually
     // distinct ways out (stairs, red boss portal, blue lobby portal), so a
     // floor leading into a lobby gets neither of the other two
-    const floor1 = levelOf(result, 'levels/level1.xml')
+    const floor1 = floorXml(result, 1)
     expect(exitTargets(floor1)).toContain('lobby0')
     expect(floor1).toContain('doodads/generic/exit_teleport.xml')
     expect(floor1).not.toContain('exit_teleport_boss.xml')
     // the lobby's own teleport is what actually leads into the fight
-    expect(exitTargets(levelOf(result, 'levels/lobby0.xml'))).toContain('boss1')
+    expect(exitTargets(lobbyXml(result, 0))).toContain('boss1')
   })
 
   it('still hands out exactly one victory orb, on the last slot', () => {
     const result = generateOk(campaign(SPEC, 2, 1), SEED)
     const ends = result.files.filter((f) => f.content.includes('<string name="type">GameEnd</string>'))
-    expect(ends.map((f) => f.path)).toEqual(['levels/level2.xml'])
+    expect(ends.map((f) => f.path)).toEqual([floorPath(result, 2)])
   })
 })
 
@@ -218,21 +219,21 @@ describe('campaign order — the three gateway prefabs', () => {
   it('gives the same floor a red portal, a blue portal, or the orb, depending only on what follows it', () => {
     // floor 2 -> B1 directly: red portal. floor 3 is last: the orb.
     const direct = generateOk(campaign('1,2,B1,3', 1, 0), SEED)
-    const floor1Direct = levelOf(direct, 'levels/level1.xml')
+    const floor1Direct = floorXml(direct, 1)
     expect(floor1Direct).toContain('doodads/generic/exit_teleport_boss.xml')
     expect(floor1Direct).not.toContain('items/crystal_purple.xml')
-    const floor2Direct = levelOf(direct, 'levels/level2.xml')
+    const floor2Direct = floorXml(direct, 2)
     expect(floor2Direct).toContain('items/crystal_purple.xml')
     expect(floor2Direct).not.toContain('exit_teleport')
 
     // floor 2 -> L1 -> B1: blue portal on the floor, not red. floor 3 is
     // still last: the orb, unmoved by the lobby in front of the fight.
     const viaLobby = generateOk(campaign('1,2,L1,B1,3', 1, 1), SEED)
-    const floor1ViaLobby = levelOf(viaLobby, 'levels/level1.xml')
+    const floor1ViaLobby = floorXml(viaLobby, 1)
     expect(floor1ViaLobby).toContain('doodads/generic/exit_teleport.xml')
     expect(floor1ViaLobby).not.toContain('exit_teleport_boss.xml')
     expect(floor1ViaLobby).not.toContain('items/crystal_purple.xml')
-    const floor2ViaLobby = levelOf(viaLobby, 'levels/level2.xml')
+    const floor2ViaLobby = floorXml(viaLobby, 2)
     expect(floor2ViaLobby).toContain('items/crystal_purple.xml')
     expect(floor2ViaLobby).not.toContain('exit_teleport')
   })
@@ -271,12 +272,12 @@ describe('campaign order — the shipped lobby leaves the escape floor untouched
     const directResult = generateOk(direct, SEED)
 
     // floor 8 (index 7, the escape floor / last slot either way): untouched
-    expect(levelOf(directResult, 'levels/level7.xml')).toBe(levelOf(shippedResult, 'levels/level7.xml'))
+    expect(floorXml(directResult, 7)).toBe(floorXml(shippedResult, 7))
 
     // floor 7 (index 6, fight-adjacent): differs, but only in the gateway's
     // doodad art and its target string — same tilemap, same everything else
-    const shippedFloor6 = levelOf(shippedResult, 'levels/level6.xml')
-    const directFloor6 = levelOf(directResult, 'levels/level6.xml')
+    const shippedFloor6 = floorXml(shippedResult, 6)
+    const directFloor6 = floorXml(directResult, 6)
     expect(shippedFloor6).not.toBe(directFloor6)
 
     const shippedLines = shippedFloor6.split('\n')
@@ -341,7 +342,7 @@ describe('campaign order — lobbies never move a floor (invariant #6)', () => {
 
     for (const seed of [1, SEED]) {
       const results = [none, one, two, swapped].map((params) => generateOk(params, seed))
-      const floorsOf = (r: DungeonResult) => r.files.filter((f) => /^levels\/level\d+\.xml$/.test(f.path))
+      const floorsOf = (r: DungeonResult) => r.files.filter((f) => isFloorPath(f.path)).map((f) => f.content)
 
       const reference = floorsOf(results[0])
       for (let i = 1; i < results.length; i++) {
@@ -391,4 +392,54 @@ describe('campaign order — reachability still holds', () => {
       }
     }
   }, 90_000)
+})
+
+describe('campaign order — level file names', () => {
+  const slots = (spec: string): CampaignSlot[] => spec.split(',').map((t) => parseSlotLabel(t)!)
+
+  it('numbers every file by its place in the play order and names its kind', () => {
+    const order = slots('L1,1,2,3,4,5,6,7,L2,AB1,8')
+    const path = campaignFilePaths(order, ['boss'], (i) => i === 0)
+    expect(order.map(path)).toEqual([
+      'levels/01_lobby1.xml',
+      'levels/02_floor1_boss.xml',
+      'levels/03_floor2.xml',
+      'levels/04_floor3.xml',
+      'levels/05_floor4.xml',
+      'levels/06_floor5.xml',
+      'levels/07_floor6.xml',
+      'levels/08_floor7.xml',
+      'levels/09_lobby2.xml',
+      'levels/10_arena_boss1.xml',
+      'levels/11_floor8.xml'
+    ])
+  })
+
+  it('names a survival arena by its mode, numbered by its place in the fight list', () => {
+    const order = slots('1,AB1,AS2')
+    const path = campaignFilePaths(order, ['boss', 'survival'], () => false)
+    expect(order.map(path)).toEqual(['levels/01_floor1.xml', 'levels/02_arena_boss1.xml', 'levels/03_arena_survival2.xml'])
+  })
+
+  it('pads the prefix to the widest position, so a 100-slot campaign still sorts', () => {
+    const order = Array.from({ length: 100 }, (_, index): CampaignSlot => ({ kind: 'floor', index }))
+    const path = campaignFilePaths(order, [], () => false)
+    expect(path(order[0])).toBe('levels/001_floor1.xml')
+    expect(path(order[99])).toBe('levels/100_floor100.xml')
+  })
+
+  it('writes the same names into levels.xml as the files it ships, ids unchanged', () => {
+    const result = generateOk(campaign('L1,1,AB1,2,3', 1, 1), SEED)
+    const levels = result.files.find((f) => f.path === 'levels.xml')!.content
+    const listed = [...levels.matchAll(/<level id="([^"]*)" res="([^"]*)"/g)].map((m) => [m[1], m[2]])
+    expect(listed).toEqual([
+      ['lobby0', 'levels/01_lobby1.xml'],
+      ['0', 'levels/02_floor1.xml'],
+      ['boss0', 'levels/03_arena_boss1.xml'],
+      ['1', 'levels/04_floor2.xml'],
+      ['2', 'levels/05_floor3.xml']
+    ])
+    const shipped = new Set(result.files.map((f) => f.path))
+    for (const [, res] of listed) expect(shipped.has(res), res).toBe(true)
+  }, 60_000)
 })

@@ -5,6 +5,7 @@ import { THEMED_WALL_PIECES } from '../src/generator/config/themes'
 import type { DoodadTypeName } from '../src/generator/objects/doodad'
 import type { BossFloorPattern } from '../src/generator'
 import { plainParameters } from './params'
+import { isArenaPath, isFloorPath } from './levelFiles'
 
 function generateWithTheme(theme: string, seed: number, levels?: number): DungeonResult {
   const params = plainParameters()
@@ -150,7 +151,7 @@ describe('overlay themes — an alternate tileset layered over a base theme', ()
 
   it('emits the base tileset and the overlay as two datasets in every block', () => {
     const level0 = generateWithTheme('c_tiles', 4242, 1).files.find(
-      (f) => f.path === 'levels/level0.xml'
+      (f) => isFloorPath(f.path, 0)
     )!.content
     const sets = level0.match(/<string name="tileset">([^<]*)<\/string>/g) ?? []
     expect(sets.length).toBeGreaterThan(0)
@@ -167,7 +168,7 @@ describe('overlay themes — an alternate tileset layered over a base theme', ()
   // its art out over the emptiness beyond the map.
   it('masks the overlay to exactly the base layer’s floor tiles', () => {
     const level0 = generateWithTheme('d_carpet', 4242, 1).files.find(
-      (f) => f.path === 'levels/level0.xml'
+      (f) => isFloorPath(f.path, 0)
     )!.content
     const nums = (row: string) =>
       row
@@ -208,7 +209,7 @@ describe('overlay themes — an alternate tileset layered over a base theme', ()
     params.boss.fights[0].arena.theme = 'f_frozen'
     const result = generateDungeon(params, 4242)
     expect(result.ok).toBe(true)
-    const boss = (result as DungeonResult).files.find((f) => f.path === 'levels/boss0.xml')!.content
+    const boss = (result as DungeonResult).files.find((f) => isArenaPath(f.path, 0))!.content
     const sets = boss.match(/<string name="tileset">([^<]*)<\/string>/g) ?? []
     expect(sets.length).toBeGreaterThan(0)
     expect(sets.length % 3).toBe(0)
@@ -229,8 +230,8 @@ describe('overlay themes — an alternate tileset layered over a base theme', ()
     expect(plain.files.map((f) => f.content)).toEqual(again.files.map((f) => f.content))
     // and the paired theme really does differ — otherwise the test above is vacuous
     const paired = generateWithTheme('c_tiles', 31337, 3)
-    const plain0 = plain.files.find((f) => f.path === 'levels/level0.xml')!.content
-    const paired0 = paired.files.find((f) => f.path === 'levels/level0.xml')!.content
+    const plain0 = plain.files.find((f) => isFloorPath(f.path, 0))!.content
+    const paired0 = paired.files.find((f) => isFloorPath(f.path, 0))!.content
     expect(paired0).not.toBe(plain0)
     // ...only by the added dataset: the doodads section is untouched
     const doodads = (xml: string) => xml.slice(xml.indexOf('<dictionary name="doodads">'))
@@ -323,7 +324,7 @@ describe('mixed themes — the plain floor and its overlays varied per region', 
   it('stacks the base first and only palette overlays above it', () => {
     const def = getTheme('c_mixed')!
     const level0 = generateWithTheme('c_mixed', 4242, 1).files.find(
-      (f) => f.path === 'levels/level0.xml'
+      (f) => isFloorPath(f.path, 0)
     )!.content
     const allowed = def.mixed!.filter((s) => s !== null).map((s) => s!.tilemap)
     expect(allowed).toEqual(['tilemaps/c_tiles.xml', 'tilemaps/c_tiles_dirt.xml'])
@@ -343,7 +344,7 @@ describe('mixed themes — the plain floor and its overlays varied per region', 
   it('masks every extra dataset to the floor and keeps the masks disjoint', () => {
     const def = getTheme('d_mixed')!
     const level0 = generateWithTheme('d_mixed', 4242, 1).files.find(
-      (f) => f.path === 'levels/level0.xml'
+      (f) => isFloorPath(f.path, 0)
     )!.content
     const limits = new Map(def.mixed!.filter((s) => s !== null).map((s) => [s!.tilemap, s!.tiles]))
 
@@ -381,7 +382,7 @@ describe('mixed themes — the plain floor and its overlays varied per region', 
     const result = generateDungeon(params, 4242)
     expect(result.ok).toBe(true)
     const res = result as DungeonResult
-    const level0 = res.files.find((f) => f.path === 'levels/level0.xml')!.content
+    const level0 = res.files.find((f) => isFloorPath(f.path, 0))!.content
     const preview = res.levels[0]
 
     // rebuild the world-space variant of every floor cell from the emitted XML
@@ -428,12 +429,12 @@ describe('mixed themes — the plain floor and its overlays varied per region', 
     const again = generateWithTheme('c_mixed', 31337, 3)
     expect(once.files.map((f) => f.content)).toEqual(again.files.map((f) => f.content))
 
-    const mixed0 = once.files.find((f) => f.path === 'levels/level0.xml')!.content
+    const mixed0 = once.files.find((f) => isFloorPath(f.path, 0))!.content
     const plain0 = generateWithTheme('c', 31337, 3).files.find(
-      (f) => f.path === 'levels/level0.xml'
+      (f) => isFloorPath(f.path, 0)
     )!.content
     const paired0 = generateWithTheme('c_tiles', 31337, 3).files.find(
-      (f) => f.path === 'levels/level0.xml'
+      (f) => isFloorPath(f.path, 0)
     )!.content
     expect(mixed0).not.toBe(plain0)
     expect(mixed0).not.toBe(paired0)
@@ -447,7 +448,7 @@ describe('mixed themes — the plain floor and its overlays varied per region', 
     params.boss.fights[0].arena.theme = 'f_mixed'
     const result = generateDungeon(params, 4242)
     expect(result.ok).toBe(true)
-    const boss = (result as DungeonResult).files.find((f) => f.path === 'levels/boss0.xml')!.content
+    const boss = (result as DungeonResult).files.find((f) => isArenaPath(f.path, 0))!.content
 
     const datasets = readDatasets(boss)
     const tilesets = new Set(datasets.map((d) => d.tileset))
@@ -490,7 +491,7 @@ describe('mixed themes — the plain floor and its overlays varied per region', 
       params.boss.fights[0].arena.floorPattern = floorPattern as BossFloorPattern
       const result = generateDungeon(params, 4242)
       expect(result.ok).toBe(true)
-      return (result as DungeonResult).files.find((f) => f.path === 'levels/boss0.xml')!.content
+      return (result as DungeonResult).files.find((f) => isArenaPath(f.path, 0))!.content
     }
 
     const checker = build('checker')
@@ -518,7 +519,7 @@ describe('mixed themes — the plain floor and its overlays varied per region', 
       params.boss.fights[0].arena.floorPattern = floorPattern as BossFloorPattern
       const result = generateDungeon(params, 4242)
       expect(result.ok).toBe(true)
-      return (result as DungeonResult).files.find((f) => f.path === 'levels/boss0.xml')!.content
+      return (result as DungeonResult).files.find((f) => isArenaPath(f.path, 0))!.content
     }
     // a plain theme takes no pattern draws at all, so the knob cannot move it
     expect(build('checker')).toBe(build('random'))
@@ -532,7 +533,7 @@ describe('mixed themes — the plain floor and its overlays varied per region', 
       params.boss.fights[0].arena.theme = theme
       const result = generateDungeon(params, 909)
       expect(result.ok).toBe(true)
-      return (result as DungeonResult).files.find((f) => f.path === 'levels/boss0.xml')!.content
+      return (result as DungeonResult).files.find((f) => isArenaPath(f.path, 0))!.content
     }
     expect(run('g')).toBe(run('g'))
     expect(run('g_mixed')).toBe(run('g_mixed'))
@@ -593,7 +594,7 @@ describe('doodadPath', () => {
 
 describe('generating with a bonus theme', () => {
   it('emits the bonus tileset and bonus wall pieces', () => {
-    const level0 = generateWithTheme('bonus1', 8080).files.find((f) => f.path === 'levels/level0.xml')!
+    const level0 = generateWithTheme('bonus1', 8080).files.find((f) => isFloorPath(f.path, 0))!
       .content
     expect(level0).toContain('<string name="tileset">tilemaps/bonus_1.xml</string>')
     expect(level0).toContain('doodads/theme_bonus1/bonus1_')
@@ -602,12 +603,12 @@ describe('generating with a bonus theme', () => {
   it('substitutes the stair frames and borrows a cover block', () => {
     const result = generateWithTheme('bonus4', 4321)
     // a middle level has both an entrance and an exit
-    const level = result.files.find((f) => f.path === 'levels/level3.xml')!.content
+    const level = result.files.find((f) => isFloorPath(f.path, 3))!.content
     expect(level).toContain('doodads/special/bonus_entrance.xml')
     expect(level).toContain('doodads/special/bonus_exit.xml')
     // the occlusion overlay, so the character does not show through wall tops
     expect(level).toContain('doodads/special/color_theme_a_16.xml')
-    for (const file of result.files.filter((f) => f.path.startsWith('levels/level'))) {
+    for (const file of result.files.filter((f) => isFloorPath(f.path))) {
       expect(file.content).not.toContain('exit_h_')
       expect(file.content).not.toContain('color_theme_bonus')
     }
@@ -619,7 +620,7 @@ describe('generating with a bonus theme', () => {
     // Uses _v_8 rather than _h_8 because the latter doubles as stair backing,
     // which bonus themes emit and lettered ones do not.
     const yOf = (theme: string): number[] => {
-      const xml = generateWithTheme(theme, 5150, 1).files.find((f) => f.path === 'levels/level0.xml')!
+      const xml = generateWithTheme(theme, 5150, 1).files.find((f) => isFloorPath(f.path, 0))!
         .content
       return [...xml.matchAll(/<string name="type">[^<]*_v_8\.xml<\/string>\s*<float name="x">[^<]*<\/float>\s*<float name="y">([^<]*)<\/float>/g)]
         .map((m) => Number(m[1]))
@@ -638,7 +639,7 @@ describe('generating with a bonus theme', () => {
     // the backing bonus themes need and lettered themes do not
     const countDoodads = (theme: string): number => {
       const level = generateWithTheme(theme, 777).files.find(
-        (f) => f.path === 'levels/level3.xml'
+        (f) => isFloorPath(f.path, 3)
       )!.content
       return [...level.matchAll(/<bool name="need-sync">/g)].length
     }
@@ -675,7 +676,7 @@ describe('generating with a bonus theme', () => {
       }
 
       const level0 = generateWithTheme(def.id, 99, 1).files.find(
-        (f) => f.path === 'levels/level0.xml'
+        (f) => isFloorPath(f.path, 0)
       )!.content
       const datasets = [
         ...level0.matchAll(
@@ -759,7 +760,7 @@ describe('theme h — desert outdoors', () => {
   it('emits no occlusion overlay — there are no wall tops to hide behind', () => {
     expect(getTheme('h')!.omitCover).toBe(true)
     const result = generateWithTheme('h', 6420)
-    for (const file of result.files.filter((f) => f.path.startsWith('levels/level'))) {
+    for (const file of result.files.filter((f) => isFloorPath(f.path))) {
       expect(file.content).not.toContain('color_theme_')
     }
   })
@@ -791,7 +792,7 @@ describe('theme h — desert outdoors', () => {
   it('emits the h tileset and no piece theme h does not ship', () => {
     const result = generateWithTheme('h', 6420)
     // a middle level carries both an entrance and an exit set
-    const level = result.files.find((f) => f.path === 'levels/level3.xml')!.content
+    const level = result.files.find((f) => isFloorPath(f.path, 3))!.content
     expect(level).toContain('<string name="tileset">tilemaps/h_default.xml</string>')
     expect(level).toContain('doodads/theme_h/h_')
     expect(level).toContain('doodads/theme_h/h_pyramid_exit.xml')
@@ -802,7 +803,7 @@ describe('theme h — desert outdoors', () => {
       expect(level).toContain(`doodads/theme_h/${face}.xml`)
     }
 
-    for (const file of result.files.filter((f) => f.path.startsWith('levels/level'))) {
+    for (const file of result.files.filter((f) => isFloorPath(f.path))) {
       // the un-suffixed template names, which theme h has no file for
       expect(file.content).not.toContain('h_h_8.xml')
       expect(file.content).not.toContain('h_v_8.xml')
@@ -833,7 +834,7 @@ describe('theme h — desert outdoors', () => {
     // stopped when issue #58 changed the monster roll's draw count.
     const doodads = (theme: string): string[] => {
       const level = generateWithTheme(theme, 777).files.find(
-        (f) => f.path === 'levels/level3.xml'
+        (f) => isFloorPath(f.path, 3)
       )!.content
       return [...level.matchAll(/<string name="type">([^<]+)<\/string>/g)]
         .map((m) => m[1])

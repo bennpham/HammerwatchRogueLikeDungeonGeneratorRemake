@@ -15,6 +15,7 @@ import type { DoodadTypeName } from '../src/generator/objects/doodad'
 import { generateDungeon } from '../src/generator'
 import type { DungeonParameters, DungeonResult } from '../src/generator'
 import { allIds, badIntArray, nodesOfType, oneShotRespawn } from './xmlHelpers'
+import { arenaXml, floorPath, floorXml, isArenaPath, isFloorPath } from './levelFiles'
 
 function freshCtx(seed: number): GenerationContext {
   return new GenerationContext(plainParameters(), seed)
@@ -605,7 +606,7 @@ describe('boss arena — scattered spawn modes (issue #21)', () => {
     const params = withBoss({ enabled: true })
     params.boss.fights[0].arena = scattered('gaussian', 'skeleton1#0', 6)
     const result = generateOk(params, 31337)
-    const arena = result.files.find((f) => f.path === 'levels/boss0.xml')
+    const arena = result.files.find((f) => isArenaPath(f.path, 0))
     expect(arena).toBeDefined()
     const spawners = spawnNodes(arena!.content).filter((s) => s.actorPath === 'actors/spawners/skeleton_1.xml')
     expect(spawners).toHaveLength(6)
@@ -790,13 +791,13 @@ describe('boss campaign — on touches only the final floor’s orb room', () =>
       }
 
       for (let i = 0; i < floors - 1; i++) {
-        const path = `levels/level${i}.xml`
+        const path = floorPath(on, i)
         expect(on.files.find((f) => f.path === path)!.content, `seed ${seed} floor ${i}`).toBe(
           off.files.find((f) => f.path === path)!.content
         )
       }
 
-      const path = `levels/level${floors - 1}.xml`
+      const path = floorPath(on, floors - 1)
       const onXml = on.files.find((f) => f.path === path)!.content
       const offXml = off.files.find((f) => f.path === path)!.content
       expect(onXml, `seed ${seed} final floor should differ`).not.toBe(offXml)
@@ -855,7 +856,7 @@ describe('boss campaign — wiring', () => {
     // the final dungeon floor's portal targets the arena directly — issue #48
     // deleted the welded-on prep room, so there is no intermediate level any
     // more
-    const finalFloor = on.files.find((f) => f.path === `levels/level${floors - 1}.xml`)!.content
+    const finalFloor = on.files.find((f) => isFloorPath(f.path, floors - 1))!.content
     expect(finalFloor).toContain('<string name="level">boss0</string>')
   })
 })
@@ -875,8 +876,8 @@ describe('boss-only campaign — 0 dungeon floors', () => {
     const result = generateOk(zeroFloors(), 12345)
     const paths = result.files.map((f) => f.path)
 
-    expect(paths).toContain('levels/boss0.xml')
-    expect(paths.filter((p) => /^levels\/level\d+\.xml$/.test(p))).toEqual([])
+    expect(paths).toContain('levels/01_arena_boss1.xml')
+    expect(paths.filter((p) => isFloorPath(p))).toEqual([])
     expect(paths).toContain('info.xml')
     expect(paths).toContain('levels.xml')
 
@@ -893,7 +894,7 @@ describe('boss-only campaign — 0 dungeon floors', () => {
     const seed = 90210
     const withFloors = generateOk(plainParameters(), seed)
     const withoutFloors = generateOk(zeroFloors(), seed)
-    const arena = (r: DungeonResult) => r.files.find((f) => f.path === 'levels/boss0.xml')!.content
+    const arena = (r: DungeonResult) => r.files.find((f) => isArenaPath(f.path, 0))!.content
     expect(arena(withoutFloors)).toBe(arena(withFloors))
   })
 
@@ -1148,7 +1149,7 @@ describe('boss arena — tilemap block origins sit on the 20-grid', () => {
 
   it('so does a dungeon floor — proving the assertion is not vacuous', () => {
     const result = generateOk(plainParameters(), 4242)
-    const floor = result.files.find((f) => f.path === 'levels/level0.xml')!.content
+    const floor = result.files.find((f) => isFloorPath(f.path, 0))!.content
     const blocks = tileBlocks(floor)
     expect(blocks.length).toBeGreaterThan(0)
     for (const b of blocks) {
@@ -1570,12 +1571,12 @@ describe('boss arena — invulnerability windows', () => {
       const b = generateOk(off, seed)
 
       // every emitted file but the arena is byte-identical
-      const others = (r: DungeonResult) => r.files.filter((f) => f.path !== 'levels/boss0.xml')
-      expect(others(a).some((f) => /^levels\/level\d+\.xml$/.test(f.path)), `seed ${seed}`).toBe(true)
+      const others = (r: DungeonResult) => r.files.filter((f) => !isArenaPath(f.path, 0))
+      expect(others(a).some((f) => isFloorPath(f.path)), `seed ${seed}`).toBe(true)
       expect(others(b), `seed ${seed}`).toEqual(others(a))
       expect(b.levels, `seed ${seed}`).toEqual(a.levels)
 
-      const arena = (r: DungeonResult) => r.files.find((f) => f.path === 'levels/boss0.xml')!.content
+      const arena = (r: DungeonResult) => r.files.find((f) => isArenaPath(f.path, 0))!.content
       expect(arena(b), `seed ${seed}`).not.toBe(arena(a))
     }
   }, 60_000)
@@ -1610,12 +1611,12 @@ describe('boss arena — checkpoints', () => {
       const b = generateOk(off, seed)
 
       // every emitted file but the arena is byte-identical
-      const others = (r: DungeonResult) => r.files.filter((f) => f.path !== 'levels/boss0.xml')
-      expect(others(a).some((f) => /^levels\/level\d+\.xml$/.test(f.path)), `seed ${seed}`).toBe(true)
+      const others = (r: DungeonResult) => r.files.filter((f) => !isArenaPath(f.path, 0))
+      expect(others(a).some((f) => isFloorPath(f.path)), `seed ${seed}`).toBe(true)
       expect(others(b), `seed ${seed}`).toEqual(others(a))
       expect(b.levels, `seed ${seed}`).toEqual(a.levels)
 
-      const arena = (r: DungeonResult) => r.files.find((f) => f.path === 'levels/boss0.xml')!.content
+      const arena = (r: DungeonResult) => r.files.find((f) => isArenaPath(f.path, 0))!.content
       expect(arena(b), `seed ${seed}`).not.toBe(arena(a))
     }
   }, 60_000)
@@ -1642,12 +1643,11 @@ describe('multiple boss fights (issue #43)', () => {
     const paths = result.files.map((f) => f.path)
 
     for (let i = 0; i < 3; i++) {
-      expect(paths, `fight ${i}`).toContain(`levels/boss${i}.xml`)
+      expect(paths.filter((p) => isArenaPath(p, i)), `fight ${i}`).toHaveLength(1)
     }
     // and no un-indexed leftover from the single-fight shape, nor a prep room —
     // issue #48 deleted the welded-on prep room entirely
-    expect(paths).not.toContain('levels/boss.xml')
-    expect(paths.filter((p) => p.startsWith('levels/bossprep'))).toEqual([])
+    expect(paths.filter((p) => p.includes('bossprep'))).toEqual([])
   })
 
   it('chains fight into fight directly — each arena leads into the NEXT arena', () => {
@@ -1657,11 +1657,11 @@ describe('multiple boss fights (issue #43)', () => {
     const result = generateOk(withFights(3), 4242)
 
     // the last dungeon floor opens the first fight's arena directly
-    const finalFloor = levelOf(result, `levels/level${plainParameters().levels - 1}.xml`)
+    const finalFloor = floorXml(result, plainParameters().levels - 1)
     expect(exitTargets(finalFloor)).toContain('boss0')
 
     for (let i = 0; i < 3; i++) {
-      const arena = levelOf(result, `levels/boss${i}.xml`)
+      const arena = arenaXml(result, i)
       if (i < 2) {
         // a non-final arena's alcove is a portal straight into the next
         // arena, not the orb
@@ -1678,7 +1678,7 @@ describe('multiple boss fights (issue #43)', () => {
     const gameEnds = result.files.filter((f) =>
       f.content.includes('<string name="type">GameEnd</string>')
     )
-    expect(gameEnds.map((f) => f.path)).toEqual(['levels/boss2.xml'])
+    expect(gameEnds.map((f) => f.path)).toEqual([`levels/${String(plainParameters().levels + 3).padStart(2, '0')}_arena_boss3.xml`])
   })
 
   it('lists every fight in levels.xml, in order, after the dungeon floors', () => {
@@ -1722,14 +1722,14 @@ describe('multiple boss fights (issue #43)', () => {
       const three = generateOk(withFights(3), seed)
 
       expect(
-        tilemap(levelOf(three, 'levels/boss0.xml')),
+        tilemap(arenaXml(three, 0)),
         `seed ${seed} arena 0`
-      ).toBe(tilemap(levelOf(one, 'levels/boss0.xml')))
+      ).toBe(tilemap(arenaXml(one, 0)))
 
       // and the dungeon itself never notices either — a different stream
       for (let i = 0; i < plainParameters().levels; i++) {
-        expect(levelOf(three, `levels/level${i}.xml`), `seed ${seed} floor ${i}`).toBe(
-          levelOf(one, `levels/level${i}.xml`)
+        expect(floorXml(three, i), `seed ${seed} floor ${i}`).toBe(
+          floorXml(one, i)
         )
       }
     }
@@ -1793,14 +1793,14 @@ describe('multiple boss fights (issue #43)', () => {
     changed.boss.fights[1].arena.theme = 'a'
     changed.boss.fights[1].arena.bossPool = ['boss_worm']
 
-    expect(levelOf(generateOk(changed, 4242), 'levels/boss0.xml')).toBe(
-      levelOf(generateOk(base, 4242), 'levels/boss0.xml')
+    expect(arenaXml(generateOk(changed, 4242), 0)).toBe(
+      arenaXml(generateOk(base, 4242), 0)
     )
   }, 60_000)
 
   it('gives each fight its own arena — later fights continue the stream', () => {
     const result = generateOk(withFights(3), 4242)
-    const arenas = [0, 1, 2].map((i) => levelOf(result, `levels/boss${i}.xml`))
+    const arenas = [0, 1, 2].map((i) => arenaXml(result, i))
     // identical options, different draws: three copies of one arena would mean
     // the fights were sharing a stream position
     expect(new Set(arenas).size).toBe(3)
@@ -1837,7 +1837,7 @@ describe('arena bodyguard twins (issue #64 part 2)', () => {
   }
 
   it('substitutes the 3 twinned keys and leaves the untwinned one alone, with the toggle on (the default)', () => {
-    const xml = levelOf(generateOk(withTwinnedWave(undefined), 4242), 'levels/boss0.xml')
+    const xml = arenaXml(generateOk(withTwinnedWave(undefined), 4242), 0)
     expect(xml).toContain('actors/boss_knight/archer_1.xml')
     expect(xml).toContain('actors/boss_lich/lich_guard_skeleton.xml')
     expect(xml).toContain('actors/boss_anubis/mummy_ranged_2_noloot.xml')
@@ -1848,7 +1848,7 @@ describe('arena bodyguard twins (issue #64 part 2)', () => {
   }, 60_000)
 
   it('emits the plain actors with the toggle off', () => {
-    const xml = levelOf(generateOk(withTwinnedWave(false), 4242), 'levels/boss0.xml')
+    const xml = arenaXml(generateOk(withTwinnedWave(false), 4242), 0)
     expect(xml).toContain('actors/archer_1.xml')
     expect(xml).toContain('actors/skeleton_3.xml')
     expect(xml).toContain('actors/mummy_ranged_2.xml')
@@ -1862,8 +1862,8 @@ describe('arena bodyguard twins (issue #64 part 2)', () => {
   }, 60_000)
 
   it('is a pure path substitution — mapping the twin paths back makes the two arenas byte-identical', () => {
-    const on = levelOf(generateOk(withTwinnedWave(undefined), 4242), 'levels/boss0.xml')
-    const off = levelOf(generateOk(withTwinnedWave(false), 4242), 'levels/boss0.xml')
+    const on = arenaXml(generateOk(withTwinnedWave(undefined), 4242), 0)
+    const off = arenaXml(generateOk(withTwinnedWave(false), 4242), 0)
     let mappedBack = on
     mappedBack = mappedBack
       .split('actors/boss_knight/archer_1.xml').join('actors/archer_1.xml')
@@ -1875,7 +1875,7 @@ describe('arena bodyguard twins (issue #64 part 2)', () => {
   it('never moves any dungeon floor — draws no RNG', () => {
     const on = generateOk(withTwinnedWave(undefined), 4242)
     const off = generateOk(withTwinnedWave(false), 4242)
-    const floors = (r: DungeonResult) => r.files.filter((f) => /^levels\/level\d+\.xml$/.test(f.path))
+    const floors = (r: DungeonResult) => r.files.filter((f) => isFloorPath(f.path))
     expect(floors(on)).toEqual(floors(off))
   }, 60_000)
 })

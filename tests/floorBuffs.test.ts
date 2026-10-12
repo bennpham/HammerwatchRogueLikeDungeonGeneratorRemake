@@ -26,6 +26,7 @@ import type { DungeonParameters, DungeonResult } from '../src/generator'
 import { BUFF_DEFS, BUFF_GROUPS, BUFF_HELPFUL_IDS, buffById } from '../src/generator/objects/buffTypes'
 import { allIds, badIntArray, nodesOfType } from './xmlHelpers'
 import { plainParameters } from './params'
+import { isFloorPath } from './levelFiles'
 
 const SEED = 4242
 
@@ -69,8 +70,8 @@ function withBuffs(index: number, buffs: FloorBuff[]): DungeonParameters {
 }
 
 function levelXml(result: DungeonResult, index: number): string {
-  const file = result.files.find((f) => f.path === `levels/level${index}.xml`)
-  expect(file, `levels/level${index}.xml missing`).toBeDefined()
+  const file = result.files.find((f) => isFloorPath(f.path, index))
+  expect(file, `floor ${index} missing`).toBeDefined()
   return (file as { content: string }).content
 }
 

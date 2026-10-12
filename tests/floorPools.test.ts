@@ -14,6 +14,7 @@ import {
 import { validateParameters } from '../src/generator/config/validation'
 import type { DungeonParameters, DungeonResult } from '../src/generator'
 import { plainParameters } from './params'
+import { isFloorPath } from './levelFiles'
 
 /**
  * One floor whose pool is exactly `pool`. The cap is keyed by TYPE id, which is
@@ -34,7 +35,7 @@ function floorWith(pool: string[], seed: number, max = 60): DungeonResult {
 }
 
 const levelXML = (r: DungeonResult): string =>
-  r.files.find((f) => f.path === 'levels/level0.xml')!.content
+  r.files.find((f) => isFloorPath(f.path, 0))!.content
 
 /** How many actors of `path` the level places. */
 function actorCount(xml: string, path: string): number {

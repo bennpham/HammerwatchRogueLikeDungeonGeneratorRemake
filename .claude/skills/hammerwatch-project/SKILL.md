@@ -16,9 +16,10 @@ up-front parameter validation.
 objects — each of which places rooms, connects them with passages, assigns
 special rooms, rasterizes a wall grid, pattern-matches wall doodads, and
 serializes itself into Hammerwatch's XML dialect — and returns an array of
-`{path, content}` files (`info.xml`, `levels.xml`, `levels/levelN.xml`, plus
-`levels/lobby<i>.xml` (one per lobby slot), `levels/boss<i>.xml` (one per boss
-fight) and `tweak/*.xml`
+`{path, content}` files (`info.xml`, `levels.xml`, one `levels/<NN>_<name>.xml`
+per campaign slot — `floorK`, `floorK_boss`, `arena_bossK`, `arena_survivalK`,
+`lobbyK`, 1-based and prefixed with the slot's play-order position, see
+`campaignFilePaths` in `campaign.ts` — and `tweak/*.xml`
 for whichever optional layers are on) plus per-floor preview geometry. Electron's main process does everything else:
 writes those files into `<Hammerwatch>/editor/<name>/`, runs
 `LevelPacker.exe`, moves the resulting `.hwm` into `<Hammerwatch>/levels/`.
@@ -273,8 +274,8 @@ reference/hammerwatch-tweak-stats.md
    dungeon. The same holds for `src/generator/lobby/**`: both committed rooms
    are edited by surgery after the floor loop *and* the fight loop, no random
    values, so adding, removing or reordering lobbies leaves a seed's
-   `levels/level*.xml` byte-identical — only which extra files exist, and which
-   level id a gateway names, may change. The one thing that *does* move a floor
+   floor XML byte-identical — only which extra files exist, what the files are
+   called (numbered by play order), and which level id a gateway names, may change. The one thing that *does* move a floor
    is the **kind** of gateway it gets, which is invariant 9's business, not
    this one's. An empty `lobbies` list emits no `levels/lobby*.xml` at all, and
    a preset's `assets` ship only when some lobby actually uses that preset,
@@ -353,7 +354,6 @@ reference/hammerwatch-tweak-stats.md
 | `mysteryButtons` | absent | the campaign-wide mystery-button POOL (issue #67), `MysteryButton[]`, unbounded (only the parameters.txt importer stops at `MYSTERY_PARSE_LIMIT` = 10000): each `{name?, text?, loot: WavePickup[] (MYSTERY_LOOT_DEFS ids), monsters: {monster, count}[] (arena key grammar, ≤ 100/row, unscaled), traps: BossTrap[] (≤ MAX_TRAP_COUNT, on the plate room's walls), trapSeconds?}`. Name ≤ 40 / text ≤ 120 chars, never `= < > &` or a line break (XML is unescaped; `=` breaks the line split). Empty is stored absent. `mysteryButtons=N`, `mysteryButton<i>Name/Text/Loot/Monsters/Traps/TrapSeconds` |
 | `levelMystery[i]` | absent | per floor `{count ≤ 200, pool: number[]}` — 0-based pool indices repeated to weight, drawn WITH replacement; read through `floorMystery`. Absent/all-zero = none. `mysteryFloorN=<count>:<i,i,j>` |
 | `levelLockMystery[i]` | absent | **enhanced lock buttons**: `{count, pool: number[], disguise?}` — up to `count` (clamped to `floorLockButtons`) of a locked floor's own lock buttons ALSO fire a mystery payload from `pool`, a separate per-floor pick list from `levelMystery`; read through `floorLockMystery` (undefined off an unlocked floor, an empty/dangling pool, or `count ≤ 0`). `disguise` (absent = off, read through `floorLockDisguised`) draws that floor's lock buttons as `TriggerButton`/`pressed` instead of `BossDoorButton`/`activate`, at construction time off zero draws. Purely ADDITIVE like `levelMystery`: draws only from `ctx.mysteryRand`, strictly after every ordinary plate draw on the floor. `mysteryLockN=<count>:<i,j,k>`, `mysteryLockDisguiseN=1` |
-| `lobbySaves` | **`true`** | campaign-wide: every generated lobby gets one `items/trigger_button_save.xml` by its exit. Items-only, no RNG, `levels/level*.xml` byte-identical either way. `lobbySaves=1` in `parameters.txt`. See *Free upgrades and the arrival revive* |
 | `playerTweaks` | `{ 'player.shared.remove.life': 1 }` | sparse `Record<lowercase key, number>` of player-balance overrides; empty = no `tweak/` folder. See below |
 | `lobbies` | **two** — `BETA-dungeon-prep` at 10000g and `BETA-boss-prep` at 20000g, both selling all 21 columns, no free upgrades | the campaign's shop rooms, `LobbyOptions[]`. A lobby exists iff it is in this list: there is no `enabled` flag any more, and `lobbies: []` reproduces the pre-lobby campaign exactly — the same rule `boss.fights` already followed. Any number, each independently placed by `levelOrder`. `lobbies=N` in `parameters.txt`. See *Lobbies* below |
 | `lobbies[i].preset` | `BETA-dungeon-prep` for a freshly added lobby (`DEFAULT_LOBBY_PRESET_ID`) | which committed room this slot edits — an id from `LOBBY_PRESETS`. `BETA-dungeon-prep` is the campaign's original starting lobby, `BETA-boss-prep` the larger room that used to be welded to every fight. `lobby<i>Preset` in `parameters.txt`; an id that is not in the registry is an error, not a fallback |
@@ -1394,10 +1394,11 @@ campaign has exactly one `Orb` and one `GameEnd` however the slots are
 arranged. `BossPortal` and `LobbyPortal` are deliberately the
 same three-id shape as `Orb` (`objectSet.ts`) so whichever lands in the alcove
 shifts nothing allocated after it and makes no `ctx.bossRand` draw. Level ids
-and paths come
-from `src/generator/campaign.ts` (`bossArenaId`/`bossArenaPath`, `boss<i>` and
-`levels/boss<i>.xml`) — a single source, because both ends of every link need
-them.
+come from `src/generator/campaign.ts` (`bossArenaId`, `boss<i>`) — a single
+source, because both ends of every link need them. File names are separate
+(`campaignFilePaths`: `levels/<NN>_arena_bossK.xml`, numbered by play-order
+position) and only ever appear in `levels.xml`'s `res=`, so renaming a file
+moves no id and no byte of any level.
 
 **One `ctx.bossRand`, shared in list order.** Fight 0 draws exactly what a
 single-fight campaign always drew, and each later fight continues the stream
@@ -1532,16 +1533,6 @@ authored range for the same reason: a light entry references nothing, so its id
 is never rewritten at build time, and the ids the source levels carried
 (10020/10021, 10047/10048) sat inside the span a deep diamond payout walks.
 The lights are unconditional and have no parameter.
-
-**Save checkpoint.** `params.lobbySaves` (campaign-wide, `defaultParameters()`
-ships it **on**) makes `buildLobby` append one `items/trigger_button_save.xml`
-entry to the items body, at `preset.saveButtonSlot` with id `preset.saveButtonId`
-(9500 — in the gap between the respawn rig at 9000–9003 and the diamond base at
-10000). It is a stock `behavior="checkpoint"` item, so this is items-only: no
-scripting node, and `levels/level*.xml` stay byte-identical whatever the toggle
-is (invariant 6). `saveButtonArray()` in `surgery.ts` returns `[]` when off.
-Slots are Crackshell's own: `[7, -4]` (dungeon prep, by the exit teleport),
-`[0, -11]` (boss prep, in front of the portal).
 
 **Arrival revive.** `respawnOnEntryNodes()` + `insertNodes()` (ids from 9000,
 `preset.respawnIdBase`)

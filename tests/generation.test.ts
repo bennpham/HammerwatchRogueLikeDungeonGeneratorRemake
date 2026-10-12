@@ -4,6 +4,7 @@ import { plainParameters } from './params'
 import { doodadOffset, doodadPath } from '../src/generator/objects/doodad'
 import { badIntArray, nodesOfType, oneShotRespawn } from './xmlHelpers'
 import type { DoodadTypeName } from '../src/generator/objects/doodad'
+import { floorPath, isFloorPath } from './levelFiles'
 
 // The shipped campaign ends on an extra dungeon floor played AFTER the boss
 // arena (see presets.ts), which reorders `result.levels` and moves the orb off
@@ -27,7 +28,7 @@ describe('generateDungeon', () => {
     const floors = plainParameters().levels
     expect(result.levels).toHaveLength(floors + 1)
     for (let i = 0; i < floors; i++) {
-      expect(paths).toContain(`levels/level${i}.xml`)
+      expect(paths.filter((p) => isFloorPath(p, i)), `floor ${i}`).toHaveLength(1)
     }
     expect(paths).toContain('info.xml')
     expect(paths).toContain('levels.xml')
@@ -99,7 +100,7 @@ describe('generateDungeon', () => {
     const finalFloorIndex = plainParameters().levels - 1
 
     const lastLevelXML = (result: DungeonResult) =>
-      result.files.find((f) => f.path === `levels/level${finalFloorIndex}.xml`)!.content
+      result.files.find((f) => isFloorPath(f.path, finalFloorIndex))!.content
 
     it('touches nothing before the final floor', () => {
       // locking a floor that already ends in a portal draws nothing before
@@ -109,7 +110,7 @@ describe('generateDungeon', () => {
       const off = generateOk(4242, (p) => (p.levelLock = undefined))
       expect(off.levels.slice(0, finalFloorIndex)).toEqual(on.levels.slice(0, finalFloorIndex))
       for (let i = 0; i < finalFloorIndex; i++) {
-        const path = `levels/level${i}.xml`
+        const path = floorPath(on, i)
         expect(off.files.find((f) => f.path === path)).toEqual(
           on.files.find((f) => f.path === path)
         )
@@ -462,7 +463,7 @@ describe('generateDungeon', () => {
             // only one of the two
             for (let floor = 0; floor < params.levels; floor++) {
               const level = ok.levels[floor]
-              const xml = ok.files.find((f) => f.path === `levels/level${floor}.xml`)!.content
+              const xml = ok.files.find((f) => isFloorPath(f.path, floor))!.content
               const wallAt = (x: number, y: number): boolean =>
                 level.walls[x + y * level.mapWidth] === '1'
 
@@ -627,10 +628,10 @@ describe('generateDungeon', () => {
         })
         // floors before it do not move
         for (let i = 0; i < MIDDLE; i++) {
-          const path = `levels/level${i}.xml`
+          const path = floorPath(plain, i)
           expect(locked.files.find((f) => f.path === path)).toEqual(plain.files.find((f) => f.path === path))
         }
-        const xml = locked.files.find((f) => f.path === `levels/level${MIDDLE}.xml`)!.content
+        const xml = locked.files.find((f) => isFloorPath(f.path, MIDDLE))!.content
         expect(xml, 'no stairs').not.toMatch(/_exit_h_dn/)
         expect(xml).toContain('doodads/generic/exit_teleport.xml')
         expect(xml).not.toContain('exit_teleport_boss.xml')
@@ -755,7 +756,7 @@ describe('generateDungeon', () => {
 
   it('emits the Hammerwatch XML sections in each level file', () => {
     const result = generateOk(31337)
-    const level0 = result.files.find((f) => f.path === 'levels/level0.xml')!.content
+    const level0 = result.files.find((f) => isFloorPath(f.path, 0))!.content
     for (const section of [
       '<dictionary name="tilemap">',
       '<dictionary name="doodads">',
@@ -781,12 +782,13 @@ describe('generateDungeon', () => {
     // (level number === plainParameters().levels) — the numeric dungeon
     // floors are what this test is about, so it loops over those only
     for (let i = 0; i < plainParameters().levels; i++) {
-      expect(levelsXml).toContain(`<level id="${i}" res="levels/level${i}.xml"`)
+      expect(levelsXml).toContain(`<level id="${i}" res="${floorPath(result, i)}"`)
     }
     // and the boss's own arena follows them
-    expect(levelsXml).toContain('<level id="boss0" res="levels/boss0.xml"')
-    const lastFloorPath = `levels/level${plainParameters().levels - 1}.xml`
-    expect(levelsXml.indexOf(lastFloorPath)).toBeLessThan(levelsXml.indexOf('levels/boss0.xml'))
+    const arenaPath = `levels/${String(plainParameters().levels + 1).padStart(2, '0')}_arena_boss1.xml`
+    expect(levelsXml).toContain(`<level id="boss0" res="${arenaPath}"`)
+    const lastFloorPath = floorPath(result, plainParameters().levels - 1)
+    expect(levelsXml.indexOf(lastFloorPath)).toBeLessThan(levelsXml.indexOf(arenaPath))
   })
 
   it('respects the level count parameter', () => {
@@ -832,7 +834,7 @@ describe('dungeon floors — arrival respawn', () => {
   // room and the boss arena all copy it. Nothing asserted on it before.
   it('gives every floor a one-shot respawn at the entrance stairs', () => {
     const result = generateOk(31337)
-    for (const file of result.files.filter((f) => /^levels\/level\d+\.xml$/.test(f.path))) {
+    for (const file of result.files.filter((f) => isFloorPath(f.path))) {
       const rig = oneShotRespawn(file.content)
       expect(rig, typeof rig === 'string' ? `${file.path}: ${rig}` : '').not.toBeTypeOf('string')
     }

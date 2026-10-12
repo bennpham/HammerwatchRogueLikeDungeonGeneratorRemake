@@ -20,6 +20,7 @@ import {
 import { isKnownMonsterId } from '../src/generator/objects/monsterTypes'
 import type { DungeonResult } from '../src/generator'
 import { plainParameters } from './params'
+import { floorXml, isFloorPath } from './levelFiles'
 
 /** The hand-maintained snapshot of actor paths that exist in a stock install. */
 const KNOWN_ACTOR_PATHS = new Set(
@@ -42,7 +43,7 @@ function generateWithOnly(id: string, seed: number, max = 60): DungeonResult {
 }
 
 function levelXML(result: DungeonResult): string {
-  const file = result.files.find((f) => f.path === 'levels/level0.xml')
+  const file = result.files.find((f) => isFloorPath(f.path, 0))
   expect(file).toBeDefined()
   return file!.content
 }
@@ -310,7 +311,8 @@ describe('skeleton3 and tower_empty', () => {
     // this describe block covers are absent from every pool below, so if adding
     // a type to the roster ever reaches the RNG, these hashes move again.
     //
-    // Only `levels/level*.xml` is hashed — those are the RNG's output, and the
+    // Only the dungeon floors are hashed (keyed by their pre-rename
+    // `levels/level<i>.xml` names, so the play-order file naming cannot move it) — those are the RNG's output, and the
     // rest of the campaign is not. The original digest covered every file, so
     // it broke the moment the Lobby tab added `levels/lobby.xml` and a line to
     // `levels.xml`, neither of which draws a random value. The subset is
@@ -359,9 +361,10 @@ describe('skeleton3 and tower_empty', () => {
       const result = generateDungeon(params, Number(seed))
       expect(result.ok).toBe(true)
       const digest = createHash('sha256')
-      for (const file of (result as DungeonResult).files) {
-        if (!/^levels\/level\d+\.xml$/.test(file.path)) continue
-        digest.update(`${file.path} ${file.content} `)
+      // keyed by the floor's pre-rename file name, so the pinned digests
+      // measure only the layout stream, not how the output folder is named
+      for (let i = 0; i < params.levels; i++) {
+        digest.update(`levels/level${i}.xml ${floorXml(result as DungeonResult, i)} `)
       }
       expect(digest.digest('hex'), `seed ${seed}`).toBe(hash)
     }

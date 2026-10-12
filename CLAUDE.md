@@ -215,8 +215,9 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    same shape as the arena's bodyguard-twin substitution. That is only safe because a script node carries no collision: a
    trap cannot seal a route, so a floor `map/reachability.ts` has already
    accepted stays finishable however it is trapped. Adding, removing or reordering lobbies must leave every
-   `levels/level*.xml` byte-identical — only which extra files exist, and which
-   level a floor's gateway names, may change; clearing every tweak emits no
+   floor's level XML byte-identical — only which extra files exist, what the
+   files are called (they are numbered by play order, `campaignFilePaths`), and
+   which level a floor's gateway names, may change; clearing every tweak emits no
    `tweak/` folder at all. The one thing that *does* move a floor is the KIND
    of gateway it gets (see invariant 9), because `map/level.ts` picks a
    different room for stairs than for a portal or orb. The stock defaults are

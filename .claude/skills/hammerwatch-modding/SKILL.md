@@ -27,10 +27,9 @@ not against the game. Upgrading tags is the whole point of the discovery log
 │   ├── dungeon<seed>/           the unpacked campaign (input to the packer)
 │   │   ├── info.xml
 │   │   ├── levels.xml
-│   │   ├── levels/level0.xml … levelN.xml
-│   │   ├── levels/lobby.xml     optional: the prebuilt starting level
-│   │   ├── levels/bossprep<i>.xml, levels/boss<i>.xml
-│   │   │                        one pair per boss fight, 0-indexed
+│   │   ├── levels/<NN>_<name>.xml  one per campaign slot, NN = play-order
+│   │   │                        position: floorK, floorK_boss, lobbyK,
+│   │   │                        arena_bossK, arena_survivalK (K 1-based)
 │   │   └── tweak/*.xml          optional: player balance overrides
 │   ├── assetsExtract/tweak/     the game's own stock tweak files (reference)
 │   └── dungeon<seed>.hwm        produced next to the folder by the packer
@@ -85,7 +84,7 @@ tabs and the port reproduces them byte for byte.
 ```xml
 <levels start="0">
 <act name="lvl.act1">
-<level id="0" res="levels/level0.xml" name="lvl.floor?floor=0" />
+<level id="0" res="levels/01_floor1.xml" name="lvl.floor?floor=0" />
 …
        </act>
 </levels>

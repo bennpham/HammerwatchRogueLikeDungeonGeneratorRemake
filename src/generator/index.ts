@@ -5,7 +5,7 @@ import { validateParameters, ValidationResult } from './config/validation'
 import { emitTweakFiles } from './tweak/overrides'
 import { DEFAULT_LOBBY_PRESET_ID, buildLobby, lobbyPresetById } from './lobby'
 import { buildBossArena } from './boss'
-import { bossArenaId, bossArenaPath, campaignOrder, gatewayAfter, lobbyId, lobbyPath, slotEntryId, slotLabeller } from './campaign'
+import { bossArenaId, campaignFilePaths, campaignOrder, gatewayAfter, lobbyId, slotEntryId, slotLabeller } from './campaign'
 import { buildFloorHazardRig } from './timer/hazard'
 import { buildFloorBuffRig } from './buffs/field'
 import { buildMusicRig } from './music/rig'
@@ -118,17 +118,17 @@ export type { ArenaPatternKind } from './boss/arenaPattern'
 export { defaultParameters }
 export {
   bossArenaId,
-  bossArenaPath,
+  campaignFilePaths,
   campaignOrder,
   defaultOrder,
   gatewayAfter,
   isDefaultOrder,
   lobbyId,
-  lobbyPath,
   normalizeOrder,
   parseSlotLabel,
   slotLabeller,
   slotEntryId,
+  slotFileName,
   slotLabel
 } from './campaign'
 export type { CampaignCounts, CampaignSlot, Gateway } from './campaign'
@@ -401,6 +401,13 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
   const fights = bossFights(params.boss)
   const lobbies = params.lobbies ?? []
   const order = campaignOrder({ levels: params.levels, fights: fights.length, lobbies: lobbies.length }, params.levelOrder)
+  // Each level's file is named by its place in that order (01_lobby1.xml,
+  // 02_floor1_boss.xml, …) — only the file, never the level id it is listed as.
+  const filePath = campaignFilePaths(
+    order,
+    fights.map(arenaMode),
+    (i) => floorBoss(params, i) !== undefined
+  )
 
   // Floors are still generated in numeric order, whatever the campaign order
   // is. Their draws come off ctx.rand one floor after another, so generating
@@ -484,7 +491,7 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
     // of the boss's tiles and the lock buttons, which is why they come after.
     buildMysteryButtonRig(ctx, params, level, i)
 
-    files.push({ path: `levels/level${i}.xml`, content: level.getXML() })
+    files.push({ path: filePath({ kind: 'floor', index: i }), content: level.getXML() })
     floorPreviews.set(i, buildPreview(ctx, level))
     ctx.clearLevel()
   }
@@ -518,7 +525,7 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
     const survival = arenaMode(fight) === 'survival' ? (fight.survival ?? defaultSurvivalOptions()) : undefined
 
     const { xml, preview } = buildBossArena(ctx, fight.arena, params.levels + i, gateway, survival)
-    files.push({ path: bossArenaPath(i), content: xml })
+    files.push({ path: filePath({ kind: 'boss', index: i }), content: xml })
     arenaPreviews.set(i, preview)
   })
 
@@ -544,8 +551,8 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
     const next = order[position + 1]
     const exitTarget = next === undefined ? '0' : slotEntryId(next)
     files.push({
-      path: lobbyPath(slot.index),
-      content: buildLobby(preset, options, exitTarget, params.lobbySaves)
+      path: filePath(slot),
+      content: buildLobby(preset, options, exitTarget)
     })
   })
 
@@ -574,19 +581,19 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
   let floorLabel = 0
   for (const slot of order) {
     if (slot.kind === 'floor') {
-      levelString += `<level id="${slot.index}" res="levels/level${slot.index}.xml" name="lvl.floor?floor=${floorLabel}" />\n`
+      levelString += `<level id="${slot.index}" res="${filePath(slot)}" name="lvl.floor?floor=${floorLabel}" />\n`
       floorLabel += 1
       const preview = floorPreviews.get(slot.index)
       if (preview !== undefined) previews.push({ ...preview, label: label(slot) })
     } else if (slot.kind === 'boss') {
-      levelString += `<level id="${bossArenaId(slot.index)}" res="${bossArenaPath(slot.index)}" name="lvl.floor?floor=${floorLabel}" />\n`
+      levelString += `<level id="${bossArenaId(slot.index)}" res="${filePath(slot)}" name="lvl.floor?floor=${floorLabel}" />\n`
       floorLabel += 1
       const preview = arenaPreviews.get(slot.index)
       if (preview !== undefined) previews.push({ ...preview, label: label(slot) })
     } else {
       // A lobby contributes no preview — it has no generated geometry, and
       // LobbyDiagram in the form is its stand-in.
-      levelString += `<level id="${lobbyId(slot.index)}" res="${lobbyPath(slot.index)}" name="lvl.floor?floor=${floorLabel}" />\n`
+      levelString += `<level id="${lobbyId(slot.index)}" res="${filePath(slot)}" name="lvl.floor?floor=${floorLabel}" />\n`
       floorLabel += 1
     }
   }

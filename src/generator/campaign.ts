@@ -11,6 +11,10 @@
  * Dungeon floors keep the original's bare numeric ids `0..N-1`, so nothing that
  * reads a floor id has to change; the boss and lobby levels are always suffixed
  * strings, which is what keeps them from ever colliding with a floor.
+ *
+ * The FILE a level is written to is a separate name (`campaignFilePaths`): it
+ * follows the play order so the output folder reads like the Floor order tab,
+ * while the ids above — and so every level's own XML — never move with it.
  */
 
 /** The arena of boss fight `i`. */
@@ -18,19 +22,9 @@ export function bossArenaId(i: number): string {
   return `boss${i}`
 }
 
-/** Where the arena of boss fight `i` is written. */
-export function bossArenaPath(i: number): string {
-  return `levels/${bossArenaId(i)}.xml`
-}
-
 /** Lobby `i` — one of an arbitrary number of shop rooms the campaign can carry. */
 export function lobbyId(i: number): string {
   return `lobby${i}`
-}
-
-/** Where lobby `i` is written. */
-export function lobbyPath(i: number): string {
-  return `levels/${lobbyId(i)}.xml`
 }
 
 /**
@@ -291,4 +285,47 @@ export function parseSlotLabel(token: string): CampaignSlot | null {
   if (!/^\d+$/.test(trimmed)) return null
   const index = parseInt(trimmed, 10) - 1
   return index >= 0 ? { kind: 'floor', index } : null
+}
+
+/**
+ * What a slot's level file is called, without its play-order prefix: the
+ * 1-based numbering the Floor order chips use, spelled out by kind so a file
+ * says what it is — `floor3`, `floor3_boss` for a floor hosting a boss (chip
+ * `3B`), `arena_boss2` / `arena_survival2` (chips `AB2` / `AS2`), `lobby1`.
+ */
+export function slotFileName(slot: CampaignSlot, mode?: ArenaMode, bossFloor = false): string {
+  if (slot.kind === 'floor') return `floor${slot.index + 1}${bossFloor ? '_boss' : ''}`
+  if (slot.kind === 'boss') return `arena_${mode === 'survival' ? 'survival' : 'boss'}${slot.index + 1}`
+  return `lobby${slot.index + 1}`
+}
+
+/**
+ * Where every slot's level XML is written: `levels/<position>_<name>.xml`,
+ * the position being the slot's 1-based place in the play order, zero-padded
+ * (at least two digits) so the folder sorts in the order the campaign plays —
+ * `01_lobby1.xml`, `02_floor1_boss.xml`, … `10_arena_boss1.xml`.
+ *
+ * Only the file name. `levels.xml` points each level id at its file through
+ * `res=`, and nothing else names a file, so renaming here moves no level id
+ * and no byte of any level's own XML (invariants 8 and 9). A slot the order
+ * never mentions cannot happen (`normalizeOrder` appends every missing one);
+ * it falls back to the bare name rather than throwing.
+ */
+export function campaignFilePaths(
+  order: readonly CampaignSlot[],
+  modes: readonly ArenaMode[],
+  bossFloor: (index: number) => boolean
+): (slot: CampaignSlot) => string {
+  const width = Math.max(2, String(order.length).length)
+  const position = new Map<string, number>()
+  order.forEach((slot, i) => position.set(slotKey(slot), i))
+  return (slot) => {
+    const name = slotFileName(
+      slot,
+      slot.kind === 'boss' ? modes[slot.index] : undefined,
+      slot.kind === 'floor' && bossFloor(slot.index)
+    )
+    const at = position.get(slotKey(slot))
+    return at === undefined ? `levels/${name}.xml` : `levels/${String(at + 1).padStart(width, '0')}_${name}.xml`
+  }
 }

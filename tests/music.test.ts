@@ -19,6 +19,7 @@ import { generateDungeon } from '../src/generator'
 import type { DungeonParameters, DungeonResult, LobbyOptions } from '../src/generator'
 import { allIds, nodesOfType, oneShotRespawn } from './xmlHelpers'
 import { plainParameters } from './params'
+import { isArenaPath, isFloorPath } from './levelFiles'
 
 const SEED = 4242
 
@@ -42,8 +43,8 @@ function bareParams(): DungeonParameters {
 }
 
 function levelXml(result: DungeonResult, index: number): string {
-  const file = result.files.find((f) => f.path === `levels/level${index}.xml`)
-  expect(file, `levels/level${index}.xml missing`).toBeDefined()
+  const file = result.files.find((f) => isFloorPath(f.path, index))
+  expect(file, `floor ${index} missing`).toBeDefined()
   return (file as { content: string }).content
 }
 
@@ -185,8 +186,8 @@ describe('boss arena music', () => {
   }
 
   function arenaXml(result: DungeonResult): string {
-    const file = result.files.find((f) => f.path === 'levels/boss0.xml')
-    expect(file, 'levels/boss0.xml missing').toBeDefined()
+    const file = result.files.find((f) => isArenaPath(f.path, 0))
+    expect(file, 'arena 0 missing').toBeDefined()
     return (file as { content: string }).content
   }
 
@@ -227,13 +228,13 @@ describe('lobby music', () => {
   for (const preset of LOBBY_PRESETS) {
     it(`${preset.id}: unset leaves the template's own music untouched (no PlayMusic added)`, () => {
       const before = preset.template
-      const xml = buildLobby(preset, lobbyOptions(preset.id), EXIT_TARGET, false)
+      const xml = buildLobby(preset, lobbyOptions(preset.id), EXIT_TARGET)
       const beforeMusic = nodesOfType(before, 'PlayMusic').length
       expect(nodesOfType(xml, 'PlayMusic')).toHaveLength(beforeMusic)
     })
 
     it(`${preset.id}: a chosen track adds one GlobalEventTrigger/PlayMusic pair at the reserved ids`, () => {
-      const xml = buildLobby(preset, lobbyOptions(preset.id, 'main'), EXIT_TARGET, false)
+      const xml = buildLobby(preset, lobbyOptions(preset.id, 'main'), EXIT_TARGET)
       const music = nodesOfType(xml, 'PlayMusic')
       expect(music).toHaveLength(1)
       expect(music[0].id).toBe(preset.musicIdBase + 1)

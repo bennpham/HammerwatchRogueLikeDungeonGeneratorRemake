@@ -1110,6 +1110,10 @@ base at 10000). Purely additive: no scripting change, no dungeon floor moves.
 Promote to `[VERIFIED]` in `ASSET-REGISTRY.md` once a packed run with
 `lobbySaves` on loads and the button actually saves in game.
 
+**Update 2026-10-12:** the `lobbySaves` option was retired at the user's
+request (it did little in practice); lobbies no longer emit this item. The
+facts above about the item itself still stand, still `[EMITTED]`-only.
+
 ### 2026-09-05 — A crash-reload returns the party to LevelStart, and the entrance revive rig does not fire for them
 **Tag:** **[VERIFIED]** for where a reload puts the party and for the
 "dead **on connect**" scoping (owner, direct observation); **[OPEN]** for why

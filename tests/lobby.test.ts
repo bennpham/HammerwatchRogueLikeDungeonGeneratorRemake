@@ -23,7 +23,6 @@ import {
   generateDungeon,
   lobbyCategoryCounts,
   lobbyId,
-  lobbyPath,
   lobbyPresetById,
   parseParametersTxt,
   serializeParametersTxt,
@@ -39,6 +38,7 @@ import {
 } from '../src/generator/levelTemplate/surgery'
 import { allIds, badIntArray, nodesOfType, oneShotRespawn } from './xmlHelpers'
 import { plainParameters } from './params'
+import { isFloorPath, isLobbyPath, lobbyXml } from './levelFiles'
 
 /**
  * A generic, arbitrary exit target. Most of these tests are about a room's
@@ -67,10 +67,9 @@ function optionsFor(preset: LobbyPresetDef, patch: Partial<LobbyOptions> = {}): 
 function xmlFor(
   preset: LobbyPresetDef,
   patch: Partial<LobbyOptions> = {},
-  exitTarget = EXIT_TARGET,
-  saves = false
+  exitTarget = EXIT_TARGET
 ): string {
-  return buildLobby(preset, optionsFor(preset, patch), exitTarget, saves)
+  return buildLobby(preset, optionsFor(preset, patch), exitTarget)
 }
 
 function generateOk(params: DungeonParameters, seed: number): DungeonResult {
@@ -114,7 +113,7 @@ describe('lobby — none configured', () => {
     const off = generateOk(params, 555)
 
     expect(off.files.map((f) => f.path)).toEqual([
-      ...Array.from({ length: plainParameters().levels }, (_, i) => `levels/level${i}.xml`),
+      ...Array.from({ length: plainParameters().levels }, (_, i) => `levels/0${i + 1}_floor${i + 1}.xml`),
       'info.xml',
       'levels.xml'
     ])
@@ -177,7 +176,7 @@ for (const preset of LOBBY_PRESETS) {
           const on = generateOk(withOneLobby(preset, { startingGold: 3000 }), seed)
           const off = generateOk(plainParameters(), seed)
 
-          const levelsOf = (r: DungeonResult) => r.files.filter((f) => /^levels\/level\d+\.xml$/.test(f.path))
+          const levelsOf = (r: DungeonResult) => r.files.filter((f) => isFloorPath(f.path)).map((f) => f.content)
           expect(levelsOf(on)).toEqual(levelsOf(off))
           expect(on.levels).toEqual(off.levels)
         }
@@ -193,11 +192,11 @@ for (const preset of LOBBY_PRESETS) {
             seed
           )
 
-          const levelsOf = (r: DungeonResult) => r.files.filter((f) => /^levels\/level\d+\.xml$/.test(f.path))
+          const levelsOf = (r: DungeonResult) => r.files.filter((f) => isFloorPath(f.path))
           expect(levelsOf(none)).toEqual(levelsOf(many))
           expect(none.levels).toEqual(many.levels)
           // only the lobby itself moved
-          expect(fileAt(none, lobbyPath(0))).not.toBe(fileAt(many, lobbyPath(0)))
+          expect(lobbyXml(none, 0)).not.toBe(lobbyXml(many, 0))
         }
       }, 60_000)
     })
@@ -206,14 +205,14 @@ for (const preset of LOBBY_PRESETS) {
       it('ships the lobby level and lists it ahead of the rest of the campaign', () => {
         const on = generateOk(withOneLobby(preset), 555)
         const paths = on.files.map((f) => f.path)
-        expect(paths).toContain(lobbyPath(0))
+        expect(paths).toContain('levels/01_lobby1.xml')
 
         const levels = on.files.find((f) => f.path === 'levels.xml')?.content ?? ''
         expect(levels).toContain(`<levels start="${lobbyId(0)}">`)
-        expect(levels).toContain(`<level id="${lobbyId(0)}" res="${lobbyPath(0)}"`)
+        expect(levels).toContain(`<level id="${lobbyId(0)}" res="levels/01_lobby1.xml"`)
         // the lobby entry comes first, and the dungeon's own ids are untouched
-        expect(levels.indexOf(lobbyPath(0))).toBeLessThan(levels.indexOf('levels/level0.xml'))
-        expect(levels).toContain('<level id="0" res="levels/level0.xml"')
+        expect(levels.indexOf('levels/01_lobby1.xml')).toBeLessThan(levels.indexOf('levels/02_floor1.xml'))
+        expect(levels).toContain('<level id="0" res="levels/02_floor1.xml"')
       })
 
       it('is not added to the preview, which only describes generated geometry', () => {
@@ -520,7 +519,7 @@ for (const preset of LOBBY_PRESETS) {
 
       it('leaves the lobby level file itself as utf-8', () => {
         const on = generateOk(withOneLobby(preset), 99)
-        const file = on.files.find((f) => f.path === lobbyPath(0))
+        const file = on.files.find((f) => isLobbyPath(f.path, 0))
         expect(file?.encoding).toBeUndefined()
       })
 
@@ -560,58 +559,8 @@ for (const preset of LOBBY_PRESETS) {
       })
     })
 
-    describe('save checkpoint (lobbySaves)', () => {
-      it('places one trigger_button_save.xml on the preset slot when on', () => {
-        const xml = xmlFor(preset, { startingGold: 0, upgrades: noUpgrades() }, EXIT_TARGET, true)
-        const section = itemSection(xml, 'items/trigger_button_save.xml')
-        expect(section).not.toBeNull()
-        const [x, y] = preset.saveButtonSlot
-        expect(placementsIn(section ?? '')).toEqual([`${x},${y}`])
-        expect(section).toContain(`<int>${preset.saveButtonId}</int>`)
-      })
-
-      it('places nothing when off', () => {
-        const xml = xmlFor(preset, {}, EXIT_TARGET, false)
-        expect(xml).not.toContain('items/trigger_button_save.xml')
-      })
-
-      it('adds only the one item array — the rest of the file is untouched', () => {
-        const on = xmlFor(preset, {}, EXIT_TARGET, true)
-        const off = xmlFor(preset, {}, EXIT_TARGET, false)
-        const [x, y] = preset.saveButtonSlot
-        const added = `\t\t<array name="items/trigger_button_save.xml">\n\t\t\t<array><int>${preset.saveButtonId}</int><vec2>${x} ${y}</vec2></array>\n\t\t</array>\n`
-        expect(on.replace(added, '')).toBe(off)
-        expect(badIntArray(on)).toBeNull()
-      })
-
-      it('keeps its id clear of the diamond and upgrade payout however deep', () => {
-        const xml = xmlFor(
-          preset,
-          { startingGold: GOLD_SAFETY_MAX, upgrades: oneOfEachUpgrade() },
-          EXIT_TARGET,
-          true
-        )
-        const itemIds = [...xml.matchAll(/<array><int>(\d+)<\/int><vec2>/g)].map((m) => Number(m[1]))
-        expect(new Set(itemIds).size).toBe(itemIds.length)
-        expect(itemIds).toContain(preset.saveButtonId)
-        expect(preset.saveButtonId).toBeLessThan(preset.itemIdBase)
-        expect(preset.saveButtonId).toBeGreaterThan(preset.respawnIdBase + 3)
-      })
-
-      it('moves no dungeon level, on or off, for the same seed', () => {
-        const levelsOf = (r: DungeonResult) => r.files.filter((f) => /^levels\/level\d+\.xml$/.test(f.path))
-        for (const seed of [7, 55555]) {
-          const on = withOneLobby(preset)
-          on.lobbySaves = true
-          const off = withOneLobby(preset)
-          off.lobbySaves = false
-          const ron = generateOk(on, seed)
-          const roff = generateOk(off, seed)
-          expect(levelsOf(ron)).toEqual(levelsOf(roff))
-          expect(fileAt(ron, lobbyPath(0))).toContain('items/trigger_button_save.xml')
-          expect(fileAt(roff, lobbyPath(0))).not.toContain('items/trigger_button_save.xml')
-        }
-      }, 60_000)
+    it('carries no save checkpoint (the retired lobbySaves option)', () => {
+      expect(xmlFor(preset, { upgrades: oneOfEachUpgrade() })).not.toContain('items/trigger_button_save.xml')
     })
 
     describe('parameters.txt round trip', () => {

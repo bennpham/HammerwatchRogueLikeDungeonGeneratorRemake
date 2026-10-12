@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { generateDungeon, defaultParameters, DungeonResult } from '../src/generator'
 import { plainParameters } from './params'
 import { orbReachableWithoutButton } from './sealProbe'
+import { isFloorPath } from './levelFiles'
 
 /**
  * The floor's actual promise: the orb cannot be had without opening its gate.
@@ -41,7 +42,7 @@ describe('the final room cannot be entered without opening its gate', () => {
         const ok = result as DungeonResult
         const floor = params.levels - 1
         const level = ok.levels[floor]
-        const xml = ok.files.find((f) => f.path === `levels/level${floor}.xml`)!.content
+        const xml = ok.files.find((f) => isFloorPath(f.path, floor))!.content
 
         const probe = orbReachableWithoutButton(level, xml)
         if (probe.reachable === null) continue // nothing gates this floor

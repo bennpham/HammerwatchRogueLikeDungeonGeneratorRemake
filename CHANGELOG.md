@@ -48,6 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Level files are named by play order.** The files under `levels/` used to be `level0.xml`, `boss0.xml` and `lobby0.xml`, numbered from 0 and not matching the Floor order chips. They're now numbered by their place in the Floor order and say what they are: `01_lobby1.xml`, `02_floor1_boss.xml` (a floor hosting a boss), `03_floor2.xml`, …, `10_arena_boss1.xml` (`arena_survivalN` for a survival round). The folder sorts in the order the campaign plays, which makes a quick editor fix easier. Only the file names change: level ids and every level's contents are byte-identical, so no seed moves.
+- **Removed "Allow save game in lobbies".** Lobbies no longer carry a save checkpoint. A `lobbySaves=` line in an older parameters.txt is accepted and ignored.
+
 - **Resets never reopen the life shop.** **Reset player tweaks** now resets the Player tab to the campaign default instead of clearing it, and the Quick setup's **Reset** keeps the extra-life removal. Both used to put buyable extra lives back in the shop, which this generator's campaigns never sell.
 - **The per-tab Reset asks first.** It is now orange and opens the same "are you sure?" dialog as Reset all, naming the tab it will reset, since even one tab can hold a lot of work. Its toast now has an **Undo** too.
 - **Load preset button (issue #77).** The header's preset dropdown is gone; one misclick there could replace your parameters before you had exported them. **Load preset…** opens the preset guide instead, so you read a preset's description before loading it. The chat button stays on its left, and the (i) left of the chat button now opens the header help (below) instead of the preset guide.

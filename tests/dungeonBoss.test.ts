@@ -33,6 +33,7 @@ import { BOSS_DEFS, BOSS_DEF_LIST } from '../src/generator/boss/bosses'
 import { roomSpawnBox } from '../src/generator/map/room'
 import { allIds, badIntArray, nodesOfType } from './xmlHelpers'
 import { plainParameters } from './params'
+import { arenaXml, floorXml } from './levelFiles'
 
 const SEED = 31337
 /** The floor the suite arms. Middle of the campaign, so its way out is stairs. */
@@ -87,8 +88,6 @@ function fileAt(result: DungeonResult, path: string): string {
   return (file as { content: string }).content
 }
 
-const floorXml = (r: DungeonResult, i: number): string => fileAt(r, `levels/level${i}.xml`)
-const arenaXml = (r: DungeonResult, i: number): string => fileAt(r, `levels/boss${i}.xml`)
 
 function intArr(body: string, name: string): number[] | null {
   const found = new RegExp(`<int-arr name="${name}">([^<]*)</int-arr>`).exec(body)

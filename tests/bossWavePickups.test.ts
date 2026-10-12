@@ -32,6 +32,7 @@ import { NodeRectangleShape } from '../src/generator/objects/nodes'
 import type { ScriptNode } from '../src/generator/objects/scriptNode'
 import { generateDungeon } from '../src/generator'
 import type { DungeonResult } from '../src/generator'
+import { floorPath, isArenaPath } from './levelFiles'
 
 const ARENA_W = 30
 const ARENA_H = 40
@@ -432,7 +433,7 @@ describe('boss wave pickups — determinism and invariant 6', () => {
       expect('files' in on, `seed ${seed}`).toBe(true)
 
       for (let i = 0; i < withDrops.levels; i++) {
-        const path = `levels/level${i}.xml`
+        const path = floorPath(on, i)
         expect(on.files.find((f) => f.path === path)!.content, `seed ${seed} floor ${i}`).toBe(
           off.files.find((f) => f.path === path)!.content
         )
@@ -440,8 +441,8 @@ describe('boss wave pickups — determinism and invariant 6', () => {
 
       // only the arena moves, and it must actually move — otherwise this test
       // would pass on a rig that emits nothing
-      expect(on.files.find((f) => f.path === 'levels/boss0.xml')!.content, `seed ${seed} arena`).not.toBe(
-        off.files.find((f) => f.path === 'levels/boss0.xml')!.content
+      expect(on.files.find((f) => isArenaPath(f.path, 0))!.content, `seed ${seed} arena`).not.toBe(
+        off.files.find((f) => isArenaPath(f.path, 0))!.content
       )
     }
   })

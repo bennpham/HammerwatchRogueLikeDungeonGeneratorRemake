@@ -37,6 +37,7 @@ import { serializeParametersTxt, parseParametersTxt } from '../src/generator/con
 import { countdownMarks, everySecond, milestoneSeconds } from '../src/generator/survival/clock'
 import { allIds, badIntArray, nodesOfType } from './xmlHelpers'
 import { plainParameters } from './params'
+import { arenaXml, floorXml } from './levelFiles'
 
 const SEED = 90210
 
@@ -85,8 +86,6 @@ function fileAt(result: DungeonResult, path: string): string {
   return (file as { content: string }).content
 }
 
-const arenaXml = (result: DungeonResult, i: number): string => fileAt(result, `levels/boss${i}.xml`)
-const floorXml = (result: DungeonResult, i: number): string => fileAt(result, `levels/level${i}.xml`)
 
 /** The ids `<int-arr name="{name}">` holds inside `body`, or null if absent. */
 function intArr(body: string, name: string): number[] | null {

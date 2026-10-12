@@ -20,6 +20,7 @@ import { generateDungeon } from '../src/generator'
 import type { DungeonParameters, DungeonResult } from '../src/generator'
 import { badIntArray, nodesOfType } from './xmlHelpers'
 import { OPENED_TEXT_MULTI } from '../src/generator/dungeonBoss/opener'
+import { isFloorPath } from './levelFiles'
 
 function freshCtx(seed: number): GenerationContext {
   return new GenerationContext(plainParameters(), seed)
@@ -262,7 +263,7 @@ describe('multi-boss dungeon floor (issue #64 part 1)', () => {
   it('places N boss actors, all reachable, and the floor still generates', () => {
     const params = multiFloorParams(3)
     const result = generateOk(params, 12345)
-    const level0 = result.files.find((f) => f.path === 'levels/level0.xml')
+    const level0 = result.files.find((f) => isFloorPath(f.path, 0))
     expect(level0).toBeDefined()
     const actorHits = ['boss_knight', 'boss_lich', 'boss_anubis'].reduce(
       (n, id) => n + (level0!.content.match(new RegExp(`actors/${id}/`, 'g'))?.length ?? 0),
@@ -281,7 +282,7 @@ describe('multi-boss dungeon floor (issue #64 part 1)', () => {
   it('wires the seal opener off the all-bosses-died check, not a Boss Died trigger, and no invuln/checkpoint nodes', () => {
     const params = multiFloorParams(2)
     const result = generateOk(params, 777)
-    const level0 = result.files.find((f) => f.path === 'levels/level0.xml')!.content
+    const level0 = result.files.find((f) => isFloorPath(f.path, 0))!.content
     // The shape the user's playtested `level0_fixed.xml` uses: every boss's
     // CheckVariable destroys the seal and announces the opening.
     const { deathTriggers, onTrue } = allBossesDiedRig(level0)
@@ -359,7 +360,7 @@ describe('boss selection mode: exact lineups (issue #64 follow-up)', () => {
     params.maxRoomCount = 16
 
     const result = generateOk(params, 24680)
-    const level0 = result.files.find((f) => f.path === 'levels/level0.xml')!.content
+    const level0 = result.files.find((f) => isFloorPath(f.path, 0))!.content
     const knightHits = level0.match(/actors\/boss_knight\//g)?.length ?? 0
     const lichHits = level0.match(/actors\/boss_lich\//g)?.length ?? 0
     expect(knightHits).toBe(2)

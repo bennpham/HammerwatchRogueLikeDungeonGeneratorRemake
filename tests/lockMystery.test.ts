@@ -44,6 +44,7 @@ import type { NodeAnnounceText } from '../src/generator/objects/nodes'
 import { allIds, nodesOfType } from './xmlHelpers'
 import { plainParameters } from './params'
 import { samplePool } from './mysterySample'
+import { isFloorPath } from './levelFiles'
 
 const SEED = 4242
 
@@ -54,8 +55,8 @@ function generateOk(params: DungeonParameters, seed: number): DungeonResult {
 }
 
 function levelXml(result: DungeonResult, index: number): string {
-  const file = result.files.find((f) => f.path === `levels/level${index}.xml`)
-  expect(file, `levels/level${index}.xml missing`).toBeDefined()
+  const file = result.files.find((f) => isFloorPath(f.path, index))
+  expect(file, `floor ${index} missing`).toBeDefined()
   return (file as { content: string }).content
 }
 
