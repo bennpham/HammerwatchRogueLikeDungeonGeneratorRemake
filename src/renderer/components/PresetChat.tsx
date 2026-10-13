@@ -297,7 +297,10 @@ export function PresetChat({ params, config, onConfigChange, onApply, disabled }
                 <li key={i}>{e.message}</li>
               ))}
             </ul>
-            <span>Ask the assistant to fix it, or adjust your request.</span>
+            <span>
+              Ask the assistant to fix it, or apply anyway and fix the listed fields in the form (Generate stays
+              disabled until they are fixed).
+            </span>
           </div>
         )}
         {proposal.unknownKeys.length > 0 && (
@@ -323,6 +326,18 @@ export function PresetChat({ params, config, onConfigChange, onApply, disabled }
         >
           {proposal.applied ? 'Applied' : 'Apply to settings'}
         </button>
+        {/* the form validates live and keeps Generate disabled, so a broken proposal is safe to hand-fix there */}
+        {blocked && !proposal.applied && (
+          <button
+            type="button"
+            className="chat-apply-anyway"
+            disabled={!latest || proposal.changes.length === 0 || disabled}
+            onClick={() => apply(index, proposal)}
+            title={latest ? 'Apply with the problems above and fix them in the form' : 'Only the newest proposal can be applied'}
+          >
+            Apply anyway — fix in the form
+          </button>
+        )}
       </div>
     )
   }
