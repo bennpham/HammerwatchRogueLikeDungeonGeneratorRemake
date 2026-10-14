@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
+  BOSS_IDS,
   CAMPAIGN_PRESETS,
+  MOBILE_BOSS_IDS,
   defaultParameters,
   parseParametersTxt,
   serializeParametersTxt,
   validateParameters
 } from '../src/generator'
-import { buildRepairMessage, buildSystemPrompt } from '../src/shared/llm/prompt'
+import { ACT_EXAMPLE_BLOCK, buildRepairMessage, buildSystemPrompt } from '../src/shared/llm/prompt'
 import { LLM_PROVIDERS, isProviderId, providerById } from '../src/shared/llm/providers'
 import { diffParams, expandShorthands, extractParametersBlock, fillPerFloorLists } from '../src/shared/llm/reply'
 import { describeHttpError } from '../src/main/llm/client'
@@ -102,6 +104,18 @@ describe('buildRepairMessage', () => {
     expect(buildRepairMessage([], ['levelz'])).not.toContain('Validation errors')
     expect(buildRepairMessage([{ field: 'a', message: 'b' }], [])).not.toContain('did not recognise')
   })
+
+  it('spells out the fix for the mistakes models keep making', () => {
+    const params = parseParametersTxt('bossFloor2=1|boss_queen|1.0|1\nmonsters0=legion_boss', defaultParameters()).params
+    const message = buildRepairMessage(validateParameters(params).errors, [])
+    expect(message).toContain('How to fix these')
+    expect(message).toContain('make it an arena fight')
+    expect(message).toContain('does not exist')
+  })
+
+  it('adds no hints for an error it has none for', () => {
+    expect(buildRepairMessage([{ field: 'a', message: 'b' }], [])).not.toContain('How to fix')
+  })
 })
 
 describe('buildSystemPrompt', () => {
@@ -115,6 +129,27 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('mapWidth=140')
     expect(prompt).toContain('boss_dragon')
     expect(prompt).toContain('a_mixed')
+  })
+
+  it('groups monsters by act and says which bosses are arena only', () => {
+    const prompt = buildSystemPrompt(defaultParameters())
+    expect(prompt).toMatch(/Act 1 monsters: [^\n]*maggot/)
+    expect(prompt).toMatch(/Desert monsters: [^\n]*mummy_desert/)
+    for (const id of BOSS_IDS) {
+      const line = prompt.split('\n').find((l) => l.startsWith(`- ${id}:`))
+      expect(line, id).toBeDefined()
+      expect(line!.includes('ARENA ONLY'), id).toBe(!(MOBILE_BOSS_IDS as readonly string[]).includes(id))
+    }
+  })
+
+  it('the act-by-act example parses and validates cleanly', () => {
+    const { text, playerPreset } = expandShorthands(ACT_EXAMPLE_BLOCK)
+    expect(playerPreset).toBe('dungeon-rebalanced')
+    const parsed = parseParametersTxt(text, defaultParameters())
+    expect(parsed.unknownKeys).toEqual([])
+    const { params } = fillPerFloorLists(parsed.params)
+    expect(validateParameters(params).errors).toEqual([])
+    expect(params.boss.fights?.map((f) => f.arena.bossPool)).toEqual([['boss_queen'], ['boss_knight']])
   })
 
   it('stays compact enough for a small free model', () => {
@@ -143,7 +178,17 @@ describe('expandShorthands', () => {
   })
 
   it('leaves ordinary lines and other keys with dashes alone', () => {
-    expect(expandShorthands('themes=a,b\nlockFloors=3,5:2')).toEqual({ text: 'themes=a,b\nlockFloors=3,5:2', fullyUpgraded: false })
+    expect(expandShorthands('themes=a,b\nlockFloors=3,5:2')).toEqual({
+      text: 'themes=a,b\nlockFloors=3,5:2',
+      fullyUpgraded: false,
+      playerPreset: null
+    })
+  })
+
+  it('pulls out playerPreset, last one wins', () => {
+    const { text, playerPreset } = expandShorthands('levels=3\nplayerPreset=anniversary\nplayerPreset=dungeon-rebalanced')
+    expect(text).toBe('levels=3')
+    expect(playerPreset).toBe('dungeon-rebalanced')
   })
 
   it('a 99-floor boss run written with ranges validates', () => {
