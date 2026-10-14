@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { applyFullyUpgraded, parseParametersTxt, validateParameters } from '../../generator'
+import { applyFullyUpgraded, parseParametersTxt, playerPresetById, validateParameters } from '../../generator'
 import type { DungeonParameters, ValidationIssue } from '../../generator'
 import { buildRepairMessage, buildSystemPrompt } from '../../shared/llm/prompt'
 import { LLM_PROVIDERS, effectiveModel, providerById } from '../../shared/llm/providers'
@@ -46,6 +46,12 @@ function evaluate(reply: string, base: DungeonParameters, original: DungeonParam
   if (block === null) return null
   const expanded = expandShorthands(block)
   const parsed = parseParametersTxt(expanded.text, base)
+  if (expanded.playerPreset !== null) {
+    // a preset replaces the Player tab, the same as loading it from the preset dialog
+    const preset = playerPresetById(expanded.playerPreset)
+    if (preset === undefined) parsed.unknownKeys.push(`playerPreset value "${expanded.playerPreset}"`)
+    else parsed.params.playerTweaks = preset.build()
+  }
   if (expanded.fullyUpgraded) parsed.params.playerTweaks = applyFullyUpgraded(parsed.params.playerTweaks)
   const filled = fillPerFloorLists(parsed.params)
   const validation = validateParameters(filled.params)
@@ -176,11 +182,28 @@ export function PresetChat({ params, config, onConfigChange, onApply, disabled }
       if (cancelled.current) return { ok: false as const, message: 'Cancelled.', cancelled: true }
     }
     setWorking('Waiting for the model...')
-    const result = await window.api.llmChat({
-      provider: config.provider,
-      model: effectiveModel(provider, config.models[config.provider]),
-      messages
+    // a thinking model can sit silent for minutes; count the seconds, then the
+    // characters once the streamed answer starts, so a slow reply never looks hung
+    const started = Date.now()
+    let received = 0
+    const tick = setInterval(() => {
+      if (received === 0) setWorking(`Model is thinking... ${Math.round((Date.now() - started) / 1000)} s`)
+    }, 1000)
+    const unsubscribe = window.api.onLlmProgress((chars) => {
+      received = chars
+      if (chars > 0) setWorking(`Receiving answer... ${chars.toLocaleString('en-US')} characters`)
     })
+    let result: Awaited<ReturnType<typeof window.api.llmChat>>
+    try {
+      result = await window.api.llmChat({
+        provider: config.provider,
+        model: effectiveModel(provider, config.models[config.provider]),
+        messages
+      })
+    } finally {
+      clearInterval(tick)
+      unsubscribe()
+    }
     const wait = result.ok ? provider.minIntervalMs : (result.retryAfterMs ?? provider.minIntervalMs)
     if (wait > 0) {
       setCooldownUntil(Date.now() + wait)
