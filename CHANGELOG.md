@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.9.5]
 
 ### Added
 
@@ -45,6 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Grouped player presets.** The Player presets tab now has collapsible sections like the campaign tab: **Generic**, **Anniversary Edition** and **Hammerwatch 2**. Generic starts open so Dungeon Rebalanced shows at once; the others start collapsed.
 - **Reset all.** A red **Reset all** button under the per-tab Reset puts every tab back to the defaults. An "are you sure?" dialog asks first (Cancel has the focus), and the toast afterwards has an **Undo**. Your Hammerwatch folder and other app settings are kept.
 - **Header help.** An (i) button at the left of the header explains every header control: how parameters.txt and playersettings.txt differ and the order to import them in, Campaign vs Player presets, what Reset resets, the AI assistant, and the startup parameters.txt override.
+- **Apply a broken AI proposal anyway.** When the AI assistant's proposal has errors, a grey **Apply anyway — fix in the form** button now sits under the disabled Apply. The errors show in the form's "Fix before generating" list, and Generate stays disabled until you fix them. The toast says how many problems are left and has an **Undo**. Before, a mostly-right proposal was lost whenever the automatic repair failed.
+- **AI assistant: player presets.** Ask for a player preset by name ("use Dungeon Rebalanced") and the assistant can now load it into the Player tab.
 
 ### Changed
 
@@ -55,6 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The per-tab Reset asks first.** It is now orange and opens the same "are you sure?" dialog as Reset all, naming the tab it will reset, since even one tab can hold a lot of work. Its toast now has an **Undo** too.
 - **Load preset button (issue #77).** The header's preset dropdown is gone; one misclick there could replace your parameters before you had exported them. **Load preset…** opens the preset guide instead, so you read a preset's description before loading it. The chat button stays on its left, and the (i) left of the chat button now opens the header help (below) instead of the preset guide.
 - **Collapsible preset groups.** In the preset guide, Pre-Alpha, Classic, Colosseum and Claude Generated each fold into a header showing how many presets it holds. Classic starts open; the others start collapsed.
+- **The AI assistant understands acts and arenas.** It now knows which monsters belong to Acts 1–4 and the desert, which boss ends each act, and that the Queen and Dragon can't move and only fight in arenas. It knows that "3 floors, then fight the Queen" means an arena after floor 3, how to order lobbies and arenas, and that the campaign can't end in a lobby. It also knows how traps, timers, respawn checkpoints, boss invulnerability, waves and their drops are written. When a proposal has common mistakes (a boss that can't move on a floor, a lobby last, a monster that doesn't exist), the automatic repair request explains the fix.
+- **AI replies stream in.** The chat shows "Model is thinking… N s" and then "Receiving answer… N characters", so a slow reply no longer looks frozen. A reply may take up to 3 minutes to start and 10 minutes in total, and a timeout now says how big the request was. Gemini is asked to think less, which makes it answer much faster.
 
 ## [0.9.0]
 
