@@ -8,14 +8,16 @@ import type { LobbyVendorIds } from '../lobby/template'
  *
  * The Temple of the Sun campaign's own hub, cleaned into a lobby by the
  * importer (see its header): the whole map is kept, the five vendor prefabs
- * are flattened into plain stalls, and every quest, NPC, flag, dialog line,
- * extra exit, pickup and actor is gone. One arrival (the village square), one
- * exit (the temple entrance north of it).
+ * and the boss teleporter pad are flattened into plain doodads and nodes, and
+ * every quest, NPC, flag, dialog line, extra exit, pickup and actor is gone.
+ * One arrival (the village square), one exit (the portal on the pad at the
+ * top of the temple stairs).
  *
  * Treated as an opaque swappable template, exactly like the BETA rooms:
  * `buildLobby()` (`../lobby/build.ts`) rewrites vendor `cats`, badge
- * doodad paths, the items list and the exit's target level by id, and
- * touches nothing else. No value is drawn from any RNG stream.
+ * doodad paths, the items list, the exit's target level and the portal's
+ * colour by id, and touches nothing else. No value is drawn from any RNG
+ * stream.
  *
  * Stock assets only — the importer checks every path against the install's
  * `assetsExtracted` — so this preset ships no extra files.
@@ -15376,6 +15378,60 @@ export const SUN_BAZAAR_TEMPLATE = `<dictionary>
 				<vec2 name="pos">-29.75 -5.875</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
+			<dictionary>
+				<int name="id">156392</int>
+				<string name="type">doodads/generic/exit_teleport_boss_desert.xml</string>
+				<vec2 name="pos">-25 -38.5</vec2>
+				<bool name="need-sync">False</bool>
+			</dictionary>
+			<dictionary>
+				<int name="id">156393</int>
+				<string name="type">doodads/generic/exit_teleport_boss_desert_activated.xml</string>
+				<vec2 name="pos">-26.5 -40.25</vec2>
+				<bool name="need-sync">True</bool>
+			</dictionary>
+			<dictionary>
+				<int name="id">156394</int>
+				<string name="type">doodads/generic/exit_teleport_boss_desert_activated.xml</string>
+				<vec2 name="pos">-23.5 -40.25</vec2>
+				<bool name="need-sync">True</bool>
+			</dictionary>
+			<dictionary>
+				<int name="id">156395</int>
+				<string name="type">doodads/generic/exit_teleport_boss_desert_activated.xml</string>
+				<vec2 name="pos">-22.875 -38.75</vec2>
+				<bool name="need-sync">True</bool>
+			</dictionary>
+			<dictionary>
+				<int name="id">156396</int>
+				<string name="type">doodads/generic/exit_teleport_boss_desert_activated.xml</string>
+				<vec2 name="pos">-27.125 -38.75</vec2>
+				<bool name="need-sync">True</bool>
+			</dictionary>
+			<dictionary>
+				<int name="id">156397</int>
+				<string name="type">doodads/generic/exit_teleport_boss_desert_activated.xml</string>
+				<vec2 name="pos">-26.5 -37.25</vec2>
+				<bool name="need-sync">True</bool>
+			</dictionary>
+			<dictionary>
+				<int name="id">156398</int>
+				<string name="type">doodads/generic/exit_teleport_boss_desert_activated.xml</string>
+				<vec2 name="pos">-23.5 -37.25</vec2>
+				<bool name="need-sync">True</bool>
+			</dictionary>
+			<dictionary>
+				<int name="id">156399</int>
+				<string name="type">doodads/generic/exit_teleport.xml</string>
+				<vec2 name="pos">-25 -39.375</vec2>
+				<bool name="need-sync">True</bool>
+			</dictionary>
+			<dictionary>
+				<int name="id">156400</int>
+				<string name="type">doodads/generic/exit_teleport_stand.xml</string>
+				<vec2 name="pos">-25 -39.375</vec2>
+				<bool name="need-sync">False</bool>
+			</dictionary>
 		</array>
 	</dictionary>
 	<dictionary name="actors">
@@ -15405,32 +15461,6 @@ export const SUN_BAZAAR_TEMPLATE = `<dictionary>
 					<dictionary name="doodad">
 						<int-arr name="static">153484 153485 153481 153480 153482 153483 135507</int-arr>
 					</dictionary>
-				</dictionary>
-			</dictionary>
-			<dictionary>
-				<int name="id">97515</int>
-				<string name="type">LevelExitArea</string>
-				<bool name="enabled">True</bool>
-				<int name="trigger-times">-1</int>
-				<vec2 name="pos">-6 -14</vec2>
-				<dictionary name="parameters">
-					<string name="level">t_entrance</string>
-					<int name="start id">0</int>
-					<dictionary name="shape">
-						<int-arr name="static">97514</int-arr>
-					</dictionary>
-				</dictionary>
-			</dictionary>
-			<dictionary>
-				<int name="id">97514</int>
-				<string name="type">RectangleShape</string>
-				<bool name="enabled">True</bool>
-				<int name="trigger-times">-1</int>
-				<vec2 name="pos">-6 -10.5</vec2>
-				<dictionary name="parameters">
-					<float name="w">2</float>
-					<float name="h">1</float>
-					<int name="types">15</int>
 				</dictionary>
 			</dictionary>
 			<dictionary>
@@ -15597,6 +15627,32 @@ export const SUN_BAZAAR_TEMPLATE = `<dictionary>
 					</dictionary>
 				</dictionary>
 			</dictionary>
+			<dictionary>
+				<int name="id">156401</int>
+				<string name="type">RectangleShape</string>
+				<bool name="enabled">True</bool>
+				<int name="trigger-times">-1</int>
+				<vec2 name="pos">-25 -39.25</vec2>
+				<dictionary name="parameters">
+					<float name="w">3</float>
+					<float name="h">3</float>
+					<int name="types">15</int>
+				</dictionary>
+			</dictionary>
+			<dictionary>
+				<int name="id">156402</int>
+				<string name="type">LevelExitArea</string>
+				<bool name="enabled">True</bool>
+				<int name="trigger-times">-1</int>
+				<vec2 name="pos">-16 -47.5</vec2>
+				<dictionary name="parameters">
+					<string name="level">0</string>
+					<int name="start id">0</int>
+					<dictionary name="shape">
+						<int-arr name="static">156401</int-arr>
+					</dictionary>
+				</dictionary>
+			</dictionary>
 		</array>
 	</dictionary>
 	<dictionary name="lighting">
@@ -15622,7 +15678,10 @@ export const SUN_BAZAAR_TEMPLATE_IDS: Readonly<Record<string, LobbyVendorIds>> =
 }
 
 /** The LevelExitArea whose target level buildLobby rewrites. */
-export const SUN_BAZAAR_EXIT_NODE_ID = 97515
+export const SUN_BAZAAR_EXIT_NODE_ID = 156402
+
+/** The portal doodad on the pad; buildLobby picks its colour by destination. */
+export const SUN_BAZAAR_PORTAL_DOODAD_ID = 156399
 
 /**
  * Where the red diamonds go, in template order — open tiles nearest the

@@ -4777,12 +4777,36 @@ inside `<HW>/levels/campaign2.hwm`.
    Output: `Scanning and reading files... / Writing resource file...`, a
    283 KB `.hwm`. Its `levels/01_lobby1.xml.bin` decodes with one
    `LevelExitArea` (→ `0`), five `ShopArea`s and the respawn and music rigs.
+6. **The boss teleporter pad is a prefab too** (`prefabs/desert_teleport_boss.xml`,
+   placed at (-25, -38.5) at the top of the temple stairs). It holds:
+   - the 128 px platform `exit_teleport_boss_desert.xml`;
+   - six `exit_teleport_boss_desert_activated.xml` rune lamps at (±1.5, -1.75),
+     (±2.125, -0.25) and (±1.5, 1.25), each shown by `HideObject` per boss
+     killed;
+   - the red `exit_teleport_boss.xml` and its `exit_teleport_stand.xml` at
+     (0, -0.875);
+   - a 1x1 `RectangleShape` at (0, -0.75) feeding a disabled
+     `LevelExitArea` (→ `boss_3`);
+   - a `LevelStart`.
+
+   The hub's floor tiles have a hole under the platform. The bazaar flattens
+   the pad with every lamp lit, as its way out: the portal is laid blue (made
+   red by `buildLobby` when the next slot is a fight), and the shape is
+   widened to 3x3. A two-lobby pack decoded blue before floor 1 and red before
+   `boss0`.
+7. **The temple stairs carry no floor tiles.** The `g_stairs_up` sprites (32x24
+   px, origin 16 0, no collision) are drawn over map cells with `data-a` 0,
+   so a floor-tile walkability model stops at the stairs. The importer's
+   flood fill counts the stair and pad sprites as floor.
+
 **Impact:** `scripts/import-sun-bazaar.mjs` reads the pack directly, so no
 editor round trip is needed. Because the vendor prefabs exist only in
 campaign2, they are flattened into the level; a generated campaign cannot name
 them. Still unverified in game:
 - the party arrives in the square;
+- the stairs are walkable and the portal on the pad leads on (red/blue art
+  shows as expected);
 - the importer's flood-fill pickup slots land on open ground (its collision
   model is each doodad's collision-polygon bounding box, `px / 16` tiles);
 - the five stalls open their shops;
-- walking into the temple entrance loads the next level.
+- the temple entrance does nothing.

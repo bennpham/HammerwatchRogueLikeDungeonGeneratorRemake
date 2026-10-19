@@ -46,6 +46,7 @@ import {
   SUN_BAZAAR_EXIT_NODE_ID,
   SUN_BAZAAR_ITEM_ID_BASE,
   SUN_BAZAAR_MUSIC_ID_BASE,
+  SUN_BAZAAR_PORTAL_DOODAD_ID,
   SUN_BAZAAR_RESPAWN_ID_BASE,
   SUN_BAZAAR_TEMPLATE,
   SUN_BAZAAR_TEMPLATE_IDS,
@@ -92,6 +93,12 @@ export interface LobbyPresetDef {
   musicIdBase: number
   /** extra files the template references that the game does not already ship */
   assets: readonly GeneratedFile[]
+  /**
+   * The portal doodad whose art follows where the lobby leads — red into a
+   * boss fight, blue anywhere else, the same rule a floor's gateway follows.
+   * Absent: the room's own teleport art is left exactly as authored.
+   */
+  portalDoodadId?: number
 }
 
 /**
@@ -142,7 +149,7 @@ export const LOBBY_PRESETS: readonly LobbyPresetDef[] = [
     id: 'sun-bazaar',
     label: 'Temple of the Sun bazaar',
     description:
-      "Temple of the Sun's desert village with every vendor fully stocked. Leave through the temple entrance north of the square.",
+      "Temple of the Sun's desert village with every vendor fully stocked. Leave through the portal at the top of the temple stairs.",
     surgeryLabel: 'sun-bazaar',
     template: SUN_BAZAAR_TEMPLATE,
     templateIds: SUN_BAZAAR_TEMPLATE_IDS,
@@ -156,7 +163,8 @@ export const LOBBY_PRESETS: readonly LobbyPresetDef[] = [
     respawnIdBase: SUN_BAZAAR_RESPAWN_ID_BASE,
     musicIdBase: SUN_BAZAAR_MUSIC_ID_BASE,
     // stock assets only — the importer checks every path against the install
-    assets: []
+    assets: [],
+    portalDoodadId: SUN_BAZAAR_PORTAL_DOODAD_ID
   }
 ]
 

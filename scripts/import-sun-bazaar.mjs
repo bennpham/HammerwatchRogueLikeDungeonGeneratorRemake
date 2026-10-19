@@ -29,12 +29,17 @@
  *   gambler (whose `gamble` column the stock tweak does not have), the quest
  *   givers, the teleporter network, the boss pad, the bonus lock, the random
  *   upgrade — is dropped.
+ * - The way out is the boss teleporter pad at the top of the temple stairs
+ *   (`prefabs/desert_teleport_boss.xml`), flattened too: its platform with
+ *   every rune lamp lit, its stand, the portal (laid blue; buildLobby turns it
+ *   red when the lobby leads into a boss fight) and its exit, widened to 3x3.
  * - Kept scripts: the `LevelStart` nearest the temple entrance (re-numbered to
- *   start id 0, which every generated gateway names), the temple entrance
- *   `LevelExitArea` and its shape, and the hub's `LevelLoaded` triggers rewired
+ *   start id 0, which every generated gateway names), the pad's exit, and the
+ *   hub's `LevelLoaded` triggers rewired
  *   straight to the world-state changes they always make on arrival
  *   (`DestroyObject`, `TogglePhysics`, `HideObject`). Everything else — quests,
- *   dialog, flags, music, the fade-in — is dropped.
+ *   dialog, flags, music, the fade-in, the temple entrance's own exit (its
+ *   doorway stays as art) — is dropped.
  * - Dropped content: the actors (a guard), the items (buildLobby refills the
  *   section), the NPC doodads (`doodads/special/npc_*`) and the campaign2-only
  *   `doodads/desert/*`.
@@ -44,8 +49,9 @@
  * The level has no authored diamonds or upgrade pickups to read slots back out
  * of, so pickSlots places them: the tiles nearest the arrival, in flood-fill
  * order over floor that no colliding doodad covers (the doodads' collision
- * polygons are read from --assets). The same flood fill must reach the exit
- * and every stall, or the import fails.
+ * polygons are read from --assets; the stair and pad sprites count as floor,
+ * since the stairs carry no floor tiles). The same flood fill must reach the
+ * portal and every stall, or the import fails.
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
@@ -70,8 +76,29 @@ const STALL_PREFABS = {
 /** The prefix a stall's `cats` entries use, e.g. `off3` -> the offense stall. */
 const CATS_PREFIX = { power: 'power', off: 'offense', misc: 'misc', def: 'defense', combo: 'combo' }
 
-/** The exit the lobby keeps: the walk-in temple entrance north of the square. */
-const EXIT_LEVEL = 't_entrance'
+/**
+ * The temple entrance north of the square. It is not the way out — its exit is
+ * dropped and its doorway left as art — but the arrival is the start nearest it.
+ */
+const ARRIVAL_EXIT_LEVEL = 't_entrance'
+
+/** The boss teleporter pad at the top of the temple stairs: the lobby's way out. */
+const PAD_PREFAB = 'prefabs/desert_teleport_boss.xml'
+const PAD_PORTAL = 'doodads/generic/exit_teleport_boss.xml'
+const PAD_DOODADS = new Set([
+  'doodads/generic/exit_teleport_boss_desert.xml',
+  'doodads/generic/exit_teleport_boss_desert_activated.xml',
+  'doodads/generic/exit_teleport_stand.xml',
+  PAD_PORTAL
+])
+/** The blue teleport — must match LobbyPortal in src/generator/objects/doodad.ts. */
+const LOBBY_PORTAL = 'doodads/generic/exit_teleport.xml'
+
+/**
+ * Doodads that are themselves the ground: the temple stairs carry no floor
+ * tiles under their sprites, and the pad covers the hole left in the plaza.
+ */
+const WALKING_SURFACE = /\/g_stairs_[a-z_]*\.xml$|\/exit_teleport_boss_desert\.xml$/
 
 const LEVEL_LOADED = 'LevelLoaded'
 /** what an arrival trigger may keep: changes to the world the player walks in */
@@ -340,6 +367,77 @@ function connectionsOf(el) {
 // ------------------------------------------------------------- cleaning
 
 /**
+ * Copies of prefab elements, moved to where the hub placed the prefab: fresh
+ * ids (allocated in `els` order), positions offset by `at`, references between
+ * them remapped, and no script connections — whatever drove them is dropped.
+ */
+function relocator(els, at, nextId) {
+  const remap = new Map()
+  for (const el of els) remap.set(idOf(el), nextId())
+  const move = (el) => {
+    const copy = structuredClone(el)
+    child(copy, 'id').value = remap.get(idOf(el))
+    const pos = child(copy, 'pos')
+    pos.value = [Math.fround(pos.value[0] + at[0]), Math.fround(pos.value[1] + at[1])]
+    for (const ref of staticRefs(copy)) ref.value = ref.value.map((id) => remap.get(id) ?? id)
+    setConnections(copy, [])
+    return copy
+  }
+  return { remap, move }
+}
+
+/**
+ * The boss teleporter pad as the lobby's way out: the desert platform with
+ * every rune lamp lit (the stock pad lights one per boss killed), its stand,
+ * the portal, and the exit with its shape. The portal is laid blue; buildLobby
+ * turns it red when the lobby leads into a boss fight, the same rule a
+ * floor's gateway follows.
+ */
+function flattenPad(prefab, at, nextId) {
+  const doodads = doodadsOf(prefab)
+  const nodes = nodesOf(prefab)
+
+  const exits = nodes.filter((n) => typeOf(n) === 'LevelExitArea')
+  if (exits.length !== 1) throw new Error(`boss pad has ${exits.length} LevelExitAreas`)
+  const [exit] = exits
+  const shapeRefs = staticRefs(param(exit, 'shape')).flatMap((r) => r.value)
+  const shapes = shapeRefs.map((id) => nodes.find((n) => idOf(n) === id))
+  if (shapes.length !== 1 || shapes[0] === undefined || typeOf(shapes[0]) !== 'RectangleShape') {
+    throw new Error('boss pad exit has no single RectangleShape')
+  }
+  const [shape] = shapes
+
+  const kept = doodads.filter((d) => PAD_DOODADS.has(typeOf(d)))
+  const portals = kept.filter((d) => typeOf(d) === PAD_PORTAL)
+  if (portals.length !== 1) throw new Error(`boss pad has ${portals.length} portals`)
+  for (const type of PAD_DOODADS) {
+    if (!kept.some((d) => typeOf(d) === type)) throw new Error(`boss pad has no ${type}`)
+  }
+
+  const { remap, move } = relocator([...kept, shape, exit], at, nextId)
+  const movedDoodads = kept.map(move)
+  const portal = movedDoodads[kept.indexOf(portals[0])]
+  child(portal, 'type').value = LOBBY_PORTAL
+
+  const movedShape = move(shape)
+  // 3x3 like the generator's own portals: a 1x1 is easy to run past
+  param(movedShape, 'w').value = 3
+  param(movedShape, 'h').value = 3
+  const movedExit = move(exit)
+  child(movedExit, 'enabled').value = true
+  param(movedExit, 'level').value = '0'
+  param(movedExit, 'start id').value = 0
+
+  return {
+    doodads: movedDoodads,
+    nodes: [movedShape, movedExit],
+    exit: movedExit,
+    shape: movedShape,
+    portalId: remap.get(idOf(portals[0]))
+  }
+}
+
+/**
  * One vendor prefab instance as a stall: its own doodads and its widest shop,
  * moved to where the hub placed it and given fresh ids.
  */
@@ -365,17 +463,7 @@ function flattenStall(prefab, at, kind, nextId) {
     /^doodads\/generic\/deco_vendor_/.test(type)
   const kept = doodads.filter((d) => keep(typeOf(d)))
 
-  const remap = new Map()
-  for (const el of [...kept, shape, widest.n]) remap.set(idOf(el), nextId())
-  const move = (el) => {
-    const copy = structuredClone(el)
-    child(copy, 'id').value = remap.get(idOf(el))
-    const pos = child(copy, 'pos')
-    pos.value = [Math.fround(pos.value[0] + at[0]), Math.fround(pos.value[1] + at[1])]
-    for (const ref of staticRefs(copy)) ref.value = ref.value.map((id) => remap.get(id) ?? id)
-    setConnections(copy, [])
-    return copy
-  }
+  const { remap, move } = relocator([...kept, shape, widest.n], at, nextId)
 
   const shop = move(widest.n)
   child(shop, 'enabled').value = true
@@ -429,6 +517,15 @@ function clean(level, pack) {
   for (const kind of new Set(Object.values(STALL_PREFABS))) {
     if (stalls[kind] === undefined) throw new Error(`hub places no ${kind} stall`)
   }
+
+  // ---- the boss pad, flattened after the stalls so their ids never move
+  const padGroup = prefabs.children.find((g) => g.name === PAD_PREFAB)
+  if (padGroup === undefined || padGroup.children.length !== 1) {
+    throw new Error(`hub must place ${PAD_PREFAB} exactly once`)
+  }
+  const padSource = pack.get(PAD_PREFAB)
+  if (padSource === undefined) throw new Error(`pack has no ${PAD_PREFAB}`)
+  const pad = flattenPad(parseText(padSource.toString('utf8').replace(/^﻿/, '')), padGroup.children[0].value, nextId)
   prefabs.children = []
 
   // ---- actors and items go; buildLobby writes the items section afresh
@@ -440,18 +537,16 @@ function clean(level, pack) {
   const byId = new Map(nodes.map((n) => [idOf(n), n]))
   const keep = new Set()
 
-  const exits = nodes.filter((n) => typeOf(n) === 'LevelExitArea' && param(n, 'level')?.value === EXIT_LEVEL)
-  if (exits.length !== 1) throw new Error(`expected one LevelExitArea to ${EXIT_LEVEL}, found ${exits.length}`)
-  const [exit] = exits
-  param(exit, 'start id').value = 0
-  child(exit, 'enabled').value = true
-  const exitShapeIds = staticRefs(param(exit, 'shape')).flatMap((r) => r.value)
-  const exitShapes = exitShapeIds.map((id) => byId.get(id))
-  if (exitShapes.length === 0 || exitShapes.includes(undefined)) throw new Error('the exit has no shape')
-  keep.add(exit)
-  for (const s of exitShapes) keep.add(s)
+  // the temple entrance only locates the arrival; it is not kept, so walking
+  // into its doorway does nothing
+  const entrances = nodes.filter(
+    (n) => typeOf(n) === 'LevelExitArea' && param(n, 'level')?.value === ARRIVAL_EXIT_LEVEL
+  )
+  if (entrances.length !== 1) {
+    throw new Error(`expected one LevelExitArea to ${ARRIVAL_EXIT_LEVEL}, found ${entrances.length}`)
+  }
 
-  const exitPos = posOf(exit)
+  const exitPos = posOf(entrances[0])
   const starts = nodes
     .filter((n) => typeOf(n) === 'LevelStart')
     .map((n) => ({ n, d: Math.hypot(posOf(n)[0] - exitPos[0], posOf(n)[1] - exitPos[1]) }))
@@ -485,8 +580,8 @@ function clean(level, pack) {
   }
 
   const stallNodes = Object.values(stalls).flatMap((s) => s.nodes)
-  nodes.splice(0, nodes.length, ...nodes.filter((n) => keep.has(n)), ...stallNodes)
-  doodadList.push(...Object.values(stalls).flatMap((s) => s.doodads))
+  nodes.splice(0, nodes.length, ...nodes.filter((n) => keep.has(n)), ...stallNodes, ...pad.nodes)
+  doodadList.push(...Object.values(stalls).flatMap((s) => s.doodads), ...pad.doodads)
 
   // ---- every reference must resolve; a world-state node left pointing at
   // nothing is dropped, and its trigger's connection with it
@@ -514,7 +609,14 @@ function clean(level, pack) {
   }
 
   const vendorIds = Object.fromEntries(Object.entries(stalls).map(([k, s]) => [k, s.ids]))
-  return { start, exit, exitShapes, vendorIds, stallShapes: Object.values(stalls).map((s) => s.nodes[0]) }
+  return {
+    start,
+    exit: pad.exit,
+    exitShapes: [pad.shape],
+    portalId: pad.portalId,
+    vendorIds,
+    stallShapes: Object.values(stalls).map((s) => s.nodes[0])
+  }
 }
 
 // ------------------------------------------------------------- slots
@@ -533,6 +635,27 @@ function floorTiles(level) {
     }
   }
   return floor
+}
+
+/** Tiles a walking-surface doodad's sprite covers, from its first `<origin>` and `<frame>`. */
+function surfaceTiles(level, assets) {
+  const tiles = new Set()
+  for (const d of doodadsOf(level)) {
+    if (!WALKING_SURFACE.test(typeOf(d))) continue
+    const xml = readFileSync(join(assets, typeOf(d)), 'utf8')
+    const origin = /<origin>\s*(-?\d+)\s+(-?\d+)\s*<\/origin>/.exec(xml)
+    const frame = /<frame[^>]*>\s*\d+\s+\d+\s+(\d+)\s+(\d+)\s*<\/frame>/.exec(xml)
+    if (origin === null || frame === null) throw new Error(`${typeOf(d)} has no sprite box`)
+    const [px, py] = posOf(d)
+    const x0 = px - Number(origin[1]) / 16
+    const y0 = py - Number(origin[2]) / 16
+    const x1 = x0 + Number(frame[1]) / 16
+    const y1 = y0 + Number(frame[2]) / 16
+    for (let x = Math.floor(x0); x < Math.ceil(x1); x++) {
+      for (let y = Math.floor(y0); y < Math.ceil(y1); y++) tiles.add(`${x},${y}`)
+    }
+  }
+  return tiles
 }
 
 /** Collision polygons per doodad file, in tiles relative to the doodad's position. */
@@ -584,6 +707,7 @@ const tileOf = ([x, y]) => [Math.floor(x), Math.floor(y)]
  */
 function pickSlots(level, assets, cleaned) {
   const floor = floorTiles(level)
+  for (const tile of surfaceTiles(level, assets)) floor.add(tile)
   const blocked = blockedTiles(level, assets)
   const walkable = (x, y) => floor.has(`${x},${y}`) && !blocked.has(`${x},${y}`)
 
@@ -613,8 +737,8 @@ function pickSlots(level, assets, cleaned) {
     }
     return false
   }
-  if (!near(cleaned.exit, 3) && !cleaned.exitShapes.some((s) => near(s, 3))) {
-    throw new Error('the exit is not reachable from the arrival')
+  if (!cleaned.exitShapes.some((s) => near(s, 1))) {
+    throw new Error('the portal is not reachable from the arrival')
   }
   for (const shape of cleaned.stallShapes) {
     if (!near(shape, 3)) throw new Error(`stall shape ${idOf(shape)} is not reachable from the arrival`)
@@ -694,14 +818,16 @@ function emitTemplate(xml, source, meta) {
  *
  * The Temple of the Sun campaign's own hub, cleaned into a lobby by the
  * importer (see its header): the whole map is kept, the five vendor prefabs
- * are flattened into plain stalls, and every quest, NPC, flag, dialog line,
- * extra exit, pickup and actor is gone. One arrival (the village square), one
- * exit (the temple entrance north of it).
+ * and the boss teleporter pad are flattened into plain doodads and nodes, and
+ * every quest, NPC, flag, dialog line, extra exit, pickup and actor is gone.
+ * One arrival (the village square), one exit (the portal on the pad at the
+ * top of the temple stairs).
  *
  * Treated as an opaque swappable template, exactly like the BETA rooms:
  * \`buildLobby()\` (\`../lobby/build.ts\`) rewrites vendor \`cats\`, badge
- * doodad paths, the items list and the exit's target level by id, and
- * touches nothing else. No value is drawn from any RNG stream.
+ * doodad paths, the items list, the exit's target level and the portal's
+ * colour by id, and touches nothing else. No value is drawn from any RNG
+ * stream.
  *
  * Stock assets only — the importer checks every path against the install's
  * \`assetsExtracted\` — so this preset ships no extra files.
@@ -721,6 +847,9 @@ ${vendorIds}
 
 /** The LevelExitArea whose target level buildLobby rewrites. */
 export const SUN_BAZAAR_EXIT_NODE_ID = ${meta.exit}
+
+/** The portal doodad on the pad; buildLobby picks its colour by destination. */
+export const SUN_BAZAAR_PORTAL_DOODAD_ID = ${meta.portal}
 
 /**
  * Where the red diamonds go, in template order — open tiles nearest the
@@ -785,13 +914,15 @@ if (new Set(ids).size !== ids.length) throw new Error('cleaned level has duplica
 const base = Math.ceil((Math.max(...ids) + 1) / 1000) * 1000
 
 const xml = serialize(level)
-const meta = { ids: cleaned.vendorIds, exit: idOf(cleaned.exit), slots, base }
+const meta = { ids: cleaned.vendorIds, exit: idOf(cleaned.exit), portal: cleaned.portalId, slots, base }
 
 mkdirSync(outDir, { recursive: true })
 writeFileSync(join(outDir, 'template.ts'), emitTemplate(xml, args.hwm, meta), 'utf-8')
 
 console.log(`wrote template.ts (${xml.length} chars) from ${args.hwm}`)
-console.log(`  arrival ${posOf(cleaned.start).join(' ')}, exit ${meta.exit} at ${posOf(cleaned.exit).join(' ')}`)
+console.log(
+  `  arrival ${posOf(cleaned.start).join(' ')}, exit ${meta.exit} on shape at ${posOf(cleaned.exitShapes[0]).join(' ')}, portal ${meta.portal}`
+)
 console.log(`  stalls ${JSON.stringify(meta.ids)}`)
 console.log(`  diamonds ${JSON.stringify(slots.diamonds)}`)
 console.log(`  upgrades ${JSON.stringify(slots.upgrades)}`)

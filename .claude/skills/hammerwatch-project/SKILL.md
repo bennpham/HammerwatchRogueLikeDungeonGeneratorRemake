@@ -1204,10 +1204,16 @@ else. Three ship:
   `campaign2.hwm` (`levels/level_hub.xml.bin`), flattens its five vendor
   prefabs (campaign2-only files) into plain stalls, and drops every quest, NPC,
   flag, actor, pickup and extra exit. It keeps one arrival (the village
-  square) and one exit (the temple entrance). Its diamond and upgrade slots are
-  picked by the importer's flood fill, since the hub has none authored, and its
-  id bases sit above the hub's 150 000+ ids. Stock assets only. It is opt-in:
-  never the default and in no preset.
+  square) and one exit: the stock boss-teleporter pad
+  (`desert_teleport_boss.xml`), also flattened, at the top of the temple
+  stairs. The temple entrance's own exit is dropped. Its diamond and upgrade
+  slots are picked by the importer's flood fill, since the hub has none
+  authored, and its id bases sit above the hub's 150 000+ ids. Stock assets
+  only. It is opt-in: never the default and in no preset.
+- `portalDoodadId` (optional, bazaar only) names a portal doodad whose art
+  follows the destination. `buildLobby(..., intoBossFight)` lays it red
+  (`BossPortal`) when the next slot is a boss fight, else blue (`LobbyPortal`),
+  the same rule `gatewayAfter` gives floors. A room without it is unaffected.
 
 The preset id is stored in `LobbyOptions.preset` and written to
 `parameters.txt` as `lobby<i>Preset`, so it is a compatibility surface: an id
