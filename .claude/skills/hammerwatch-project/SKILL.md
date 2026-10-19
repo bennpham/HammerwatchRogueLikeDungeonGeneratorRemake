@@ -79,8 +79,8 @@ src/
 │   │   │                 one descriptor per committed room (template, its
 │   │   │                 vendor ids, exit node, diamond/upgrade slots, id
 │   │   │                 bases, assets). `BETA-dungeon-prep`,
-│   │   │                 `BETA-boss-prep`, `sun-bazaar` and
-│   │   │                 `castle-bridge`; adding a room is an entry here
+│   │   │                 `BETA-boss-prep`, `sun-bazaar`, `castle-bridge`
+│   │   │                 and `sky-shop`; adding a room is an entry here
 │   │   ├── template.ts   the dungeon-prep XML verbatim (generated+committed)
 │   │   ├── assets.ts     custom files it references, base64 when binary
 │   │   ├── shops.ts      the five vendor stalls and their shop columns
@@ -99,6 +99,10 @@ src/
 │   │                     editor/campaign/levels/level_1.xml. Both importers
 │   │                     share scripts/lib/hwLevel.mjs (parse/serialise,
 │   │                     the walkability model, slot picking, emit helpers)
+│   ├── skyShop/          template.ts + assets.ts — the survival campaign's
+│   │                     summit shop as a lobby, and the cloud layer only
+│   │                     survival.hwm ships; written by
+│   │                     scripts/import-sky-shop.mjs
 │   ├── buffs/            field.ts — buff auras, the optional per-floor buff
 │   │                     fields. Appends always-on DangerAreas after a floor
 │   │                     is built; no RNG, no files of its own
@@ -1197,7 +1201,7 @@ template text, vendor ids, exit node, diamond slots, upgrade slots, the two id
 bases, the respawn id base, the extra asset files, and the label surgery's error
 messages use. There is **no per-preset branching** anywhere in the builder, and
 adding a room means regenerating a template and adding an entry, nothing
-else. Four ship:
+else. Five ship:
 
 - `BETA-dungeon-prep` — the campaign's original starting lobby, five vendor
   stalls around a teleport. Ships `LOBBY_ASSETS`, the custom files its template
@@ -1231,7 +1235,17 @@ else. Four ship:
   level_1's 104 000+ ids. `defaultLobby('castle-bridge')` adds
   `music: 'act1'`, the level's own track — the one per-id default besides
   boss-prep's gold. Stock assets only, opt-in, in no preset.
-- `portalDoodadId` (optional, bazaar and bridge) names a portal doodad whose art
+- `sky-shop` — the survival campaign's merchants guild on Shaftlocke Peak
+  (`survival.hwm`, `levels/level_summit.xml.bin`), read out by
+  `scripts/import-sky-shop.mjs`. Floating islands and glass walkways over a
+  scrolling cloud `AddParallaxLayer`; no tilemap at all. The compiled level
+  is the older x/y-float dialect, so the importer normalises every doodad and
+  node to `<vec2 name="pos">`. It adds the tier badges the source lacks, keeps
+  only arrival, teleport, shops and the arrival trigger's sky + collider-hide,
+  and ships `effects/clouds.xml`/`.png` as `assets` (not in `assets.bin`).
+  Its slot flood fill rasterises collision polygons rather than boxes, since
+  rounded corner colliders' boxes cover whole islands. Opt-in only.
+- `portalDoodadId` (optional; bazaar, bridge, sky shop) names a portal doodad whose art
   follows the destination. `buildLobby(..., intoBossFight)` lays it red
   (`BossPortal`) when the next slot is a boss fight, else blue (`LobbyPortal`),
   the same rule `gatewayAfter` gives floors. A room without it is unaffected.

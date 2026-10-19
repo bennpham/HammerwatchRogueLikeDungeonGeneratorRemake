@@ -26,6 +26,10 @@
  * the stock campaign: the opening level's bridge chamber cut out of
  * `level_1.xml`, its collapse patched into an intact bridge with the vendors
  * on it, and its exits sealed. Opt-in like the bazaar.
+ * The fifth, the Shaftlocke Peak sky shop (`../skyShop/`, written by
+ * `scripts/import-sky-shop.mjs`), is the survival campaign's summit shop read
+ * out of `survival.hwm` the same way. It ships the cloud layer that only that
+ * campaign carries. Also opt-in only.
  */
 import {
   LOBBY_DIAMOND_SLOTS,
@@ -71,6 +75,19 @@ import {
   CASTLE_BRIDGE_UPGRADE_ID_BASE,
   CASTLE_BRIDGE_UPGRADE_SLOTS
 } from '../castleBridge/template'
+import {
+  SKY_SHOP_DIAMOND_SLOTS,
+  SKY_SHOP_EXIT_NODE_ID,
+  SKY_SHOP_ITEM_ID_BASE,
+  SKY_SHOP_MUSIC_ID_BASE,
+  SKY_SHOP_PORTAL_DOODAD_ID,
+  SKY_SHOP_RESPAWN_ID_BASE,
+  SKY_SHOP_TEMPLATE,
+  SKY_SHOP_TEMPLATE_IDS,
+  SKY_SHOP_UPGRADE_ID_BASE,
+  SKY_SHOP_UPGRADE_SLOTS
+} from '../skyShop/template'
+import { SKY_SHOP_ASSETS } from '../skyShop/assets'
 import type { UpgradeSlots } from '../levelTemplate/surgery'
 import type { GeneratedFile } from '../index'
 
@@ -204,6 +221,26 @@ export const LOBBY_PRESETS: readonly LobbyPresetDef[] = [
     // stock assets only — the importer checks every path against the install
     assets: [],
     portalDoodadId: CASTLE_BRIDGE_PORTAL_DOODAD_ID
+  },
+  {
+    id: 'sky-shop',
+    label: 'Shaftlocke Peak sky shop',
+    description:
+      "The survival campaign's merchants guild on floating islands above the clouds. Leave through the teleport on the east island.",
+    surgeryLabel: 'sky-shop',
+    template: SKY_SHOP_TEMPLATE,
+    templateIds: SKY_SHOP_TEMPLATE_IDS,
+    exitNodeId: SKY_SHOP_EXIT_NODE_ID,
+    diamondSlots: SKY_SHOP_DIAMOND_SLOTS,
+    upgradeSlots: SKY_SHOP_UPGRADE_SLOTS,
+    itemIdBase: SKY_SHOP_ITEM_ID_BASE,
+    upgradeIdBase: SKY_SHOP_UPGRADE_ID_BASE,
+    // the summit's own ids run past 105 000, so its bases sit above them
+    respawnIdBase: SKY_SHOP_RESPAWN_ID_BASE,
+    musicIdBase: SKY_SHOP_MUSIC_ID_BASE,
+    // the cloud layer only the survival campaign ships
+    assets: SKY_SHOP_ASSETS,
+    portalDoodadId: SKY_SHOP_PORTAL_DOODAD_ID
   }
 ]
 

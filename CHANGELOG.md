@@ -25,6 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - It ships no extra files: everything it uses is stock.
   - It is opt-in. New lobbies still start as the dungeon-prep room, and no preset changes.
   - `scripts/import-castle-bridge.mjs` regenerates it from the game's own `level_1.xml`. The bazaar's importer now shares its level-reading code through `scripts/lib/hwLevel.mjs`, and its output is unchanged.
+- **Shaftlocke Peak sky shop lobby.** A fifth lobby room, "Shaftlocke Peak sky shop" (`sky-shop` in parameters.txt). It is the survival campaign's merchants guild: floating islands joined by glass walkways, with clouds drifting below.
+  - All five vendors are stocked, filtered by the Lobby tab's columns like the other rooms, with tier badges.
+  - The party arrives on the central island and leaves through the teleport on the east island. The teleport is red when the lobby leads into a boss fight and blue otherwise.
+  - Starting gold and free upgrades appear around the arrival.
+  - The survival campaign's title card and music are gone; pick a track in the lobby's music setting.
+  - The cloud layer only ships with the survival campaign, so a campaign using this room carries its own copy (two small files).
+  - It is opt-in. New lobbies still start as the dungeon-prep room, and no preset changes.
+  - `scripts/import-sky-shop.mjs` regenerates it from the game's `survival.hwm`.
 
 ## [0.9.5]
 

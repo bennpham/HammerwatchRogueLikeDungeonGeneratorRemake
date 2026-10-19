@@ -97,7 +97,9 @@ describe('lobby — presets', () => {
     expect(ids).toContain('BETA-boss-prep')
     expect(ids).toContain('sun-bazaar')
     expect(ids).toContain('castle-bridge')
-    // the bazaar and the bridge are opt-in: adding them changed no default
+    expect(ids).toContain('sky-shop')
+    // the bazaar, the bridge and the sky shop are opt-in: adding them changed
+    // no default
     expect(DEFAULT_LOBBY_PRESET_ID).toBe('BETA-dungeon-prep')
   })
 
@@ -862,6 +864,95 @@ describe('lobby — castle-bridge', () => {
     for (const other of LOBBY_PRESETS) {
       if (other.id !== preset.id) expect(defaultLobby(other.id).music, other.id).toBeUndefined()
     }
+  })
+})
+
+describe('lobby — sky-shop', () => {
+  // the survival campaign's summit shop, cleaned by scripts/import-sky-shop.mjs
+  const preset = lobbyPresetById('sky-shop')!
+  const xml = buildLobby(preset, defaultLobby(preset.id), EXIT_TARGET)
+  const CLOUDS = ['effects/clouds.png', 'effects/clouds.xml']
+
+  it('has exactly one arrival and one way out, the teleport', () => {
+    expect(nodesOfType(xml, 'LevelStart')).toHaveLength(1)
+    expect(nodesOfType(xml, 'LevelStart')[0].body).toContain('<int name="id">0</int>')
+    const exits = nodesOfType(xml, 'LevelExitArea')
+    expect(exits.map((e) => e.id)).toEqual([preset.exitNodeId])
+    expect(exits[0].body).toContain('<int name="start id">0</int>')
+
+    const shapeId = Number(/<int-arr name="static">(\d+)<\/int-arr>/.exec(exits[0].body)![1])
+    const shape = nodesOfType(xml, 'RectangleShape').find((n) => n.id === shapeId)!
+    expect(shape.body).toContain('<float name="w">3</float>')
+    expect(shape.body).toContain('<float name="h">3</float>')
+  })
+
+  it('keeps the cloud sky and the hidden edge colliders, and nothing else on arrival', () => {
+    expect(nodesOfType(xml, 'AddParallaxLayer')).toHaveLength(1)
+    expect(xml).toContain('<string name="sprite">effects/clouds.xml:</string>')
+    expect(nodesOfType(xml, 'HideObject')).toHaveLength(1)
+    for (const type of ['AnnounceText', 'PlaySound', 'SpawnObject']) {
+      expect(nodesOfType(xml, type), type).toHaveLength(0)
+    }
+    // the room's own music is dropped; only the lobby option may add one
+    expect(nodesOfType(buildLobby(preset, { ...defaultLobby(preset.id), music: undefined }, EXIT_TARGET), 'PlayMusic')).toHaveLength(0)
+  })
+
+  it("speaks one position dialect: every doodad and node uses <vec2 name=\"pos\">", () => {
+    const body = xml.slice(xml.indexOf('<dictionary name="doodads">'), xml.indexOf('<dictionary name="lighting">'))
+    expect(body).not.toContain('<float name="x">')
+    expect(body).not.toContain('<float name="y">')
+  })
+
+  it('stands all five stalls, each badged except power', () => {
+    for (const vendor of LOBBY_VENDORS) {
+      expect(xml).toContain(`doodads/special/vendor_${vendor.id}.xml`)
+      const ids = preset.templateIds[vendor.id]
+      expect(ids, vendor.id).toBeDefined()
+      if (vendor.categories.length > 1) {
+        expect(ids.badge, vendor.id).not.toBeNull()
+        const badge = doodadAt(xml, ids.badge!)
+        const stand = doodadAt(xml, ids.vendor)
+        expect([badge.x, badge.y]).toEqual([stand.x, stand.y])
+      } else {
+        expect(ids.badge).toBeNull()
+      }
+    }
+    expect(nodesOfType(xml, 'ShopArea')).toHaveLength(LOBBY_VENDORS.length)
+  })
+
+  it('has unique ids, every reference resolves, and the template stays below its rig bases', () => {
+    const ids = allIds(xml)
+    expect(new Set(ids).size).toBe(ids.length)
+    const present = new Set(ids)
+    for (const [, body] of xml.matchAll(/<int-arr name="(?:static|connections)">([^<]*)<\/int-arr>/g)) {
+      for (const ref of body.split(' ')) expect(present.has(Number(ref)), `dangling ${ref}`).toBe(true)
+    }
+    expect(Math.max(...allIds(preset.template))).toBeLessThan(preset.respawnIdBase)
+    expect(preset.respawnIdBase + 4).toBeLessThanOrEqual(preset.musicIdBase)
+    expect(preset.musicIdBase + 2).toBeLessThanOrEqual(preset.itemIdBase)
+  })
+
+  it('shows the blue teleport unless the lobby leads into a boss fight', () => {
+    expect(doodadAt(xml, preset.portalDoodadId!).type).toBe('doodads/generic/exit_teleport.xml')
+    const intoFight = buildLobby(preset, defaultLobby(preset.id), EXIT_TARGET, true)
+    expect(doodadAt(intoFight, preset.portalDoodadId!).type).toBe('doodads/generic/exit_teleport_boss.xml')
+  })
+
+  it('ships the cloud layer, and only it, since only the survival campaign carries it', () => {
+    expect(preset.assets.map((a) => a.path).sort()).toEqual(CLOUDS)
+    const png = preset.assets.find((a) => a.path.endsWith('.png'))!
+    expect(png.encoding).toBe('base64')
+    expect(png.content.startsWith('iVBORw0KGgo')).toBe(true)
+  })
+
+  it('ships the clouds once per campaign that uses the room, and never otherwise', () => {
+    const both = defaultParameters()
+    for (const lobby of both.lobbies) lobby.preset = 'sky-shop'
+    const paths = generateOk(both, 555).files.map((f) => f.path)
+    for (const path of CLOUDS) expect(paths.filter((p) => p === path), path).toHaveLength(1)
+
+    const none = generateOk(defaultParameters(), 555).files.map((f) => f.path)
+    for (const path of CLOUDS) expect(none).not.toContain(path)
   })
 })
 

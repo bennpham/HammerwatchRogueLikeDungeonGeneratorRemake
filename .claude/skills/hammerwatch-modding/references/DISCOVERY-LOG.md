@@ -4954,3 +4954,47 @@ dungeon-prep room authors (`lobby/template.ts` ids 191–192):
 
 It is allocated last, so no other id moves. The light stays blue even when
 `buildLobby` turns the portal red. [EMITTED] until booted.
+
+### 2026-10-19 — the survival summit shop: no tilemap, the older x/y dialect, a pack-only cloud layer
+**Tag:** [VERIFIED] (pack contents, read from the install); the sky-shop lobby built from it is [EMITTED] until booted
+**Context:** Adding the Shaftlocke Peak sky shop lobby (`sky-shop`) from the
+original game's survival campaign, `<HW>/levels/survival.hwm`.
+**Evidence:**
+1. **`survival.hwm` holds four levels:** `level_1_start`, `level_1` (the
+   arena, 1.8 MB decoded), `level_1_end` and `level_summit`, plus its own
+   actors, `doodads/survival/npc_*`, items, menus and `effects/clouds.*`.
+   `levels.xml` starts at `0`, and `level_1` exits to `summit` and `2`.
+2. **The summit is the shop:** five `ShopArea`s with the full stock columns
+   (`off1..5`, `def1..5`, `misc1..5`, `combo1..5`, `power`), each with a 2-tile
+   `CircleShape`. Each stall is a stock `vendor_<kind>` + `vendor_speech_<kind>`
+   with no `vendor_speech_level*` badge. One `LevelStart` (id 0) with an
+   `exit_teleport_exit` pad, one `LevelExitArea` (→ `1`, start id 1, 1x1 shape)
+   under a blue `exit_teleport` + stand.
+3. **It has no tilemap.** The ground is doodads: `f_special_cliff_v1` islands
+   (60x100 px sprite, origin 30 30) and 29 `ground_glasswalk` tiles (16 px,
+   origin 8 8). Its edges are `b_ledge_*` and `f_collision_round_*` colliders,
+   which one `HideObject` (state 1, on `LevelLoaded`) hides; their collision
+   stays. A collider's bounding box is far coarser than its polygon here: the
+   rounded corners' boxes cover whole islands.
+4. **The compiled level is an older dialect.** Doodads, nodes and lights carry
+   `<float name="x">`/`<float name="y">` instead of `<vec2 name="pos">`.
+   `items` and `actors` wrap an unnamed `<array>`, and light colours are
+   r/g/b/a dictionaries. The same binary type codes as `campaign2.hwm`.
+5. **`effects/clouds.xml` is not in `assets.bin`.** It is a one-frame 256 px
+   spritebank over `effects/clouds.png` (52 382 bytes), used by the summit's
+   `AddParallaxLayer` (`layer -75`, scroll 0.25/0.25). Only `survival.hwm`
+   carries it.
+6. **The flattened sky shop packs.** A stock campaign with both lobbies set to
+   `sky-shop` went through `mono LevelPacker.exe`. The pack carries
+   `effects/clouds.xml` and a byte-identical `effects/clouds.png`. Each lobby
+   decodes with one `LevelExitArea` (→ `0` blue / → `boss0` red), five
+   `ShopArea`s and the parallax node.
+**Impact:** `scripts/import-sky-shop.mjs` normalises every doodad and node to
+the vec2 dialect that `buildLobby`'s surgery speaks, and leaves the lights
+alone. It ships the clouds as the preset's `assets`, and floods with polygon
+rasterisation (a tile is blocked when its centre is inside a collider).
+Unverified in game:
+- the clouds render from a generated campaign's own pack;
+- the pickups land on walkable ground;
+- the added badges show;
+- the teleport leads on.
