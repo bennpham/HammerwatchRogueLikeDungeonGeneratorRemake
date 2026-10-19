@@ -2,6 +2,7 @@ import { LOBBY_VENDORS, categoriesFor } from './shops'
 import type { LobbyPresetDef } from './presets'
 import type { LobbyOptions } from '../config/parameters'
 import { musicSound } from '../music/tracks'
+import { DoodadType } from '../objects/doodad'
 import { musicRigNodes } from '../music/template'
 import {
   DIAMOND_VALUE,
@@ -40,13 +41,30 @@ export const LOBBY_DIAMOND_VALUE = DIAMOND_VALUE
  * somehow ends up last (validation forbids that; the generator falls back
  * rather than throwing). One lobby, one exit: unlike a boss fight a lobby
  * slot has nothing else to wire up.
+ *
+ * `intoBossFight` says the slot after this lobby is a boss fight. A room with a
+ * `portalDoodadId` then shows the red portal instead of the blue one — the same
+ * colour rule `gatewayAfter` gives a floor (`'portal'` vs `'lobbyPortal'`/stairs).
+ * A room without one ignores it.
  */
 export function buildLobby(
   preset: LobbyPresetDef,
   options: LobbyOptions,
-  exitTarget: string
+  exitTarget: string,
+  intoBossFight = false
 ): string {
   let xml = preset.template
+
+  if (preset.portalDoodadId !== undefined) {
+    const art = intoBossFight ? DoodadType.BossPortal.path : DoodadType.LobbyPortal.path
+    xml = replaceInElement(
+      xml,
+      preset.portalDoodadId,
+      /<string name="type">[^<]*<\/string>/,
+      `<string name="type">${art}</string>`,
+      preset.surgeryLabel
+    )
+  }
 
   for (const vendor of LOBBY_VENDORS) {
     const ids = preset.templateIds[vendor.id]

@@ -78,8 +78,9 @@ src/
 │   │   ├── presets.ts    LobbyPresetDef / LOBBY_PRESETS / lobbyPresetById —
 │   │   │                 one descriptor per committed room (template, its
 │   │   │                 vendor ids, exit node, diamond/upgrade slots, id
-│   │   │                 bases, assets). `BETA-dungeon-prep` and
-│   │   │                 `BETA-boss-prep`; adding a room is an entry here
+│   │   │                 bases, assets). `BETA-dungeon-prep`,
+│   │   │                 `BETA-boss-prep` and `sun-bazaar`; adding a room
+│   │   │                 is an entry here
 │   │   ├── template.ts   the dungeon-prep XML verbatim (generated+committed)
 │   │   ├── assets.ts     custom files it references, base64 when binary
 │   │   ├── shops.ts      the five vendor stalls and their shop columns
@@ -89,6 +90,9 @@ src/
 │   │                     XML, imported by lobby/presets.ts. It stays here
 │   │                     because scripts/import-bossprep-assets.mjs
 │   │                     regenerates it; its build.ts and index.ts are gone
+│   ├── sunBazaar/        template.ts ONLY — the Temple of the Sun hub cleaned
+│   │                     into a lobby, ~840 KB, written by
+│   │                     scripts/import-sun-bazaar.mjs from campaign2.hwm
 │   ├── buffs/            field.ts — buff auras, the optional per-floor buff
 │   │                     fields. Appends always-on DangerAreas after a floor
 │   │                     is built; no RNG, no files of its own
@@ -1187,7 +1191,7 @@ template text, vendor ids, exit node, diamond slots, upgrade slots, the two id
 bases, the respawn id base, the extra asset files, and the label surgery's error
 messages use. There is **no per-preset branching** anywhere in the builder, and
 adding a third room means regenerating a template and adding an entry, nothing
-else. Two ship:
+else. Three ship:
 
 - `BETA-dungeon-prep` — the campaign's original starting lobby, five vendor
   stalls around a teleport. Ships `LOBBY_ASSETS`, the custom files its template
@@ -1195,6 +1199,21 @@ else. Two ship:
 - `BETA-boss-prep` — the larger room that used to be welded to every fight, now
   placeable anywhere. Stock assets only (`[VERIFIED]` 2026-08-10), which is why
   its `assets` is `[]`.
+- `sun-bazaar` — the Temple of the Sun campaign's own hub, not hand-authored.
+  `scripts/import-sun-bazaar.mjs` decodes it out of the shipped
+  `campaign2.hwm` (`levels/level_hub.xml.bin`), flattens its five vendor
+  prefabs (campaign2-only files) into plain stalls, and drops every quest, NPC,
+  flag, actor, pickup and extra exit. It keeps one arrival (the village
+  square) and one exit: the stock boss-teleporter pad
+  (`desert_teleport_boss.xml`), also flattened, at the top of the temple
+  stairs. The temple entrance's own exit is dropped. Its diamond and upgrade
+  slots are picked by the importer's flood fill, since the hub has none
+  authored, and its id bases sit above the hub's 150 000+ ids. Stock assets
+  only. It is opt-in: never the default and in no preset.
+- `portalDoodadId` (optional, bazaar only) names a portal doodad whose art
+  follows the destination. `buildLobby(..., intoBossFight)` lays it red
+  (`BossPortal`) when the next slot is a boss fight, else blue (`LobbyPortal`),
+  the same rule `gatewayAfter` gives floors. A room without it is unaffected.
 
 The preset id is stored in `LobbyOptions.preset` and written to
 `parameters.txt` as `lobby<i>Preset`, so it is a compatibility surface: an id

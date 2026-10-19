@@ -552,7 +552,8 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
     const exitTarget = next === undefined ? '0' : slotEntryId(next)
     files.push({
       path: filePath(slot),
-      content: buildLobby(preset, options, exitTarget)
+      // red portal into a fight, blue anywhere else — gatewayAfter's rule
+      content: buildLobby(preset, options, exitTarget, next?.kind === 'boss')
     })
   })
 

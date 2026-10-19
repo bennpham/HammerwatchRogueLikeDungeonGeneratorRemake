@@ -4741,3 +4741,72 @@ no validation rule. User mitigation, IL-proven: remap or clear the game's
 Diagnostics that would close the gap: check whether the knife-throw swing
 animation is missing/frozen before the crash; try a second Thief costume
 variation; confirm the second same-day seed crashes identically.
+
+### 2026-10-19 — compiled `.xml.bin` levels decode; the TotS hub's vendors are campaign2-only prefabs
+**Tag:** [VERIFIED] (format and pack contents, read from the install); the bazaar lobby built from them is [EMITTED] until booted
+**Context:** Adding the Temple of the Sun bazaar lobby (`sun-bazaar`), a port of
+the AE generator's bazaar lobby. The source is the original game's own hub
+inside `<HW>/levels/campaign2.hwm`.
+**Evidence:**
+1. **The HWRP header carries one more `u32` than recorded above.** After the
+   icon comes a `u32` (101 in `campaign2.hwm`, the entry count) and only then
+   the gzip stream. Each table entry is a .NET 7-bit-length name, a `u32` size
+   and the bytes.
+2. **Compiled levels (`levels/*.xml.bin`) are a typed binary tree.** One type
+   byte per value: `1` array (int32 count, then type+value each), `2`
+   dictionary (int32 count, then name+type+value each), `3` bool (1 byte), `5`
+   float32, `6` int32, `7` string (7-bit length + UTF-8), `8` int-arr (int32
+   count + int32s), `9` vec2 (two float32s). `level_hub.xml.bin` (767 989 bytes)
+   decodes to its last byte with exactly these eight codes. A
+   `GlobalEventTrigger`'s event is a plain string named `parameters`, as in the
+   editor dialect.
+3. **campaign2 ships its own prefabs, doodads and items that `assets.bin` does
+   not carry:** `prefabs/desert_vendor_{combo,defense,misc,offense,gambler}.xml`,
+   `desert_quest_*`, `exit_teleport_parent/child`, `doodads/desert/*`,
+   `items/key_*`. The hub places all five vendors as prefab instances, and
+   power is `desert_quest_pan.xml`. Each vendor prefab is stock doodads
+   (`vendor_<kind>`, `vendor_speech_<kind>`, `vendor_speech_level0..5`,
+   `deco_vendor_basket`/`carpet_1`) plus five tiered `ShopArea`s (`off1` …
+   `off1 off2 off3 off4 off5`, all `enabled False`). Unlocks switch them on
+   one at a time. A `zero` shop is enabled first. The gambler sells `gamble`,
+   which no stock `tweak/*.xml` defines.
+4. **Everything else the hub references is stock.** Every doodad, tileset and
+   sound path in `level_hub` exists under `editor/assetsExtracted`.
+5. **The flattened bazaar packs.** A default campaign with lobby 0 set to
+   `sun-bazaar` went through `mono LevelPacker.exe` (cwd `<hw>/editor`).
+   Output: `Scanning and reading files... / Writing resource file...`, a
+   283 KB `.hwm`. Its `levels/01_lobby1.xml.bin` decodes with one
+   `LevelExitArea` (→ `0`), five `ShopArea`s and the respawn and music rigs.
+6. **The boss teleporter pad is a prefab too** (`prefabs/desert_teleport_boss.xml`,
+   placed at (-25, -38.5) at the top of the temple stairs). It holds:
+   - the 128 px platform `exit_teleport_boss_desert.xml`;
+   - six `exit_teleport_boss_desert_activated.xml` rune lamps at (±1.5, -1.75),
+     (±2.125, -0.25) and (±1.5, 1.25), each shown by `HideObject` per boss
+     killed;
+   - the red `exit_teleport_boss.xml` and its `exit_teleport_stand.xml` at
+     (0, -0.875);
+   - a 1x1 `RectangleShape` at (0, -0.75) feeding a disabled
+     `LevelExitArea` (→ `boss_3`);
+   - a `LevelStart`.
+
+   The hub's floor tiles have a hole under the platform. The bazaar flattens
+   the pad with every lamp lit, as its way out: the portal is laid blue (made
+   red by `buildLobby` when the next slot is a fight), and the shape is
+   widened to 3x3. A two-lobby pack decoded blue before floor 1 and red before
+   `boss0`.
+7. **The temple stairs carry no floor tiles.** The `g_stairs_up` sprites (32x24
+   px, origin 16 0, no collision) are drawn over map cells with `data-a` 0,
+   so a floor-tile walkability model stops at the stairs. The importer's
+   flood fill counts the stair and pad sprites as floor.
+
+**Impact:** `scripts/import-sun-bazaar.mjs` reads the pack directly, so no
+editor round trip is needed. Because the vendor prefabs exist only in
+campaign2, they are flattened into the level; a generated campaign cannot name
+them. Still unverified in game:
+- the party arrives in the square;
+- the stairs are walkable and the portal on the pad leads on (red/blue art
+  shows as expected);
+- the importer's flood-fill pickup slots land on open ground (its collision
+  model is each doodad's collision-polygon bounding box, `px / 16` tiles);
+- the five stalls open their shops;
+- the temple entrance does nothing.
