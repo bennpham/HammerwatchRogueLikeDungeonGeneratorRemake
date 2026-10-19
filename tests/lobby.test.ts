@@ -49,7 +49,7 @@ import { isFloorPath, isLobbyPath, lobbyXml } from './levelFiles'
 const EXIT_TARGET = 'some-level'
 
 /**
- * The two warm lights every stock room carries, unconditional — position is
+ * The two warm lights each hand-authored room carries, unconditional — position is
  * fixed data read off the source level the same way the diamond and upgrade
  * slots are, but `LobbyPresetDef` has no field for it (nothing downstream
  * needs to know), so it is spelled out here instead, the same way each half
@@ -58,6 +58,7 @@ const EXIT_TARGET = 'some-level'
 const LIGHT_POSITIONS: Record<string, readonly [string, string]> = {
   'BETA-dungeon-prep': ['-7.75 -4', '8 -3.75'],
   'BETA-boss-prep': ['9 -5', '-9 -5']
+  // 'sun-bazaar' is a daylight map with no lights at all — its own suite below
 }
 
 function optionsFor(preset: LobbyPresetDef, patch: Partial<LobbyOptions> = {}): LobbyOptions {
@@ -91,6 +92,8 @@ describe('lobby — presets', () => {
     expect(new Set(ids).size).toBe(ids.length)
     expect(ids).toContain('BETA-dungeon-prep')
     expect(ids).toContain('BETA-boss-prep')
+    expect(ids).toContain('sun-bazaar')
+    // the bazaar is opt-in: adding it changed no default
     expect(DEFAULT_LOBBY_PRESET_ID).toBe('BETA-dungeon-prep')
   })
 
@@ -430,7 +433,7 @@ for (const preset of LOBBY_PRESETS) {
     })
 
     describe('lighting', () => {
-      it('carries the two warm lights, always', () => {
+      it.runIf(preset.id in LIGHT_POSITIONS)('carries the two warm lights, always', () => {
         const [posA, posB] = LIGHT_POSITIONS[preset.id]
         for (const patch of [{}, { shopCategories: [] }, { startingGold: 0, upgrades: noUpgrades() }]) {
           const xml = xmlFor(preset, patch)
@@ -580,6 +583,76 @@ for (const preset of LOBBY_PRESETS) {
     })
   })
 }
+
+describe('lobby — sun-bazaar', () => {
+  // the stock Temple of the Sun hub, cleaned by scripts/import-sun-bazaar.mjs;
+  // these pin what the cleanup promises, so a re-import cannot quietly let a
+  // quest, an NPC or a second way out back in
+  const preset = lobbyPresetById('sun-bazaar')!
+  const xml = buildLobby(preset, defaultLobby(preset.id), EXIT_TARGET)
+
+  it('has exactly one arrival and one way out, the temple entrance', () => {
+    expect(nodesOfType(xml, 'LevelStart')).toHaveLength(1)
+    const exits = nodesOfType(xml, 'LevelExitArea')
+    expect(exits.map((e) => e.id)).toEqual([preset.exitNodeId])
+    expect(exits[0].body).toContain('<int name="start id">0</int>')
+    expect(nodesOfType(xml, 'LevelStart')[0].body).toContain('<int name="id">0</int>')
+  })
+
+  it('carries no story: no actors, prefabs, NPCs, dialog or flags', () => {
+    expect(xml).not.toMatch(/<array name="actors\//)
+    expect(xml).toMatch(/<dictionary name="prefabs">\s*<\/dictionary>/)
+    for (const type of [
+      'CheckGlobalFlag',
+      'SetGlobalFlag',
+      'ShowSpeechBubble',
+      'AnnounceText',
+      'ScriptLink',
+      'SpawnObject',
+      'PlayMusic',
+      'Random',
+      'Counter'
+    ]) {
+      expect(nodesOfType(xml, type), type).toHaveLength(0)
+    }
+    expect(xml).not.toContain('doodads/special/npc_')
+  })
+
+  it('references nothing the campaign2 pack alone ships', () => {
+    // the vendors were campaign2-only prefabs; they must arrive flattened
+    expect(xml).not.toContain('prefabs/')
+    expect(xml).not.toContain('doodads/desert/')
+    expect(preset.assets).toEqual([])
+  })
+
+  it('stands all five stalls, each on its own vendor and sign', () => {
+    for (const vendor of LOBBY_VENDORS) {
+      expect(xml).toContain(`doodads/special/vendor_${vendor.id}.xml`)
+      expect(xml).toContain(`doodads/special/vendor_speech_${vendor.id}.xml`)
+      expect(preset.templateIds[vendor.id], vendor.id).toBeDefined()
+    }
+    expect(nodesOfType(xml, 'ShopArea')).toHaveLength(LOBBY_VENDORS.length)
+    expect(xml).not.toContain('vendor_gambler')
+  })
+
+  it('has unique ids, every reference resolves, and the template stays below its rig bases', () => {
+    const ids = allIds(xml)
+    expect(new Set(ids).size).toBe(ids.length)
+    const present = new Set(ids)
+    for (const [, body] of xml.matchAll(/<int-arr name="(?:static|connections)">([^<]*)<\/int-arr>/g)) {
+      for (const ref of body.split(' ')) expect(present.has(Number(ref)), `dangling ${ref}`).toBe(true)
+    }
+    const authored = allIds(preset.template)
+    expect(Math.max(...authored)).toBeLessThan(preset.respawnIdBase)
+    expect(preset.respawnIdBase + 4).toBeLessThanOrEqual(preset.musicIdBase)
+    expect(preset.musicIdBase + 2).toBeLessThanOrEqual(preset.itemIdBase)
+  })
+
+  it("keeps the hub's daylight and adds no lights", () => {
+    expect(xml).toMatch(/<array name="lights">\s*<\/array>/)
+    expect(xml).toContain('<int-arr name="ambient-color">254 243 204 255</int-arr>')
+  })
+})
 
 /**
  * The body of one `<array name="items/…">`, or null when the file has none.

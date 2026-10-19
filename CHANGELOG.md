@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Temple of the Sun bazaar lobby.** A third room in the Lobby tab's preset dropdown, "Temple of the Sun bazaar" (`sun-bazaar` in parameters.txt). It is the Temple of the Sun campaign's own desert village with all five vendors stocked.
+  - The party arrives in the village square and leaves through the temple entrance just north of it.
+  - The quests, NPCs, dialog, extra exits and pickups are gone. Starting gold and free upgrades appear next to the arrival.
+  - It ships no extra files: everything it uses is stock.
+  - It is opt-in. New lobbies still start as the dungeon-prep room, and no preset changes.
+  - Like the other lobbies, it has no music of its own. Pick `desert_village` in the lobby's music setting for the bazaar's own track.
+  - `scripts/import-sun-bazaar.mjs` regenerates it from the game's `campaign2.hwm`.
+
 ## [0.9.5]
 
 ### Added

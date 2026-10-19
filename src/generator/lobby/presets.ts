@@ -1,5 +1,5 @@
 /**
- * The two committed shop-room templates a lobby slot can be built from.
+ * The committed shop-room templates a lobby slot can be built from.
  *
  * Before issue #48 these were two separate, near-identical features: the
  * campaign's single starting "lobby" (`lobby/template.ts`) and a shop room
@@ -14,6 +14,12 @@
  * `scripts/import-bossprep-assets.mjs`, and moving it would bury the real diff
  * of this change in a file rename. This module is simply another importer of
  * it, the way `lobby/build.ts` already imports `./template.ts`.
+ *
+ * The third room, the Temple of the Sun bazaar (`../sunBazaar/template.ts`,
+ * written by `scripts/import-sun-bazaar.mjs`), is not hand-authored: it is the
+ * TotS campaign's own hub read out of `campaign2.hwm` and cleaned into a
+ * lobby. It is never the default — `DEFAULT_LOBBY_PRESET_ID` and every preset
+ * still pick the dungeon-prep or boss-prep room.
  */
 import {
   LOBBY_DIAMOND_SLOTS,
@@ -35,6 +41,17 @@ import {
   BOSSPREP_UPGRADE_SLOTS,
   BOSSPREP_TEMPLATE_IDS
 } from '../bossprep/template'
+import {
+  SUN_BAZAAR_DIAMOND_SLOTS,
+  SUN_BAZAAR_EXIT_NODE_ID,
+  SUN_BAZAAR_ITEM_ID_BASE,
+  SUN_BAZAAR_MUSIC_ID_BASE,
+  SUN_BAZAAR_RESPAWN_ID_BASE,
+  SUN_BAZAAR_TEMPLATE,
+  SUN_BAZAAR_TEMPLATE_IDS,
+  SUN_BAZAAR_UPGRADE_ID_BASE,
+  SUN_BAZAAR_UPGRADE_SLOTS
+} from '../sunBazaar/template'
 import type { UpgradeSlots } from '../levelTemplate/surgery'
 import type { GeneratedFile } from '../index'
 
@@ -78,7 +95,7 @@ export interface LobbyPresetDef {
 }
 
 /**
- * The two shipped rooms, in dropdown order. Both are edited by the same
+ * The shipped rooms, in dropdown order. All are edited by the same
  * `buildLobby()` — nothing downstream needs to know which committed level a
  * lobby slot is actually built from.
  */
@@ -119,6 +136,26 @@ export const LOBBY_PRESETS: readonly LobbyPresetDef[] = [
     respawnIdBase: 9000,
     musicIdBase: 9600,
     // [VERIFIED] 2026-08-10 — stock assets only, unlike the dungeon-prep room
+    assets: []
+  },
+  {
+    id: 'sun-bazaar',
+    label: 'Temple of the Sun bazaar',
+    description:
+      "Temple of the Sun's desert village with every vendor fully stocked. Leave through the temple entrance north of the square.",
+    surgeryLabel: 'sun-bazaar',
+    template: SUN_BAZAAR_TEMPLATE,
+    templateIds: SUN_BAZAAR_TEMPLATE_IDS,
+    exitNodeId: SUN_BAZAAR_EXIT_NODE_ID,
+    diamondSlots: SUN_BAZAAR_DIAMOND_SLOTS,
+    upgradeSlots: SUN_BAZAAR_UPGRADE_SLOTS,
+    itemIdBase: SUN_BAZAAR_ITEM_ID_BASE,
+    upgradeIdBase: SUN_BAZAAR_UPGRADE_ID_BASE,
+    // the stock hub's ids run past 150 000, so its bases sit above them
+    // instead of at the BETA rooms' 9000/9600
+    respawnIdBase: SUN_BAZAAR_RESPAWN_ID_BASE,
+    musicIdBase: SUN_BAZAAR_MUSIC_ID_BASE,
+    // stock assets only — the importer checks every path against the install
     assets: []
   }
 ]

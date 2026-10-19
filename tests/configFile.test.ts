@@ -1386,6 +1386,18 @@ describe('parameters.txt — lobbies (issue #48)', () => {
     expect(parsed.params.levelOrder).toEqual(original.levelOrder)
   })
 
+  it('round-trips the Temple of the Sun bazaar preset', () => {
+    const original = defaultParameters()
+    original.lobbies[1].preset = 'sun-bazaar'
+
+    const text = serializeParametersTxt(original)
+    expect(text).toContain('lobby1Preset=sun-bazaar')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.lobbies[1].preset).toBe('sun-bazaar')
+  })
+
   it('overwrites a named lobby without a `lobbies=` count, and never trims', () => {
     // index 1 already exists (the base object's second stock lobby is
     // 'BETA-boss-prep'); naming it a different preset proves the key was
