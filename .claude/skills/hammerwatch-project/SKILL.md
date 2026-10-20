@@ -1243,8 +1243,14 @@ else. Five ship:
   node to `<vec2 name="pos">`. It adds the tier badges the source lacks, keeps
   only arrival, teleport, shops and the arrival trigger's sky + collider-hide,
   and ships `effects/clouds.xml`/`.png` as `assets` (not in `assets.bin`).
-  Its slot flood fill rasterises collision polygons rather than boxes, since
-  rounded corner colliders' boxes cover whole islands. Opt-in only.
+  The arrival island is too small for the payout, so the importer lays a
+  7x6 glass plaza over it (`PLAZA`, relative to the arrival). Walls reaching
+  in are cut back to one-tile pieces, a fence opens where walkway glass meets
+  the edge, and every new wall joins the `HideObject` list. All 20 slots are
+  plaza tiles. Reach is a quarter-tile fill over walls alone, with polygon
+  edges blocking too, since the corner colliders cross themselves. It is
+  also the seal check: if it gets past the outermost doodads, the import
+  fails. Opt-in only.
 - `portalDoodadId` (optional; bazaar, bridge, sky shop) names a portal doodad whose art
   follows the destination. `buildLobby(..., intoBossFight)` lays it red
   (`BossPortal`) when the next slot is a boss fight, else blue (`LobbyPortal`),

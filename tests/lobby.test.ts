@@ -938,6 +938,33 @@ describe('lobby — sky-shop', () => {
     expect(doodadAt(intoFight, preset.portalDoodadId!).type).toBe('doodads/generic/exit_teleport_boss.xml')
   })
 
+  it('lays every pickup slot on the glass plaza round the arrival', () => {
+    const glass = [
+      ...xml.matchAll(
+        /<string name="type">doodads\/generic\/ground_glasswalk\.xml<\/string>\s*<vec2 name="pos">(\S+) (\S+)<\/vec2>/g
+      )
+    ].map((m) => [Number(m[1]), Number(m[2])])
+    const slots = [...preset.diamondSlots, ...Object.values(preset.upgradeSlots)]
+    expect(slots).toHaveLength(20)
+    expect(new Set(slots.map((s) => s.join())).size).toBe(slots.length)
+    for (const [x, y] of slots) {
+      // a glass tile is one tile square, centred on its position
+      expect(glass.some(([gx, gy]) => Math.abs(gx - x) < 0.5 && Math.abs(gy - y) < 0.5), `${x},${y}`).toBe(true)
+    }
+  })
+
+  it('hides every wall piece, the plaza fence included', () => {
+    const [hide] = nodesOfType(xml, 'HideObject')
+    const hidden = new Set(/<int-arr name="static">([^<]*)<\/int-arr>/.exec(hide.body)![1].split(' ').map(Number))
+    const walls = [
+      ...xml.matchAll(
+        /<int name="id">(\d+)<\/int>\s*<string name="type">doodads\/theme_[bf]\/(?:b_ledge|f_collision_round)_[a-z0-9_]+\.xml<\/string>/g
+      )
+    ].map((m) => Number(m[1]))
+    expect(walls.length).toBeGreaterThan(0)
+    for (const id of walls) expect(hidden.has(id), `wall ${id}`).toBe(true)
+  })
+
   it('ships the cloud layer, and only it, since only the survival campaign carries it', () => {
     expect(preset.assets.map((a) => a.path).sort()).toEqual(CLOUDS)
     const png = preset.assets.find((a) => a.path.endsWith('.png'))!

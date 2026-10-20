@@ -5005,3 +5005,40 @@ Unverified in game:
 - the clouds render from a generated campaign's own pack;
 - the added badges show;
 - the teleport leads on.
+
+### 2026-10-19 — the sky shop's pickups move onto a glass plaza
+**Tag:** [EMITTED] (importer-built, sealed under the model below); unbooted
+**Context:** The playtest above: some slots were out of reach. The user asked
+for a larger centre area with every diamond and upgrade on it.
+**Evidence:**
+1. **Why the old slots missed.** The arrival island is an octagon about 4
+   tiles across, with room for about 9 pickups, not 20. The 1-tile walkways
+   are centred on half tiles, so the tile model counted each one as two tile
+   columns. Rendering the room with its colliders showed slots on the rails
+   and over the open sky north-west of the arrival.
+2. **The corner colliders cross themselves.** `f_collision_round_l_up` is
+   `(0,-4) (2,-4) (28,-32) (0,-32) (28,-30)`. Even-odd filling leaves holes
+   in it, and a fill through those holes escapes the room. If each polygon's
+   edges also block, the stock summit seals: 80.6 square tiles, matching
+   what the islands and walkways show. The engine evidently walls along the
+   edges.
+3. **Hiding covers ledges too.** The summit's one `HideObject` lists every
+   `b_ledge_*` piece as well as the `f_collision_round_*` corners, so no
+   brick rails show in game. A new wall must join that list, or it shows.
+**Impact:** `scripts/import-sky-shop.mjs` builds the plaza over x -15..-8,
+y -5.5..0.5 (the arrival is at -13, -1.5):
+- 42 glass tiles;
+- 23 hidden wall pieces: `b_ledge_*_v2` cuts of the walls reaching in, plus
+  the fence;
+- 18 doodads removed: the island's 4 corner colliders, 9 walls and 5
+  walkway glass tiles.
+
+The fence opens to the north, west, south and east walkways and to the misc
+stall's corridor. All 20 slots are plaza tiles nearest the arrival. The
+quarter-tile, walls-only fill reaches every slot, the teleport and all five
+stalls, and stays sealed at 104.1 square tiles.
+
+Unverified in game:
+- every pickup can be picked up;
+- nobody can walk off the plaza's edge;
+- the 42 extra glass tiles, each with its own light, cost nothing noticeable.
