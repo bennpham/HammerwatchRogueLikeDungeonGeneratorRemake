@@ -4899,3 +4899,17 @@ Still unverified in game:
 - the five stalls open their shops from the deck's lower lane;
 - the portal leads on, and its colour follows the destination;
 - the pickups land on open walkway.
+
+### 2026-10-19 — castle bridge playtest; roof squares draw over everything, black squares under it
+**Tag:** [VERIFIED] (user playtest of the first `castle-bridge` build, editor screenshot; layer values read from the asset files)
+**Context:** The user played the first build of the castle bridge lobby. Everything was in place: the bridge, the stalls, the stone seals, the portal and the pickups. Nothing was broken. One thing looked wrong: pieces of level_1 that the crop cut through stuck out of the room. Those were wall columns of the puzzle halls north of the wall, the room past the walkway's end, and the torch-lit pocket under the bridge. The user's own hand-fix in the editor (`lobby1_take2.xml`) deleted some of those wall stubs. It then laid `color_theme_a_64` and `color_black_256` squares over the rest.
+**Evidence:**
+1. `doodads/special/color_theme_<t>_<px>.xml` have `defaultlayer="90"`: a flat square of the theme's roof colour, drawn above walls and props. They are what hides things. They come in sizes 16/24/32/48/64/128/256 px, plus `_dither` variants, with origin 0 0.
+2. `doodads/special/color_black_<px>.xml` have `defaultlayer="-1000"`: they draw below everything, so they fill void and hide nothing. That is why the take-2 black squares could not cover the stubs.
+
+**Impact:**
+- **Hiding:** `scripts/import-castle-bridge.mjs` now roofs everything outside a `VISIBLE` outline with `color_theme_a_*` squares, filled greedily on a half-tile grid. The outline is the north wall's face from its rim (y −6), the chasm down to the south wall's rim (y 0.5), and the walkway with a 2-tile strip of chasm.
+- **Dropping:** it also drops every stock doodad whose sprite lies wholly under that roof, including level_1's own roof squares. Of these, only `color_black_*` was ever meant to stay. Hidden colliders are dropped too; the closure check still passes, which proves none of them mattered.
+- **Remaining checks:**
+  - **[VERIFIED] (this playtest):** the plank pieces, the stalls, the seals, the portal and the pickups. The bullets in the previous entry are confirmed, except portal colour, which wasn't checked.
+  - **Still [EMITTED]:** the roofed build itself, until it is booted.

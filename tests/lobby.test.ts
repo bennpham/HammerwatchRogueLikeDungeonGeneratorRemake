@@ -805,6 +805,16 @@ describe('lobby — castle-bridge', () => {
     expect(preset.musicIdBase + 2).toBeLessThanOrEqual(preset.itemIdBase)
   })
 
+  it('roofs over the rest of level_1 instead of letting it poke out', () => {
+    // theme-a roof squares (layer 90) cover everything past the room's walls…
+    expect(xml).toContain('doodads/special/color_theme_a_256.xml')
+    // …and what lay wholly under them is gone: the puzzle hall's pillar north
+    // of the wall, the pocket's torch-lit walls south of the bridge
+    expect(xml).not.toContain('a_special_pillar.xml')
+    expect(xml).not.toContain('a_v_cap_dn.xml')
+    expect(nodesOfType(xml, 'LevelStart')).toHaveLength(1)
+  })
+
   it("keeps level_1's dim ambient", () => {
     expect(xml).toContain('<int-arr name="ambient-color">90 90 90 255</int-arr>')
   })

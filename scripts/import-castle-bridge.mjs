@@ -36,6 +36,11 @@
  * - The chamber is sealed with stock pieces: stone blocks in the walkway's two
  *   north doorways and across its far end, and a chasm ledge where the bridge
  *   meets the walkway's south edge.
+ * - Everything outside VISIBLE is roofed over with `color_theme_a_*` squares
+ *   (layer 90, over walls and props), and stock doodads left wholly under that
+ *   roof — the cut-off halls north of the wall, the room past the walkway's
+ *   end, the pocket under the bridge, level_1's own roof squares — are
+ *   dropped, so nothing from the rest of the level pokes out of the room.
  *
  * The engine takes collision from doodads alone (a tile-less cell is walkable
  * void — see the modding skill's DISCOVERY-LOG), so "closed off" is checked
@@ -189,6 +194,36 @@ const SLOT_AREA = (x, y) => x >= -71 && y >= -3
 /** Flood-fill resolution of the closure check, cells per tile. */
 const GRID = 4
 
+/**
+ * What the party may see, in tiles (x0, y0, x1, y1): the north wall's face from
+ * its top rim down, the bridge and the chasm under it to the stock south wall's
+ * rim, and the walkway with a strip of chasm below its ledge. Everything else
+ * in COVER_AREA is roofed over with theme-a cover squares (layer 90, drawn over
+ * walls and props — the same doodads level_1 roofs its own rock with), and a
+ * stock doodad whose sprite lies wholly under that roof is dropped: the cut-off
+ * halls north of the wall, the room past the walkway's end, the pocket under
+ * the bridge.
+ */
+const VISIBLE = [
+  [-104, -6, -52.5, 0.5],
+  [-72, 0.5, -52.5, 2.5]
+]
+/** The roofed area: the crop plus a margin, so the camera never looks past the roof's edge. */
+const COVER_AREA = [-114, -20, -42, 14]
+/** Cover square sizes in tiles, largest first, and the file each one is. */
+const COVER_SIZES = [
+  [16, 256],
+  [8, 128],
+  [4, 64],
+  [3, 48],
+  [2, 32],
+  [1.5, 24],
+  [1, 16]
+]
+const coverPath = (px) => `doodads/special/color_theme_a_${px}.xml`
+/** level_1's own roof squares; replaced wholesale by the fill. */
+const STOCK_COVER = /^doodads\/special\/color_theme_a_\d+\.xml$/
+
 // ------------------------------------------------------------- building
 
 const vec2 = (name, [x, y]) => ({ t: 'vec2', name, value: [Math.fround(x), Math.fround(y)] })
@@ -227,6 +262,72 @@ function findAnchor(doodads, { type, pos }) {
   const found = doodads.filter((d) => typeOf(d) === type && posOf(d)[0] === pos[0] && posOf(d)[1] === pos[1])
   if (found.length !== 1) throw new Error(`expected one ${type} at ${pos.join(' ')}, found ${found.length}`)
   return found[0]
+}
+
+const overlaps = ([ax0, ay0, ax1, ay1], [bx0, by0, bx1, by1]) => ax0 < bx1 && ax1 > bx0 && ay0 < by1 && ay1 > by0
+
+/** Where a doodad draws, in tiles, from its first sprite's `<origin>` and `<frame>`; null if it has none. */
+function spriteBox(assets, d, cache) {
+  const path = typeOf(d)
+  if (!cache.has(path)) {
+    const xml = readFileSync(join(assets, path), 'utf8')
+    const sprite = /<sprite[^>]*>([\s\S]*?)<\/sprite>/.exec(xml)?.[1] ?? ''
+    const origin = /<origin>\s*(-?\d+)\s+(-?\d+)/.exec(sprite)
+    const frame = /<frame[^>]*>\s*\d+\s+\d+\s+(\d+)\s+(\d+)/.exec(sprite)
+    cache.set(path, frame === null ? null : [origin ? +origin[1] : 0, origin ? +origin[2] : 0, +frame[1], +frame[2]])
+  }
+  const box = cache.get(path)
+  if (box === null) return null
+  const [px, py] = posOf(d)
+  const [ox, oy, w, h] = box.map((v) => v / 16)
+  return [px - ox, py - oy, px - ox + w, py - oy + h]
+}
+
+/** Wholly under the roof: no part of its sprite falls inside VISIBLE. */
+const roofed = (box) => box === null || !VISIBLE.some((v) => overlaps(box, v))
+
+/**
+ * Roof COVER_AREA outside VISIBLE with theme-a squares: scan a half-tile grid
+ * and, at each cell still bare, lay the largest square that keeps clear of
+ * VISIBLE, nudged half a tile up or left where a whole-tile square would
+ * otherwise clip it. Squares may overlap one another.
+ */
+function coverSquares() {
+  const [x0, y0, x1, y1] = COVER_AREA
+  const cols = (x1 - x0) * 2
+  const rows = (y1 - y0) * 2
+  const done = new Uint8Array(cols * rows)
+  const out = []
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cx = x0 + c / 2
+      const cy = y0 + r / 2
+      if (done[r * cols + c] || !roofed([cx, cy, cx + 0.5, cy + 0.5])) continue
+      let placed = null
+      for (const [size, px] of COVER_SIZES) {
+        for (const [dx, dy] of [
+          [0, 0],
+          [-0.5, 0],
+          [0, -0.5],
+          [-0.5, -0.5]
+        ]) {
+          const box = [cx + dx, cy + dy, cx + dx + size, cy + dy + size]
+          if (roofed(box)) {
+            placed = { box, px }
+            break
+          }
+        }
+        if (placed !== null) break
+      }
+      if (placed === null) throw new Error(`no cover square fits at ${cx} ${cy}`)
+      out.push(placed)
+      const [bx0, by0, bx1, by1] = placed.box
+      for (let rr = Math.max(0, (by0 - y0) * 2); rr < Math.min(rows, (by1 - y0) * 2); rr++) {
+        for (let cc = Math.max(0, (bx0 - x0) * 2); cc < Math.min(cols, (bx1 - x0) * 2); cc++) done[rr * cols + cc] = 1
+      }
+    }
+  }
+  return out
 }
 
 /** Zero every tile outside CROP; drop datasets and blocks left empty. */
@@ -272,13 +373,16 @@ function build(level, assets) {
       ([x0, y0, x1, y1]) => px + x0 < DECK.x1 && px + x1 > DECK.x0 && py + y0 < DECK.y1 && py + y1 > DECK.y0
     )
   }
+  const sprites = new Map()
   const kept = doodads.filter(
     (d) =>
       inCrop(posOf(d)) &&
       !plugged.has(idOf(d)) &&
       !SPECIAL_BRIDGE.test(typeOf(d)) &&
       !DROPPED_DOODAD.some((re) => re.test(typeOf(d))) &&
-      !crossesDeck(d)
+      !crossesDeck(d) &&
+      !STOCK_COVER.test(typeOf(d)) &&
+      !roofed(spriteBox(assets, d, sprites))
   )
   const offDeck = doodads.filter((d) => inCrop(posOf(d)) && !SPECIAL_BRIDGE.test(typeOf(d)) && crossesDeck(d))
 
@@ -322,6 +426,7 @@ function build(level, assets) {
 
   const portal = nextId()
   added.push(doodad(portal, LOBBY_PORTAL, PORTAL), doodad(nextId(), PORTAL_STAND, PORTAL))
+  for (const { box, px } of coverSquares()) added.push(doodad(nextId(), coverPath(px), [box[0], box[1]]))
 
   const startId = nextId()
   const start = node(startId, 'LevelStart', ARRIVAL.pos, [
