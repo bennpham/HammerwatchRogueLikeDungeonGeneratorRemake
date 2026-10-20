@@ -757,6 +757,16 @@ describe('lobby — castle-bridge', () => {
     expect(xml).not.toContain('a_wood_bridge_h_special')
   })
 
+  it('hangs a blue light on the portal so the way out is easy to see', () => {
+    const portal = doodadAt(xml, preset.portalDoodadId!)
+    const lights = xml.slice(xml.indexOf('<array name="lights">'))
+    const near = [...lights.matchAll(/<vec2 name="pos">(\S+) (\S+)<\/vec2>\s*<int-arr name="mulColor1">([^<]*)<\/int-arr>/g)].filter(
+      (m) => Math.abs(Number(m[1]) - portal.x) <= 1 && Math.abs(Number(m[2]) - portal.y) <= 1.5
+    )
+    expect(near).toHaveLength(1)
+    expect(near[0][3]).toBe('5 153 225 255')
+  })
+
   it("glasses over the deck's east end on the tile grid, never over a stall", () => {
     const glass = [...xml.matchAll(/<string name="type">doodads\/generic\/ground_glasswalk\.xml<\/string>\s*<vec2 name="pos">(\S+) (\S+)<\/vec2>/g)].map(
       (m) => [Number(m[1]), Number(m[2])]

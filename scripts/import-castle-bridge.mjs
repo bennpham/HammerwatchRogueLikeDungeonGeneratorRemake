@@ -29,6 +29,7 @@
  *   switches on so nobody walks back onto the stub — goes with the script that
  *   drove it, since the bridge is the way into the lobby now.
  * - Puzzle props, floor signs and editor markers go (DROPPED_DOODAD).
+ * - A blue light hangs on the portal (PORTAL_LIGHT) so the way out is easy to see.
  * - Glass walk panels cover the deck's east end (GLASS), which reads as a hole
  *   in game though it is walkable.
  * - Five vendor stalls stand along the bridge's north rail, with the whole
@@ -199,6 +200,22 @@ const ARRIVAL = { pos: [-69.5, -2], dir: 4 }
 /** The way out: a portal at the bridge's west end, under the arch, and a 3x3 exit over the whole deck. */
 const PORTAL = [-92.5, -1]
 const EXIT_SHAPE = { pos: [-92.5, -1.5], w: 3, h: 3 }
+/**
+ * A light on the portal, so the way out stands out in the dark west end: the
+ * blue teleport light the dungeon-prep room authors (lobby/template.ts ids
+ * 191-192), centred on the portal's sprite rather than its feet.
+ */
+const PORTAL_LIGHT = {
+  pos: [PORTAL[0], PORTAL[1] - 1],
+  mulColor1: [5, 153, 225, 255],
+  mulColor2: [8, 88, 172, 255],
+  mulColor3: [3, 119, 169, 255],
+  mulRange: 13.8,
+  addColor1: [6, 163, 184, 255],
+  addColor2: [0, 109, 109, 255],
+  addColor3: [1, 57, 66, 255],
+  addRange: 4.9
+}
 /** The blue teleport — must match LobbyPortal in src/generator/objects/doodad.ts. */
 const LOBBY_PORTAL = 'doodads/generic/exit_teleport.xml'
 const PORTAL_STAND = 'doodads/generic/exit_teleport_stand.xml'
@@ -266,6 +283,20 @@ function node(id, type, pos, parameters) {
       { t: 'int', name: 'trigger-times', value: -1 },
       vec2('pos', pos),
       { t: 'dictionary', name: 'parameters', children: parameters }
+    ]
+  }
+}
+
+function portalLight(id) {
+  const { pos, ...rest } = PORTAL_LIGHT
+  return {
+    t: 'dictionary',
+    children: [
+      { t: 'int', name: 'id', value: id },
+      vec2('pos', pos),
+      ...Object.entries(rest).map(([name, value]) =>
+        Array.isArray(value) ? { t: 'int-arr', name, value } : { t: 'float', name, value: Math.fround(value) }
+      )
     ]
   }
 }
@@ -493,6 +524,8 @@ function build(level, assets) {
   child(level, 'prefabs').children = []
   const lights = child(child(level, 'lighting'), 'lights')
   lights.children = lights.children.filter((l) => inCrop(posOf(l)))
+  // allocated last, so no other element's id moves
+  lights.children.push(portalLight(nextId()))
   cropTilemap(level)
 
   return { start, exit, exitShapes: [exitShape], portalId: portal, vendorIds, stallShapes, offDeck }

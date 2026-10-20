@@ -1579,6 +1579,18 @@ export const CASTLE_BRIDGE_TEMPLATE = `<dictionary>
 				<int-arr name="addColor3">48 32 0 255</int-arr>
 				<float name="addRange">0</float>
 			</dictionary>
+			<dictionary>
+				<int name="id">104765</int>
+				<vec2 name="pos">-92.5 -2</vec2>
+				<int-arr name="mulColor1">5 153 225 255</int-arr>
+				<int-arr name="mulColor2">8 88 172 255</int-arr>
+				<int-arr name="mulColor3">3 119 169 255</int-arr>
+				<float name="mulRange">13.8</float>
+				<int-arr name="addColor1">6 163 184 255</int-arr>
+				<int-arr name="addColor2">0 109 109 255</int-arr>
+				<int-arr name="addColor3">1 57 66 255</int-arr>
+				<float name="addRange">4.9</float>
+			</dictionary>
 		</array>
 		<int-arr name="shadow-color">128 128 128 255</int-arr>
 		<int-arr name="ambient-color">90 90 90 255</int-arr>

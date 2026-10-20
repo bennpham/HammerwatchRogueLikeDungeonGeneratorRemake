@@ -4942,3 +4942,15 @@ Still unverified in game:
 Stall ids are unchanged. The importer still reproduces byte-for-byte, with
 `level_1.xml` decoded from `levels/campaign.hwm` standing in for the editor
 copy.
+
+**Follow-up, same day (user request):** the portal at the bridge's west end
+was hard to see. The importer now adds one light at (−92.5, −2), centred on
+the portal's sprite. Its values are copied from the blue teleport light the
+dungeon-prep room authors (`lobby/template.ts` ids 191–192):
+- `mulColor1` 5 153 225;
+- `mulRange` 13.8;
+- `addColor1` 6 163 184;
+- `addRange` 4.9.
+
+It is allocated last, so no other id moves. The light stays blue even when
+`buildLobby` turns the portal red. [EMITTED] until booted.
