@@ -16,6 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - It is opt-in. New lobbies still start as the dungeon-prep room, and no preset changes.
   - Like the other lobbies, it has no music of its own. Pick `desert_village` in the lobby's music setting for the bazaar's own track.
   - `scripts/import-sun-bazaar.mjs` regenerates it from the game's `campaign2.hwm`.
+- **Castle Hammerwatch bridge lobby.** A fourth room in the Lobby tab's preset dropdown, "Castle Hammerwatch bridge" (`castle-bridge` in parameters.txt). It is the bridge from the very start of Castle Hammerwatch, the one that collapses under the party, repaired and closed off as a shop, much like the ruined castle hub in Hammerwatch 2.
+  - The bridge is whole again, and the five vendors stand along it. The party arrives on the walkway at its east end. The way out is a portal at the far west end, under the archway the bridge always led to, lit by a blue light so it is easy to spot. The portal is red when the lobby leads into a boss fight and blue otherwise.
+  - The walkway's side doorways and its far end are blocked with stone, so there is no way out except the portal. The collapse, the party's dialogue and the puzzle are gone. Starting gold and free upgrades appear on the walkway.
+  - The rest of the original level is roofed over, so no walls or rooms from outside the bridge hall show at its edges. The roof meets the north wall in one straight line.
+  - Glass walkway panels, like the ones on Shaftlocke Peak, cover the bridge's east end. That stretch looks like a hole, but it is walkable.
+  - It plays Act 1 music, the track of the level it comes from.
+  - It ships no extra files: everything it uses is stock.
+  - It is opt-in. New lobbies still start as the dungeon-prep room, and no preset changes.
+  - `scripts/import-castle-bridge.mjs` regenerates it from the game's own `level_1.xml`. The bazaar's importer now shares its level-reading code through `scripts/lib/hwLevel.mjs`, and its output is unchanged.
 
 ## [0.9.5]
 
