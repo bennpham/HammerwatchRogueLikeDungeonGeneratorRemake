@@ -4993,8 +4993,15 @@ original game's survival campaign, `<HW>/levels/survival.hwm`.
 the vec2 dialect that `buildLobby`'s surgery speaks, and leaves the lights
 alone. It ships the clouds as the preset's `assets`, and floods with polygon
 rasterisation (a tile is blocked when its centre is inside a collider).
+**Playtest 2026-10-19 (user):** not every pickup can be picked up. Some
+importer-placed diamond/upgrade slots sit where the party cannot reach. The
+tile-centre polygon model plus the tightest fit (`clearance 1, margin 0`)
+evidently counts some unreachable island-edge tiles as floor. **[VERIFIED]
+wrong for the current slots.** The user will hand-adjust the slots in a
+modified version. Until then, treat the flood fill's slots as a starting
+point, not proof of reachability.
+
 Unverified in game:
 - the clouds render from a generated campaign's own pack;
-- the pickups land on walkable ground;
 - the added badges show;
 - the teleport leads on.
