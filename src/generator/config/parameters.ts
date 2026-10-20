@@ -1579,6 +1579,11 @@ export function isMultiBoss(count: number): boolean {
  * gold: 10000 for the campaign's own starting lobby, 20000 — the last shop
  * before a fight, so the party arrives able to actually spend at it — for the
  * boss-prep room.
+ *
+ * The Castle Hammerwatch bridge also starts on `act1`, the track its source
+ * level plays — the other rooms' templates carry no music of their own worth
+ * matching. Like the gold rule this is a default for rooms built in code; the
+ * form's room dropdown changes `preset` alone.
  */
 export function defaultLobby(presetId: string): LobbyOptions {
   return {
@@ -1587,7 +1592,8 @@ export function defaultLobby(presetId: string): LobbyOptions {
     shopCategories: [...ALL_LOBBY_CATEGORIES],
     // no free upgrades by default: the vendors are the intended way to get
     // them, so handing eight out on the floor is opt-in per kind
-    upgrades: noUpgrades()
+    upgrades: noUpgrades(),
+    ...(presetId === 'castle-bridge' ? { music: 'act1' } : {})
   }
 }
 

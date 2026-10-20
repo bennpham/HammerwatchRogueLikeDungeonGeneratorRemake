@@ -20,6 +20,12 @@
  * TotS campaign's own hub read out of `campaign2.hwm` and cleaned into a
  * lobby. It is never the default — `DEFAULT_LOBBY_PRESET_ID` and every preset
  * still pick the dungeon-prep or boss-prep room.
+ *
+ * The fourth, the Castle Hammerwatch bridge (`../castleBridge/template.ts`,
+ * written by `scripts/import-castle-bridge.mjs`), is the same idea applied to
+ * the stock campaign: the opening level's bridge chamber cut out of
+ * `level_1.xml`, its collapse patched into an intact bridge with the vendors
+ * on it, and its exits sealed. Opt-in like the bazaar.
  */
 import {
   LOBBY_DIAMOND_SLOTS,
@@ -53,6 +59,18 @@ import {
   SUN_BAZAAR_UPGRADE_ID_BASE,
   SUN_BAZAAR_UPGRADE_SLOTS
 } from '../sunBazaar/template'
+import {
+  CASTLE_BRIDGE_DIAMOND_SLOTS,
+  CASTLE_BRIDGE_EXIT_NODE_ID,
+  CASTLE_BRIDGE_ITEM_ID_BASE,
+  CASTLE_BRIDGE_MUSIC_ID_BASE,
+  CASTLE_BRIDGE_PORTAL_DOODAD_ID,
+  CASTLE_BRIDGE_RESPAWN_ID_BASE,
+  CASTLE_BRIDGE_TEMPLATE,
+  CASTLE_BRIDGE_TEMPLATE_IDS,
+  CASTLE_BRIDGE_UPGRADE_ID_BASE,
+  CASTLE_BRIDGE_UPGRADE_SLOTS
+} from '../castleBridge/template'
 import type { UpgradeSlots } from '../levelTemplate/surgery'
 import type { GeneratedFile } from '../index'
 
@@ -165,6 +183,27 @@ export const LOBBY_PRESETS: readonly LobbyPresetDef[] = [
     // stock assets only — the importer checks every path against the install
     assets: [],
     portalDoodadId: SUN_BAZAAR_PORTAL_DOODAD_ID
+  },
+  {
+    id: 'castle-bridge',
+    label: 'Castle Hammerwatch bridge',
+    description:
+      'The bridge where Castle Hammerwatch begins, patched up and closed off, with every vendor set up on the deck. Leave through the portal at the far end.',
+    surgeryLabel: 'castle-bridge',
+    template: CASTLE_BRIDGE_TEMPLATE,
+    templateIds: CASTLE_BRIDGE_TEMPLATE_IDS,
+    exitNodeId: CASTLE_BRIDGE_EXIT_NODE_ID,
+    diamondSlots: CASTLE_BRIDGE_DIAMOND_SLOTS,
+    upgradeSlots: CASTLE_BRIDGE_UPGRADE_SLOTS,
+    itemIdBase: CASTLE_BRIDGE_ITEM_ID_BASE,
+    upgradeIdBase: CASTLE_BRIDGE_UPGRADE_ID_BASE,
+    // level_1's ids run past 104 000, so its bases sit above them like the
+    // bazaar's do
+    respawnIdBase: CASTLE_BRIDGE_RESPAWN_ID_BASE,
+    musicIdBase: CASTLE_BRIDGE_MUSIC_ID_BASE,
+    // stock assets only — the importer checks every path against the install
+    assets: [],
+    portalDoodadId: CASTLE_BRIDGE_PORTAL_DOODAD_ID
   }
 ]
 

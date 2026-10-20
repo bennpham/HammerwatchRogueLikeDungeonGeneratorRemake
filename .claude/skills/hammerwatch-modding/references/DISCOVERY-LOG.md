@@ -4810,3 +4810,92 @@ them. Still unverified in game:
   model is each doodad's collision-polygon bounding box, `px / 16` tiles);
 - the five stalls open their shops;
 - the temple entrance does nothing.
+
+### 2026-10-19 — the Castle Hammerwatch opening bridge, and how its pieces collide
+**Tag:** [VERIFIED] (stock level and asset files, read from the install); the bridge lobby built from them is [EMITTED] until booted
+**Context:** Adding the Castle Hammerwatch bridge lobby (`castle-bridge`). The
+source is the stock `<HW>/editor/campaign/levels/level_1.xml`, which is plain
+editor XML, so no pack decoding is needed. Asset definitions come from
+`<HW>/editor/assetsExtract/`.
+**Evidence:**
+1. **Where the bridge is.** The chamber sits at roughly x −101…−64, y −4…2.
+   - It is a chasm with no floor tiles. Its north side is a wall line of
+     `a_h_16` at y −4 with an `a_ledge_up` lip at y −3.5, and its south side is
+     `a_h_16` at y 2.
+   - The bridge is a set piece made of three doodads:
+     - `a_wood_bridge_h_special_end` at (−94, −3.875), the fallen span;
+     - `a_wood_bridge_h_special_start` at (−74.5, −3.875), the surviving stub;
+     - `a_wood_bridge_h_special_party` at (−79.875, −2.125), the party standing
+       on it.
+   - Plain `a_wood_bridge_h_support` posts hang below at y −1.125, every 2.5
+     tiles. One is missing at −77.375, where the bridge breaks.
+   - East of the bridge, a 2-row walkway (y −3…−1, x −71…−53) runs between the
+     wall and a second chasm. Its north wall has two doorways under
+     `a_special_arch_h_32` at (−69, −6) and (−61, −6).
+   - The bridge's west end lies under a third arch at (−93, −6), which leads
+     nowhere.
+2. **The story script.**
+   - `LevelStart` 1649 at (−73.5, −2), dir 4, on the stub.
+   - `ShowSpeechBubble` lines `ig.story-bridge1…4` on the party doodad.
+   - A black parallax fade.
+   - `PlaySound sound/misc.xml:info_bridge`.
+   - `PlayEffect doodads/theme_a/a_wood_bridge_h_special_falling.xml:`.
+   - `PlayMusic act1`.
+   - One `TogglePhysics` on `a_ledge_r` 1647 at (−72, −1). That ledge's collider
+     (x −72…−71.5, y −3…−1) plugs the walkway's west mouth, so nobody walks back
+     onto the stub.
+3. **Elsewhere.** `level_10_special.xml` replays a scene on the same bridge, at
+   the same coordinates (`ig.story-bridge_mid1…3`, falling bombs).
+4. **Walkable bridge pieces.** These are `a_wood_bridge_h.xml` (96 px),
+   `_v2` (32 px), and the end caps `_l`/`_r` (16 px).
+   - Every piece's sprite starts at its position (origin 0 0) and is 67 px tall.
+   - The collision is two `shoot-through` railings, at y 0…18 px and 60…67 px,
+     so the deck between them (y +18…+60 px, about 2.6 tiles) is open.
+   - The end caps rail only one half: `_l` covers x 8…16 px and `_r` covers
+     0…8 px. Each cap's open half is where the bridge meets ground.
+   - Stock bridges lay the pieces end to end: level_1 has `_l`@20, `_v2`@21,
+     `_v2`@23, `_r`@25, all at y −50.5.
+   - The wide `a_wood_bridge2_*` set is used in levels 2, 3, 10 and esc_1. Its
+     middle piece has no collision at all.
+5. **Collision is measured from the doodad's position, not its sprite
+   origin.** For example, `a_ledge_r` has sprite origin 8 32 and polygon
+   x 0…8, y −32…0, so its collider is x…x+0.5, y−2…y.
+6. **Other colliders.**
+
+   | Doodad | Collider |
+   | --- | --- |
+   | `deco_block`, `_v2` | x…x+1.5, y−1.5…y+1. `_v3` is 1.75 wide. `deco_block_v2_dst` has none. |
+   | `vendor_*` | A static 4 px circle |
+   | `deco_vendor_cart` | A 12×10 px box |
+   | `deco_vendor_carpet_1` | None |
+   | `exit_teleport` | Two 2×8 px posts at x ±0.5…0.625, y 0…0.5 |
+   | `a_special_arch_h_32` | None (art only, layer 25) |
+
+   - `special/collision_small` is a 4 px circle with
+     `collision-response="false"`, which reads as a sensor. No stock campaign
+     level uses it, so the importer never relies on it as a blocker.
+7. **level_1's own shop.** Vendor, sign and `vendor_speech_level1` badge share
+   one position. A `CircleShape` (diameter 2) sits on that position. The
+   carpet is offset (−0.25, +0.625) and the cart (−1.375, +0.375).
+
+**Impact:** `scripts/import-castle-bridge.mjs` does five things:
+- crops x −108…−52, y −14…8;
+- drops the special pieces, whatever the story's `TogglePhysics` switches, and
+  any stock collider crossing the repaired deck (the chasm channel's
+  `a_ledge_l`/`a_ledge_r` at x −77 and −75.5, y −1 and 1);
+- lays `_l, _v2, _h, _v2, _v2, _h, _v2, _r` from −94 to −72 at y −3.875;
+- plugs the walkway with `deco_block`s at (−68.75, −5), (−60.75, −5), (−55.5,
+  −1.5) and (−54, −1.5);
+- plugs the slot between the bridge's east cap and the walkway ledge with
+  `a_ledge_r` at (−72.5, 1).
+
+Its quarter-tile collider flood fill proves the room is closed, and the portal's
+3×3 exit spans the deck's full height at the west end.
+
+Still unverified in game:
+- the plank pieces line up with the walkway at the east cap;
+- the deck is walkable end to end past the stalls;
+- the stone blocks and the ledge plug actually hold;
+- the five stalls open their shops from the deck's lower lane;
+- the portal leads on, and its colour follows the destination;
+- the pickups land on open walkway.

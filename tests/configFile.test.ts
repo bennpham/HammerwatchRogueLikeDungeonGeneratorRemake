@@ -9,6 +9,7 @@ import {
   BOSS_DEATH_WAVE,
   BOSS_WAVE_COUNT,
   bossDeathBuffs,
+  defaultLobby,
   defaultParameters,
   waveBuffs,
   wavePickups
@@ -1396,6 +1397,19 @@ describe('parameters.txt — lobbies (issue #48)', () => {
     const parsed = parseParametersTxt(text)
     expect(parsed.unknownKeys).toEqual([])
     expect(parsed.params.lobbies[1].preset).toBe('sun-bazaar')
+  })
+
+  it('round-trips the Castle Hammerwatch bridge preset with its act 1 track', () => {
+    const original = defaultParameters()
+    original.lobbies[0] = defaultLobby('castle-bridge')
+
+    const text = serializeParametersTxt(original)
+    expect(text).toContain('lobby0Preset=castle-bridge')
+    expect(text).toContain('lobby0Music=act1')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.lobbies[0]).toEqual(original.lobbies[0])
   })
 
   it('overwrites a named lobby without a `lobbies=` count, and never trims', () => {

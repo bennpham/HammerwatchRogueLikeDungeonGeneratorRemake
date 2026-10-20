@@ -59,7 +59,9 @@ const EXIT_TARGET = 'some-level'
 const LIGHT_POSITIONS: Record<string, readonly [string, string]> = {
   'BETA-dungeon-prep': ['-7.75 -4', '8 -3.75'],
   'BETA-boss-prep': ['9 -5', '-9 -5']
-  // 'sun-bazaar' is a daylight map with no lights at all — its own suite below
+  // 'sun-bazaar' is a daylight map with no lights at all, and 'castle-bridge'
+  // keeps whichever of level_1's lights fall inside its crop — their own
+  // suites below
 }
 
 function optionsFor(preset: LobbyPresetDef, patch: Partial<LobbyOptions> = {}): LobbyOptions {
@@ -94,7 +96,8 @@ describe('lobby — presets', () => {
     expect(ids).toContain('BETA-dungeon-prep')
     expect(ids).toContain('BETA-boss-prep')
     expect(ids).toContain('sun-bazaar')
-    // the bazaar is opt-in: adding it changed no default
+    expect(ids).toContain('castle-bridge')
+    // the bazaar and the bridge are opt-in: adding them changed no default
     expect(DEFAULT_LOBBY_PRESET_ID).toBe('BETA-dungeon-prep')
   })
 
@@ -697,6 +700,124 @@ describe('lobby — sun-bazaar', () => {
   it("keeps the hub's daylight and adds no lights", () => {
     expect(xml).toMatch(/<array name="lights">\s*<\/array>/)
     expect(xml).toContain('<int-arr name="ambient-color">254 243 204 255</int-arr>')
+  })
+})
+
+describe('lobby — castle-bridge', () => {
+  // level_1's bridge chamber, patched and sealed by
+  // scripts/import-castle-bridge.mjs; these pin what the import promises, so a
+  // re-import cannot quietly let the collapse, the story or a way out back in
+  const preset = lobbyPresetById('castle-bridge')!
+  // the room's own default starts a music rig; the structural tests read the
+  // template without it
+  const xml = buildLobby(preset, { ...defaultLobby(preset.id), music: undefined }, EXIT_TARGET)
+
+  it('has exactly one arrival and one way out, the portal at the far end of the bridge', () => {
+    expect(nodesOfType(xml, 'LevelStart')).toHaveLength(1)
+    expect(nodesOfType(xml, 'LevelStart')[0].body).toContain('<int name="id">0</int>')
+    const exits = nodesOfType(xml, 'LevelExitArea')
+    expect(exits.map((e) => e.id)).toEqual([preset.exitNodeId])
+    expect(exits[0].body).toContain('<int name="start id">0</int>')
+
+    // the exit's shape is a 3x3 over the portal, like the generator's own
+    const shapeId = Number(/<int-arr name="static">(\d+)<\/int-arr>/.exec(exits[0].body)![1])
+    const shape = nodesOfType(xml, 'RectangleShape').find((n) => n.id === shapeId)!
+    expect(shape.body).toContain('<float name="w">3</float>')
+    expect(shape.body).toContain('<float name="h">3</float>')
+    const [sx, sy] = /<vec2 name="pos">(\S+) (\S+)<\/vec2>/.exec(shape.body)!.slice(1).map(Number)
+    const portal = doodadAt(xml, preset.portalDoodadId!)
+    expect(Math.abs(portal.x - sx)).toBeLessThanOrEqual(1.5)
+    expect(Math.abs(portal.y - sy)).toBeLessThanOrEqual(1.5)
+    expect(xml).toContain('doodads/generic/exit_teleport_stand.xml')
+  })
+
+  it('shows the blue portal unless the lobby leads into a boss fight', () => {
+    expect(doodadAt(xml, preset.portalDoodadId!).type).toBe('doodads/generic/exit_teleport.xml')
+    const intoFight = buildLobby(preset, { ...defaultLobby(preset.id), music: undefined }, EXIT_TARGET, true)
+    expect(doodadAt(intoFight, preset.portalDoodadId!).type).toBe('doodads/generic/exit_teleport_boss.xml')
+    // only the portal's art differs
+    expect(intoFight.replace('exit_teleport_boss.xml', 'exit_teleport.xml')).toBe(xml)
+  })
+
+  it('picks the colour from the campaign order: blue before a floor, red before the fight', () => {
+    const params = defaultParameters()
+    for (const lobby of params.lobbies) lobby.preset = 'castle-bridge'
+    const result = generateOk(params, 555)
+    const portals = result.files
+      .filter((f) => isLobbyPath(f.path))
+      .map((f) => doodadAt(f.content, preset.portalDoodadId!).type)
+    expect(portals).toEqual(['doodads/generic/exit_teleport.xml', 'doodads/generic/exit_teleport_boss.xml'])
+  })
+
+  it('stands an intact bridge: plank runs and end caps, none of the collapse', () => {
+    expect(xml).toContain('doodads/theme_a/a_wood_bridge_h.xml')
+    expect(xml).toContain('doodads/theme_a/a_wood_bridge_h_l.xml')
+    expect(xml).toContain('doodads/theme_a/a_wood_bridge_h_r.xml')
+    // the stub, the fallen span, the party on it and the falling effect
+    expect(xml).not.toContain('a_wood_bridge_h_special')
+  })
+
+  it('carries no story or puzzle: no actors, prefabs, dialog, flags or plates', () => {
+    expect(xml).not.toMatch(/<array name="actors\//)
+    expect(xml).toMatch(/<dictionary name="prefabs">\s*<\/dictionary>/)
+    for (const type of [
+      'CheckGlobalFlag',
+      'SetGlobalFlag',
+      'ShowSpeechBubble',
+      'AnnounceText',
+      'ScriptLink',
+      'SpawnObject',
+      'PlayMusic',
+      'PlayEffect',
+      'TogglePhysics',
+      'Random',
+      'Counter'
+    ]) {
+      expect(nodesOfType(xml, type), type).toHaveLength(0)
+    }
+    expect(xml).not.toContain('ig.story')
+    expect(xml).not.toContain('puzzle_ball')
+    expect(xml).not.toContain('trigger_button')
+    expect(xml).not.toContain('a_floorsign_')
+    expect(xml).not.toContain('marker_')
+    expect(preset.assets).toEqual([])
+  })
+
+  it('stands all five stalls, each on its own vendor and sign', () => {
+    for (const vendor of LOBBY_VENDORS) {
+      expect(xml).toContain(`doodads/special/vendor_${vendor.id}.xml`)
+      expect(xml).toContain(`doodads/special/vendor_speech_${vendor.id}.xml`)
+      expect(preset.templateIds[vendor.id], vendor.id).toBeDefined()
+    }
+    expect(nodesOfType(xml, 'ShopArea')).toHaveLength(LOBBY_VENDORS.length)
+  })
+
+  it('has unique ids, every reference resolves, and the template stays below its rig bases', () => {
+    const ids = allIds(xml)
+    expect(new Set(ids).size).toBe(ids.length)
+    const present = new Set(ids)
+    for (const [, body] of xml.matchAll(/<int-arr name="(?:static|connections)">([^<]*)<\/int-arr>/g)) {
+      for (const ref of body.split(' ')) expect(present.has(Number(ref)), `dangling ${ref}`).toBe(true)
+    }
+    const authored = allIds(preset.template)
+    expect(Math.max(...authored)).toBeLessThan(preset.respawnIdBase)
+    expect(preset.respawnIdBase + 4).toBeLessThanOrEqual(preset.musicIdBase)
+    expect(preset.musicIdBase + 2).toBeLessThanOrEqual(preset.itemIdBase)
+  })
+
+  it("keeps level_1's dim ambient", () => {
+    expect(xml).toContain('<int-arr name="ambient-color">90 90 90 255</int-arr>')
+  })
+
+  it('starts on act 1, the track its source level plays', () => {
+    expect(defaultLobby(preset.id).music).toBe('act1')
+    const withMusic = buildLobby(preset, defaultLobby(preset.id), EXIT_TARGET)
+    expect(nodesOfType(withMusic, 'PlayMusic')).toHaveLength(1)
+    expect(withMusic).toContain('sound/music.xml:act1')
+    // and no other room gained a track
+    for (const other of LOBBY_PRESETS) {
+      if (other.id !== preset.id) expect(defaultLobby(other.id).music, other.id).toBeUndefined()
+    }
   })
 })
 

@@ -79,8 +79,8 @@ src/
 │   │   │                 one descriptor per committed room (template, its
 │   │   │                 vendor ids, exit node, diamond/upgrade slots, id
 │   │   │                 bases, assets). `BETA-dungeon-prep`,
-│   │   │                 `BETA-boss-prep` and `sun-bazaar`; adding a room
-│   │   │                 is an entry here
+│   │   │                 `BETA-boss-prep`, `sun-bazaar` and
+│   │   │                 `castle-bridge`; adding a room is an entry here
 │   │   ├── template.ts   the dungeon-prep XML verbatim (generated+committed)
 │   │   ├── assets.ts     custom files it references, base64 when binary
 │   │   ├── shops.ts      the five vendor stalls and their shop columns
@@ -93,6 +93,12 @@ src/
 │   ├── sunBazaar/        template.ts ONLY — the Temple of the Sun hub cleaned
 │   │                     into a lobby, ~840 KB, written by
 │   │                     scripts/import-sun-bazaar.mjs from campaign2.hwm
+│   ├── castleBridge/     template.ts ONLY — level_1's bridge chamber patched
+│   │                     and sealed into a lobby, ~80 KB, written by
+│   │                     scripts/import-castle-bridge.mjs from the stock
+│   │                     editor/campaign/levels/level_1.xml. Both importers
+│   │                     share scripts/lib/hwLevel.mjs (parse/serialise,
+│   │                     the walkability model, slot picking, emit helpers)
 │   ├── buffs/            field.ts — buff auras, the optional per-floor buff
 │   │                     fields. Appends always-on DangerAreas after a floor
 │   │                     is built; no RNG, no files of its own
@@ -1190,8 +1196,8 @@ argument. `presets.ts` now holds one `LobbyPresetDef` per committed room and
 template text, vendor ids, exit node, diamond slots, upgrade slots, the two id
 bases, the respawn id base, the extra asset files, and the label surgery's error
 messages use. There is **no per-preset branching** anywhere in the builder, and
-adding a third room means regenerating a template and adding an entry, nothing
-else. Three ship:
+adding a room means regenerating a template and adding an entry, nothing
+else. Four ship:
 
 - `BETA-dungeon-prep` — the campaign's original starting lobby, five vendor
   stalls around a teleport. Ships `LOBBY_ASSETS`, the custom files its template
@@ -1210,7 +1216,22 @@ else. Three ship:
   slots are picked by the importer's flood fill, since the hub has none
   authored, and its id bases sit above the hub's 150 000+ ids. Stock assets
   only. It is opt-in: never the default and in no preset.
-- `portalDoodadId` (optional, bazaar only) names a portal doodad whose art
+- `castle-bridge` — the stock Castle Hammerwatch opening: the bridge that
+  collapses under the party in `editor/campaign/levels/level_1.xml`, cropped
+  out by `scripts/import-castle-bridge.mjs`. The collapse set piece
+  (`a_wood_bridge_h_special_*`) becomes an intact bridge of stock walkable
+  pieces, the five stalls stand along its north rail, the party arrives on the
+  walkway at its east end and leaves through a portal at its west end. The
+  walkway's doorways and far end are plugged with `deco_block` stones and the
+  bridge-to-walkway slot with an `a_ledge_r`. Because the engine takes
+  collision from doodads alone, the importer proves the room closed on a
+  quarter-tile collider grid (`checkClosed`), not on floor tiles, and fails
+  the import if the arrival can reach the crop's edge. Pickups go on the
+  2-row walkway (`pickSlots` with `neighbourhood: 0`). Id bases sit above
+  level_1's 104 000+ ids. `defaultLobby('castle-bridge')` adds
+  `music: 'act1'`, the level's own track — the one per-id default besides
+  boss-prep's gold. Stock assets only, opt-in, in no preset.
+- `portalDoodadId` (optional, bazaar and bridge) names a portal doodad whose art
   follows the destination. `buildLobby(..., intoBossFight)` lays it red
   (`BossPortal`) when the next slot is a boss fight, else blue (`LobbyPortal`),
   the same rule `gatewayAfter` gives floors. A room without it is unaffected.
