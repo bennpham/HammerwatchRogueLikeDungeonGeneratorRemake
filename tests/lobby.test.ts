@@ -757,6 +757,30 @@ describe('lobby — castle-bridge', () => {
     expect(xml).not.toContain('a_wood_bridge_h_special')
   })
 
+  it("glasses over the deck's east end on the tile grid, never over a stall", () => {
+    const glass = [...xml.matchAll(/<string name="type">doodads\/generic\/ground_glasswalk\.xml<\/string>\s*<vec2 name="pos">(\S+) (\S+)<\/vec2>/g)].map(
+      (m) => [Number(m[1]), Number(m[2])]
+    )
+    expect(glass.length).toBeGreaterThan(0)
+    const seen = new Set<string>()
+    for (const [x, y] of glass) {
+      // a panel is centred on a whole tile of the deck's east end, one per tile
+      expect(x % 1, `${x},${y}`).toBe(-0.5)
+      expect(y % 1, `${x},${y}`).toBe(-0.5)
+      expect(x).toBeGreaterThanOrEqual(-79)
+      expect(x).toBeLessThanOrEqual(-72)
+      expect(y).toBeGreaterThanOrEqual(-3)
+      expect(y).toBeLessThanOrEqual(0)
+      expect(seen.has(`${x},${y}`)).toBe(false)
+      seen.add(`${x},${y}`)
+      // and never lands on a vendor
+      for (const ids of Object.values(preset.templateIds)) {
+        const v = doodadAt(xml, ids.vendor)
+        expect(Math.abs(v.x - x) >= 1.25 || Math.abs(v.y - y) >= 1, `glass ${x},${y} on a vendor`).toBe(true)
+      }
+    }
+  })
+
   it('carries no story or puzzle: no actors, prefabs, dialog, flags or plates', () => {
     expect(xml).not.toMatch(/<array name="actors\//)
     expect(xml).toMatch(/<dictionary name="prefabs">\s*<\/dictionary>/)

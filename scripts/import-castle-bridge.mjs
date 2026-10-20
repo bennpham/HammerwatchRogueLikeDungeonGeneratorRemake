@@ -29,6 +29,8 @@
  *   switches on so nobody walks back onto the stub — goes with the script that
  *   drove it, since the bridge is the way into the lobby now.
  * - Puzzle props, floor signs and editor markers go (DROPPED_DOODAD).
+ * - Glass walk panels cover the deck's east end (GLASS), which reads as a hole
+ *   in game though it is walkable.
  * - Five vendor stalls stand along the bridge's north rail, with the whole
  *   stock range on sale (buildLobby trims it per lobby). The party arrives on
  *   the walkway at the bridge's east end and leaves through a portal at its
@@ -36,7 +38,8 @@
  * - The chamber is sealed with stock pieces: stone blocks in the walkway's two
  *   north doorways and across its far end, and a chasm ledge where the bridge
  *   meets the walkway's south edge.
- * - Everything outside VISIBLE is roofed over with `color_theme_a_*` squares
+ * - Everything outside VISIBLE (which starts just under the north wall's rim)
+ *   is roofed over with `color_theme_a_*` squares
  *   (layer 90, over walls and props), and stock doodads left wholly under that
  *   roof — the cut-off halls north of the wall, the room past the walkway's
  *   end, the pocket under the bridge, level_1's own roof squares — are
@@ -141,6 +144,18 @@ const BRIDGE_PIECES = [
  */
 const DECK = { x0: BRIDGE_X0, x1: BRIDGE_X1, y0: BRIDGE_Y + 18 / 16, y1: BRIDGE_Y + 60 / 16 }
 
+/**
+ * Glass walk panels (`ground_glasswalk`, the survival summit's walkways) laid
+ * over the deck's east end, where the planks read as a hole in game even though
+ * the deck is walkable — the glass says "you can stand here". 1-tile panels
+ * (origin at their centre) on the whole-tile grid, never overlapping — an
+ * overlap draws doubled panel borders — over the deck's three rows, just
+ * lapping the rails' inner edges; a panel that would cover a stall's art is
+ * left out. No collider, so the deck is unchanged.
+ */
+const GLASS = { x0: -79, x1: BRIDGE_X1, y0: -3, y1: 0 }
+const GLASS_PANEL = 'doodads/generic/ground_glasswalk.xml'
+
 /** The support the collapse left out of the stock row (every 2.5 tiles from -92.375). */
 const EXTRA_SUPPORTS = [[-77.375, -1.125]]
 
@@ -196,7 +211,8 @@ const GRID = 4
 
 /**
  * What the party may see, in tiles (x0, y0, x1, y1): the north wall's face from
- * its top rim down, the bridge and the chasm under it to the stock south wall's
+ * just under its top rim down — the rim's cap row and the arches' tops are
+ * roofed, so the wall meets the roof in one straight line — the bridge and the chasm under it to the stock south wall's
  * rim, and the walkway with a strip of chasm below its ledge. Everything else
  * in COVER_AREA is roofed over with theme-a cover squares (layer 90, drawn over
  * walls and props — the same doodads level_1 roofs its own rock with), and a
@@ -205,7 +221,7 @@ const GRID = 4
  * the bridge.
  */
 const VISIBLE = [
-  [-104, -6, -52.5, 0.5],
+  [-104, -5.5, -52.5, 0.5],
   [-72, 0.5, -52.5, 2.5]
 ]
 /** The roofed area: the crop plus a margin, so the camera never looks past the roof's edge. */
@@ -265,6 +281,25 @@ function findAnchor(doodads, { type, pos }) {
 }
 
 const overlaps = ([ax0, ay0, ax1, ay1], [bx0, by0, bx1, by1]) => ax0 < bx1 && ax1 > bx0 && ay0 < by1 && ay1 > by0
+
+/** The steps of a 1-tile tiling of [a0, a1); both ends whole tiles. */
+function tiling(a0, a1) {
+  const out = []
+  for (let a = a0; a < a1; a += 1) out.push(a)
+  return out
+}
+
+/** Glass panel centres over GLASS, skipping any whose tile overlaps one of `avoid`. */
+function glassPanels(avoid) {
+  const out = []
+  for (const y of tiling(GLASS.y0, GLASS.y1)) {
+    for (const x of tiling(GLASS.x0, GLASS.x1)) {
+      const box = [x, y, x + 1, y + 1]
+      if (!avoid.some((a) => overlaps(box, a))) out.push([x + 0.5, y + 0.5])
+    }
+  }
+  return out
+}
 
 /** Where a doodad draws, in tiles, from its first sprite's `<origin>` and `<frame>`; null if it has none. */
 function spriteBox(assets, d, cache) {
@@ -423,6 +458,12 @@ function build(level, assets) {
     stallShapes.push(shapeNode)
     vendorIds[kind] = { shape, shop, vendor, speech, badge }
   }
+
+  // glass over the deck's east end, clear of every stall's vendor and carpet
+  const stallArt = added
+    .filter((d) => /\/(vendor_[a-z]+|deco_vendor_carpet_1)\.xml$/.test(typeOf(d)))
+    .map((d) => spriteBox(assets, d, sprites))
+  for (const pos of glassPanels(stallArt)) added.push(doodad(nextId(), GLASS_PANEL, pos))
 
   const portal = nextId()
   added.push(doodad(portal, LOBBY_PORTAL, PORTAL), doodad(nextId(), PORTAL_STAND, PORTAL))

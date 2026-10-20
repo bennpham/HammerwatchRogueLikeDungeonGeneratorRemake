@@ -4913,3 +4913,32 @@ Still unverified in game:
 - **Remaining checks:**
   - **[VERIFIED] (this playtest):** the plank pieces, the stalls, the seals, the portal and the pickups. The bullets in the previous entry are confirmed, except portal colour, which wasn't checked.
   - **Still [EMITTED]:** the roofed build itself, until it is booted.
+
+### 2026-10-20 — castle bridge second playtest: the deck's east end reads as a hole; the wall rim pokes over the roof line
+**Tag:** [VERIFIED] (user playtest screenshot of the roofed `castle-bridge` build); the fixes are [EMITTED] until booted
+**Context:** The roofed build played fine, but two things looked wrong.
+**Evidence:**
+1. **The deck's east end, from the combo stall to the walkway (x ≈ −79…−72),
+   looks like a hole in game, though it is walkable.** A sprite-only render
+   of the template shows the planks intact there, so the darkness is not
+   missing art. It is most likely the lighting: only two lights survive the
+   crop, both north of the wall at (−84.1, −7.75) and (−52.1, −13.9), and the
+   wall's shadow polygons around the doorway recess at x −78…−75 leave hard
+   unlit patches on the deck. This explanation is unverified. The user asked
+   for the walkable stretch to be marked rather than relit.
+2. **The north wall's top cap row and the arch tops showed above the wall
+   face as a broken line under the roof.** `VISIBLE` started at the wall
+   sprites' top edge (y −6), and those sprites' top half-tile is the cap row.
+**Impact:** `scripts/import-castle-bridge.mjs` changes in two ways:
+- It lays 15 `doodads/generic/ground_glasswalk.xml` panels (the survival
+  summit's walkway glass) on the whole-tile grid over x −79…−72, y −3…0. Any
+  panel that would overlap a stall's vendor or carpet art is skipped. Panels
+  never overlap each other, because overlapping glass draws doubled borders.
+  The glass has no collider, so the deck and the closure proof are unchanged.
+- `VISIBLE` now starts at y −5.5, so the roof (`color_theme_a_*`, layer 90)
+  hides the cap row and arch tops, and the wall meets the roof in a straight
+  line.
+
+Stall ids are unchanged. The importer still reproduces byte-for-byte, with
+`level_1.xml` decoded from `levels/campaign.hwm` standing in for the editor
+copy.
