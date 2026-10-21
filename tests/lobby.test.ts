@@ -97,7 +97,9 @@ describe('lobby — presets', () => {
     expect(ids).toContain('BETA-boss-prep')
     expect(ids).toContain('sun-bazaar')
     expect(ids).toContain('castle-bridge')
-    // the bazaar and the bridge are opt-in: adding them changed no default
+    expect(ids).toContain('sky-shop')
+    // the bazaar, the bridge and the sky shop are opt-in: adding them changed
+    // no default
     expect(DEFAULT_LOBBY_PRESET_ID).toBe('BETA-dungeon-prep')
   })
 
@@ -864,6 +866,197 @@ describe('lobby — castle-bridge', () => {
     }
   })
 })
+
+describe('lobby — sky-shop', () => {
+  // the survival campaign's summit shop, cleaned by scripts/import-sky-shop.mjs
+  const preset = lobbyPresetById('sky-shop')!
+  const xml = buildLobby(preset, defaultLobby(preset.id), EXIT_TARGET)
+  const CLOUDS = ['effects/clouds.png', 'effects/clouds.xml']
+  // the red room the importer lays where the arrival island was (its ROOM)
+  const RED_ROOM = { x0: 3, y0: -4, x1: 15, y1: 8 }
+  const ROOM_CENTRE = [(RED_ROOM.x0 + RED_ROOM.x1) / 2, (RED_ROOM.y0 + RED_ROOM.y1) / 2]
+
+  it('has exactly one arrival and one way out, the teleport', () => {
+    expect(nodesOfType(xml, 'LevelStart')).toHaveLength(1)
+    expect(nodesOfType(xml, 'LevelStart')[0].body).toContain('<int name="id">0</int>')
+    const exits = nodesOfType(xml, 'LevelExitArea')
+    expect(exits.map((e) => e.id)).toEqual([preset.exitNodeId])
+    expect(exits[0].body).toContain('<int name="start id">0</int>')
+
+    const shapeId = Number(/<int-arr name="static">(\d+)<\/int-arr>/.exec(exits[0].body)![1])
+    const shape = nodesOfType(xml, 'RectangleShape').find((n) => n.id === shapeId)!
+    expect(shape.body).toContain('<float name="w">3</float>')
+    expect(shape.body).toContain('<float name="h">3</float>')
+  })
+
+  it('keeps the cloud sky and the hidden edge colliders, and nothing else on arrival', () => {
+    expect(nodesOfType(xml, 'AddParallaxLayer')).toHaveLength(1)
+    expect(xml).toContain('<string name="sprite">effects/clouds.xml:</string>')
+    // under the red room's floor: the summit's own -75 drew over the tilemap
+    expect(nodesOfType(xml, 'AddParallaxLayer')[0].body).toContain('<int name="layer">-1000</int>')
+    expect(nodesOfType(xml, 'HideObject')).toHaveLength(1)
+    for (const type of ['AnnounceText', 'PlaySound', 'SpawnObject']) {
+      expect(nodesOfType(xml, type), type).toHaveLength(0)
+    }
+    // the room's own music is dropped; only the lobby option may add one
+    expect(nodesOfType(buildLobby(preset, { ...defaultLobby(preset.id), music: undefined }, EXIT_TARGET), 'PlayMusic')).toHaveLength(0)
+  })
+
+  it("speaks one position dialect: every doodad and node uses <vec2 name=\"pos\">", () => {
+    const body = xml.slice(xml.indexOf('<dictionary name="doodads">'), xml.indexOf('<dictionary name="lighting">'))
+    expect(body).not.toContain('<float name="x">')
+    expect(body).not.toContain('<float name="y">')
+  })
+
+  it('stands all five stalls, each badged except power', () => {
+    for (const vendor of LOBBY_VENDORS) {
+      expect(xml).toContain(`doodads/special/vendor_${vendor.id}.xml`)
+      const ids = preset.templateIds[vendor.id]
+      expect(ids, vendor.id).toBeDefined()
+      if (vendor.categories.length > 1) {
+        expect(ids.badge, vendor.id).not.toBeNull()
+        const badge = doodadAt(xml, ids.badge!)
+        const stand = doodadAt(xml, ids.vendor)
+        expect([badge.x, badge.y]).toEqual([stand.x, stand.y])
+      } else {
+        expect(ids.badge).toBeNull()
+      }
+    }
+    expect(nodesOfType(xml, 'ShopArea')).toHaveLength(LOBBY_VENDORS.length)
+  })
+
+  it('has unique ids, every reference resolves, and the template stays below its rig bases', () => {
+    const ids = allIds(xml)
+    expect(new Set(ids).size).toBe(ids.length)
+    const present = new Set(ids)
+    for (const [, body] of xml.matchAll(/<int-arr name="(?:static|connections)">([^<]*)<\/int-arr>/g)) {
+      for (const ref of body.split(' ')) expect(present.has(Number(ref)), `dangling ${ref}`).toBe(true)
+    }
+    expect(Math.max(...allIds(preset.template))).toBeLessThan(preset.respawnIdBase)
+    expect(preset.respawnIdBase + 4).toBeLessThanOrEqual(preset.musicIdBase)
+    expect(preset.musicIdBase + 2).toBeLessThanOrEqual(preset.itemIdBase)
+  })
+
+  it('shows the blue teleport unless the lobby leads into a boss fight', () => {
+    expect(doodadAt(xml, preset.portalDoodadId!).type).toBe('doodads/generic/exit_teleport.xml')
+    const intoFight = buildLobby(preset, defaultLobby(preset.id), EXIT_TARGET, true)
+    expect(doodadAt(intoFight, preset.portalDoodadId!).type).toBe('doodads/generic/exit_teleport_boss.xml')
+  })
+
+  it('floors a red room with bonus_5 tiles, the arrival at its centre on four pads', () => {
+    const red = redTiles(xml)
+    const [cx, cy] = ROOM_CENTRE
+    const { x0, y0, x1, y1 } = RED_ROOM
+    // the room, plus each 2-tile doorway's notch in the wall ring, so no sky
+    // shows between the floor and a walkway's glass
+    const doorways = [cx - 1, cx].flatMap((x) => [`${x},${y0 - 1}`, `${x},${y1}`])
+      .concat([cy - 1, cy].flatMap((y) => [`${x0 - 1},${y}`, `${x1},${y}`]))
+    expect(red.size).toBe((x1 - x0) * (y1 - y0) + doorways.length)
+    for (let x = x0; x < x1; x++) {
+      for (let y = y0; y < y1; y++) expect(red.has(`${x},${y}`), `${x},${y}`).toBe(true)
+    }
+    for (const tile of doorways) expect(red.has(tile), `doorway ${tile}`).toBe(true)
+
+    const [start] = nodesOfType(xml, 'LevelStart')
+    expect(start.body).toContain(`<vec2 name="pos">${ROOM_CENTRE.join(' ')}</vec2>`)
+    const pads = [
+      ...xml.matchAll(/<string name="type">doodads\/special\/bonus_teleport\.xml<\/string>\s*<vec2 name="pos">(\S+) (\S+)<\/vec2>/g)
+    ].map((m) => `${m[1]},${m[2]}`)
+    expect(pads.sort()).toEqual([`${cx - 1},${cy - 1}`, `${cx - 1},${cy}`, `${cx},${cy - 1}`, `${cx},${cy}`])
+    // the summit's own arrival pad went with its island
+    expect(xml).not.toContain('exit_teleport_exit.xml')
+  })
+
+  it('walls the room in visible bonus5 pieces, with a doorway on every side', () => {
+    const walls = [
+      ...xml.matchAll(/<int name="id">(\d+)<\/int>\s*<string name="type">doodads\/theme_bonus5\/bonus5_([a-z0-9_]+)\.xml<\/string>/g)
+    ]
+    expect(walls).toHaveLength(28)
+    expect(walls.filter((m) => /_cap_/.test(m[2]))).toHaveLength(8)
+    const [hide] = nodesOfType(xml, 'HideObject')
+    const hidden = new Set(/<int-arr name="static">([^<]*)<\/int-arr>/.exec(hide.body)![1].split(' ').map(Number))
+    for (const m of walls) expect(hidden.has(Number(m[1])), `bonus5 wall ${m[1]}`).toBe(false)
+  })
+
+  it('lays every pickup slot on the red floor, clear of the pads', () => {
+    const red = redTiles(xml)
+    const slots = [...preset.diamondSlots, ...Object.values(preset.upgradeSlots)]
+    expect(preset.diamondSlots).toHaveLength(16)
+    expect(Object.keys(preset.upgradeSlots)).toHaveLength(8)
+    expect(new Set(slots.map((s) => s.join())).size).toBe(slots.length)
+    const [cx, cy] = ROOM_CENTRE
+    for (const [x, y] of slots) {
+      // a pickup on a point touches the four tiles round it; all must be red
+      for (const [tx, ty] of [
+        [x - 1, y - 1],
+        [x, y - 1],
+        [x - 1, y],
+        [x, y]
+      ]) {
+        expect(red.has(`${Math.floor(tx)},${Math.floor(ty)}`), `${x},${y}`).toBe(true)
+      }
+      expect(Math.abs(x - cx) <= 1 && Math.abs(y - cy) <= 1, `${x},${y} on the pads`).toBe(false)
+    }
+  })
+
+  it('stacks diamonds past the ring back onto it, never anywhere else', () => {
+    const xmlRich = buildLobby(
+      preset,
+      { ...defaultLobby(preset.id), startingGold: LOBBY_DIAMOND_VALUE * preset.diamondSlots.length * 3 },
+      EXIT_TARGET
+    )
+    const placed = placementsIn(itemSection(xmlRich, 'items/valuable_diamond_red.xml')!)
+    expect(placed).toHaveLength(preset.diamondSlots.length * 3)
+    const ring = new Set(preset.diamondSlots.map(([x, y]) => `${x},${y}`))
+    for (const at of placed) expect(ring.has(at), at).toBe(true)
+  })
+
+  it('hides every wall piece, the plaza fence included', () => {
+    const [hide] = nodesOfType(xml, 'HideObject')
+    const hidden = new Set(/<int-arr name="static">([^<]*)<\/int-arr>/.exec(hide.body)![1].split(' ').map(Number))
+    const walls = [
+      ...xml.matchAll(
+        /<int name="id">(\d+)<\/int>\s*<string name="type">doodads\/theme_[bf]\/(?:b_ledge|f_collision_round)_[a-z0-9_]+\.xml<\/string>/g
+      )
+    ].map((m) => Number(m[1]))
+    expect(walls.length).toBeGreaterThan(0)
+    for (const id of walls) expect(hidden.has(id), `wall ${id}`).toBe(true)
+  })
+
+  it('ships the cloud layer, and only it, since only the survival campaign carries it', () => {
+    expect(preset.assets.map((a) => a.path).sort()).toEqual(CLOUDS)
+    const png = preset.assets.find((a) => a.path.endsWith('.png'))!
+    expect(png.encoding).toBe('base64')
+    expect(png.content.startsWith('iVBORw0KGgo')).toBe(true)
+  })
+
+  it('ships the clouds once per campaign that uses the room, and never otherwise', () => {
+    const both = defaultParameters()
+    for (const lobby of both.lobbies) lobby.preset = 'sky-shop'
+    const paths = generateOk(both, 555).files.map((f) => f.path)
+    for (const path of CLOUDS) expect(paths.filter((p) => p === path), path).toHaveLength(1)
+
+    const none = generateOk(defaultParameters(), 555).files.map((f) => f.path)
+    for (const path of CLOUDS) expect(none).not.toContain(path)
+  })
+})
+
+/**
+ * Every `bonus_5` floor tile in a level as `x,y`. Tilemap block (bx, by)
+ * covers tiles bx-10..bx+9 by by-10..by+9, row by row.
+ */
+function redTiles(xml: string): Set<string> {
+  const tiles = new Set<string>()
+  const blocks = xml.matchAll(
+    /<int name="x">(-?\d+)<\/int>\s*<int name="y">(-?\d+)<\/int>\s*<array name="datasets">\s*<dictionary>\s*<string name="tileset">tilemaps\/bonus_5\.xml<\/string>\s*<int-arr name="data-t">([^<]*)<\/int-arr>/g
+  )
+  for (const [, bx, by, data] of blocks) {
+    data.split(' ').forEach((v, i) => {
+      if (v !== '0') tiles.add(`${Number(bx) - 10 + (i % 20)},${Number(by) - 10 + Math.floor(i / 20)}`)
+    })
+  }
+  return tiles
+}
 
 /** One doodad's type and position, by id. */
 function doodadAt(xml: string, id: number): { type: string; x: number; y: number } {

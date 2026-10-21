@@ -4954,3 +4954,171 @@ dungeon-prep room authors (`lobby/template.ts` ids 191–192):
 
 It is allocated last, so no other id moves. The light stays blue even when
 `buildLobby` turns the portal red. [EMITTED] until booted.
+
+### 2026-10-19 — the survival summit shop: no tilemap, the older x/y dialect, a pack-only cloud layer
+**Tag:** [VERIFIED] (pack contents, read from the install); the sky-shop lobby built from it is [EMITTED] until booted
+**Context:** Adding the Shaftlocke Peak sky shop lobby (`sky-shop`) from the
+original game's survival campaign, `<HW>/levels/survival.hwm`.
+**Evidence:**
+1. **`survival.hwm` holds four levels:** `level_1_start`, `level_1` (the
+   arena, 1.8 MB decoded), `level_1_end` and `level_summit`, plus its own
+   actors, `doodads/survival/npc_*`, items, menus and `effects/clouds.*`.
+   `levels.xml` starts at `0`, and `level_1` exits to `summit` and `2`.
+2. **The summit is the shop:** five `ShopArea`s with the full stock columns
+   (`off1..5`, `def1..5`, `misc1..5`, `combo1..5`, `power`), each with a 2-tile
+   `CircleShape`. Each stall is a stock `vendor_<kind>` + `vendor_speech_<kind>`
+   with no `vendor_speech_level*` badge. One `LevelStart` (id 0) with an
+   `exit_teleport_exit` pad, one `LevelExitArea` (→ `1`, start id 1, 1x1 shape)
+   under a blue `exit_teleport` + stand.
+3. **It has no tilemap.** The ground is doodads: `f_special_cliff_v1` islands
+   (60x100 px sprite, origin 30 30) and 29 `ground_glasswalk` tiles (16 px,
+   origin 8 8). Its edges are `b_ledge_*` and `f_collision_round_*` colliders,
+   which one `HideObject` (state 1, on `LevelLoaded`) hides; their collision
+   stays. A collider's bounding box is far coarser than its polygon here: the
+   rounded corners' boxes cover whole islands.
+4. **The compiled level is an older dialect.** Doodads, nodes and lights carry
+   `<float name="x">`/`<float name="y">` instead of `<vec2 name="pos">`.
+   `items` and `actors` wrap an unnamed `<array>`, and light colours are
+   r/g/b/a dictionaries. The same binary type codes as `campaign2.hwm`.
+5. **`effects/clouds.xml` is not in `assets.bin`.** It is a one-frame 256 px
+   spritebank over `effects/clouds.png` (52 382 bytes), used by the summit's
+   `AddParallaxLayer` (`layer -75`, scroll 0.25/0.25). Only `survival.hwm`
+   carries it.
+6. **The flattened sky shop packs.** A stock campaign with both lobbies set to
+   `sky-shop` went through `mono LevelPacker.exe`. The pack carries
+   `effects/clouds.xml` and a byte-identical `effects/clouds.png`. Each lobby
+   decodes with one `LevelExitArea` (→ `0` blue / → `boss0` red), five
+   `ShopArea`s and the parallax node.
+**Impact:** `scripts/import-sky-shop.mjs` normalises every doodad and node to
+the vec2 dialect that `buildLobby`'s surgery speaks, and leaves the lights
+alone. It ships the clouds as the preset's `assets`, and floods with polygon
+rasterisation (a tile is blocked when its centre is inside a collider).
+**Playtest 2026-10-19 (user):** not every pickup can be picked up. Some
+importer-placed diamond/upgrade slots sit where the party cannot reach. The
+tile-centre polygon model plus the tightest fit (`clearance 1, margin 0`)
+evidently counts some unreachable island-edge tiles as floor. **[VERIFIED]
+wrong for the current slots.** The user will hand-adjust the slots in a
+modified version. Until then, treat the flood fill's slots as a starting
+point, not proof of reachability.
+
+Unverified in game:
+- the clouds render from a generated campaign's own pack;
+- the added badges show;
+- the teleport leads on.
+
+### 2026-10-19 — the sky shop's pickups move onto a glass plaza
+**Tag:** [EMITTED] (importer-built, sealed under the model below); unbooted
+**Context:** The playtest above: some slots were out of reach. The user asked
+for a larger centre area with every diamond and upgrade on it.
+**Evidence:**
+1. **Why the old slots missed.** The arrival island is an octagon about 4
+   tiles across, with room for about 9 pickups, not 20. The 1-tile walkways
+   are centred on half tiles, so the tile model counted each one as two tile
+   columns. Rendering the room with its colliders showed slots on the rails
+   and over the open sky north-west of the arrival.
+2. **The corner colliders cross themselves.** `f_collision_round_l_up` is
+   `(0,-4) (2,-4) (28,-32) (0,-32) (28,-30)`. Even-odd filling leaves holes
+   in it, and a fill through those holes escapes the room. If each polygon's
+   edges also block, the stock summit seals: 80.6 square tiles, matching
+   what the islands and walkways show. The engine evidently walls along the
+   edges.
+3. **Hiding covers ledges too.** The summit's one `HideObject` lists every
+   `b_ledge_*` piece as well as the `f_collision_round_*` corners, so no
+   brick rails show in game. A new wall must join that list, or it shows.
+**Impact:** `scripts/import-sky-shop.mjs` builds the plaza over x -15..-8,
+y -5.5..0.5 (the arrival is at -13, -1.5):
+- 42 glass tiles;
+- 23 hidden wall pieces: `b_ledge_*_v2` cuts of the walls reaching in, plus
+  the fence;
+- 18 doodads removed: the island's 4 corner colliders, 9 walls and 5
+  walkway glass tiles.
+
+The fence opens to the north, west, south and east walkways and to the misc
+stall's corridor. All 20 slots are plaza tiles nearest the arrival. The
+quarter-tile, walls-only fill reaches every slot, the teleport and all five
+stalls, and stays sealed at 104.1 square tiles.
+
+Unverified in game:
+- every pickup can be picked up;
+- nobody can walk off the plaza's edge;
+- the 42 extra glass tiles, each with its own light, cost nothing noticeable.
+
+### 2026-10-21 — the sky shop's arrival becomes a red bonus room, laid out by the user
+**Tag:** [VERIFIED] (asset files read from the install; the user's own editor layout); the rebuilt lobby is [EMITTED] until booted
+**Context:** The user rebuilt the sky shop's middle by hand in the editor
+(`editor/dungeon839283942/levels/lobby_sky_merge.xml`). They want the arrival
+and every pickup in a larger centre room, and the islands built round it.
+This replaces the glass plaza above.
+**Evidence:**
+1. **The room.** Floor `tilemaps/bonus_5.xml` (one 16 px frame, tile 1) on
+   world tiles x 3..14, y -4..7, written as the editor's 20x20 blocks with
+   only `data-t` and `data-a`. Walls from `doodads/theme_bonus5/`:
+   - `h_16` (2x1) and `v_16` (1x2);
+   - a cap either side of each 2-tile doorway (`h_cap_l` west of it,
+     `h_cap_r` east, `v_cap_up` north, `v_cap_dn` south);
+   - `crn_*` at the corners: 28 pieces, ringing x 2..16, y -5..9.
+2. **bonus5 walls collide without a `<collision>` block.** Each file has a
+   top-level `<polygon collision="true">` (a 1x1 or 2x1 box from the piece's
+   position) beside a `collision="false"` shadow polygon. The importer's
+   `collisionOf` already read that form.
+3. **The pads.** `doodads/special/bonus_teleport.xml` is a 16 px animated
+   floor sprite, origin 0 0, layer 10, with no collision. Four of them make a
+   2x2 under the LevelStart at the room's centre (9, 2).
+4. **The user's pickups.** 16 diamonds sit on the integer points two tiles
+   round the start (x 7..11, y 0..4, minus the inner 3x3), and the 8
+   upgrades in a 4x2 block at x 7..10, y -2..-1. Overflow stacks.
+5. **Island ownership.** Each island's own colliders and props have their
+   collision-box centre (or position) within 2.0 tiles of the cliff's
+   position. Every walkway ledge is at least 2.5 out. The arrival island owns
+   only its 4 round corners and the `exit_teleport_exit` pad. Every walkway
+   is 1 tile of glass with a half-tile ledge each side: 2 tiles, the doorway
+   width.
+**Impact:** `scripts/import-sky-shop.mjs` drops the plaza and lays the room
+from `ROOM`. Each of the four walkways off the arrival island moves as one
+rigid branch, so its root meets the doorway on its side:
+- N by (22, -1.5): offense lands at (9, -10);
+- W by (17, 3.5): defense lands at (-0.5, -2.5), power at (-6, 3);
+- S by (22, 8.5): combo lands at (4.5, 12.5);
+- E by (27, 3.5): teleport lands at (22.5, -2.5), misc at (18.5, 6.5).
+
+These are about a tile from where the user dragged them, on the same rule.
+No island edge is cut or re-fenced. The fill stays sealed (215.4 square tiles)
+and reaches every slot, the teleport and all five stalls.
+
+Unverified in game:
+- the room's walls block and its doorways line up with the walkways;
+- the red floor draws over the cloud layer;
+- every pickup can be picked up;
+- nobody can walk off a walkway at a doorway.
+
+### 2026-10-21 — a parallax layer at -75 draws over the tilemap
+**Tag:** [VERIFIED] (user playtest screenshots of `dungeon455443803`, before and after the fix)
+**Context:** The first in-game look at the red-room sky shop. The bonus5
+walls and the `bonus_teleport` pads showed, but the room's `bonus_5` floor did
+not: clouds filled the whole room. The tile data is identical to the user's
+editor save, block for block, and the editor showed the floor red. The editor
+does not run the `AddParallaxLayer` script, so it never draws the clouds.
+**Evidence:**
+1. The summit's clouds are an `AddParallaxLayer` at `layer` -75, and they drew
+   over the tilemap. Doodads at -20 (the islands) and above still drew over
+   the clouds.
+2. Stock `campaign2/levels/level_temple_1.xml` runs `effects/fog_green.xml:fog`
+   at `layer` -1000. That fog reads as showing through pits, under the floor,
+   so the tilemap is likely drawn between -1000 and -75.
+3. Stock `level_1`/`level_hub` fade with `color_black_128` at `layer` 1000,
+   over everything.
+4. No sky-shop doodad's `defaultlayer` falls between -1000 and -75 (the
+   lowest is the island cliff at -20).
+**Impact:** `scripts/import-sky-shop.mjs` sets the clouds to `CLOUD_LAYER`
+-1000. Still to confirm in game:
+- the red floor shows;
+- the clouds still fill the sky round the islands.
+
+**Follow-up, same day ([VERIFIED], user playtest):** with the clouds at -1000
+the red floor shows and the clouds still fill the sky. A parallax layer at
+-1000 draws under the tilemap.
+
+The doorways' notches in the wall ring showed sky between the floor and the
+walkway glass. The importer now lays `bonus_5` floor on those 8 tiles
+too, so the floor runs out to where each walkway begins. Floor tiles carry
+no collision, so the seal is unchanged. [EMITTED] until booted.

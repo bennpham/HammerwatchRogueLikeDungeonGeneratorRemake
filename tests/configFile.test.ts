@@ -1412,6 +1412,18 @@ describe('parameters.txt — lobbies (issue #48)', () => {
     expect(parsed.params.lobbies[0]).toEqual(original.lobbies[0])
   })
 
+  it('round-trips the Shaftlocke Peak sky shop preset', () => {
+    const original = defaultParameters()
+    original.lobbies[0].preset = 'sky-shop'
+
+    const text = serializeParametersTxt(original)
+    expect(text).toContain('lobby0Preset=sky-shop')
+
+    const parsed = parseParametersTxt(text)
+    expect(parsed.unknownKeys).toEqual([])
+    expect(parsed.params.lobbies[0].preset).toBe('sky-shop')
+  })
+
   it('overwrites a named lobby without a `lobbies=` count, and never trims', () => {
     // index 1 already exists (the base object's second stock lobby is
     // 'BETA-boss-prep'); naming it a different preset proves the key was
