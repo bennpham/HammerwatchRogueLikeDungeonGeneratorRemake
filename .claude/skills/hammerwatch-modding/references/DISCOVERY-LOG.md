@@ -5090,3 +5090,26 @@ Unverified in game:
 - the red floor draws over the cloud layer;
 - every pickup can be picked up;
 - nobody can walk off a walkway at a doorway.
+
+### 2026-10-21 — a parallax layer at -75 draws over the tilemap
+**Tag:** [VERIFIED] (user playtest screenshot of `dungeon455443803`); the fix is [UNVERIFIED] until booted
+**Context:** The first in-game look at the red-room sky shop. The bonus5
+walls and the `bonus_teleport` pads showed, but the room's `bonus_5` floor did
+not: clouds filled the whole room. The tile data is identical to the user's
+editor save, block for block, and the editor showed the floor red. The editor
+does not run the `AddParallaxLayer` script, so it never draws the clouds.
+**Evidence:**
+1. The summit's clouds are an `AddParallaxLayer` at `layer` -75, and they drew
+   over the tilemap. Doodads at -20 (the islands) and above still drew over
+   the clouds.
+2. Stock `campaign2/levels/level_temple_1.xml` runs `effects/fog_green.xml:fog`
+   at `layer` -1000. That fog reads as showing through pits, under the floor,
+   so the tilemap is likely drawn between -1000 and -75.
+3. Stock `level_1`/`level_hub` fade with `color_black_128` at `layer` 1000,
+   over everything.
+4. No sky-shop doodad's `defaultlayer` falls between -1000 and -75 (the
+   lowest is the island cliff at -20).
+**Impact:** `scripts/import-sky-shop.mjs` sets the clouds to `CLOUD_LAYER`
+-1000. Still to confirm in game:
+- the red floor shows;
+- the clouds still fill the sky round the islands.

@@ -28,8 +28,9 @@
  * - Kept scripts: the arrival `LevelStart` (start id 0), the teleport's
  *   `LevelExitArea` (start id 0, its shape widened to 3x3 like the generator's
  *   own portals), the five `ShopArea`s and their shapes, and the
- *   `LevelLoaded` trigger rewired to the cloud `AddParallaxLayer` and the
- *   `HideObject` that hides the invisible edge colliders' art. The music, the
+ *   `LevelLoaded` trigger rewired to the cloud `AddParallaxLayer` (moved down
+ *   to `CLOUD_LAYER`, under the room's floor) and the `HideObject` that hides
+ *   the invisible edge colliders' art. The music, the
  *   "MERCHANTS GUILD" title card, the floor/act announcements and the
  *   teleport's sound are dropped.
  * - The stalls carry no tier badge; one `vendor_speech_level5` is laid on each
@@ -86,6 +87,13 @@ const LOBBY_PORTAL = 'doodads/generic/exit_teleport.xml'
 const LEVEL_LOADED = 'LevelLoaded'
 /** what the arrival trigger may keep: the sky, and the colliders' hidden art */
 const ON_ARRIVAL = new Set(['AddParallaxLayer', 'HideObject'])
+/**
+ * The clouds' draw layer. The summit's own -75 draws over the tilemap, which
+ * hid the red room's floor in game; the Temple of the Sun's fog sits at -1000
+ * and shows only through pits, under the floor. No doodad here draws between
+ * the two, so only the floor changes.
+ */
+const CLOUD_LAYER = -1000
 
 const UPGRADE_KINDS = ['damage', 'defense', 'health', 'mana', 'damage2', 'defense2', 'health2', 'mana2']
 
@@ -458,7 +466,9 @@ function clean(level) {
       keep.add(n)
     }
   }
-  if (![...keep].some((n) => typeOf(n) === 'AddParallaxLayer')) throw new Error('the cloud layer was not kept')
+  const skies = [...keep].filter((n) => typeOf(n) === 'AddParallaxLayer')
+  if (skies.length === 0) throw new Error('the cloud layer was not kept')
+  for (const sky of skies) param(sky, 'layer').value = CLOUD_LAYER
 
   // a kept node may only drive another kept node — the teleport's sound goes
   const keptIds = new Set([...keep].map(idOf))

@@ -892,6 +892,8 @@ describe('lobby — sky-shop', () => {
   it('keeps the cloud sky and the hidden edge colliders, and nothing else on arrival', () => {
     expect(nodesOfType(xml, 'AddParallaxLayer')).toHaveLength(1)
     expect(xml).toContain('<string name="sprite">effects/clouds.xml:</string>')
+    // under the red room's floor: the summit's own -75 drew over the tilemap
+    expect(nodesOfType(xml, 'AddParallaxLayer')[0].body).toContain('<int name="layer">-1000</int>')
     expect(nodesOfType(xml, 'HideObject')).toHaveLength(1)
     for (const type of ['AnnounceText', 'PlaySound', 'SpawnObject']) {
       expect(nodesOfType(xml, type), type).toHaveLength(0)
