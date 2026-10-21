@@ -616,21 +616,35 @@ function roomWalls() {
   return out.map(([piece, x, y]) => [`${ROOM_WALLS}${piece}.xml`, x, y])
 }
 
-/** The room's floor as tilemap blocks: tile 1 at full alpha on every room tile, nothing elsewhere. */
+/**
+ * Every floor tile as [x, y]: the room, and each doorway's notch in the wall
+ * ring, so the floor runs out to where the walkway's glass begins and no sky
+ * shows between them.
+ */
+function floorTiles() {
+  const { x0, y0, x1, y1 } = ROOM
+  const [cx, cy] = roomCentre()
+  const out = []
+  for (let x = x0; x < x1; x++) for (let y = y0; y < y1; y++) out.push([x, y])
+  for (let d = -DOOR_WIDTH / 2; d < DOOR_WIDTH / 2; d++) {
+    out.push([cx + d, y0 - 1], [cx + d, y1], [x0 - 1, cy + d], [x1, cy + d])
+  }
+  return out
+}
+
+/** The floor as tilemap blocks: tile 1 at full alpha on every floor tile, nothing elsewhere. */
 function roomTiles() {
   const N = TILEMAP_BLOCK
   const blocks = new Map()
-  for (let tx = ROOM.x0; tx < ROOM.x1; tx++) {
-    for (let ty = ROOM.y0; ty < ROOM.y1; ty++) {
-      const bx = Math.floor((tx + N / 2) / N) * N
-      const by = Math.floor((ty + N / 2) / N) * N
-      const key = `${bx},${by}`
-      if (!blocks.has(key)) blocks.set(key, { bx, by, t: new Array(N * N).fill(0), a: new Array(N * N).fill(0) })
-      const b = blocks.get(key)
-      const i = tx - (bx - N / 2) + (ty - (by - N / 2)) * N
-      b.t[i] = 1
-      b.a[i] = 255
-    }
+  for (const [tx, ty] of floorTiles()) {
+    const bx = Math.floor((tx + N / 2) / N) * N
+    const by = Math.floor((ty + N / 2) / N) * N
+    const key = `${bx},${by}`
+    if (!blocks.has(key)) blocks.set(key, { bx, by, t: new Array(N * N).fill(0), a: new Array(N * N).fill(0) })
+    const b = blocks.get(key)
+    const i = tx - (bx - N / 2) + (ty - (by - N / 2)) * N
+    b.t[i] = 1
+    b.a[i] = 255
   }
   return [...blocks.values()]
     .sort((p, q) => p.bx - q.bx || p.by - q.by)

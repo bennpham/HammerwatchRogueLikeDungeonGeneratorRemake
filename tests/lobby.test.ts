@@ -945,17 +945,23 @@ describe('lobby — sky-shop', () => {
 
   it('floors a red room with bonus_5 tiles, the arrival at its centre on four pads', () => {
     const red = redTiles(xml)
-    expect(red.size).toBe((RED_ROOM.x1 - RED_ROOM.x0) * (RED_ROOM.y1 - RED_ROOM.y0))
-    for (let x = RED_ROOM.x0; x < RED_ROOM.x1; x++) {
-      for (let y = RED_ROOM.y0; y < RED_ROOM.y1; y++) expect(red.has(`${x},${y}`), `${x},${y}`).toBe(true)
+    const [cx, cy] = ROOM_CENTRE
+    const { x0, y0, x1, y1 } = RED_ROOM
+    // the room, plus each 2-tile doorway's notch in the wall ring, so no sky
+    // shows between the floor and a walkway's glass
+    const doorways = [cx - 1, cx].flatMap((x) => [`${x},${y0 - 1}`, `${x},${y1}`])
+      .concat([cy - 1, cy].flatMap((y) => [`${x0 - 1},${y}`, `${x1},${y}`]))
+    expect(red.size).toBe((x1 - x0) * (y1 - y0) + doorways.length)
+    for (let x = x0; x < x1; x++) {
+      for (let y = y0; y < y1; y++) expect(red.has(`${x},${y}`), `${x},${y}`).toBe(true)
     }
+    for (const tile of doorways) expect(red.has(tile), `doorway ${tile}`).toBe(true)
 
     const [start] = nodesOfType(xml, 'LevelStart')
     expect(start.body).toContain(`<vec2 name="pos">${ROOM_CENTRE.join(' ')}</vec2>`)
     const pads = [
       ...xml.matchAll(/<string name="type">doodads\/special\/bonus_teleport\.xml<\/string>\s*<vec2 name="pos">(\S+) (\S+)<\/vec2>/g)
     ].map((m) => `${m[1]},${m[2]}`)
-    const [cx, cy] = ROOM_CENTRE
     expect(pads.sort()).toEqual([`${cx - 1},${cy - 1}`, `${cx - 1},${cy}`, `${cx},${cy - 1}`, `${cx},${cy}`])
     // the summit's own arrival pad went with its island
     expect(xml).not.toContain('exit_teleport_exit.xml')

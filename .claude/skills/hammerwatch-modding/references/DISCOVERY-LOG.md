@@ -5092,7 +5092,7 @@ Unverified in game:
 - nobody can walk off a walkway at a doorway.
 
 ### 2026-10-21 — a parallax layer at -75 draws over the tilemap
-**Tag:** [VERIFIED] (user playtest screenshot of `dungeon455443803`); the fix is [UNVERIFIED] until booted
+**Tag:** [VERIFIED] (user playtest screenshots of `dungeon455443803`, before and after the fix)
 **Context:** The first in-game look at the red-room sky shop. The bonus5
 walls and the `bonus_teleport` pads showed, but the room's `bonus_5` floor did
 not: clouds filled the whole room. The tile data is identical to the user's
@@ -5113,3 +5113,12 @@ does not run the `AddParallaxLayer` script, so it never draws the clouds.
 -1000. Still to confirm in game:
 - the red floor shows;
 - the clouds still fill the sky round the islands.
+
+**Follow-up, same day ([VERIFIED], user playtest):** with the clouds at -1000
+the red floor shows and the clouds still fill the sky. A parallax layer at
+-1000 draws under the tilemap.
+
+The doorways' notches in the wall ring showed sky between the floor and the
+walkway glass. The importer now lays `bonus_5` floor on those 8 tiles
+too, so the floor runs out to where each walkway begins. Floor tiles carry
+no collision, so the seal is unchanged. [EMITTED] until booted.
