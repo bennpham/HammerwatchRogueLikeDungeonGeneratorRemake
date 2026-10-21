@@ -5042,3 +5042,51 @@ Unverified in game:
 - every pickup can be picked up;
 - nobody can walk off the plaza's edge;
 - the 42 extra glass tiles, each with its own light, cost nothing noticeable.
+
+### 2026-10-21 — the sky shop's arrival becomes a red bonus room, laid out by the user
+**Tag:** [VERIFIED] (asset files read from the install; the user's own editor layout); the rebuilt lobby is [EMITTED] until booted
+**Context:** The user rebuilt the sky shop's middle by hand in the editor
+(`editor/dungeon839283942/levels/lobby_sky_merge.xml`). They want the arrival
+and every pickup in a larger centre room, and the islands built round it.
+This replaces the glass plaza above.
+**Evidence:**
+1. **The room.** Floor `tilemaps/bonus_5.xml` (one 16 px frame, tile 1) on
+   world tiles x 3..14, y -4..7, written as the editor's 20x20 blocks with
+   only `data-t` and `data-a`. Walls from `doodads/theme_bonus5/`:
+   - `h_16` (2x1) and `v_16` (1x2);
+   - a cap either side of each 2-tile doorway (`h_cap_l` west of it,
+     `h_cap_r` east, `v_cap_up` north, `v_cap_dn` south);
+   - `crn_*` at the corners: 28 pieces, ringing x 2..16, y -5..9.
+2. **bonus5 walls collide without a `<collision>` block.** Each file has a
+   top-level `<polygon collision="true">` (a 1x1 or 2x1 box from the piece's
+   position) beside a `collision="false"` shadow polygon. The importer's
+   `collisionOf` already read that form.
+3. **The pads.** `doodads/special/bonus_teleport.xml` is a 16 px animated
+   floor sprite, origin 0 0, layer 10, with no collision. Four of them make a
+   2x2 under the LevelStart at the room's centre (9, 2).
+4. **The user's pickups.** 16 diamonds sit on the integer points two tiles
+   round the start (x 7..11, y 0..4, minus the inner 3x3), and the 8
+   upgrades in a 4x2 block at x 7..10, y -2..-1. Overflow stacks.
+5. **Island ownership.** Each island's own colliders and props have their
+   collision-box centre (or position) within 2.0 tiles of the cliff's
+   position. Every walkway ledge is at least 2.5 out. The arrival island owns
+   only its 4 round corners and the `exit_teleport_exit` pad. Every walkway
+   is 1 tile of glass with a half-tile ledge each side: 2 tiles, the doorway
+   width.
+**Impact:** `scripts/import-sky-shop.mjs` drops the plaza and lays the room
+from `ROOM`. Each of the four walkways off the arrival island moves as one
+rigid branch, so its root meets the doorway on its side:
+- N by (22, -1.5): offense lands at (9, -10);
+- W by (17, 3.5): defense lands at (-0.5, -2.5), power at (-6, 3);
+- S by (22, 8.5): combo lands at (4.5, 12.5);
+- E by (27, 3.5): teleport lands at (22.5, -2.5), misc at (18.5, 6.5).
+
+These are about a tile from where the user dragged them, on the same rule.
+No island edge is cut or re-fenced. The fill stays sealed (215.4 square tiles)
+and reaches every slot, the teleport and all five stalls.
+
+Unverified in game:
+- the room's walls block and its doorways line up with the walkways;
+- the red floor draws over the cloud layer;
+- every pickup can be picked up;
+- nobody can walk off a walkway at a doorway.

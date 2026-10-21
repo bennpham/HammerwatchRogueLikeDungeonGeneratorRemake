@@ -39,19 +39,27 @@
  * - `effects/clouds.xml` and `.png` are not in `assets.bin`; they are copied
  *   out of the pack into assets.ts and shipped with any campaign using the room.
  *
- * - The arrival island is a small octagon, too small for the payout: twenty
- *   pickups spilled onto the walkways' rails and over the sky. A glass plaza
- *   replaces it (`PLAZA`): glass over the whole rectangle, walls cut back to
- *   its edge, and a fence round it, opened wherever a walkway meets it. The
- *   new walls join the `HideObject` that hides the rest, so in game the plaza
- *   is glass with invisible edges like the walkways. Every diamond and
- *   upgrade slot is on the plaza.
+ * - The arrival island is a small octagon, too small for the payout. A red
+ *   room replaces it as the hub (`ROOM`, laid out by the user in the editor):
+ *   a `bonus_5` tile floor walled in `theme_bonus5`, with a two-tile doorway
+ *   centred in each side and the arrival on four `bonus_teleport` pads at its
+ *   centre. The island and its corner colliders go, and so does the arrival
+ *   pad.
+ * - Four walkways left the island, one per side. Each moves as one rigid
+ *   piece, with its side ledges, the islands it reaches, and everything on
+ *   them (stalls, shop and exit areas, lights), so that where it left the
+ *   island now meets the doorway on the same side. A walkway's glass and its
+ *   two half-tile ledges are exactly a doorway wide, and the islands keep
+ *   their own entries, so nothing is cut or fenced anew.
+ * - Every diamond and upgrade slot is a fixed spot in the room
+ *   (`DIAMOND_RING`, `UPGRADE_SPOTS`, round the arrival). More diamonds than
+ *   spots stack on them.
  *
- * There is no tilemap: the ground is the island and glass-walk doodads, and
- * only the collision polygons (from --assets) bound where the party can go.
- * A fill from the arrival over everything they leave open must reach the
- * teleport, every stall and every pickup slot, and must stay inside the room,
- * or the import fails.
+ * Only the room has a floor (the tilemap). Elsewhere the ground is the island
+ * and glass-walk doodads, and only the collision polygons (from --assets)
+ * bound where the party can go. A fill from the arrival over everything they
+ * leave open must reach the teleport, every stall and every pickup slot, and
+ * must stay inside the level, or the import fails.
  *
  * Every rule goes by type, path or parameter, never by a stock id.
  */
@@ -79,34 +87,48 @@ const LEVEL_LOADED = 'LevelLoaded'
 /** what the arrival trigger may keep: the sky, and the colliders' hidden art */
 const ON_ARRIVAL = new Set(['AddParallaxLayer', 'HideObject'])
 
-const DIAMOND_SLOT_COUNT = 12
 const UPGRADE_KINDS = ['damage', 'defense', 'health', 'mana', 'damage2', 'defense2', 'health2', 'mana2']
-/** Keep pickups this far (tiles) from the arrival, so the party does not land on one. */
-const SLOT_CLEARANCE = 1
 
 /**
- * The plaza, in tiles from the arrival. It fills the open sky between the
- * five islands round the arrival island and swallows the island itself, so
- * all four walkways run into it.
+ * The red room's floor in level tiles, [x0, x1) by [y0, y1). Its walls stand
+ * one tile outside it, and its centre is the arrival.
  */
-const PLAZA = { left: -2, top: -4, right: 5, bottom: 2 }
-/** How thick a wall piece is: the fence stands this far outside the plaza. */
-const FENCE_DEPTH = 0.5
+const ROOM = { x0: 3, y0: -4, x1: 15, y1: 8 }
+/** Each side's doorway, centred: a walkway's glass and its two half-tile ledges. */
+const DOOR_WIDTH = 2
+const ROOM_TILESET = 'tilemaps/bonus_5.xml'
+const ROOM_WALLS = 'doodads/theme_bonus5/bonus5_'
+/** The arrival's pads, a 2x2 under the LevelStart. */
+const PAD = 'doodads/special/bonus_teleport.xml'
+
+/**
+ * Diamond spots, from the arrival, in fill order: the ring of points two
+ * tiles out, clear of the pads. More diamonds than spots stack on them.
+ */
+const DIAMOND_RING = [
+  [-2, 1], [-2, 2], [-1, 2], [0, 2], [1, 2], [2, 2], [2, 1], [2, 0],
+  [2, -1], [2, -2], [1, -2], [0, -2], [-1, -2], [-2, -2], [-2, -1], [-2, 0]
+]
+/** Upgrade spots, from the arrival: a 4x2 block north of the ring, tier 1 above tier 2. */
+const UPGRADE_SPOTS = {
+  damage: [-2, -4],
+  damage2: [-2, -3],
+  defense: [-1, -4],
+  defense2: [-1, -3],
+  health: [0, -4],
+  health2: [0, -3],
+  mana: [1, -4],
+  mana2: [1, -3]
+}
 
 const GLASS = 'doodads/generic/ground_glasswalk.xml'
-/** The island's rounded corner colliders: a plaza swallowing them drops them. */
-const ROUND_COLLIDER = /\/f_collision_round_[a-z_]+\.xml$/
-/** Each straight wall piece and its one-tile cut, used to clip walls and to fence the plaza. */
-const WALL_CUTS = {
-  'doodads/theme_b/b_ledge_l.xml': 'doodads/theme_b/b_ledge_l_v2.xml',
-  'doodads/theme_b/b_ledge_l_v2.xml': 'doodads/theme_b/b_ledge_l_v2.xml',
-  'doodads/theme_b/b_ledge_r.xml': 'doodads/theme_b/b_ledge_r_v2.xml',
-  'doodads/theme_b/b_ledge_r_v2.xml': 'doodads/theme_b/b_ledge_r_v2.xml',
-  'doodads/theme_b/b_ledge_dn.xml': 'doodads/theme_b/b_ledge_dn_v2.xml',
-  'doodads/theme_b/b_ledge_dn_v2.xml': 'doodads/theme_b/b_ledge_dn_v2.xml'
-}
-const FENCE_ACROSS = 'doodads/theme_b/b_ledge_dn_v2.xml'
-const FENCE_DOWN = 'doodads/theme_b/b_ledge_l_v2.xml'
+const ISLAND = 'doodads/theme_f/f_special_cliff_v1.xml'
+/** An island's own walls and props sit within this many tiles of it, in x and in y; walkway ledges further out. */
+const ISLAND_REACH = 2.1
+/** How far a walkway's last glass tile may stop short of the island it leads onto. */
+const LANDING_GAP = 0.25
+/** The engine's tilemap block: 20x20 tiles, block (x, y) covering tiles x-10..x+9, y-10..y+9. */
+const TILEMAP_BLOCK = 20
 
 // ------------------------------------------------------------- the pack
 
@@ -517,179 +539,314 @@ function boundsOf(poly) {
   return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]
 }
 
-// ------------------------------------------------------------- the plaza
+// ------------------------------------------------------------- the room
 
-/** The plaza's rectangle in level tiles: [x0, y0, x1, y1]. */
-function plazaRect(cleaned) {
-  const [ax, ay] = posOf(cleaned.start)
-  return [ax + PLAZA.left, ay + PLAZA.top, ax + PLAZA.right, ay + PLAZA.bottom]
+/** The room's centre, where the party arrives. */
+function roomCentre() {
+  return [(ROOM.x0 + ROOM.x1) / 2, (ROOM.y0 + ROOM.y1) / 2]
+}
+
+/** The highest id anywhere in the level, so new elements can be numbered above it. */
+function maxId(level) {
+  let max = -Infinity
+  const walk = (n) => {
+    if (n.name === 'id' && n.t === 'int') max = Math.max(max, n.value)
+    for (const c of n.children ?? []) walk(c)
+  }
+  walk(level)
+  return max
+}
+
+function moveBy(el, dx, dy) {
+  const pos = maybeChild(el, 'pos')
+  if (pos !== undefined) {
+    pos.value = [pos.value[0] + dx, pos.value[1] + dy]
+    return
+  }
+  // lights keep the compiled level's x/y floats
+  child(el, 'x').value += dx
+  child(el, 'y').value += dy
+}
+
+/** Do two [x0, y0, x1, y1] boxes overlap, or come within `gap` of each other? */
+function near(a, b, gap) {
+  return a[0] <= b[2] + gap && b[0] <= a[2] + gap && a[1] <= b[3] + gap && b[1] <= a[3] + gap
 }
 
 /**
- * Lay the glass plaza over the arrival island (see the header):
- *
- * 1. Walls that reach into the plaza are cut back to its edge, in one-tile
- *    pieces of the same wall. Corner colliders inside it go, and so does the
- *    walkway glass it covers.
- * 2. A fence runs round it, just outside, one tile piece at a time. It runs
- *    past the corners so they close. It opens wherever walkway glass meets the
- *    edge, and it skips stretches a kept wall already closes.
- * 3. Glass covers every tile of it.
- *
- * Every new wall joins the `HideObject` lists that hide the old ones.
+ * The room's wall ring as [type, x, y]: 2-tile runs of `h_16`/`v_16`, a cap
+ * either side of each doorway, and a corner piece at each corner. Every wall
+ * run between a corner and a doorway must be an odd number of tiles, so the
+ * runs and the cap fill it exactly.
  */
-function buildPlaza(level, assets, cleaned) {
-  const EPS = 1e-6
-  const [px0, py0, px1, py1] = plazaRect(cleaned)
-  const doodads = doodadsOf(level)
-  const cache = new Map()
-  const placed = (d) => collisionOf(assets, typeOf(d), cache).map((rel) => rel.map(([x, y]) => [posOf(d)[0] + x, posOf(d)[1] + y]))
-  const reachesIn = ([x0, y0, x1, y1]) => x0 < px1 - EPS && x1 > px0 + EPS && y0 < py1 - EPS && y1 > py0 + EPS
-
-  const ids = []
-  const collect = (n) => {
-    if (n.name === 'id' && n.t === 'int') ids.push(n.value)
-    for (const c of n.children ?? []) collect(c)
+function roomWalls() {
+  const { x0, y0, x1, y1 } = ROOM
+  const [cx, cy] = roomCentre()
+  const out = []
+  const run = (from, to, piece, at) => {
+    if ((to - from) % 2 !== 1) throw new Error(`a room wall run of ${to - from} tiles cannot end in a cap`)
+    for (let t = from; t < to - 1; t += 2) out.push(at(piece, t))
   }
-  collect(level)
-  let next = Math.max(...ids) + 1
+  const doorLo = (c) => c - DOOR_WIDTH / 2
+  const doorHi = (c) => c + DOOR_WIDTH / 2
+  for (const [y, corners] of [
+    [y0 - 1, ['crn_l_up', 'crn_r_up']],
+    [y1, ['crn_l_dn', 'crn_r_dn']]
+  ]) {
+    out.push([corners[0], x0 - 1, y], [corners[1], x1, y])
+    run(x0, doorLo(cx), 'h_16', (p, t) => [p, t, y])
+    out.push(['h_cap_l', doorLo(cx) - 1, y], ['h_cap_r', doorHi(cx), y])
+    run(doorHi(cx) + 1, x1 + 1, 'h_16', (p, t) => [p, t, y])
+  }
+  for (const x of [x0 - 1, x1]) {
+    run(y0, doorLo(cy), 'v_16', (p, t) => [p, x, t])
+    out.push(['v_cap_up', x, doorLo(cy) - 1], ['v_cap_dn', x, doorHi(cy)])
+    run(doorHi(cy) + 1, y1 + 1, 'v_16', (p, t) => [p, x, t])
+  }
+  return out.map(([piece, x, y]) => [`${ROOM_WALLS}${piece}.xml`, x, y])
+}
 
-  /** A new doodad whose collision box (or, with no collision, sprite box) starts at x, y. */
-  const added = []
-  const place = (type, x, y) => {
-    const polys = collisionOf(assets, type, cache)
-    let ox
-    let oy
-    if (polys.length > 0) {
-      ;[ox, oy] = boundsOf(polys.flat())
-    } else {
-      const probe = { t: 'dictionary', children: [{ t: 'string', name: 'type', value: type }, { t: 'vec2', name: 'pos', value: [0, 0] }] }
-      ;[ox, oy] = spriteBox(assets, probe)
+/** The room's floor as tilemap blocks: tile 1 at full alpha on every room tile, nothing elsewhere. */
+function roomTiles() {
+  const N = TILEMAP_BLOCK
+  const blocks = new Map()
+  for (let tx = ROOM.x0; tx < ROOM.x1; tx++) {
+    for (let ty = ROOM.y0; ty < ROOM.y1; ty++) {
+      const bx = Math.floor((tx + N / 2) / N) * N
+      const by = Math.floor((ty + N / 2) / N) * N
+      const key = `${bx},${by}`
+      if (!blocks.has(key)) blocks.set(key, { bx, by, t: new Array(N * N).fill(0), a: new Array(N * N).fill(0) })
+      const b = blocks.get(key)
+      const i = tx - (bx - N / 2) + (ty - (by - N / 2)) * N
+      b.t[i] = 1
+      b.a[i] = 255
     }
-    const d = {
+  }
+  return [...blocks.values()]
+    .sort((p, q) => p.bx - q.bx || p.by - q.by)
+    .map(({ bx, by, t, a }) => ({
+      t: 'dictionary',
+      children: [
+        { t: 'int', name: 'x', value: bx },
+        { t: 'int', name: 'y', value: by },
+        {
+          t: 'array',
+          name: 'datasets',
+          children: [
+            {
+              t: 'dictionary',
+              children: [
+                { t: 'string', name: 'tileset', value: ROOM_TILESET },
+                { t: 'int-arr', name: 'data-t', value: t },
+                { t: 'int-arr', name: 'data-a', value: a }
+              ]
+            }
+          ]
+        }
+      ]
+    }))
+}
+
+/**
+ * Replace the arrival island with the red room (see the header):
+ *
+ * 1. The island under the arrival goes, with its corner colliders and the
+ *    arrival pad.
+ * 2. Each walkway that left it is a branch: its glass, the ledges along that
+ *    glass, the islands it lands on, everything on those islands, the shape
+ *    nodes there and the nodes reading them, and the lights nearest them.
+ * 3. Each branch moves so the edge of glass that met the island meets the
+ *    room's doorway on the same side.
+ * 4. The room's floor, walls and pads go in, and the arrival moves to its
+ *    centre.
+ *
+ * Every element that moves keeps its id, so the HideObject still hides every
+ * ledge it hid; only the removed ids drop out of it.
+ */
+function buildRoom(level, assets, cleaned) {
+  const EPS = 1e-6
+  const doodads = doodadsOf(level)
+  const nodes = nodesOf(level)
+  const lights = child(child(level, 'lighting'), 'lights').children
+  const cache = new Map()
+  const collisionBox = (d) => {
+    const polys = collisionOf(assets, typeOf(d), cache)
+    if (polys.length === 0) return null
+    const [px, py] = posOf(d)
+    return boundsOf(polys.flat().map(([x, y]) => [px + x, py + y]))
+  }
+  /** What decides which island a doodad stands on: its collision box's centre, else its position. */
+  const anchorOf = (d) => {
+    const box = collisionBox(d)
+    return box === null ? posOf(d) : [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2]
+  }
+
+  // ---- the islands, and the one the party arrives on
+  const islands = doodads.filter((d) => typeOf(d) === ISLAND)
+  const ownersOf = ([x, y]) =>
+    islands.filter((i) => Math.abs(x - posOf(i)[0]) <= ISLAND_REACH && Math.abs(y - posOf(i)[1]) <= ISLAND_REACH)
+  /** An island's walkable top: the cliff sprite's upper square. */
+  const topOf = (island) => {
+    const [x0, y0, x1] = spriteBox(assets, island)
+    return [x0, y0, x1, y0 + (x1 - x0)]
+  }
+  const arrivals = ownersOf(posOf(cleaned.start))
+  if (arrivals.length !== 1) throw new Error(`the arrival stands on ${arrivals.length} islands`)
+  const [arrival] = arrivals
+  const arrivalTop = topOf(arrival)
+
+  const onIsland = new Map(islands.map((i) => [i, []]))
+  const glass = []
+  const walls = []
+  for (const d of doodads) {
+    if (typeOf(d) === GLASS) {
+      glass.push(d)
+      continue
+    }
+    const owners = ownersOf(anchorOf(d))
+    if (owners.length > 1) throw new Error(`doodad ${idOf(d)} stands on two islands`)
+    if (owners.length === 1) onIsland.get(owners[0]).push(d)
+    else if (collisionBox(d) !== null) walls.push(d)
+    else throw new Error(`doodad ${idOf(d)} (${typeOf(d)}) is on no island and no walkway`)
+  }
+  const gone = onIsland.get(arrival)
+  for (const d of gone) {
+    if (d !== arrival && !/\/f_collision_round_[a-z_]+\.xml$|\/exit_teleport_exit\.xml$/.test(typeOf(d))) {
+      throw new Error(`${typeOf(d)} (${idOf(d)}) stands on the arrival island, which the room replaces`)
+    }
+  }
+
+  // ---- the branches: walkway glass, flooded out from each tile that met the arrival island
+  const glassBox = new Map(glass.map((g) => [g, spriteBox(assets, g)]))
+  const sideOf = (box) => {
+    const [ax0, ay0, ax1, ay1] = arrivalTop
+    if (box[3] <= ay0 + LANDING_GAP) return 'N'
+    if (box[1] >= ay1 - LANDING_GAP) return 'S'
+    if (box[2] <= ax0 + LANDING_GAP) return 'W'
+    if (box[0] >= ax1 - LANDING_GAP) return 'E'
+    throw new Error('a walkway runs onto the arrival island from inside it')
+  }
+  const branches = []
+  const branchOf = new Map()
+  for (const root of glass) {
+    if (branchOf.has(root) || !near(glassBox.get(root), arrivalTop, LANDING_GAP)) continue
+    const branch = { side: sideOf(glassBox.get(root)), root, glass: [root], islands: [], walls: [] }
+    branchOf.set(root, branch)
+    for (let i = 0; i < branch.glass.length; i++) {
+      for (const g of glass) {
+        if (branchOf.has(g) || !near(glassBox.get(branch.glass[i]), glassBox.get(g), EPS)) continue
+        if (near(glassBox.get(g), arrivalTop, LANDING_GAP)) throw new Error(`two walkways off the ${branch.side} side join up`)
+        branchOf.set(g, branch)
+        branch.glass.push(g)
+      }
+    }
+    branches.push(branch)
+  }
+  if (glass.some((g) => !branchOf.has(g))) throw new Error('some walkway glass does not lead back to the arrival island')
+  const sides = branches.map((b) => b.side).sort().join('')
+  if (sides !== 'ENSW') throw new Error(`expected one walkway off each side of the arrival island, found ${sides}`)
+
+  for (const island of islands) {
+    if (island === arrival) continue
+    const landing = branches.filter((b) => b.glass.some((g) => near(glassBox.get(g), topOf(island), LANDING_GAP)))
+    if (landing.length !== 1) throw new Error(`island ${idOf(island)} is reached by ${landing.length} walkways`)
+    landing[0].islands.push(island)
+  }
+  for (const wall of walls) {
+    const box = collisionBox(wall)
+    const along = branches.filter((b) => b.glass.some((g) => near(glassBox.get(g), box, EPS)))
+    if (along.length !== 1) throw new Error(`ledge ${idOf(wall)} runs along ${along.length} walkways`)
+    along[0].walls.push(wall)
+  }
+
+  // ---- move each branch onto its doorway
+  const [cx, cy] = roomCentre()
+  const doorway = { N: [cx, ROOM.y0 - 1], S: [cx, ROOM.y1 + 1], W: [ROOM.x0 - 1, cy], E: [ROOM.x1 + 1, cy] }
+  // a light goes with the island nearest it, judged before anything moves
+  const lightIsland = new Map(
+    lights.map((l) => {
+      const [lx, ly] = [child(l, 'x').value, child(l, 'y').value]
+      const nearest = islands
+        .map((i) => ({ i, d: Math.hypot(posOf(i)[0] - lx, posOf(i)[1] - ly) }))
+        .sort((a, b) => a.d - b.d)[0].i
+      return [l, nearest]
+    })
+  )
+  if (lights.some((l) => lightIsland.get(l) === arrival)) throw new Error('a light belongs to the arrival island')
+  const movedShapes = new Set()
+  const moves = []
+  for (const branch of branches) {
+    const [x0, y0, x1, y1] = glassBox.get(branch.root)
+    const rootAt = { N: [(x0 + x1) / 2, y1], S: [(x0 + x1) / 2, y0], W: [x1, (y0 + y1) / 2], E: [x0, (y0 + y1) / 2] }[branch.side]
+    const [dx, dy] = [doorway[branch.side][0] - rootAt[0], doorway[branch.side][1] - rootAt[1]]
+    // shapes on the branch's islands, and the shop and exit areas that read them; found before the islands move
+    const tops = branch.islands.map(topOf)
+    const shapes = new Set(
+      nodes
+        .filter((n) => /Shape$/.test(typeOf(n)))
+        .filter((n) => tops.some((t) => near(t, [...posOf(n), ...posOf(n)], EPS)))
+        .map(idOf)
+    )
+    const onBranch = [...branch.glass, ...branch.walls, ...branch.islands.flatMap((i) => onIsland.get(i))]
+    for (const d of onBranch) moveBy(d, dx, dy)
+    for (const n of nodes) {
+      if (shapes.has(idOf(n)) || staticRefs(n).some((r) => r.value.some((id) => shapes.has(id)))) moveBy(n, dx, dy)
+    }
+    for (const id of shapes) movedShapes.add(id)
+    for (const l of lights) if (branch.islands.includes(lightIsland.get(l))) moveBy(l, dx, dy)
+    moves.push({ side: branch.side, by: [dx, dy], islands: branch.islands.map((i) => posOf(i).join(' ')) })
+  }
+  for (const shape of [...cleaned.exitShapes, ...cleaned.stallShapes]) {
+    if (!movedShapes.has(idOf(shape))) throw new Error(`shape ${idOf(shape)} is on no walkway's island`)
+  }
+
+  // ---- the arrival island goes
+  const goneIds = new Set(gone.map(idOf))
+  doodads.splice(0, doodads.length, ...doodads.filter((d) => !goneIds.has(idOf(d))))
+  for (const n of nodes) for (const ref of staticRefs(n)) ref.value = ref.value.filter((id) => !goneIds.has(id))
+
+  // ---- the room: floor, walls, the arrival's pads
+  child(child(level, 'tilemap'), 'tiledata').children = roomTiles()
+  let next = maxId(level) + 1
+  const add = (type, x, y) =>
+    doodads.push({
       t: 'dictionary',
       children: [
         { t: 'int', name: 'id', value: next++ },
         { t: 'string', name: 'type', value: type },
-        { t: 'vec2', name: 'pos', value: [x - ox, y - oy] }
+        { t: 'vec2', name: 'pos', value: [x, y] },
+        { t: 'bool', name: 'need-sync', value: false }
       ]
-    }
-    added.push(d)
-    return d
+    })
+  const roomWallList = roomWalls()
+  for (const [type, x, y] of roomWallList) add(type, x, y)
+  for (const [x, y] of [
+    [cx - 1, cy - 1],
+    [cx, cy - 1],
+    [cx - 1, cy],
+    [cx, cy]
+  ]) {
+    add(PAD, x, y)
   }
+  child(cleaned.start, 'pos').value = [cx, cy]
 
-  /** One-tile starts covering [a, b]; a stretch under a tile grows away from `fixed`, the end that must not move. */
-  const tilesOver = (a, b, fixed) => {
-    const len = b - a
-    if (len < 1 - EPS) return [fixed === a ? a : b - 1]
-    const starts = []
-    for (let t = a; t < b - 1 + EPS; t += 1) starts.push(t)
-    if (starts[starts.length - 1] < b - 1 - EPS) starts.push(b - 1)
-    return starts
-  }
-
-  // ---- 1. cut back what reaches in
-  const walkwayGlass = doodads.filter((d) => typeOf(d) === GLASS).map((d) => spriteBox(assets, d))
-  const removed = new Set()
-  const newWalls = []
-  for (const d of doodads) {
-    const type = typeOf(d)
-    const polys = placed(d)
-    if (type === GLASS) {
-      const [x0, y0, x1, y1] = spriteBox(assets, d)
-      if (x0 >= px0 - EPS && x1 <= px1 + EPS && y0 >= py0 - EPS && y1 <= py1 + EPS) removed.add(d)
-      continue
-    }
-    if (polys.length === 0) continue
-    const box = boundsOf(polys.flat())
-    if (!reachesIn(box)) continue
-
-    if (ROUND_COLLIDER.test(type)) {
-      // what sticks out of the plaza must lie under the fence
-      const [x0, y0, x1, y1] = box
-      const F = FENCE_DEPTH + EPS
-      if (x0 < px0 - F || y0 < py0 - F || x1 > px1 + F || y1 > py1 + F) {
-        throw new Error(`corner collider ${idOf(d)} sticks out past the plaza's fence`)
+  // ---- nothing that moved may land on the room, or on another branch's island
+  const ring = [ROOM.x0 - 1, ROOM.y0 - 1, ROOM.x1 + 1, ROOM.y1 + 1]
+  for (const branch of branches) {
+    for (const island of branch.islands) {
+      if (near(spriteBox(assets, island), ring, -EPS)) throw new Error(`island ${idOf(island)} lands on the room`)
+      for (const other of branches) {
+        if (other === branch) continue
+        for (const o of other.islands) {
+          if (near(spriteBox(assets, island), spriteBox(assets, o), -EPS)) {
+            throw new Error(`islands ${idOf(island)} and ${idOf(o)} land on each other`)
+          }
+        }
       }
-      removed.add(d)
-      continue
-    }
-
-    const cut = WALL_CUTS[type]
-    if (cut === undefined) throw new Error(`${type} (${idOf(d)}) collides inside the plaza`)
-    removed.add(d)
-    const [x0, y0, x1, y1] = box
-    const across = x1 - x0 > y1 - y0
-    const [a, b, p0, p1] = across ? [x0, x1, px0, px1] : [y0, y1, py0, py1]
-    const [s0, s1, q0, q1] = across ? [y0, y1, py0, py1] : [x0, x1, px0, px1]
-    if (s0 < q0 - EPS || s1 > q1 + EPS) throw new Error(`wall ${idOf(d)} runs along the plaza's edge, not across it`)
-    const rests = []
-    if (a < p0 - EPS) rests.push([a, p0, p0])
-    if (b > p1 + EPS) rests.push([p1, b, p1])
-    for (const [ra, rb, fixed] of rests) {
-      for (const t of tilesOver(ra, rb, fixed)) newWalls.push(across ? place(cut, t, y0) : place(cut, x0, t))
     }
   }
 
-  // ---- 2. the fence
-  const keptWalls = [...doodads.filter((d) => !removed.has(d)), ...newWalls].flatMap(placed)
-  const onGlass = (x, y) => walkwayGlass.some(([x0, y0, x1, y1]) => x > x0 && x < x1 && y > y0 && y < y1)
-  const walled = (x, y) => keptWalls.some((poly) => insidePolygon(poly, x, y))
-  const D = FENCE_DEPTH
-  const sides = [
-    // [runs along x?, from, to, the band's low edge]
-    [true, px0 - D, px1 + D, py0 - D],
-    [true, px0 - D, px1 + D, py1],
-    [false, py0, py1, px0 - D],
-    [false, py0, py1, px1]
-  ]
-  const STEP = 0.25
-  for (const [across, from, to, band] of sides) {
-    const at = (t) => (across ? [t, band + D / 2] : [band + D / 2, t])
-    const closed = []
-    for (let t = from; t < to - EPS; t += STEP) {
-      // open: a walkway's glass reaches the fence. Already closed: a kept wall stands there.
-      const open = onGlass(...at(t + STEP / 2))
-      const done = walled(...at(t + STEP / 2))
-      closed.push(!open && !done)
-    }
-    for (let i = 0; i < closed.length; ) {
-      if (!closed[i]) {
-        i++
-        continue
-      }
-      let j = i
-      while (j < closed.length && closed[j]) j++
-      const a = from + i * STEP
-      const b = from + j * STEP
-      const fixed = i === 0 ? b : j === closed.length ? a : null
-      if (fixed === null && b - a < 1 - EPS) throw new Error(`a fence gap of ${b - a} tiles is shorter than one piece`)
-      for (const t of tilesOver(a, b, fixed ?? a)) newWalls.push(across ? place(FENCE_ACROSS, t, band) : place(FENCE_DOWN, band, t))
-      i = j
-    }
-  }
-
-  // ---- 3. the glass
-  for (let x = px0; x < px1 - EPS; x += 1) {
-    for (let y = py0; y < py1 - EPS; y += 1) place(GLASS, x, y)
-  }
-
-  // ---- write it back, and keep the walls hidden
-  const removedIds = new Set([...removed].map(idOf))
-  const newWallIds = newWalls.map(idOf)
-  doodads.splice(0, doodads.length, ...doodads.filter((d) => !removed.has(d)), ...added)
-  const wallIds = new Set(doodads.filter((d) => WALL_CUTS[typeOf(d)] !== undefined || ROUND_COLLIDER.test(typeOf(d))).map(idOf))
-  for (const n of nodesOf(level)) {
-    for (const ref of staticRefs(n)) {
-      const hidesWalls = typeOf(n) === 'HideObject' && ref.value.some((id) => wallIds.has(id) || removedIds.has(id))
-      ref.value = ref.value.filter((id) => !removedIds.has(id))
-      if (hidesWalls) ref.value.push(...newWallIds)
-    }
-  }
-  if (!nodesOf(level).some((n) => typeOf(n) === 'HideObject' && staticRefs(n).some((r) => newWallIds.every((id) => r.value.includes(id))))) {
-    throw new Error('the plaza walls are not hidden')
-  }
-  return { removed: removedIds.size, walls: newWallIds.length, glass: added.length - newWallIds.length }
+  return { gone: goneIds.size, walls: roomWallList.length, moves }
 }
 
 // ------------------------------------------------------------- reach
@@ -775,9 +932,10 @@ function reach(level, assets, cleaned) {
 // ------------------------------------------------------------- slots
 
 /**
- * Pickup slots: the plaza's tile centres, nearest the arrival first and clear
- * of it. The party must reach every slot, the teleport and every stall's
- * shop, or the lobby could not be finished.
+ * Pickup slots: the fixed spots round the arrival. A pickup on a point
+ * touches the four tiles round it, and every one must be room floor; none may
+ * sit on the arrival's pads. The party must reach every slot, the teleport
+ * and every stall's shop, or the lobby could not be finished.
  */
 function pickSlots(cleaned, reached) {
   if (!cleaned.exitShapes.some(reached.into)) throw new Error('the teleport is not reachable from the arrival')
@@ -785,25 +943,18 @@ function pickSlots(cleaned, reached) {
     if (!reached.into(shape)) throw new Error(`stall shape ${idOf(shape)} is not reachable from the arrival`)
   }
 
-  const wanted = DIAMOND_SLOT_COUNT + UPGRADE_KINDS.length
-  const [px0, py0, px1, py1] = plazaRect(cleaned)
-  const [ax, ay] = posOf(cleaned.start)
-  const centres = []
-  for (let x = px0 + 0.5; x < px1; x += 1) {
-    for (let y = py0 + 0.5; y < py1; y += 1) {
-      if (Math.abs(x - ax) > SLOT_CLEARANCE || Math.abs(y - ay) > SLOT_CLEARANCE) centres.push([x, y])
+  const [cx, cy] = roomCentre()
+  const diamonds = DIAMOND_RING.map(([dx, dy]) => [cx + dx, cy + dy])
+  const upgrades = Object.fromEntries(UPGRADE_KINDS.map((k) => [k, [cx + UPGRADE_SPOTS[k][0], cy + UPGRADE_SPOTS[k][1]]]))
+  const all = [...diamonds, ...Object.values(upgrades)]
+  if (new Set(all.map((s) => s.join(' '))).size !== all.length) throw new Error('two pickup spots coincide')
+  for (const [x, y] of all) {
+    if (x - 1 < ROOM.x0 || x + 1 > ROOM.x1 || y - 1 < ROOM.y0 || y + 1 > ROOM.y1) {
+      throw new Error(`slot ${x} ${y} is not on the room's floor`)
     }
+    if (Math.abs(x - cx) <= 1 && Math.abs(y - cy) <= 1) throw new Error(`slot ${x} ${y} is on the arrival's pads`)
+    if (!reached.at(x, y)) throw new Error(`slot ${x} ${y} is not reachable from the arrival`)
   }
-  const picked = centres
-    .sort((a, b) => Math.hypot(a[0] - ax, a[1] - ay) - Math.hypot(b[0] - ax, b[1] - ay) || a[1] - b[1] || a[0] - b[0])
-    .slice(0, wanted)
-  if (picked.length < wanted) throw new Error(`the plaza has fewer than ${wanted} tiles clear of the arrival`)
-  for (const slot of picked) {
-    if (!reached.at(...slot)) throw new Error(`slot ${slot.join(' ')} is not reachable from the arrival`)
-  }
-
-  const diamonds = picked.slice(0, DIAMOND_SLOT_COUNT).sort((a, b) => a[1] - b[1] || a[0] - b[0])
-  const upgrades = Object.fromEntries(UPGRADE_KINDS.map((k, i) => [k, picked[DIAMOND_SLOT_COUNT + i]]))
   return { diamonds, upgrades }
 }
 
@@ -859,8 +1010,9 @@ function emitTemplate(xml, source, meta) {
  *
  * The survival campaign's merchants guild: floating islands joined by glass
  * walkways over a scrolling cloud layer, cleaned into a lobby by the importer
- * (see its header). One arrival on a glass plaza, one teleport out, five
- * stalls; no music, title card or announcements of its own.
+ * (see its header). The islands sit round a red room, where the party
+ * arrives and every pickup lies; one teleport out, five stalls; no music,
+ * title card or announcements of its own.
  *
  * Treated as an opaque swappable template, exactly like the other rooms:
  * \`buildLobby()\` (\`../lobby/build.ts\`) rewrites vendor \`cats\`, badge
@@ -892,8 +1044,9 @@ export const SKY_SHOP_EXIT_NODE_ID = ${meta.exit}
 export const SKY_SHOP_PORTAL_DOODAD_ID = ${meta.portal}
 
 /**
- * Where the red diamonds go, in template order — the plaza's tiles nearest
- * the arrival, each checked reachable by the importer's flood fill.
+ * Where the red diamonds go, in fill order — the ring round the arrival in the
+ * red room, each checked on the room's floor and reachable by the importer's
+ * flood fill. More diamonds than slots stack on them from the first again.
  */
 export const SKY_SHOP_DIAMOND_SLOTS: ReadonlyArray<readonly [number, number]> = [
 ${slots}
@@ -908,7 +1061,7 @@ export const SKY_SHOP_MUSIC_ID_BASE = ${meta.base + 600}
 /** First id buildLobby hands to a diamond. */
 export const SKY_SHOP_ITEM_ID_BASE = ${meta.base + 1000}
 
-/** Where each free upgrade pickup goes — one slot per kind, picked like the diamond slots. */
+/** Where each free upgrade pickup goes — one slot per kind, in the red room north of the diamonds. */
 export const SKY_SHOP_UPGRADE_SLOTS: UpgradeSlots = {
 ${upgradeSlots}
 }
@@ -966,7 +1119,7 @@ if (summit === undefined) throw new Error(`${args.hwm} has no ${SUMMIT}`)
 const level = decodeBinary(summit)
 const cleaned = clean(level)
 const before = reach(level, args.assets, cleaned)
-const plaza = buildPlaza(level, args.assets, cleaned)
+const room = buildRoom(level, args.assets, cleaned)
 const reached = reach(level, args.assets, cleaned)
 checkAssets(level, args.assets)
 const slots = pickSlots(cleaned, reached)
@@ -1003,8 +1156,9 @@ console.log(
   `  arrival ${posOf(cleaned.start).join(' ')}, exit ${meta.exit} on shape at ${posOf(cleaned.exitShapes[0]).join(' ')}, portal ${meta.portal}`
 )
 console.log(`  stalls ${JSON.stringify(meta.ids)}`)
-console.log(`  plaza ${plazaRect(cleaned).join(' ')}: ${plaza.removed} doodads gone, ${plaza.walls} walls and ${plaza.glass} glass added`)
-console.log(`  sealed: ${before.area} square tiles open to the party before the plaza, ${reached.area} after`)
+console.log(`  room ${ROOM.x0} ${ROOM.y0} ${ROOM.x1} ${ROOM.y1}: arrival island gone (${room.gone} doodads), ${room.walls} walls`)
+for (const m of room.moves) console.log(`  ${m.side} walkway moved by ${m.by.join(' ')}: islands at ${m.islands.join(', ')}`)
+console.log(`  sealed: ${before.area} square tiles open to the party before the room, ${reached.area} after`)
 console.log(`  diamonds ${JSON.stringify(slots.diamonds)}`)
 console.log(`  upgrades ${JSON.stringify(slots.upgrades)}`)
 console.log(`  id base ${base}`)

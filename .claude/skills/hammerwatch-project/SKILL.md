@@ -1238,19 +1238,25 @@ else. Five ship:
 - `sky-shop` — the survival campaign's merchants guild on Shaftlocke Peak
   (`survival.hwm`, `levels/level_summit.xml.bin`), read out by
   `scripts/import-sky-shop.mjs`. Floating islands and glass walkways over a
-  scrolling cloud `AddParallaxLayer`; no tilemap at all. The compiled level
+  scrolling cloud `AddParallaxLayer`. The compiled level
   is the older x/y-float dialect, so the importer normalises every doodad and
   node to `<vec2 name="pos">`. It adds the tier badges the source lacks, keeps
   only arrival, teleport, shops and the arrival trigger's sky + collider-hide,
   and ships `effects/clouds.xml`/`.png` as `assets` (not in `assets.bin`).
-  The arrival island is too small for the payout, so the importer lays a
-  7x6 glass plaza over it (`PLAZA`, relative to the arrival). Walls reaching
-  in are cut back to one-tile pieces, a fence opens where walkway glass meets
-  the edge, and every new wall joins the `HideObject` list. All 20 slots are
-  plaza tiles. Reach is a quarter-tile fill over walls alone, with polygon
-  edges blocking too, since the corner colliders cross themselves. It is
-  also the seal check: if it gets past the outermost doodads, the import
-  fails. Opt-in only.
+  The arrival island is too small for the payout, so a red room replaces it
+  (`ROOM`, a user-authored editor layout): a `bonus_5` tilemap floor
+  walled in visible `theme_bonus5` pieces, with a 2-tile doorway in each
+  side and the arrival on four `bonus_teleport` pads at its centre. Each of
+  the island's four walkways moves as one rigid branch (glass, side ledges,
+  the islands it lands on and everything on them, their shapes, shop and exit
+  nodes, nearest lights) so its root meets the doorway on its side; a 1-tile
+  walkway and its two half-tile ledges are exactly a doorway wide, so nothing
+  is re-fenced. Slots are fixed: 16 diamonds on the ring two tiles round the
+  arrival, 8 upgrades in a 4x2 block north of it, each checked on the red
+  floor. Reach is a quarter-tile fill over walls alone, with polygon edges
+  blocking too, since the corner colliders cross themselves. It is also the
+  seal check: if it gets past the outermost doodads, the import fails.
+  Opt-in only.
 - `portalDoodadId` (optional; bazaar, bridge, sky shop) names a portal doodad whose art
   follows the destination. `buildLobby(..., intoBossFight)` lays it red
   (`BossPortal`) when the next slot is a boss fight, else blue (`LobbyPortal`),

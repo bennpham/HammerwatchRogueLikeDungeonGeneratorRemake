@@ -872,6 +872,9 @@ describe('lobby — sky-shop', () => {
   const preset = lobbyPresetById('sky-shop')!
   const xml = buildLobby(preset, defaultLobby(preset.id), EXIT_TARGET)
   const CLOUDS = ['effects/clouds.png', 'effects/clouds.xml']
+  // the red room the importer lays where the arrival island was (its ROOM)
+  const RED_ROOM = { x0: 3, y0: -4, x1: 15, y1: 8 }
+  const ROOM_CENTRE = [(RED_ROOM.x0 + RED_ROOM.x1) / 2, (RED_ROOM.y0 + RED_ROOM.y1) / 2]
 
   it('has exactly one arrival and one way out, the teleport', () => {
     expect(nodesOfType(xml, 'LevelStart')).toHaveLength(1)
@@ -938,19 +941,66 @@ describe('lobby — sky-shop', () => {
     expect(doodadAt(intoFight, preset.portalDoodadId!).type).toBe('doodads/generic/exit_teleport_boss.xml')
   })
 
-  it('lays every pickup slot on the glass plaza round the arrival', () => {
-    const glass = [
-      ...xml.matchAll(
-        /<string name="type">doodads\/generic\/ground_glasswalk\.xml<\/string>\s*<vec2 name="pos">(\S+) (\S+)<\/vec2>/g
-      )
-    ].map((m) => [Number(m[1]), Number(m[2])])
-    const slots = [...preset.diamondSlots, ...Object.values(preset.upgradeSlots)]
-    expect(slots).toHaveLength(20)
-    expect(new Set(slots.map((s) => s.join())).size).toBe(slots.length)
-    for (const [x, y] of slots) {
-      // a glass tile is one tile square, centred on its position
-      expect(glass.some(([gx, gy]) => Math.abs(gx - x) < 0.5 && Math.abs(gy - y) < 0.5), `${x},${y}`).toBe(true)
+  it('floors a red room with bonus_5 tiles, the arrival at its centre on four pads', () => {
+    const red = redTiles(xml)
+    expect(red.size).toBe((RED_ROOM.x1 - RED_ROOM.x0) * (RED_ROOM.y1 - RED_ROOM.y0))
+    for (let x = RED_ROOM.x0; x < RED_ROOM.x1; x++) {
+      for (let y = RED_ROOM.y0; y < RED_ROOM.y1; y++) expect(red.has(`${x},${y}`), `${x},${y}`).toBe(true)
     }
+
+    const [start] = nodesOfType(xml, 'LevelStart')
+    expect(start.body).toContain(`<vec2 name="pos">${ROOM_CENTRE.join(' ')}</vec2>`)
+    const pads = [
+      ...xml.matchAll(/<string name="type">doodads\/special\/bonus_teleport\.xml<\/string>\s*<vec2 name="pos">(\S+) (\S+)<\/vec2>/g)
+    ].map((m) => `${m[1]},${m[2]}`)
+    const [cx, cy] = ROOM_CENTRE
+    expect(pads.sort()).toEqual([`${cx - 1},${cy - 1}`, `${cx - 1},${cy}`, `${cx},${cy - 1}`, `${cx},${cy}`])
+    // the summit's own arrival pad went with its island
+    expect(xml).not.toContain('exit_teleport_exit.xml')
+  })
+
+  it('walls the room in visible bonus5 pieces, with a doorway on every side', () => {
+    const walls = [
+      ...xml.matchAll(/<int name="id">(\d+)<\/int>\s*<string name="type">doodads\/theme_bonus5\/bonus5_([a-z0-9_]+)\.xml<\/string>/g)
+    ]
+    expect(walls).toHaveLength(28)
+    expect(walls.filter((m) => /_cap_/.test(m[2]))).toHaveLength(8)
+    const [hide] = nodesOfType(xml, 'HideObject')
+    const hidden = new Set(/<int-arr name="static">([^<]*)<\/int-arr>/.exec(hide.body)![1].split(' ').map(Number))
+    for (const m of walls) expect(hidden.has(Number(m[1])), `bonus5 wall ${m[1]}`).toBe(false)
+  })
+
+  it('lays every pickup slot on the red floor, clear of the pads', () => {
+    const red = redTiles(xml)
+    const slots = [...preset.diamondSlots, ...Object.values(preset.upgradeSlots)]
+    expect(preset.diamondSlots).toHaveLength(16)
+    expect(Object.keys(preset.upgradeSlots)).toHaveLength(8)
+    expect(new Set(slots.map((s) => s.join())).size).toBe(slots.length)
+    const [cx, cy] = ROOM_CENTRE
+    for (const [x, y] of slots) {
+      // a pickup on a point touches the four tiles round it; all must be red
+      for (const [tx, ty] of [
+        [x - 1, y - 1],
+        [x, y - 1],
+        [x - 1, y],
+        [x, y]
+      ]) {
+        expect(red.has(`${Math.floor(tx)},${Math.floor(ty)}`), `${x},${y}`).toBe(true)
+      }
+      expect(Math.abs(x - cx) <= 1 && Math.abs(y - cy) <= 1, `${x},${y} on the pads`).toBe(false)
+    }
+  })
+
+  it('stacks diamonds past the ring back onto it, never anywhere else', () => {
+    const xmlRich = buildLobby(
+      preset,
+      { ...defaultLobby(preset.id), startingGold: LOBBY_DIAMOND_VALUE * preset.diamondSlots.length * 3 },
+      EXIT_TARGET
+    )
+    const placed = placementsIn(itemSection(xmlRich, 'items/valuable_diamond_red.xml')!)
+    expect(placed).toHaveLength(preset.diamondSlots.length * 3)
+    const ring = new Set(preset.diamondSlots.map(([x, y]) => `${x},${y}`))
+    for (const at of placed) expect(ring.has(at), at).toBe(true)
   })
 
   it('hides every wall piece, the plaza fence included', () => {
@@ -982,6 +1032,23 @@ describe('lobby — sky-shop', () => {
     for (const path of CLOUDS) expect(none).not.toContain(path)
   })
 })
+
+/**
+ * Every `bonus_5` floor tile in a level as `x,y`. Tilemap block (bx, by)
+ * covers tiles bx-10..bx+9 by by-10..by+9, row by row.
+ */
+function redTiles(xml: string): Set<string> {
+  const tiles = new Set<string>()
+  const blocks = xml.matchAll(
+    /<int name="x">(-?\d+)<\/int>\s*<int name="y">(-?\d+)<\/int>\s*<array name="datasets">\s*<dictionary>\s*<string name="tileset">tilemaps\/bonus_5\.xml<\/string>\s*<int-arr name="data-t">([^<]*)<\/int-arr>/g
+  )
+  for (const [, bx, by, data] of blocks) {
+    data.split(' ').forEach((v, i) => {
+      if (v !== '0') tiles.add(`${Number(bx) - 10 + (i % 20)},${Number(by) - 10 + Math.floor(i / 20)}`)
+    })
+  }
+  return tiles
+}
 
 /** One doodad's type and position, by id. */
 function doodadAt(xml: string, id: number): { type: string; x: number; y: number } {

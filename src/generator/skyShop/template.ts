@@ -8,8 +8,9 @@ import type { LobbyVendorIds } from '../lobby/template'
  *
  * The survival campaign's merchants guild: floating islands joined by glass
  * walkways over a scrolling cloud layer, cleaned into a lobby by the importer
- * (see its header). One arrival on a glass plaza, one teleport out, five
- * stalls; no music, title card or announcements of its own.
+ * (see its header). The islands sit round a red room, where the party
+ * arrives and every pickup lies; one teleport out, five stalls; no music,
+ * title card or announcements of its own.
  *
  * Treated as an opaque swappable template, exactly like the other rooms:
  * `buildLobby()` (`../lobby/build.ts`) rewrites vendor `cats`, badge
@@ -30,6 +31,28 @@ import type { UpgradeSlots } from '../levelTemplate/surgery'
 export const SKY_SHOP_TEMPLATE = `<dictionary>
 	<dictionary name="tilemap">
 		<array name="tiledata">
+			<dictionary>
+				<int name="x">0</int>
+				<int name="y">0</int>
+				<array name="datasets">
+					<dictionary>
+						<string name="tileset">tilemaps/bonus_5.xml</string>
+						<int-arr name="data-t">0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0</int-arr>
+						<int-arr name="data-a">0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0</int-arr>
+					</dictionary>
+				</array>
+			</dictionary>
+			<dictionary>
+				<int name="x">20</int>
+				<int name="y">0</int>
+				<array name="datasets">
+					<dictionary>
+						<string name="tileset">tilemaps/bonus_5.xml</string>
+						<int-arr name="data-t">0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0</int-arr>
+						<int-arr name="data-a">0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 255 255 255 255 255 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0</int-arr>
+					</dictionary>
+				</array>
+			</dictionary>
 		</array>
 	</dictionary>
 	<dictionary name="doodads">
@@ -37,1059 +60,998 @@ export const SKY_SHOP_TEMPLATE = `<dictionary>
 			<dictionary>
 				<int name="id">105641</int>
 				<string name="type">doodads/theme_b/b_ledge_dn.xml</string>
-				<vec2 name="pos">-14 -10.5</vec2>
+				<vec2 name="pos">8 -12</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
-				<int name="id">105363</int>
-				<string name="type">doodads/generic/exit_teleport_exit.xml</string>
-				<vec2 name="pos">-12.5 -1</vec2>
-				<bool name="need-sync">False</bool>
-			</dictionary>
-			<dictionary>
-				<int name="id">105439</int>
-				<string name="type">doodads/theme_f/f_special_cliff_v1.xml</string>
-				<vec2 name="pos">-13 -1.5</vec2>
+				<int name="id">105441</int>
+				<string name="type">doodads/generic/ground_glasswalk.xml</string>
+				<vec2 name="pos">16.5 2</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105444</int>
 				<string name="type">doodads/theme_f/f_special_cliff_v1.xml</string>
-				<vec2 name="pos">-17.5 -6</vec2>
+				<vec2 name="pos">-0.5 -2.5</vec2>
+				<bool name="need-sync">False</bool>
+			</dictionary>
+			<dictionary>
+				<int name="id">105445</int>
+				<string name="type">doodads/generic/ground_glasswalk.xml</string>
+				<vec2 name="pos">9 -5.5</vec2>
+				<bool name="need-sync">False</bool>
+			</dictionary>
+			<dictionary>
+				<int name="id">105446</int>
+				<string name="type">doodads/generic/ground_glasswalk.xml</string>
+				<vec2 name="pos">9 -6.5</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105447</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-13 -6</vec2>
+				<vec2 name="pos">9 -7.5</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105452</int>
 				<string name="type">doodads/theme_f/f_special_cliff_v1.xml</string>
-				<vec2 name="pos">-13 -8.5</vec2>
+				<vec2 name="pos">9 -10</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105302</int>
 				<string name="type">doodads/special/vendor_offense.xml</string>
-				<vec2 name="pos">-13 -8.625</vec2>
+				<vec2 name="pos">9 -10.125</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105307</int>
 				<string name="type">doodads/special/vendor_speech_offense.xml</string>
-				<vec2 name="pos">-12.75 -8.625</vec2>
+				<vec2 name="pos">9.25 -10.125</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105453</int>
 				<string name="type">doodads/generic/deco_vendor_carpet_1.xml</string>
-				<vec2 name="pos">-13.25 -8</vec2>
+				<vec2 name="pos">8.75 -9.5</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105456</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-13 1</vec2>
+				<vec2 name="pos">9 9.5</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105457</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-13 2</vec2>
+				<vec2 name="pos">9 10.5</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105458</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-13 3</vec2>
+				<vec2 name="pos">9 11.5</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105459</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-13 4</vec2>
+				<vec2 name="pos">9 12.5</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105460</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-14 4</vec2>
+				<vec2 name="pos">8 12.5</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105461</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-15 4</vec2>
+				<vec2 name="pos">7 12.5</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105465</int>
 				<string name="type">doodads/generic/deco_vendor_carpet_1.xml</string>
-				<vec2 name="pos">-17.625 4.5</vec2>
+				<vec2 name="pos">4.375 13</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105462</int>
 				<string name="type">doodads/theme_f/f_special_cliff_v1.xml</string>
-				<vec2 name="pos">-17.5 4</vec2>
+				<vec2 name="pos">4.5 12.5</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105300</int>
 				<string name="type">doodads/special/vendor_combo.xml</string>
-				<vec2 name="pos">-17.375 3.875</vec2>
+				<vec2 name="pos">4.625 12.375</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105304</int>
 				<string name="type">doodads/special/vendor_speech_defense.xml</string>
-				<vec2 name="pos">-17.125 3.875</vec2>
+				<vec2 name="pos">4.875 12.375</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105299</int>
 				<string name="type">doodads/special/vendor_defense.xml</string>
-				<vec2 name="pos">-17.375 -6.125</vec2>
+				<vec2 name="pos">-0.375 -2.625</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105303</int>
 				<string name="type">doodads/special/vendor_speech_combo.xml</string>
-				<vec2 name="pos">-17.125 -6.125</vec2>
+				<vec2 name="pos">-0.125 -2.625</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105466</int>
 				<string name="type">doodads/generic/deco_vendor_carpet_1.xml</string>
-				<vec2 name="pos">-17.625 -5.5</vec2>
+				<vec2 name="pos">-0.625 -2</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105467</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-15.5 -1.5</vec2>
+				<vec2 name="pos">1.5 2</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105468</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-16.5 -1.5</vec2>
+				<vec2 name="pos">0.5 2</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105469</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-17.5 -1.5</vec2>
+				<vec2 name="pos">-0.5 2</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105471</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-17.5 -2.5</vec2>
+				<vec2 name="pos">-0.5 1</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105472</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-17.5 -3.5</vec2>
+				<vec2 name="pos">-0.5 0</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105522</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-17.5 -0.5</vec2>
+				<vec2 name="pos">-0.5 3</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105523</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-18.5 -0.5</vec2>
+				<vec2 name="pos">-1.5 3</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105524</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-19.5 -0.5</vec2>
+				<vec2 name="pos">-2.5 3</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105525</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-20.5 -0.5</vec2>
+				<vec2 name="pos">-3.5 3</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105526</int>
 				<string name="type">doodads/theme_f/f_special_cliff_v1.xml</string>
-				<vec2 name="pos">-23 -0.5</vec2>
+				<vec2 name="pos">-6 3</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105529</int>
 				<string name="type">doodads/generic/deco_vendor_carpet_1.xml</string>
-				<vec2 name="pos">-23.125 0</vec2>
+				<vec2 name="pos">-6.125 3.5</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105557</int>
 				<string name="type">doodads/generic/deco_vendor_cart.xml</string>
-				<vec2 name="pos">-24.125 -0.375</vec2>
+				<vec2 name="pos">-7.125 3.125</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105563</int>
 				<string name="type">doodads/special/vendor_speech_power.xml</string>
-				<vec2 name="pos">-22.625 -0.625</vec2>
+				<vec2 name="pos">-5.625 2.875</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105565</int>
 				<string name="type">doodads/special/vendor_power.xml</string>
-				<vec2 name="pos">-22.875 -0.625</vec2>
+				<vec2 name="pos">-5.875 2.875</vec2>
 				<bool name="need-sync">False</bool>
+			</dictionary>
+			<dictionary>
+				<int name="id">105575</int>
+				<string name="type">doodads/theme_b/b_ledge_dn.xml</string>
+				<vec2 name="pos">16 1</vec2>
+				<bool name="need-sync">True</bool>
+			</dictionary>
+			<dictionary>
+				<int name="id">105590</int>
+				<string name="type">doodads/theme_b/b_ledge_dn.xml</string>
+				<vec2 name="pos">16 2.5</vec2>
+				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105592</int>
 				<string name="type">doodads/theme_b/b_ledge_dn.xml</string>
-				<vec2 name="pos">-21 -1.5</vec2>
+				<vec2 name="pos">-4 2</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105593</int>
 				<string name="type">doodads/theme_b/b_ledge_dn.xml</string>
-				<vec2 name="pos">-20 -1.5</vec2>
+				<vec2 name="pos">-3 2</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105594</int>
 				<string name="type">doodads/theme_b/b_ledge_dn.xml</string>
-				<vec2 name="pos">-17 -2.5</vec2>
+				<vec2 name="pos">0 1</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105595</int>
 				<string name="type">doodads/theme_b/b_ledge_dn.xml</string>
-				<vec2 name="pos">-15.5 3</vec2>
+				<vec2 name="pos">6.5 11.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105596</int>
 				<string name="type">doodads/theme_b/b_ledge_dn.xml</string>
-				<vec2 name="pos">-17 -1</vec2>
+				<vec2 name="pos">0 2.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105597</int>
 				<string name="type">doodads/theme_b/b_ledge_dn.xml</string>
-				<vec2 name="pos">-19 0</vec2>
+				<vec2 name="pos">-2 3.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105598</int>
 				<string name="type">doodads/theme_b/b_ledge_dn.xml</string>
-				<vec2 name="pos">-21 0</vec2>
+				<vec2 name="pos">-4 3.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105599</int>
 				<string name="type">doodads/theme_b/b_ledge_dn.xml</string>
-				<vec2 name="pos">-15.5 4.5</vec2>
+				<vec2 name="pos">6.5 13</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105600</int>
 				<string name="type">doodads/theme_b/b_ledge_dn.xml</string>
-				<vec2 name="pos">-14.5 4.5</vec2>
+				<vec2 name="pos">7.5 13</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105601</int>
 				<string name="type">doodads/theme_b/b_ledge_l.xml</string>
-				<vec2 name="pos">-17 -2</vec2>
+				<vec2 name="pos">0 1.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105602</int>
 				<string name="type">doodads/theme_b/b_ledge_l.xml</string>
-				<vec2 name="pos">-18.5 -2</vec2>
+				<vec2 name="pos">-1.5 1.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105603</int>
 				<string name="type">doodads/theme_b/b_ledge_l.xml</string>
-				<vec2 name="pos">-18.5 -1.5</vec2>
+				<vec2 name="pos">-1.5 2</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105604</int>
 				<string name="type">doodads/theme_b/b_ledge_l.xml</string>
-				<vec2 name="pos">-17 1</vec2>
+				<vec2 name="pos">0 4.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105605</int>
 				<string name="type">doodads/theme_b/b_ledge_l.xml</string>
-				<vec2 name="pos">-14 3</vec2>
+				<vec2 name="pos">8 11.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105606</int>
 				<string name="type">doodads/theme_b/b_ledge_l.xml</string>
-				<vec2 name="pos">-14 2.5</vec2>
+				<vec2 name="pos">8 11</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105607</int>
 				<string name="type">doodads/theme_b/b_ledge_l.xml</string>
-				<vec2 name="pos">-12.5 2.5</vec2>
+				<vec2 name="pos">9.5 11</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105608</int>
 				<string name="type">doodads/theme_b/b_ledge_l.xml</string>
-				<vec2 name="pos">-12.5 4.5</vec2>
+				<vec2 name="pos">9.5 13</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105609</int>
 				<string name="type">doodads/theme_b/b_ledge_l.xml</string>
-				<vec2 name="pos">-12.5 6.5</vec2>
+				<vec2 name="pos">9.5 15</vec2>
+				<bool name="need-sync">True</bool>
+			</dictionary>
+			<dictionary>
+				<int name="id">105610</int>
+				<string name="type">doodads/theme_b/b_ledge_l.xml</string>
+				<vec2 name="pos">9.5 -5</vec2>
+				<bool name="need-sync">True</bool>
+			</dictionary>
+			<dictionary>
+				<int name="id">105611</int>
+				<string name="type">doodads/theme_b/b_ledge_l.xml</string>
+				<vec2 name="pos">9.5 -6</vec2>
+				<bool name="need-sync">True</bool>
+			</dictionary>
+			<dictionary>
+				<int name="id">105612</int>
+				<string name="type">doodads/theme_b/b_ledge_l.xml</string>
+				<vec2 name="pos">8 -6</vec2>
+				<bool name="need-sync">True</bool>
+			</dictionary>
+			<dictionary>
+				<int name="id">105613</int>
+				<string name="type">doodads/theme_b/b_ledge_l.xml</string>
+				<vec2 name="pos">8 -5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105642</int>
 				<string name="type">doodads/theme_b/b_ledge_l.xml</string>
-				<vec2 name="pos">-11.25 -7.5</vec2>
+				<vec2 name="pos">10.75 -9</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105643</int>
 				<string name="type">doodads/theme_b/b_ledge_l.xml</string>
-				<vec2 name="pos">-15.25 -7.5</vec2>
+				<vec2 name="pos">6.75 -9</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105655</int>
 				<string name="type">doodads/theme_f/f_collision_round_l_dn.xml</string>
-				<vec2 name="pos">-15.25 -6.5</vec2>
+				<vec2 name="pos">6.75 -8</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105656</int>
 				<string name="type">doodads/theme_f/f_collision_round_r_dn.xml</string>
-				<vec2 name="pos">-12.75 -6.5</vec2>
+				<vec2 name="pos">9.25 -8</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105659</int>
 				<string name="type">doodads/theme_f/f_collision_round_r_up.xml</string>
-				<vec2 name="pos">-12.75 -8.5</vec2>
+				<vec2 name="pos">9.25 -10</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105660</int>
 				<string name="type">doodads/theme_f/f_collision_round_l_up.xml</string>
-				<vec2 name="pos">-15.25 -8.5</vec2>
+				<vec2 name="pos">6.75 -10</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105662</int>
 				<string name="type">doodads/theme_b/b_ledge_l.xml</string>
-				<vec2 name="pos">-15.75 -5</vec2>
+				<vec2 name="pos">1.25 -1.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105664</int>
 				<string name="type">doodads/theme_f/f_collision_round_l_dn.xml</string>
-				<vec2 name="pos">-19.75 -4</vec2>
+				<vec2 name="pos">-2.75 -0.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105665</int>
 				<string name="type">doodads/theme_f/f_collision_round_r_dn.xml</string>
-				<vec2 name="pos">-17.25 -4</vec2>
+				<vec2 name="pos">-0.25 -0.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105666</int>
 				<string name="type">doodads/theme_f/f_collision_round_r_up.xml</string>
-				<vec2 name="pos">-17.25 -6</vec2>
+				<vec2 name="pos">-0.25 -2.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105667</int>
 				<string name="type">doodads/theme_f/f_collision_round_l_up.xml</string>
-				<vec2 name="pos">-19.75 -6</vec2>
+				<vec2 name="pos">-2.75 -2.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105661</int>
 				<string name="type">doodads/theme_b/b_ledge_dn.xml</string>
-				<vec2 name="pos">-18.5 -8</vec2>
+				<vec2 name="pos">-1.5 -4.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105668</int>
 				<string name="type">doodads/theme_b/b_ledge_r.xml</string>
-				<vec2 name="pos">-19.75 -5</vec2>
+				<vec2 name="pos">-2.75 -1.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105670</int>
 				<string name="type">doodads/theme_f/f_collision_round_l_dn.xml</string>
-				<vec2 name="pos">-25.25 1.75</vec2>
+				<vec2 name="pos">-8.25 5.25</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105671</int>
 				<string name="type">doodads/theme_f/f_collision_round_r_dn.xml</string>
-				<vec2 name="pos">-23 1.75</vec2>
+				<vec2 name="pos">-6 5.25</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105672</int>
 				<string name="type">doodads/theme_f/f_collision_round_r_up.xml</string>
-				<vec2 name="pos">-23 -0.75</vec2>
+				<vec2 name="pos">-6 2.75</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105673</int>
 				<string name="type">doodads/theme_f/f_collision_round_l_up.xml</string>
-				<vec2 name="pos">-25.25 -0.75</vec2>
+				<vec2 name="pos">-8.25 2.75</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105674</int>
 				<string name="type">doodads/theme_b/b_ledge_dn.xml</string>
-				<vec2 name="pos">-24 -2.75</vec2>
+				<vec2 name="pos">-7 0.75</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105675</int>
 				<string name="type">doodads/theme_b/b_ledge_r.xml</string>
-				<vec2 name="pos">-25.25 0.5</vec2>
+				<vec2 name="pos">-8.25 4</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105676</int>
 				<string name="type">doodads/theme_b/b_ledge_up.xml</string>
-				<vec2 name="pos">-24 1.25</vec2>
+				<vec2 name="pos">-7 4.75</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105681</int>
 				<string name="type">doodads/theme_f/f_collision_round_l_dn.xml</string>
-				<vec2 name="pos">-19.75 6.25</vec2>
+				<vec2 name="pos">2.25 14.75</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105682</int>
 				<string name="type">doodads/theme_f/f_collision_round_r_dn.xml</string>
-				<vec2 name="pos">-17.5 6.25</vec2>
+				<vec2 name="pos">4.5 14.75</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105683</int>
 				<string name="type">doodads/theme_f/f_collision_round_r_up.xml</string>
-				<vec2 name="pos">-17.5 3.75</vec2>
+				<vec2 name="pos">4.5 12.25</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105684</int>
 				<string name="type">doodads/theme_f/f_collision_round_l_up.xml</string>
-				<vec2 name="pos">-19.75 3.75</vec2>
+				<vec2 name="pos">2.25 12.25</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105685</int>
 				<string name="type">doodads/theme_b/b_ledge_dn.xml</string>
-				<vec2 name="pos">-18.5 1.75</vec2>
+				<vec2 name="pos">3.5 10.25</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105686</int>
 				<string name="type">doodads/theme_b/b_ledge_r.xml</string>
-				<vec2 name="pos">-19.75 5</vec2>
+				<vec2 name="pos">2.25 13.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105687</int>
 				<string name="type">doodads/theme_b/b_ledge_up.xml</string>
-				<vec2 name="pos">-18.5 5.75</vec2>
+				<vec2 name="pos">3.5 14.25</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105688</int>
 				<string name="type">doodads/theme_f/f_collision_round_l_dn.xml</string>
-				<vec2 name="pos">-10.75 5.25</vec2>
+				<vec2 name="pos">16.25 8.75</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105691</int>
 				<string name="type">doodads/theme_b/b_ledge_r.xml</string>
-				<vec2 name="pos">-10.75 4.25</vec2>
+				<vec2 name="pos">16.25 7.75</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105692</int>
 				<string name="type">doodads/theme_f/f_collision_round_l_up.xml</string>
-				<vec2 name="pos">-10.75 3</vec2>
+				<vec2 name="pos">16.25 6.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105333</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-7.5 -1.5</vec2>
+				<vec2 name="pos">19.5 2</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105345</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-4.5 -2.5</vec2>
+				<vec2 name="pos">22.5 1</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105346</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-4.5 -3.5</vec2>
+				<vec2 name="pos">22.5 0</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105353</int>
 				<string name="type">doodads/generic/exit_teleport.xml</string>
-				<vec2 name="pos">-4.5 -6.375</vec2>
+				<vec2 name="pos">22.5 -2.875</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105354</int>
 				<string name="type">doodads/generic/exit_teleport_stand.xml</string>
-				<vec2 name="pos">-4.5 -6.375</vec2>
+				<vec2 name="pos">22.5 -2.875</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105362</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-4.5 -1.5</vec2>
+				<vec2 name="pos">22.5 2</vec2>
+				<bool name="need-sync">False</bool>
+			</dictionary>
+			<dictionary>
+				<int name="id">105427</int>
+				<string name="type">doodads/generic/ground_glasswalk.xml</string>
+				<vec2 name="pos">18.5 3</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105428</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-8.5 0.5</vec2>
+				<vec2 name="pos">18.5 4</vec2>
+				<bool name="need-sync">False</bool>
+			</dictionary>
+			<dictionary>
+				<int name="id">105318</int>
+				<string name="type">doodads/generic/ground_glasswalk.xml</string>
+				<vec2 name="pos">18.5 2</vec2>
+				<bool name="need-sync">False</bool>
+			</dictionary>
+			<dictionary>
+				<int name="id">105440</int>
+				<string name="type">doodads/generic/ground_glasswalk.xml</string>
+				<vec2 name="pos">17.5 2</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105442</int>
 				<string name="type">doodads/theme_f/f_special_cliff_v1.xml</string>
-				<vec2 name="pos">-8.5 3</vec2>
+				<vec2 name="pos">18.5 6.5</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105443</int>
 				<string name="type">doodads/theme_f/f_special_cliff_v1.xml</string>
-				<vec2 name="pos">-4.5 -6</vec2>
+				<vec2 name="pos">22.5 -2.5</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105301</int>
 				<string name="type">doodads/special/vendor_misc.xml</string>
-				<vec2 name="pos">-8.375 3</vec2>
+				<vec2 name="pos">18.625 6.5</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105306</int>
 				<string name="type">doodads/special/vendor_speech_misc.xml</string>
-				<vec2 name="pos">-8.125 3</vec2>
+				<vec2 name="pos">18.875 6.5</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105454</int>
 				<string name="type">doodads/generic/deco_vendor_carpet_1.xml</string>
-				<vec2 name="pos">-8.625 3.5</vec2>
+				<vec2 name="pos">18.375 7</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105544</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-6.5 -1.5</vec2>
+				<vec2 name="pos">20.5 2</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105545</int>
 				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-5.5 -1.5</vec2>
+				<vec2 name="pos">21.5 2</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105558</int>
 				<string name="type">doodads/generic/deco_vendor_cart.xml</string>
-				<vec2 name="pos">-9 4.375</vec2>
+				<vec2 name="pos">18 7.875</vec2>
 				<bool name="need-sync">False</bool>
+			</dictionary>
+			<dictionary>
+				<int name="id">105576</int>
+				<string name="type">doodads/theme_b/b_ledge_dn.xml</string>
+				<vec2 name="pos">18 1</vec2>
+				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105577</int>
 				<string name="type">doodads/theme_b/b_ledge_dn.xml</string>
-				<vec2 name="pos">-7 -2.5</vec2>
+				<vec2 name="pos">20 1</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105578</int>
 				<string name="type">doodads/theme_b/b_ledge_l.xml</string>
-				<vec2 name="pos">-4 -2</vec2>
+				<vec2 name="pos">23 1.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105580</int>
 				<string name="type">doodads/theme_b/b_ledge_r_v2.xml</string>
-				<vec2 name="pos">-5.5 -3</vec2>
+				<vec2 name="pos">21.5 0.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105581</int>
 				<string name="type">doodads/theme_b/b_ledge_r_v2.xml</string>
-				<vec2 name="pos">-5.5 -2.5</vec2>
+				<vec2 name="pos">21.5 1</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105585</int>
 				<string name="type">doodads/theme_b/b_ledge_dn.xml</string>
-				<vec2 name="pos">-8 -1</vec2>
+				<vec2 name="pos">19 2.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105586</int>
 				<string name="type">doodads/theme_b/b_ledge_dn.xml</string>
-				<vec2 name="pos">-6 -1</vec2>
+				<vec2 name="pos">21 2.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105587</int>
 				<string name="type">doodads/theme_b/b_ledge_l.xml</string>
-				<vec2 name="pos">-4 0</vec2>
+				<vec2 name="pos">23 3.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105588</int>
 				<string name="type">doodads/theme_b/b_ledge_l.xml</string>
-				<vec2 name="pos">-8 1</vec2>
+				<vec2 name="pos">19 4.5</vec2>
+				<bool name="need-sync">True</bool>
+			</dictionary>
+			<dictionary>
+				<int name="id">105589</int>
+				<string name="type">doodads/theme_b/b_ledge_r.xml</string>
+				<vec2 name="pos">17.5 4.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105689</int>
 				<string name="type">doodads/theme_f/f_collision_round_r_dn.xml</string>
-				<vec2 name="pos">-8.25 5.25</vec2>
+				<vec2 name="pos">18.75 8.75</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105690</int>
 				<string name="type">doodads/theme_b/b_ledge_up.xml</string>
-				<vec2 name="pos">-9.5 4.75</vec2>
+				<vec2 name="pos">17.5 8.25</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105693</int>
 				<string name="type">doodads/theme_f/f_collision_round_r_up.xml</string>
-				<vec2 name="pos">-8.25 3</vec2>
+				<vec2 name="pos">18.75 6.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105694</int>
 				<string name="type">doodads/theme_b/b_ledge_l.xml</string>
-				<vec2 name="pos">-6.75 4.25</vec2>
+				<vec2 name="pos">20.25 7.75</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105695</int>
 				<string name="type">doodads/theme_b/b_ledge_l.xml</string>
-				<vec2 name="pos">-2.75 -5</vec2>
+				<vec2 name="pos">24.25 -1.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105697</int>
 				<string name="type">doodads/theme_f/f_collision_round_r_dn.xml</string>
-				<vec2 name="pos">-4.25 -4</vec2>
+				<vec2 name="pos">22.75 -0.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105698</int>
 				<string name="type">doodads/theme_f/f_collision_round_r_up.xml</string>
-				<vec2 name="pos">-4.25 -6</vec2>
+				<vec2 name="pos">22.75 -2.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105700</int>
 				<string name="type">doodads/theme_b/b_ledge_dn.xml</string>
-				<vec2 name="pos">-5.5 -8</vec2>
+				<vec2 name="pos">21.5 -4.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105696</int>
 				<string name="type">doodads/theme_f/f_collision_round_l_dn.xml</string>
-				<vec2 name="pos">-6.75 -4</vec2>
+				<vec2 name="pos">20.25 -0.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105699</int>
 				<string name="type">doodads/theme_f/f_collision_round_l_up.xml</string>
-				<vec2 name="pos">-6.75 -6</vec2>
+				<vec2 name="pos">20.25 -2.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105701</int>
 				<string name="type">doodads/theme_b/b_ledge_r.xml</string>
-				<vec2 name="pos">-6.75 -5</vec2>
+				<vec2 name="pos">20.25 -1.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105707</int>
 				<string name="type">doodads/special/vendor_speech_level5.xml</string>
-				<vec2 name="pos">-13 -8.625</vec2>
+				<vec2 name="pos">9 -10.125</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105708</int>
 				<string name="type">doodads/special/vendor_speech_level5.xml</string>
-				<vec2 name="pos">-17.375 -6.125</vec2>
+				<vec2 name="pos">-0.375 -2.625</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105709</int>
 				<string name="type">doodads/special/vendor_speech_level5.xml</string>
-				<vec2 name="pos">-17.375 3.875</vec2>
+				<vec2 name="pos">4.625 12.375</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105710</int>
 				<string name="type">doodads/special/vendor_speech_level5.xml</string>
-				<vec2 name="pos">-8.375 3</vec2>
+				<vec2 name="pos">18.625 6.5</vec2>
 				<bool name="need-sync">True</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105711</int>
-				<string name="type">doodads/theme_b/b_ledge_l_v2.xml</string>
-				<vec2 name="pos">-12.5 -5.5</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_crn_l_up.xml</string>
+				<vec2 name="pos">2 -5</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105712</int>
-				<string name="type">doodads/theme_b/b_ledge_l_v2.xml</string>
-				<vec2 name="pos">-14 -5.5</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_crn_r_up.xml</string>
+				<vec2 name="pos">15 -5</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105713</int>
-				<string name="type">doodads/theme_b/b_ledge_dn_v2.xml</string>
-				<vec2 name="pos">-8 -2.5</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_h_16.xml</string>
+				<vec2 name="pos">3 -5</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105714</int>
-				<string name="type">doodads/theme_b/b_ledge_r_v2.xml</string>
-				<vec2 name="pos">-9.5 1.5</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_h_16.xml</string>
+				<vec2 name="pos">5 -5</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105715</int>
-				<string name="type">doodads/theme_b/b_ledge_dn_v2.xml</string>
-				<vec2 name="pos">-15.25 -6</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_h_cap_l.xml</string>
+				<vec2 name="pos">7 -5</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105716</int>
-				<string name="type">doodads/theme_b/b_ledge_dn_v2.xml</string>
-				<vec2 name="pos">-15 -6</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_h_cap_r.xml</string>
+				<vec2 name="pos">10 -5</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105717</int>
-				<string name="type">doodads/theme_b/b_ledge_dn_v2.xml</string>
-				<vec2 name="pos">-12 -6</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_h_16.xml</string>
+				<vec2 name="pos">11 -5</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105718</int>
-				<string name="type">doodads/theme_b/b_ledge_dn_v2.xml</string>
-				<vec2 name="pos">-11 -6</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_h_16.xml</string>
+				<vec2 name="pos">13 -5</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105719</int>
-				<string name="type">doodads/theme_b/b_ledge_dn_v2.xml</string>
-				<vec2 name="pos">-10 -6</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_crn_l_dn.xml</string>
+				<vec2 name="pos">2 8</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105720</int>
-				<string name="type">doodads/theme_b/b_ledge_dn_v2.xml</string>
-				<vec2 name="pos">-9 -6</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_crn_r_dn.xml</string>
+				<vec2 name="pos">15 8</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105721</int>
-				<string name="type">doodads/theme_b/b_ledge_dn_v2.xml</string>
-				<vec2 name="pos">-8.5 -6</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_h_16.xml</string>
+				<vec2 name="pos">3 8</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105722</int>
-				<string name="type">doodads/theme_b/b_ledge_dn_v2.xml</string>
-				<vec2 name="pos">-15.5 0.5</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_h_16.xml</string>
+				<vec2 name="pos">5 8</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105723</int>
-				<string name="type">doodads/theme_b/b_ledge_dn_v2.xml</string>
-				<vec2 name="pos">-15 0.5</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_h_cap_l.xml</string>
+				<vec2 name="pos">7 8</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105724</int>
-				<string name="type">doodads/theme_b/b_ledge_dn_v2.xml</string>
-				<vec2 name="pos">-12 0.5</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_h_cap_r.xml</string>
+				<vec2 name="pos">10 8</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105725</int>
-				<string name="type">doodads/theme_b/b_ledge_dn_v2.xml</string>
-				<vec2 name="pos">-11 0.5</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_h_16.xml</string>
+				<vec2 name="pos">11 8</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105726</int>
-				<string name="type">doodads/theme_b/b_ledge_dn_v2.xml</string>
-				<vec2 name="pos">-10.5 0.5</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_h_16.xml</string>
+				<vec2 name="pos">13 8</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105727</int>
-				<string name="type">doodads/theme_b/b_ledge_l_v2.xml</string>
-				<vec2 name="pos">-15.5 -4.5</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_v_16.xml</string>
+				<vec2 name="pos">2 -4</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105728</int>
-				<string name="type">doodads/theme_b/b_ledge_l_v2.xml</string>
-				<vec2 name="pos">-15.5 -3.5</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_v_16.xml</string>
+				<vec2 name="pos">2 -2</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105729</int>
-				<string name="type">doodads/theme_b/b_ledge_l_v2.xml</string>
-				<vec2 name="pos">-15.5 -2.5</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_v_cap_up.xml</string>
+				<vec2 name="pos">2 0</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105730</int>
-				<string name="type">doodads/theme_b/b_ledge_l_v2.xml</string>
-				<vec2 name="pos">-15.5 0.5</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_v_cap_dn.xml</string>
+				<vec2 name="pos">2 3</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105731</int>
-				<string name="type">doodads/theme_b/b_ledge_l_v2.xml</string>
-				<vec2 name="pos">-8 -4.5</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_v_16.xml</string>
+				<vec2 name="pos">2 4</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105732</int>
-				<string name="type">doodads/theme_b/b_ledge_l_v2.xml</string>
-				<vec2 name="pos">-8 -3.5</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_v_16.xml</string>
+				<vec2 name="pos">2 6</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105733</int>
-				<string name="type">doodads/theme_b/b_ledge_l_v2.xml</string>
-				<vec2 name="pos">-8 -2.5</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_v_16.xml</string>
+				<vec2 name="pos">15 -4</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105734</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-14.5 -5</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_v_16.xml</string>
+				<vec2 name="pos">15 -2</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105735</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-14.5 -4</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_v_cap_up.xml</string>
+				<vec2 name="pos">15 0</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105736</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-14.5 -3</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_v_cap_dn.xml</string>
+				<vec2 name="pos">15 3</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105737</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-14.5 -2</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_v_16.xml</string>
+				<vec2 name="pos">15 4</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105738</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-14.5 -1</vec2>
+				<string name="type">doodads/theme_bonus5/bonus5_v_16.xml</string>
+				<vec2 name="pos">15 6</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105739</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-14.5 0</vec2>
+				<string name="type">doodads/special/bonus_teleport.xml</string>
+				<vec2 name="pos">8 1</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105740</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-13.5 -5</vec2>
+				<string name="type">doodads/special/bonus_teleport.xml</string>
+				<vec2 name="pos">9 1</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105741</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-13.5 -4</vec2>
+				<string name="type">doodads/special/bonus_teleport.xml</string>
+				<vec2 name="pos">8 2</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">105742</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-13.5 -3</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105743</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-13.5 -2</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105744</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-13.5 -1</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105745</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-13.5 0</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105746</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-12.5 -5</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105747</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-12.5 -4</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105748</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-12.5 -3</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105749</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-12.5 -2</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105750</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-12.5 -1</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105751</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-12.5 0</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105752</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-11.5 -5</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105753</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-11.5 -4</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105754</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-11.5 -3</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105755</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-11.5 -2</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105756</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-11.5 -1</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105757</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-11.5 0</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105758</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-10.5 -5</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105759</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-10.5 -4</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105760</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-10.5 -3</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105761</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-10.5 -2</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105762</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-10.5 -1</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105763</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-10.5 0</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105764</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-9.5 -5</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105765</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-9.5 -4</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105766</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-9.5 -3</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105767</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-9.5 -2</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105768</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-9.5 -1</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105769</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-9.5 0</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105770</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-8.5 -5</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105771</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-8.5 -4</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105772</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-8.5 -3</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105773</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-8.5 -2</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105774</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-8.5 -1</vec2>
-			</dictionary>
-			<dictionary>
-				<int name="id">105775</int>
-				<string name="type">doodads/generic/ground_glasswalk.xml</string>
-				<vec2 name="pos">-8.5 0</vec2>
+				<string name="type">doodads/special/bonus_teleport.xml</string>
+				<vec2 name="pos">9 2</vec2>
+				<bool name="need-sync">False</bool>
 			</dictionary>
 		</array>
 	</dictionary>
@@ -1114,7 +1076,7 @@ export const SKY_SHOP_TEMPLATE = `<dictionary>
 				<string name="type">ShopArea</string>
 				<bool name="enabled">True</bool>
 				<int name="trigger-times">-1</int>
-				<vec2 name="pos">-13 -11.875</vec2>
+				<vec2 name="pos">9 -13.375</vec2>
 				<dictionary name="parameters">
 					<string name="cats">off1 off2 off3 off4 off5</string>
 					<dictionary name="shape">
@@ -1127,7 +1089,7 @@ export const SKY_SHOP_TEMPLATE = `<dictionary>
 				<string name="type">LevelExitArea</string>
 				<bool name="enabled">True</bool>
 				<int name="trigger-times">-1</int>
-				<vec2 name="pos">-4.5 -11</vec2>
+				<vec2 name="pos">22.5 -7.5</vec2>
 				<dictionary name="parameters">
 					<string name="level">0</string>
 					<int name="start id">0</int>
@@ -1141,7 +1103,7 @@ export const SKY_SHOP_TEMPLATE = `<dictionary>
 				<string name="type">LevelStart</string>
 				<bool name="enabled">True</bool>
 				<int name="trigger-times">-1</int>
-				<vec2 name="pos">-13 -1.5</vec2>
+				<vec2 name="pos">9 2</vec2>
 				<dictionary name="parameters">
 					<int name="id">0</int>
 					<int name="dir">2</int>
@@ -1168,7 +1130,7 @@ export const SKY_SHOP_TEMPLATE = `<dictionary>
 				<string name="type">CircleShape</string>
 				<bool name="enabled">True</bool>
 				<int name="trigger-times">-1</int>
-				<vec2 name="pos">-17.375 4</vec2>
+				<vec2 name="pos">4.625 12.5</vec2>
 				<dictionary name="parameters">
 					<float name="diameter">2</float>
 					<int name="types">15</int>
@@ -1179,7 +1141,7 @@ export const SKY_SHOP_TEMPLATE = `<dictionary>
 				<string name="type">CircleShape</string>
 				<bool name="enabled">True</bool>
 				<int name="trigger-times">-1</int>
-				<vec2 name="pos">-13 -8.5</vec2>
+				<vec2 name="pos">9 -10</vec2>
 				<dictionary name="parameters">
 					<float name="diameter">2</float>
 					<int name="types">15</int>
@@ -1190,7 +1152,7 @@ export const SKY_SHOP_TEMPLATE = `<dictionary>
 				<string name="type">ShopArea</string>
 				<bool name="enabled">True</bool>
 				<int name="trigger-times">-1</int>
-				<vec2 name="pos">-26.375 -0.5</vec2>
+				<vec2 name="pos">-9.375 3</vec2>
 				<dictionary name="parameters">
 					<string name="cats">power</string>
 					<dictionary name="shape">
@@ -1203,7 +1165,7 @@ export const SKY_SHOP_TEMPLATE = `<dictionary>
 				<string name="type">CircleShape</string>
 				<bool name="enabled">True</bool>
 				<int name="trigger-times">-1</int>
-				<vec2 name="pos">-23 -0.5</vec2>
+				<vec2 name="pos">-6 3</vec2>
 				<dictionary name="parameters">
 					<float name="diameter">2</float>
 					<int name="types">15</int>
@@ -1214,7 +1176,7 @@ export const SKY_SHOP_TEMPLATE = `<dictionary>
 				<string name="type">ShopArea</string>
 				<bool name="enabled">True</bool>
 				<int name="trigger-times">-1</int>
-				<vec2 name="pos">-17.5 7.875</vec2>
+				<vec2 name="pos">4.5 16.375</vec2>
 				<dictionary name="parameters">
 					<string name="cats">def1 def2 def3 def4 def5</string>
 					<dictionary name="shape">
@@ -1227,7 +1189,7 @@ export const SKY_SHOP_TEMPLATE = `<dictionary>
 				<string name="type">CircleShape</string>
 				<bool name="enabled">True</bool>
 				<int name="trigger-times">-1</int>
-				<vec2 name="pos">-17.375 -6</vec2>
+				<vec2 name="pos">-0.375 -2.5</vec2>
 				<dictionary name="parameters">
 					<float name="diameter">2</float>
 					<int name="types">15</int>
@@ -1238,7 +1200,7 @@ export const SKY_SHOP_TEMPLATE = `<dictionary>
 				<string name="type">ShopArea</string>
 				<bool name="enabled">True</bool>
 				<int name="trigger-times">-1</int>
-				<vec2 name="pos">-17.375 -9.375</vec2>
+				<vec2 name="pos">-0.375 -5.875</vec2>
 				<dictionary name="parameters">
 					<string name="cats">combo1 combo2 combo3 combo4 combo5</string>
 					<dictionary name="shape">
@@ -1251,7 +1213,7 @@ export const SKY_SHOP_TEMPLATE = `<dictionary>
 				<string name="type">RectangleShape</string>
 				<bool name="enabled">True</bool>
 				<int name="trigger-times">-1</int>
-				<vec2 name="pos">-4.5 -6</vec2>
+				<vec2 name="pos">22.5 -2.5</vec2>
 				<dictionary name="parameters">
 					<float name="w">3</float>
 					<float name="h">3</float>
@@ -1267,7 +1229,7 @@ export const SKY_SHOP_TEMPLATE = `<dictionary>
 				<dictionary name="parameters">
 					<int name="state">1</int>
 					<dictionary name="element">
-						<int-arr name="static">105581 105580 105577 105578 105588 105585 105586 105587 105602 105593 105602 105603 105592 105594 105601 105596 105604 105597 105598 105595 105605 105606 105607 105608 105609 105600 105599 105643 105641 105642 105655 105660 105659 105656 105662 105666 105667 105664 105665 105661 105668 105672 105673 105670 105671 105676 105675 105674 105683 105684 105681 105682 105687 105686 105685 105693 105689 105688 105692 105694 105690 105691 105697 105695 105698 105699 105701 105700 105696 105711 105712 105713 105714 105715 105716 105717 105718 105719 105720 105721 105722 105723 105724 105725 105726 105727 105728 105729 105730 105731 105732 105733</int-arr>
+						<int-arr name="static">105581 105580 105577 105576 105575 105578 105590 105589 105588 105585 105586 105587 105602 105593 105602 105603 105592 105594 105601 105596 105604 105597 105598 105595 105605 105606 105607 105608 105609 105600 105599 105611 105610 105613 105612 105643 105641 105642 105655 105660 105659 105656 105662 105666 105667 105664 105665 105661 105668 105672 105673 105670 105671 105676 105675 105674 105683 105684 105681 105682 105687 105686 105685 105693 105689 105688 105692 105694 105690 105691 105697 105695 105698 105699 105701 105700 105696</int-arr>
 					</dictionary>
 				</dictionary>
 			</dictionary>
@@ -1276,7 +1238,7 @@ export const SKY_SHOP_TEMPLATE = `<dictionary>
 				<string name="type">ShopArea</string>
 				<bool name="enabled">True</bool>
 				<int name="trigger-times">-1</int>
-				<vec2 name="pos">-5.25 3.125</vec2>
+				<vec2 name="pos">21.75 6.625</vec2>
 				<dictionary name="parameters">
 					<string name="cats">misc1 misc2 misc3 misc4 misc5</string>
 					<dictionary name="shape">
@@ -1289,7 +1251,7 @@ export const SKY_SHOP_TEMPLATE = `<dictionary>
 				<string name="type">CircleShape</string>
 				<bool name="enabled">True</bool>
 				<int name="trigger-times">-1</int>
-				<vec2 name="pos">-8.375 3.125</vec2>
+				<vec2 name="pos">18.625 6.625</vec2>
 				<dictionary name="parameters">
 					<float name="diameter">2</float>
 					<int name="types">15</int>
@@ -1301,8 +1263,8 @@ export const SKY_SHOP_TEMPLATE = `<dictionary>
 		<array name="lights">
 			<dictionary>
 				<int name="id">105550</int>
-				<float name="x">-11.375</float>
-				<float name="y">-12</float>
+				<float name="x">10.625</float>
+				<float name="y">-13.5</float>
 				<dictionary name="mulColor1">
 					<int name="r">250</int>
 					<int name="g">217</int>
@@ -1344,8 +1306,8 @@ export const SKY_SHOP_TEMPLATE = `<dictionary>
 			</dictionary>
 			<dictionary>
 				<int name="id">105548</int>
-				<float name="x">-21.375</float>
-				<float name="y">-2.875</float>
+				<float name="x">-4.375</float>
+				<float name="y">0.625</float>
 				<dictionary name="mulColor1">
 					<int name="r">250</int>
 					<int name="g">217</int>
@@ -1387,8 +1349,8 @@ export const SKY_SHOP_TEMPLATE = `<dictionary>
 			</dictionary>
 			<dictionary>
 				<int name="id">105546</int>
-				<float name="x">-4.5</float>
-				<float name="y">-7.125</float>
+				<float name="x">22.5</float>
+				<float name="y">-3.625</float>
 				<dictionary name="mulColor1">
 					<int name="r">12</int>
 					<int name="g">90</int>
@@ -1430,8 +1392,8 @@ export const SKY_SHOP_TEMPLATE = `<dictionary>
 			</dictionary>
 			<dictionary>
 				<int name="id">105549</int>
-				<float name="x">-9.875</float>
-				<float name="y">6</float>
+				<float name="x">17.125</float>
+				<float name="y">9.5</float>
 				<dictionary name="mulColor1">
 					<int name="r">250</int>
 					<int name="g">217</int>
@@ -1510,22 +1472,27 @@ export const SKY_SHOP_EXIT_NODE_ID = 105552
 export const SKY_SHOP_PORTAL_DOODAD_ID = 105353
 
 /**
- * Where the red diamonds go, in template order — the plaza's tiles nearest
- * the arrival, each checked reachable by the importer's flood fill.
+ * Where the red diamonds go, in fill order — the ring round the arrival in the
+ * red room, each checked on the room's floor and reachable by the importer's
+ * flood fill. More diamonds than slots stack on them from the first again.
  */
 export const SKY_SHOP_DIAMOND_SLOTS: ReadonlyArray<readonly [number, number]> = [
-  [-14.5, -3],
-  [-13.5, -3],
-  [-12.5, -3],
-  [-11.5, -3],
-  [-14.5, -2],
-  [-11.5, -2],
-  [-14.5, -1],
-  [-11.5, -1],
-  [-14.5, 0],
-  [-13.5, 0],
-  [-12.5, 0],
-  [-11.5, 0]
+  [7, 3],
+  [7, 4],
+  [8, 4],
+  [9, 4],
+  [10, 4],
+  [11, 4],
+  [11, 3],
+  [11, 2],
+  [11, 1],
+  [11, 0],
+  [10, 0],
+  [9, 0],
+  [8, 0],
+  [7, 0],
+  [7, 1],
+  [7, 2]
 ]
 
 /** First of the four ids the arrival-respawn rig allocates; above every template id. */
@@ -1537,16 +1504,16 @@ export const SKY_SHOP_MUSIC_ID_BASE = 106600
 /** First id buildLobby hands to a diamond. */
 export const SKY_SHOP_ITEM_ID_BASE = 107000
 
-/** Where each free upgrade pickup goes — one slot per kind, picked like the diamond slots. */
+/** Where each free upgrade pickup goes — one slot per kind, in the red room north of the diamonds. */
 export const SKY_SHOP_UPGRADE_SLOTS: UpgradeSlots = {
-  damage: [-13.5, -4],
-  defense: [-12.5, -4],
-  health: [-10.5, -2],
-  mana: [-10.5, -1],
-  damage2: [-14.5, -4],
-  defense2: [-11.5, -4],
-  health2: [-10.5, -3],
-  mana2: [-10.5, 0]
+  damage: [7, -2],
+  defense: [8, -2],
+  health: [9, -2],
+  mana: [10, -2],
+  damage2: [7, -1],
+  defense2: [8, -1],
+  health2: [9, -1],
+  mana2: [10, -1]
 }
 
 /** First id buildLobby hands to a free upgrade; directly above the diamonds' whole range. */
