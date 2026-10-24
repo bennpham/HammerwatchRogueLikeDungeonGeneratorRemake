@@ -18,8 +18,7 @@
  * The third room, the Temple of the Sun bazaar (`../sunBazaar/template.ts`,
  * written by `scripts/import-sun-bazaar.mjs`), is not hand-authored: it is the
  * TotS campaign's own hub read out of `campaign2.hwm` and cleaned into a
- * lobby. It is never the default — `DEFAULT_LOBBY_PRESET_ID` and every preset
- * still pick the dungeon-prep or boss-prep room.
+ * lobby. It is never the default and no preset uses it.
  *
  * The fourth, the Castle Hammerwatch bridge (`../castleBridge/template.ts`,
  * written by `scripts/import-castle-bridge.mjs`), is the same idea applied to
@@ -30,6 +29,13 @@
  * `scripts/import-sky-shop.mjs`), is the survival campaign's summit shop read
  * out of `survival.hwm` the same way. It ships the cloud layer that only that
  * campaign carries. Also opt-in only.
+ *
+ * The sixth, the House (`../house/`, written by `scripts/import-house.mjs`),
+ * is the user's own editor level: the Anniversary Edition house lobby
+ * converted to Hammerwatch 1 and reworked by hand. It IS the default — every
+ * lobby a campaign gets without naming a room, and every lobby in
+ * `defaultParameters()` and the castle/desert/bonus and Claude presets.
+ * It ships the AE furniture and the user's grass and dead tree.
  */
 import {
   LOBBY_DIAMOND_SLOTS,
@@ -88,6 +94,19 @@ import {
   SKY_SHOP_UPGRADE_SLOTS
 } from '../skyShop/template'
 import { SKY_SHOP_ASSETS } from '../skyShop/assets'
+import {
+  HOUSE_DIAMOND_SLOTS,
+  HOUSE_EXIT_NODE_ID,
+  HOUSE_ITEM_ID_BASE,
+  HOUSE_MUSIC_ID_BASE,
+  HOUSE_PORTAL_DOODAD_ID,
+  HOUSE_RESPAWN_ID_BASE,
+  HOUSE_TEMPLATE,
+  HOUSE_TEMPLATE_IDS,
+  HOUSE_UPGRADE_ID_BASE,
+  HOUSE_UPGRADE_SLOTS
+} from '../house/template'
+import { HOUSE_ASSETS } from '../house/assets'
 import type { UpgradeSlots } from '../levelTemplate/surgery'
 import type { GeneratedFile } from '../index'
 
@@ -142,6 +161,25 @@ export interface LobbyPresetDef {
  * lobby slot is actually built from.
  */
 export const LOBBY_PRESETS: readonly LobbyPresetDef[] = [
+  {
+    id: 'house',
+    label: 'House',
+    description:
+      'A manor house after the Anniversary Edition lobby: bedrooms, a library, a dining hall with every vendor, and a lawn. Leave through the teleport in the north-west room.',
+    surgeryLabel: 'house',
+    template: HOUSE_TEMPLATE,
+    templateIds: HOUSE_TEMPLATE_IDS,
+    exitNodeId: HOUSE_EXIT_NODE_ID,
+    diamondSlots: HOUSE_DIAMOND_SLOTS,
+    upgradeSlots: HOUSE_UPGRADE_SLOTS,
+    itemIdBase: HOUSE_ITEM_ID_BASE,
+    upgradeIdBase: HOUSE_UPGRADE_ID_BASE,
+    respawnIdBase: HOUSE_RESPAWN_ID_BASE,
+    musicIdBase: HOUSE_MUSIC_ID_BASE,
+    // the AE furniture, the user's grass tileset and dead tree
+    assets: HOUSE_ASSETS,
+    portalDoodadId: HOUSE_PORTAL_DOODAD_ID
+  },
   {
     id: 'BETA-dungeon-prep',
     label: 'BETA Dungeon prep',
@@ -245,7 +283,7 @@ export const LOBBY_PRESETS: readonly LobbyPresetDef[] = [
 ]
 
 /** The preset a freshly-added lobby starts on. */
-export const DEFAULT_LOBBY_PRESET_ID = 'BETA-dungeon-prep'
+export const DEFAULT_LOBBY_PRESET_ID = 'house'
 
 export function lobbyPresetById(id: string): LobbyPresetDef | undefined {
   return LOBBY_PRESETS.find((p) => p.id === id)

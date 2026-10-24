@@ -508,8 +508,8 @@ const CLASSIC_PRESETS: readonly CampaignPreset[] = [
       ...desertMystery(),
       boss: withBoss('i_mixed', ['boss_anubis', 'boss_worm'], desertWaves()),
       lobbies: [
-        { ...defaultLobby('BETA-dungeon-prep'), music: 'desert_village' },
-        { ...defaultLobby('BETA-boss-prep'), music: 'boss_1' }
+        { ...defaultLobby('house'), music: 'desert_village' },
+        { ...defaultLobby('house'), startingGold: 20000, music: 'boss_1' }
       ],
       monsterMax: {
         ...defaultParameters().monsterMax,
@@ -631,9 +631,9 @@ const CLASSIC_PRESETS: readonly CampaignPreset[] = [
         bonusWaves()
       ),
       lobbies: [
-        { ...defaultLobby('BETA-dungeon-prep'), music: 'custom_1' },
+        { ...defaultLobby('house'), music: 'custom_1' },
         {
-          ...defaultLobby('BETA-boss-prep'),
+          ...defaultLobby('house'),
           music: 'custom_2',
           startingGold: 25000,
           upgrades: oneOfEachUpgrade()

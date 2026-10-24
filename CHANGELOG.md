@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **House lobby, now the default room.** A sixth lobby room, "House" (`house` in parameters.txt), at the top of the Lobby tab's preset dropdown. It is the Anniversary Edition house lobby rebuilt for Hammerwatch: bedrooms, a library, a dining hall with all five vendors, and a lawn.
+  - **It is now the default.** New lobbies start as the House, and so do both lobbies of the stock campaign and of the Castle, Desert, Bonus and Claude Generated presets. Each pre-boss lobby keeps its 20 000 gold. Survival in Colosseum and Pre-Alpha are unchanged. The BETA rooms are still in the dropdown.
+  - The party arrives in the hall west of the bedrooms and leaves through the teleport in the north-west room. The teleport is red when the lobby leads into a boss fight and blue otherwise.
+  - Starting gold lies in the diamond zone along the top of the library, and nowhere else. More diamonds than the zone holds stack on the same spots. Free upgrades lie on the row in front of the vendors, one spot per kind.
+  - The AE furniture (altars, fireplace, stoves, shelves, beds, wardrobes, tables, chairs, fences, target dummies) now draws over the castle walls instead of disappearing behind them. The candles draw over the roof, so the ones along the dining hall's east edge show. The rugs stay under everyone's feet.
+  - The vendors now have speech bubbles and tier badges, like the other rooms.
+  - The lawn uses your own grass and dead trees. A campaign that uses the House ships the furniture, grass and tree art it needs (62 small files) and nothing else from the source folder.
+  - `scripts/import-house.mjs` regenerates it from the editor level `editor/lobby/lobby.xml`. The castle-bridge importer's room-closure check now lives in `scripts/lib/hwLevel.mjs`, shared by both, and its output is unchanged.
+
 - **Temple of the Sun bazaar lobby.** A third room in the Lobby tab's preset dropdown, "Temple of the Sun bazaar" (`sun-bazaar` in parameters.txt). It is the Temple of the Sun campaign's own desert village with all five vendors stocked.
   - The party arrives in the village square. The way out is a portal on the lit desert pad at the top of the temple stairs, north-west of the square, where the original game's boss teleporter stands. The portal is red when the lobby leads into a boss fight and blue otherwise, like the floors' portals. The temple entrance itself leads nowhere.
   - The quests, NPCs, dialog, extra exits and pickups are gone. Starting gold and free upgrades appear next to the arrival.

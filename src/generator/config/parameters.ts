@@ -655,8 +655,8 @@ export function escapeFloorTimer(): FloorTimer {
 }
 
 /**
- * The shipped campaign order: the dungeon-prep lobby, every floor but the
- * last, the boss-prep lobby, the boss fight, then that last floor — the
+ * The shipped campaign order: the starting lobby, every floor but the
+ * last, the pre-boss lobby, the boss fight, then that last floor — the
  * escape floor.
  *
  * Stored explicitly because it is genuinely NOT the default order (which,
@@ -1571,14 +1571,14 @@ export function isMultiBoss(count: number): boolean {
  * and imported by configFile.ts, so two lobbies must never share a
  * `shopCategories` array.
  *
- * Both stock rooms sell every column, power included — see the `LobbyOptions`
+ * Every room sells every column, power included — see the `LobbyOptions`
  * interface comment for why: extra lives matter more right before a boss than
  * at the start of a run, and the one thing that made buying them anywhere
  * questionable is removed by `defaultParameters()`'s own
- * `player.shared.remove.life` tweak. The only difference between the two is
- * gold: 10000 for the campaign's own starting lobby, 20000 — the last shop
- * before a fight, so the party arrives able to actually spend at it — for the
- * boss-prep room.
+ * `player.shared.remove.life` tweak. The gold is 10000, except
+ * 20000 for the boss-prep room — the last shop before a fight, so the party
+ * arrives able to actually spend at it. A House standing before a fight (the
+ * stock campaign's second lobby) states its 20000 itself.
  *
  * The Castle Hammerwatch bridge also starts on `act1`, the track its source
  * level plays — the other rooms' templates carry no music of their own worth
@@ -1625,9 +1625,9 @@ export function defaultBossOptions(): BossOptions {
  * so two fights must never share an `arena` or a `waves` array.
  *
  * Carries no prep room any more — see the `BossFight` interface comment. A
- * shop in front of this fight is `defaultLobby('BETA-boss-prep')`, placed next
- * to it in `levelOrder` by whoever builds the campaign (`defaultParameters()`
- * does, via `shippedOrder`).
+ * shop in front of this fight is an ordinary lobby, placed next to it in
+ * `levelOrder` by whoever builds the campaign (`defaultParameters()` puts a
+ * House there, via `shippedOrder`).
  */
 export function defaultBossFight(): BossFight {
   return {
@@ -2124,7 +2124,7 @@ export function defaultParameters(): DungeonParameters {
         'tower_nova'
       ]
     ],
-    // The dungeon-prep lobby, floors 1-7 in order, the boss-prep lobby, the
+    // The starting lobby, floors 1-7 in order, the pre-boss lobby, the
     // boss fight, then the escape floor. The arena's alcove holds a portal to
     // that floor instead of the victory orb, which the orb follows onto the
     // last slot — verified in game.
@@ -2165,11 +2165,13 @@ export function defaultParameters(): DungeonParameters {
     // Two stock lobbies, matching the pre-#48 campaign's two shop rooms: the
     // campaign's own starting lobby (10000 gold) and what used to be the boss
     // fight's welded-on prep room (20000 gold) — now just the second lobby in
-    // the order, placed by `shippedOrder` right before the fight. Both sell
-    // every column including power; see `defaultLobby`'s comment for why.
+    // the order, placed by `shippedOrder` right before the fight. Both are the
+    // House and both sell every column including power; see `defaultLobby`'s
+    // comment for why. The second states its 20000 itself, because
+    // `defaultLobby` keys that amount on the boss-prep room.
     lobbies: [
-      defaultLobby('BETA-dungeon-prep'),
-      { ...defaultLobby('BETA-boss-prep'), music: 'boss_1' }
+      defaultLobby('house'),
+      { ...defaultLobby('house'), startingGold: 20000, music: 'boss_1' }
     ],
     boss: defaultBossOptions()
   }

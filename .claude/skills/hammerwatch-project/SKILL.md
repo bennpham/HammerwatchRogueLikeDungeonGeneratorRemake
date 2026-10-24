@@ -78,9 +78,10 @@ src/
 │   │   ├── presets.ts    LobbyPresetDef / LOBBY_PRESETS / lobbyPresetById —
 │   │   │                 one descriptor per committed room (template, its
 │   │   │                 vendor ids, exit node, diamond/upgrade slots, id
-│   │   │                 bases, assets). `BETA-dungeon-prep`,
-│   │   │                 `BETA-boss-prep`, `sun-bazaar`, `castle-bridge`
-│   │   │                 and `sky-shop`; adding a room is an entry here
+│   │   │                 bases, assets). `house` (the default),
+│   │   │                 `BETA-dungeon-prep`, `BETA-boss-prep`,
+│   │   │                 `sun-bazaar`, `castle-bridge` and `sky-shop`;
+│   │   │                 adding a room is an entry here
 │   │   ├── template.ts   the dungeon-prep XML verbatim (generated+committed)
 │   │   ├── assets.ts     custom files it references, base64 when binary
 │   │   ├── shops.ts      the five vendor stalls and their shop columns
@@ -99,6 +100,10 @@ src/
 │   │                     editor/campaign/levels/level_1.xml. Both importers
 │   │                     share scripts/lib/hwLevel.mjs (parse/serialise,
 │   │                     the walkability model, slot picking, emit helpers)
+│   ├── house/            template.ts + assets.ts — the DEFAULT lobby: the
+│   │                     user's AE house lobby (editor/lobby/lobby.xml) and
+│   │                     the AE furniture, grass and dead tree it uses;
+│   │                     written by scripts/import-house.mjs
 │   ├── skyShop/          template.ts + assets.ts — the survival campaign's
 │   │                     summit shop as a lobby, and the cloud layer only
 │   │                     survival.hwm ships; written by
@@ -369,8 +374,8 @@ reference/hammerwatch-tweak-stats.md
 | `levelMystery[i]` | absent | per floor `{count ≤ 200, pool: number[]}` — 0-based pool indices repeated to weight, drawn WITH replacement; read through `floorMystery`. Absent/all-zero = none. `mysteryFloorN=<count>:<i,i,j>` |
 | `levelLockMystery[i]` | absent | **enhanced lock buttons**: `{count, pool: number[], disguise?}` — up to `count` (clamped to `floorLockButtons`) of a locked floor's own lock buttons ALSO fire a mystery payload from `pool`, a separate per-floor pick list from `levelMystery`; read through `floorLockMystery` (undefined off an unlocked floor, an empty/dangling pool, or `count ≤ 0`). `disguise` (absent = off, read through `floorLockDisguised`) draws that floor's lock buttons as `TriggerButton`/`pressed` instead of `BossDoorButton`/`activate`, at construction time off zero draws. Purely ADDITIVE like `levelMystery`: draws only from `ctx.mysteryRand`, strictly after every ordinary plate draw on the floor. `mysteryLockN=<count>:<i,j,k>`, `mysteryLockDisguiseN=1` |
 | `playerTweaks` | `{ 'player.shared.remove.life': 1 }` | sparse `Record<lowercase key, number>` of player-balance overrides; empty = no `tweak/` folder. See below |
-| `lobbies` | **two** — `BETA-dungeon-prep` at 10000g and `BETA-boss-prep` at 20000g, both selling all 21 columns, no free upgrades | the campaign's shop rooms, `LobbyOptions[]`. A lobby exists iff it is in this list: there is no `enabled` flag any more, and `lobbies: []` reproduces the pre-lobby campaign exactly — the same rule `boss.fights` already followed. Any number, each independently placed by `levelOrder`. `lobbies=N` in `parameters.txt`. See *Lobbies* below |
-| `lobbies[i].preset` | `BETA-dungeon-prep` for a freshly added lobby (`DEFAULT_LOBBY_PRESET_ID`) | which committed room this slot edits — an id from `LOBBY_PRESETS`. `BETA-dungeon-prep` is the campaign's original starting lobby, `BETA-boss-prep` the larger room that used to be welded to every fight. `lobby<i>Preset` in `parameters.txt`; an id that is not in the registry is an error, not a fallback |
+| `lobbies` | **two Houses** — the starting one at 10000g and the pre-boss one at 20000g (stated explicitly: `defaultLobby`'s 20000 rule is keyed on `BETA-boss-prep`), both selling all 21 columns, no free upgrades | the campaign's shop rooms, `LobbyOptions[]`. A lobby exists iff it is in this list: there is no `enabled` flag any more, and `lobbies: []` reproduces the pre-lobby campaign exactly — the same rule `boss.fights` already followed. Any number, each independently placed by `levelOrder`. `lobbies=N` in `parameters.txt`. See *Lobbies* below |
+| `lobbies[i].preset` | `house` for a freshly added lobby (`DEFAULT_LOBBY_PRESET_ID`) | which committed room this slot edits — an id from `LOBBY_PRESETS`. `house` is the default; `BETA-dungeon-prep` is the campaign's original starting lobby, `BETA-boss-prep` the larger room that used to be welded to every fight. `lobby<i>Preset` in `parameters.txt`; an id that is not in the registry is an error, not a fallback |
 | `lobbies[i].startingGold` | 10000 / 20000 by preset | whole multiple of `LOBBY_DIAMOND_VALUE` (500) — one red diamond each — and ≤ `GOLD_SAFETY_MAX`, which is an emission limit rather than a game one. `lobby<i>Gold` |
 | `lobbies[i].shopCategories` | all 21, `power` included | the shop columns this room's five stalls sell; a stall left with nothing is removed outright, shape included. Buyable lives are safe because the stock `player.shared.remove.life` tweak deletes that upgrade. `lobby<i>Shops` |
 | `lobbies[i].upgrades` | every kind 0 | free upgrade pickups on that lobby's floor, one count per `UPGRADE_KINDS` entry (`damage`, `defense`, `health`, `mana`, then the four `*2` tiers). Whole number 0…`UPGRADE_COUNT_MAX` (10000) each; **0 emits no item array**. One authored slot per kind **per preset**, so a count above one *stacks* on that slot rather than needing the room's layout to grow. `lobby<i>Upgrades` in `parameters.txt`. See *Free upgrades* below |
@@ -485,7 +490,7 @@ registered WITHOUT `withGatewayLocks`.
 
 The two clock presets (Beat the Clock, Shell Game) share an ending
 (`huntFloorBoss`, `clockArena`). Their last timed floor is a **hunt**: one
-random mobile boss, no lock buttons, 180 s. The boss-prep lobby follows it.
+random mobile boss, no lock buttons, 180 s. The pre-boss lobby follows it.
 Beat the Clock then ends in a 120 s survival arena led by minibosses (no boss
 arena). Shell Game plays a boss arena with invulnerability OFF (small anchored
 adds plus arrow traps on each tier), then the same kind of survival arena.
@@ -1201,7 +1206,7 @@ template text, vendor ids, exit node, diamond slots, upgrade slots, the two id
 bases, the respawn id base, the extra asset files, and the label surgery's error
 messages use. There is **no per-preset branching** anywhere in the builder, and
 adding a room means regenerating a template and adding an entry, nothing
-else. Five ship:
+else. Six ship:
 
 - `BETA-dungeon-prep` — the campaign's original starting lobby, five vendor
   stalls around a teleport. Ships `LOBBY_ASSETS`, the custom files its template
@@ -1257,7 +1262,31 @@ else. Five ship:
   blocking too, since the corner colliders cross themselves. It is also the
   seal check: if it gets past the outermost doodads, the import fails.
   Opt-in only.
-- `portalDoodadId` (optional; bazaar, bridge, sky shop) names a portal doodad whose art
+- `house` — **the default room** (`DEFAULT_LOBBY_PRESET_ID`, both lobbies of
+  `defaultParameters()`, castle/desert/bonus and every Claude preset;
+  colosseum and Pre-Alpha keep theirs). The user's own editor level
+  `editor/lobby/lobby.xml`: the AE house lobby converted to theme c and
+  reworked by hand, cleaned by `scripts/import-house.mjs`. Three things the
+  importer does that the others do not:
+  - **Per-instance layers.** The AE defs ship `defaultlayer="0"` (rugs
+    -20), the stock walls' layer, so walls y-sort over furniture in their band
+    and the layer-90 roof hides the candles on the hall's east edge. Each
+    `doodads/ae/` instance gets an `<int name="layer">` after its `pos`
+    (the editor's own override): candles 95, rugs untouched, everything else
+    21 + its own layer (the stove's jug and pot stay one above it). The
+    shipped defs are the user's, byte for byte.
+  - **Authored slots.** The diamonds the user laid out ARE the diamond slots
+    (87, row order) and the one upgrade per kind IS that kind's slot; nothing
+    lands anywhere else.
+  - **Roof compaction.** 6 398 `color_theme_c_16` squares merge into 242
+    stock 32/64/128/256 squares covering exactly the same tiles (checked).
+  It adds speech bubbles and badges the source lacks, proves the room closed
+  with `hwLevel.mjs`'s `checkClosed` (moved there from the castle-bridge
+  importer, which now calls it; its output did not change) over the stock
+  tree AND the source folder, and ships only the referenced custom files
+  (`doodads/ae/*`, `doodads/tree_dead`, `tilemaps/tile_grass` + textures,
+  62 files). Its pre-boss lobbies state `startingGold: 20000` themselves.
+- `portalDoodadId` (optional; house, bazaar, bridge, sky shop) names a portal doodad whose art
   follows the destination. `buildLobby(..., intoBossFight)` lays it red
   (`BossPortal`) when the next slot is a boss fight, else blue (`LobbyPortal`),
   the same rule `gatewayAfter` gives floors. A room without it is unaffected.

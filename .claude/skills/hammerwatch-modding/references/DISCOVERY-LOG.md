@@ -5122,3 +5122,38 @@ The doorways' notches in the wall ring showed sky between the floor and the
 walkway glass. The importer now lays `bonus_5` floor on those 8 tiles
 too, so the floor runs out to where each walkway begins. Floor tiles carry
 no collision, so the seal is unchanged. [EMITTED] until booted.
+
+### 2026-10-24 — the House lobby: per-instance doodad layers, and custom doodads shipped from the lobby folder
+
+**Tag:** [EMITTED] — packs and passes the importer's checks; not yet booted in game.
+**Context:** The user's own editor level `editor/lobby/lobby.xml`, the AE
+house lobby converted to Hammerwatch 1 (theme c), becomes the default lobby
+(`house`, `scripts/import-house.mjs`). In the editor the AE furniture in the
+walls' band was drawn under the wall pieces, and the candles on the dining
+hall's east edge were hidden.
+**Evidence:**
+1. Every converted def in `doodads/ae/` carries `defaultlayer="0"`, except
+   the four plush/wool carpets and the two vendor carpets at -20. Stock wall
+   pieces (`theme_c/c_*`) declare no layer, so they are 0 too, and the furniture
+   standing in the wall band loses the y-sort to them.
+2. The three `lamps_candle_holder` at x 53.5 sit under `color_theme_c_16` roof
+   squares, which are `defaultlayer="90"`.
+3. The editor writes a per-instance override, `<int name="layer">N</int>`
+   directly after a doodad's `pos`: the user's stove jug and pot carry
+   `layer 1`, which puts them over the stove (layer 0).
+4. Stock layers for comparison: wall decorations `b_deco_stone_*`
+   and `marker_button_wall_*` are 21, arches 25, roof squares 90, vendor speech
+   bubbles 100/101.
+**Impact:** the importer writes `layer` per instance: candles 95 (over the
+roof, under the speech bubbles), rugs left alone, every other AE doodad 21 +
+its own layer. The defs ship unedited. The custom files the level names
+(29 AE defs, `doodads/tree_dead.xml`, `tilemaps/tile_grass.xml`, each with its
+PNG) ship as `HOUSE_ASSETS` and are written into the campaign folder like
+the dungeon-prep room's `LOBBY_ASSETS`. Still to confirm in game:
+- the per-instance `layer` is honoured at runtime, not just in the editor;
+- furniture shows over the walls, and candles over the roof;
+- players walk over the rugs;
+- the shipped AE PNGs and `tile_grass` load from the campaign pack.
+
+Note that a doodad at 21 also draws over an actor standing in front of it.
+That is the price of lifting it over the wall it overlaps.

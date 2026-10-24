@@ -2318,7 +2318,7 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
     lines.push(`lobby${i}Upgrades=${upgradeCountsLine(lobby.upgrades)}`)
     // Written whenever it differs from what omitting the line would
     // reconstruct — the base's own lobby at this index. `defaultParameters()`
-    // ships lobby 1 (`BETA-boss-prep`) with `music: 'boss_1'`, so a campaign
+    // ships lobby 1 (the pre-boss House) with `music: 'boss_1'`, so a campaign
     // that puts a DIFFERENT lobby at index 1 and leaves its own music on
     // `default` must say so explicitly, or the stale `boss_1` leaks back in
     // on re-import.

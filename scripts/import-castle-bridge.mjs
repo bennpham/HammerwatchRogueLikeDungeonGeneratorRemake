@@ -58,7 +58,7 @@
  * rather than emitting a room built against the wrong geometry.
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -77,6 +77,8 @@ import {
   floodFrom,
   pickSlots,
   checkAssets,
+  checkClosed,
+  collisionBoxes,
   literal,
   metaBlocks,
   idBase,
@@ -531,109 +533,6 @@ function build(level, assets) {
   return { start, exit, exitShapes: [exitShape], portalId: portal, vendorIds, stallShapes, offDeck }
 }
 
-// ------------------------------------------------------------- closure
-
-/** Collision boxes per doodad file, in tiles relative to its position: polygons' bounds and circles'. */
-function collisionBoxes(assets, path, cache) {
-  if (cache.has(path)) return cache.get(path)
-  const file = join(assets, path)
-  if (!existsSync(file)) throw new Error(`${path} is not a stock asset (looked in ${assets})`)
-  const xml = readFileSync(file, 'utf8').replace(/<!--[\s\S]*?-->/g, '')
-  const boxes = []
-  const polygon = (body) => {
-    const pts = [...body.matchAll(/<point>\s*(-?[\d.]+)\s+(-?[\d.]+)\s*<\/point>/g)].map((m) => [Number(m[1]) / 16, Number(m[2]) / 16])
-    if (pts.length === 0) return
-    const xs = pts.map(([px]) => px)
-    const ys = pts.map(([, py]) => py)
-    boxes.push([Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)])
-  }
-  for (const m of xml.matchAll(/<polygon[^>]*collision="true"[^>]*>([\s\S]*?)<\/polygon>/g)) polygon(m[1])
-  for (const m of xml.matchAll(/<collision\b([^>]*)>([\s\S]*?)<\/collision>/g)) {
-    // a sensor blocks nothing
-    if (/collision-response="false"/.test(m[1])) continue
-    for (const p of m[2].matchAll(/<polygon[^>]*>([\s\S]*?)<\/polygon>/g)) polygon(p[1])
-    for (const c of m[2].matchAll(/<circle\s+offset="(-?[\d.]+)\s+(-?[\d.]+)"\s+radius="([\d.]+)"/g)) {
-      const [ox, oy, r] = [Number(c[1]) / 16, Number(c[2]) / 16, Number(c[3]) / 16]
-      boxes.push([ox - r, oy - r, ox + r, oy + r])
-    }
-  }
-  cache.set(path, boxes)
-  return boxes
-}
-
-/**
- * The room must be closed by colliders alone. Flood-fill a GRID-per-tile mesh
- * of CROP from the arrival; a cell is solid when it overlaps any collision box,
- * and the exit's shape is a way out the fill stops at. Reaching the crop's edge
- * means a walkable route out of the lobby.
- */
-function checkClosed(level, assets, built) {
-  const cols = (CROP.x1 - CROP.x0) * GRID
-  const rows = (CROP.y1 - CROP.y0) * GRID
-  const solid = new Uint8Array(cols * rows)
-  const cache = new Map()
-  const mark = ([x0, y0, x1, y1], value) => {
-    const c0 = Math.max(0, Math.floor((x0 - CROP.x0) * GRID + 1e-6))
-    const c1 = Math.min(cols, Math.ceil((x1 - CROP.x0) * GRID - 1e-6))
-    const r0 = Math.max(0, Math.floor((y0 - CROP.y0) * GRID + 1e-6))
-    const r1 = Math.min(rows, Math.ceil((y1 - CROP.y0) * GRID - 1e-6))
-    for (let r = r0; r < r1; r++) for (let c = c0; c < c1; c++) solid[r * cols + c] = value
-  }
-  for (const d of doodadsOf(level)) {
-    const [px, py] = posOf(d)
-    for (const [x0, y0, x1, y1] of collisionBoxes(assets, typeOf(d), cache)) mark([px + x0, py + y0, px + x1, py + y1], 1)
-  }
-  const [ex, ey] = posOf(built.exitShapes[0])
-  const ew = param(built.exitShapes[0], 'w').value
-  const eh = param(built.exitShapes[0], 'h').value
-  mark([ex - ew / 2, ey - eh / 2, ex + ew / 2, ey + eh / 2], 2)
-
-  const [sx, sy] = posOf(built.start)
-  const s = Math.floor((sy - CROP.y0) * GRID) * cols + Math.floor((sx - CROP.x0) * GRID)
-  if (solid[s] !== 0) throw new Error('the arrival stands inside a collider')
-  const from = new Int32Array(cols * rows).fill(-1)
-  const at = (cell) => [CROP.x0 + (cell % cols) / GRID, CROP.y0 + Math.floor(cell / cols) / GRID]
-  const seen = new Uint8Array(cols * rows)
-  seen[s] = 1
-  const queue = [s]
-  let exitReached = false
-  for (let i = 0; i < queue.length; i++) {
-    const cell = queue[i]
-    const c = cell % cols
-    const r = Math.floor(cell / cols)
-    if (c === 0 || r === 0 || c === cols - 1 || r === rows - 1) {
-      // name the route by the whole tiles it crosses, arrival first
-      const route = []
-      for (let p = cell; p !== -1; p = from[p]) {
-        const tile = at(p).map(Math.floor).join(',')
-        if (route[0] !== tile) route.unshift(tile)
-      }
-      throw new Error(`the lobby leaks to the crop edge at ${at(cell).join(' ')}; route by tile: ${route.join(' ')}`)
-    }
-    for (const n of [cell - 1, cell + 1, cell - cols, cell + cols]) {
-      if (seen[n]) continue
-      seen[n] = 1
-      from[n] = cell
-      if (solid[n] === 2) exitReached = true
-      else if (solid[n] === 0) queue.push(n)
-    }
-  }
-  if (!exitReached) {
-    const west = queue.reduce((a, b) => (at(b)[0] < at(a)[0] ? b : a))
-    const [wx, wy] = at(west)
-    const blockers = doodadsOf(level)
-      .filter((d) => {
-        const [px, py] = posOf(d)
-        return collisionBoxes(assets, typeOf(d), cache).some(
-          ([x0, y0, x1, y1]) => px + x0 <= wx && px + x1 >= wx - 1 && py + y0 <= wy + 1 && py + y1 >= wy - 1
-        )
-      })
-      .map((d) => `${typeOf(d).replace('doodads/', '')}@${posOf(d).join(',')}`)
-    throw new Error(`the exit is not reachable from the arrival; the fill stops at ${wx} ${wy} against ${blockers.join(' ')}`)
-  }
-  return { cells: queue.length / (GRID * GRID) }
-}
-
 // ------------------------------------------------------------- dump
 
 /** ASCII of the tile model pickSlots uses: walkable, blocked, stalls, start, exit, slots. */
@@ -757,7 +656,7 @@ if (args.level === undefined || args.assets === undefined) {
 const level = parseText(readFileSync(args.level, 'utf8').replace(/^﻿/, ''))
 const built = build(level, args.assets)
 checkAssets(level, args.assets)
-const closure = checkClosed(level, args.assets, built)
+const closure = checkClosed(level, args.assets, built, CROP, GRID)
 const slots = pickSlots(level, args.assets, built, {
   surface: BRIDGE_SURFACE,
   avoid: built.stallShapes,

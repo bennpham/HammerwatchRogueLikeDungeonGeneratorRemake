@@ -44,9 +44,11 @@ lockFinalRoom=1
 # unprefixed spelling and no "disabled" lobby: one exists iff it is in this
 # list, and a lobby that used to be off is simply absent.
 #
-# lobby<i>Preset picks which committed room this lobby edits — BETA-dungeon-prep
-# (the campaign's original starting lobby) or BETA-boss-prep (the room that
-# used to be welded to the front of every boss fight, now just another lobby).
+# lobby<i>Preset picks which committed room this lobby edits — house (the
+# default: the Anniversary Edition house lobby, reworked), BETA-dungeon-prep
+# (the campaign's original starting lobby), BETA-boss-prep (the room that used
+# to be welded to the front of every boss fight), sun-bazaar, castle-bridge or
+# sky-shop.
 # lobby<i>Gold is a multiple of 500 (one red diamond each); more diamonds than
 # the room has spots simply stack on the same spots. lobby<i>Shops is the
 # space-separated list of shop columns its stalls sell. lobby<i>Upgrades is the
@@ -55,21 +57,21 @@ lockFinalRoom=1
 # items); each kind has one spot in the room, so a count above one stacks
 # there, and 0 lays none of that kind out at all.
 #
-# The stock campaign carries two: the dungeon-prep lobby at the very start,
-# and the boss-prep lobby right before the fight — see levelOrder below.
+# The stock campaign carries two Houses: one at the very start, and one with
+# more gold right before the fight — see levelOrder below.
 lobbies=2
-lobby0Preset=BETA-dungeon-prep
+lobby0Preset=house
 lobby0Gold=10000
 lobby0Shops=combo1 combo2 combo3 combo4 combo5 def1 def2 def3 def4 def5 misc1 misc2 misc3 misc4 misc5 off1 off2 off3 off4 off5 power
 lobby0Upgrades=0 0 0 0 0 0 0 0
-lobby1Preset=BETA-boss-prep
+lobby1Preset=house
 lobby1Gold=20000
 lobby1Shops=combo1 combo2 combo3 combo4 combo5 def1 def2 def3 def4 def5 misc1 misc2 misc3 misc4 misc5 off1 off2 off3 off4 off5 power
 lobby1Upgrades=0 0 0 0 0 0 0 0
 # lobby<i>Music swaps that lobby's own music, e.g. lobby1Music=boss_1 — same
-# track ids as music0..N below. Written only when set; the stock boss-prep
-# lobby plays the boss track, the dungeon-prep lobby leaves the room's own
-# music untouched.
+# track ids as music0..N below. Written only when set; the stock pre-boss
+# lobby plays the boss track, the starting lobby leaves the room's own music
+# untouched.
 lobby1Music=boss_1
 # levelOrder is the order the campaign is PLAYED in: dungeon floors by their
 # 1-based number, arenas as AB1, AB2, ... (a boss fight) or AS1, AS2, ... (a
