@@ -309,7 +309,7 @@ function lunchBreak(): DungeonParameters {
       ['skeleton2', 'archer2', 'wisp1']
     ],
     floorMusic: ['act1', 'act2', 'act3'],
-    lobbies: [lobby('BETA-dungeon-prep', { startingGold: 15000 })],
+    lobbies: [lobby('house', { startingGold: 15000 })],
     ...lunchBreakMystery(),
     boss: {
       enabled: true,
@@ -398,7 +398,7 @@ function clockArena(waves: SurvivalWave[]): BossFight {
 
 /**
  * Two minutes in the clock arena, getting meaner every 30 seconds — the party
- * arrives from the boss-prep lobby, upgraded, so a miniboss leads each push
+ * arrives from the pre-boss lobby, upgraded, so a miniboss leads each push
  * and the lich miniboss closes it.
  */
 function beatTheClockArena(): BossFight {
@@ -438,7 +438,7 @@ function beatTheClock(): DungeonParameters {
     floorMusic: ['act1', 'act1', 'act2', 'act2', 'act3'],
     // the last floor is the hunt: kill its boss before the clock does
     levelBoss: huntFloorBoss(levels, [['skeleton3', 6]], [['skeleton3', 4]], [['skeleton3', 4]]),
-    lobbies: [lobby('BETA-dungeon-prep'), lobby('BETA-boss-prep', { music: 'boss_1' })],
+    lobbies: [lobby('house'), lobby('house', { startingGold: 20000, music: 'boss_1' })],
     // L0 -> F0-F4 -> L1 -> AS0: the lobby is the reward for the hunt, and
     // the campaign ends on one more clock instead of a boss
     levelOrder: actOrder(levels),
@@ -501,7 +501,7 @@ function bossRush(): DungeonParameters {
     levelLock: buttonLocks([1, 1, 1, 1]),
     ...bossRushMystery(levels),
     floorMusic: ['act2', 'bonus_1', 'act3', 'desert_temple'],
-    lobbies: [lobby('BETA-dungeon-prep'), lobby('BETA-boss-prep', { startingGold: 25000, upgrades: oneOfEachUpgrade(), music: 'boss_1' })],
+    lobbies: [lobby('house'), lobby('house', { startingGold: 25000, upgrades: oneOfEachUpgrade(), music: 'boss_1' })],
     levelOrder: actOrder(levels),
     boss: {
       enabled: true,
@@ -540,9 +540,9 @@ function arenaMarathon(): DungeonParameters {
     // silently inherit that stale value back on re-import. See the identical
     // landmine on `longHaul()`'s `levelTimers`/`levelTraps`.
     lobbies: [
-      lobby('BETA-dungeon-prep'),
-      lobby('BETA-boss-prep', { startingGold: 20000, music: 'boss_1' }),
-      lobby('BETA-boss-prep', { startingGold: 25000, upgrades: oneOfEachUpgrade(), music: 'boss_1' })
+      lobby('house'),
+      lobby('house', { startingGold: 20000, music: 'boss_1' }),
+      lobby('house', { startingGold: 25000, upgrades: oneOfEachUpgrade(), music: 'boss_1' })
     ],
     levelOrder: order,
     boss: {
@@ -736,7 +736,7 @@ function trapGauntlet(): DungeonParameters {
     levelLock: buttonLocks([1, 1, 2, 2, 3]),
     ...trapGauntletMystery(),
     floorMusic: ['act1', 'act2', 'act3', 'act4', 'act4'],
-    lobbies: [lobby('BETA-dungeon-prep'), lobby('BETA-boss-prep', { music: 'boss_1' })],
+    lobbies: [lobby('house'), lobby('house', { startingGold: 20000, music: 'boss_1' })],
     levelOrder: actOrder(levels),
     boss: {
       enabled: true,
@@ -860,7 +860,7 @@ function frozenDescent(): DungeonParameters {
     // and on Krilith's floor the wall waits for her too
     levelLock: buttonLocks([0, 0, 2, 2, 2]),
     ...frozenDescentMystery(),
-    lobbies: [lobby('BETA-dungeon-prep'), lobby('BETA-boss-prep', { music: 'boss_1' })],
+    lobbies: [lobby('house'), lobby('house', { startingGold: 20000, music: 'boss_1' })],
     levelOrder: actOrder(levels),
     boss: {
       enabled: true,
@@ -901,7 +901,7 @@ function pandemonium(): DungeonParameters {
       )
     ),
     floorMusic: ['act2', 'act3', 'act3', 'act4'],
-    lobbies: [lobby('BETA-dungeon-prep'), lobby('BETA-boss-prep', { music: 'boss_1' })],
+    lobbies: [lobby('house'), lobby('house', { startingGold: 20000, music: 'boss_1' })],
     levelOrder: actOrder(levels),
     boss: {
       enabled: true,
@@ -1067,10 +1067,10 @@ function longHaul(): DungeonParameters {
     // on `default` would silently inherit that stale value back on re-import.
     // See the identical landmine on `levelTimers`/`levelTraps` below.
     lobbies: [
-      lobby('BETA-dungeon-prep'),
-      lobby('BETA-dungeon-prep', { startingGold: 15000, music: 'act2' }),
-      lobby('BETA-boss-prep', { startingGold: 20000, music: 'boss_1' }),
-      lobby('BETA-boss-prep', { startingGold: 25000, upgrades: oneOfEachUpgrade(), music: 'boss_1' })
+      lobby('house'),
+      lobby('house', { startingGold: 15000, music: 'act2' }),
+      lobby('house', { startingGold: 20000, music: 'boss_1' }),
+      lobby('house', { startingGold: 25000, upgrades: oneOfEachUpgrade(), music: 'boss_1' })
     ],
     levelOrder: order,
     ...longHaulMystery(),
@@ -1216,10 +1216,10 @@ function doubleOrNothing(): DungeonParameters {
     levelLock: buttonLocks([1, 1, 2, 2, 2]),
     ...doubleOrNothingMystery(),
     // a thin purse to start, so the gold won on the plates is what the
-    // boss-prep shop is spent with
+    // pre-boss shop is spent with
     lobbies: [
-      lobby('BETA-dungeon-prep', { startingGold: 5000 }),
-      lobby('BETA-boss-prep', { startingGold: 10000, music: 'boss_1' })
+      lobby('house', { startingGold: 5000 }),
+      lobby('house', { startingGold: 10000, music: 'boss_1' })
     ],
     levelOrder: actOrder(levels),
     boss: { enabled: true, fights: [bossFight({ music: 'boss_final' })] }
@@ -1329,7 +1329,7 @@ function shellGame(): DungeonParameters {
     levelLock: buttonLocks([1, 2, 2, 3, 0]),
     levelBoss: huntFloorBoss(levels, [['skeleton3', 6]], [['skeleton3', 4]], [['skeleton3', 4]]),
     ...shellGameMystery(),
-    lobbies: [lobby('BETA-dungeon-prep'), lobby('BETA-boss-prep', { music: 'boss_1' })],
+    lobbies: [lobby('house'), lobby('house', { startingGold: 20000, music: 'boss_1' })],
     // the hunt, the lobby, then a boss to finish and a clock to outlast
     levelOrder: [L(0), ...floorRange(0, levels - 1), L(1), B(0), B(1)],
     boss: { enabled: true, fights: [shellGameBossFight(), shellGameArena()] }

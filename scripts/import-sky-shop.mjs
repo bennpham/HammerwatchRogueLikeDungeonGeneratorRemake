@@ -1024,7 +1024,7 @@ function emitTemplate(xml, source, meta) {
     ',\n'
   )
 
-  return `import type { LobbyVendorIds } from '../lobby/template'
+  return `import type { LobbyVendorIds } from '../lobby/shops'
 
 /**
  * The Shaftlocke Peak sky shop lobby level.

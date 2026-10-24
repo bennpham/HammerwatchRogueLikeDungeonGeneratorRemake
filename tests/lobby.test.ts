@@ -49,21 +49,6 @@ import { isFloorPath, isLobbyPath, lobbyXml } from './levelFiles'
  */
 const EXIT_TARGET = 'some-level'
 
-/**
- * The two warm lights each hand-authored room carries, unconditional — position is
- * fixed data read off the source level the same way the diamond and upgrade
- * slots are, but `LobbyPresetDef` has no field for it (nothing downstream
- * needs to know), so it is spelled out here instead, the same way each half
- * of the pre-#48 test files independently hardcoded its own.
- */
-const LIGHT_POSITIONS: Record<string, readonly [string, string]> = {
-  'BETA-dungeon-prep': ['-7.75 -4', '8 -3.75'],
-  'BETA-boss-prep': ['9 -5', '-9 -5']
-  // 'sun-bazaar' is a daylight map with no lights at all, and 'castle-bridge'
-  // keeps whichever of level_1's lights fall inside its crop — their own
-  // suites below
-}
-
 function optionsFor(preset: LobbyPresetDef, patch: Partial<LobbyOptions> = {}): LobbyOptions {
   return { ...defaultLobby(preset.id), ...patch }
 }
@@ -90,17 +75,31 @@ function withOneLobby(preset: LobbyPresetDef, patch: Partial<LobbyOptions> = {})
 }
 
 describe('lobby — presets', () => {
-  it('has unique ids, and the dungeon-prep room is the default', () => {
+  it('has unique ids, and the House is the default', () => {
     const ids = LOBBY_PRESETS.map((p) => p.id)
     expect(new Set(ids).size).toBe(ids.length)
-    expect(ids).toContain('BETA-dungeon-prep')
-    expect(ids).toContain('BETA-boss-prep')
+    // the two pre-1.0 rooms are gone
+    expect(ids).not.toContain('BETA-dungeon-prep')
+    expect(ids).not.toContain('BETA-boss-prep')
     expect(ids).toContain('sun-bazaar')
     expect(ids).toContain('castle-bridge')
     expect(ids).toContain('sky-shop')
-    // the bazaar, the bridge and the sky shop are opt-in: adding them changed
-    // no default
-    expect(DEFAULT_LOBBY_PRESET_ID).toBe('BETA-dungeon-prep')
+    expect(ids).toContain('house')
+    // the House replaced the dungeon-prep room as the default, and leads the
+    // dropdown; the bazaar, the bridge and the sky shop are the classics' hubs
+    expect(DEFAULT_LOBBY_PRESET_ID).toBe('house')
+    expect(ids[0]).toBe('house')
+  })
+
+  it('never ships two different files at one path, whichever rooms a campaign mixes', () => {
+    const seen = new Map<string, string>()
+    for (const preset of LOBBY_PRESETS) {
+      for (const asset of preset.assets) {
+        const other = seen.get(asset.path)
+        if (other !== undefined) expect(asset.content, `${asset.path} differs between rooms`).toBe(other)
+        seen.set(asset.path, asset.content)
+      }
+    }
   })
 
   it('resolves by id, and reports an unknown id as undefined rather than guessing', () => {
@@ -438,20 +437,6 @@ for (const preset of LOBBY_PRESETS) {
       })
     })
 
-    describe('lighting', () => {
-      it.runIf(preset.id in LIGHT_POSITIONS)('carries the two warm lights, always', () => {
-        const [posA, posB] = LIGHT_POSITIONS[preset.id]
-        for (const patch of [{}, { shopCategories: [] }, { startingGold: 0, upgrades: noUpgrades() }]) {
-          const xml = xmlFor(preset, patch)
-          for (const pos of [posA, posB]) {
-            expect(xml, JSON.stringify(patch)).toContain(`<vec2 name="pos">${pos}</vec2>`)
-          }
-          // the torch colour block, so a re-import cannot quietly change the mood
-          expect(xml).toContain('<int-arr name="mulColor3">255 165 0 255</int-arr>')
-        }
-      })
-    })
-
     describe('int-arr safety', () => {
       // LevelPacker.exe parses every <int-arr> body with Int32.Parse and dies
       // on an empty one — `System.FormatException: Input string was not in a
@@ -539,9 +524,8 @@ for (const preset of LOBBY_PRESETS) {
       // catches a re-import that forgot an --asset.
       it('references nothing that is neither stock nor shipped', () => {
         // `doodads/theme_*` covers any theme's folder generically — the
-        // dungeon-prep room decorates with theme c, the boss-prep room with
-        // bonus4, and neither needs bundling since both are stock game
-        // assets. `actors/` is the boss-prep room's decorative statues.
+        // House builds its walls from theme c, the sky shop from bonus5, and
+        // neither needs bundling since both are stock game assets.
         const stock = ['doodads/generic/', 'doodads/special/', 'doodads/theme_', 'items/', 'tilemaps/', 'sound/', 'actors/']
         const shipped = new Set(preset.assets.map((a) => a.path))
         const xml = xmlFor(preset)
@@ -1038,6 +1022,161 @@ describe('lobby — sky-shop', () => {
 
     const none = generateOk(defaultParameters(), 555).files.map((f) => f.path)
     for (const path of CLOUDS) expect(none).not.toContain(path)
+  })
+})
+
+describe('lobby — house', () => {
+  // the user's AE-derived house, cleaned by scripts/import-house.mjs
+  const preset = lobbyPresetById('house')!
+  const xml = buildLobby(preset, defaultLobby(preset.id), EXIT_TARGET)
+
+  /** Every `doodads/ae/` instance: its type, where, and its per-instance layer (undefined: the def's own). */
+  const aeDoodads = [
+    ...xml.matchAll(
+      /<string name="type">(doodads\/ae\/[^<]*)<\/string>\s*<vec2 name="pos">([^<]*)<\/vec2>\s*(?:<int name="layer">(-?\d+)<\/int>)?/g
+    )
+  ].map((m) => ({ type: m[1], at: m[2].replace(' ', ','), layer: m[3] === undefined ? undefined : Number(m[3]) }))
+
+  /**
+   * The pieces with a wall face in front of them (south, overlapping the
+   * sprite). Lifted, they would cover that wall; left alone, it hides their
+   * lower half and only the top shows — user playtest, 2026-10-24.
+   */
+  const FRONTED = new Set([
+    'furniture_wardrobe@7.5,33',
+    'furniture_wardrobe@16,33',
+    'furniture_shelf_1_v@10.75,17',
+    'furniture_bed_common_r180@19.5,16',
+    'generic_fence_bars_v_32@54.5,31.5',
+    'generic_fence_bars_v_32@54.5,33'
+  ])
+
+  it('has exactly one arrival and one way out, the teleport', () => {
+    expect(nodesOfType(xml, 'LevelStart')).toHaveLength(1)
+    expect(nodesOfType(xml, 'LevelStart')[0].body).toContain('<int name="id">0</int>')
+    const exits = nodesOfType(xml, 'LevelExitArea')
+    expect(exits.map((e) => e.id)).toEqual([preset.exitNodeId])
+    expect(exits[0].body).toContain('<int name="start id">0</int>')
+
+    const shapeId = Number(/<int-arr name="static">(\d+)<\/int-arr>/.exec(exits[0].body)![1])
+    const shape = nodesOfType(xml, 'RectangleShape').find((n) => n.id === shapeId)!
+    expect(shape.body).toContain('<float name="w">3</float>')
+    expect(shape.body).toContain('<float name="h">3</float>')
+  })
+
+  it('shows the blue teleport unless the lobby leads into a boss fight', () => {
+    expect(doodadAt(xml, preset.portalDoodadId!).type).toBe('doodads/generic/exit_teleport.xml')
+    const intoFight = buildLobby(preset, defaultLobby(preset.id), EXIT_TARGET, true)
+    expect(doodadAt(intoFight, preset.portalDoodadId!).type).toBe('doodads/generic/exit_teleport_boss.xml')
+  })
+
+  it('stands all five stalls with a speech bubble, each badged except power', () => {
+    for (const vendor of LOBBY_VENDORS) {
+      const ids = preset.templateIds[vendor.id]
+      expect(ids, vendor.id).toBeDefined()
+      const stand = doodadAt(xml, ids.vendor)
+      expect(stand.type).toBe(`doodads/special/vendor_${vendor.id}.xml`)
+      const speech = doodadAt(xml, ids.speech)
+      expect(speech.type).toBe(`doodads/special/vendor_speech_${vendor.id}.xml`)
+      expect([speech.x, speech.y]).toEqual([stand.x, stand.y])
+      if (vendor.categories.length > 1) {
+        const badge = doodadAt(xml, ids.badge!)
+        expect([badge.x, badge.y]).toEqual([stand.x, stand.y])
+      } else {
+        expect(ids.badge).toBeNull()
+      }
+    }
+    expect(nodesOfType(xml, 'ShopArea')).toHaveLength(LOBBY_VENDORS.length)
+  })
+
+  it('has unique ids, every reference resolves, and the template stays below its rig bases', () => {
+    const ids = allIds(xml)
+    expect(new Set(ids).size).toBe(ids.length)
+    const present = new Set(ids)
+    for (const [, body] of xml.matchAll(/<int-arr name="(?:static|connections)">([^<]*)<\/int-arr>/g)) {
+      for (const ref of body.split(' ')) expect(present.has(Number(ref)), `dangling ${ref}`).toBe(true)
+    }
+    expect(Math.max(...allIds(preset.template))).toBeLessThan(preset.respawnIdBase)
+    expect(preset.respawnIdBase + 4).toBeLessThanOrEqual(preset.musicIdBase)
+    expect(preset.musicIdBase + 2).toBeLessThanOrEqual(preset.itemIdBase)
+  })
+
+  it('pays diamonds out in the diamond zone alone, however deep, and upgrades on the upgrade row alone', () => {
+    // the zone and the row the user laid out in the editor
+    for (const [x, y] of preset.diamondSlots) {
+      expect(x >= 22 && x <= 52 && y >= 4.5 && y <= 6.5, `diamond slot ${x},${y}`).toBe(true)
+    }
+    expect(preset.diamondSlots).toHaveLength(87)
+    for (const kind of UPGRADE_KINDS) expect(preset.upgradeSlots[kind][1], kind).toBe(23)
+
+    const rich = buildLobby(
+      preset,
+      {
+        ...defaultLobby(preset.id),
+        startingGold: LOBBY_DIAMOND_VALUE * preset.diamondSlots.length * 3,
+        upgrades: Object.fromEntries(UPGRADE_KINDS.map((k) => [k, 3])) as LobbyOptions['upgrades']
+      },
+      EXIT_TARGET
+    )
+    const zone = new Set(preset.diamondSlots.map(([x, y]) => `${x},${y}`))
+    const placed = placementsIn(itemSection(rich, 'items/valuable_diamond_red.xml')!)
+    expect(placed).toHaveLength(preset.diamondSlots.length * 3)
+    for (const at of placed) expect(zone.has(at), at).toBe(true)
+    for (const kind of UPGRADE_KINDS) {
+      const at = preset.upgradeSlots[kind].join(',')
+      expect(placementsIn(itemSection(rich, upgradeItemPath(kind))!), kind).toEqual([at, at, at])
+    }
+  })
+
+  it('lifts the AE furniture over the walls and the candles over the roof, and leaves the rugs underfoot', () => {
+    expect(aeDoodads.length).toBeGreaterThan(0)
+    const fronted = new Set<string>()
+    for (const { type, at, layer } of aeDoodads) {
+      const key = `${type.replace(/^doodads\/ae\/|\.xml$/g, '')}@${at}`
+      if (/lamps_candle_/.test(type)) expect(layer, key).toBe(95)
+      else if (/carpeting_|generic_deco_vendor_carpet_/.test(type)) expect(layer, key).toBeUndefined()
+      else if (FRONTED.has(key)) {
+        expect(layer, key).toBeUndefined()
+        fronted.add(key)
+      } else expect(layer, key).toBeGreaterThanOrEqual(21)
+    }
+    expect([...fronted].sort()).toEqual([...FRONTED].sort())
+    // the jug and pot stood a layer above the stove in the editor, and still do
+    const layerOf = (name: string) => aeDoodads.filter((d) => d.type === `doodads/ae/${name}.xml`).map((d) => d.layer!)
+    const stove = Math.max(...layerOf('furniture_stove'))
+    for (const name of ['generic_deco_stove_jug', 'generic_deco_stove_pot_2']) {
+      for (const layer of layerOf(name)) expect(layer, name).toBeGreaterThan(stove)
+    }
+    // the lift is per instance; the shipped defs keep the user's own layers
+    // (0 for furniture and candles, -20 for the rugs)
+    for (const asset of preset.assets.filter((a) => a.path.startsWith('doodads/ae/') && a.path.endsWith('.xml'))) {
+      expect(asset.content, asset.path).toMatch(/defaultlayer="(0|-20)"/)
+    }
+  })
+
+  it('ships exactly the custom files the room references, and their textures', () => {
+    const custom = new Set(
+      [
+        ...xml.matchAll(
+          /<string name="(?:type|tileset)">((?:doodads\/ae\/|doodads\/tree_dead|tilemaps\/tile_grass)[^<]*)<\/string>/g
+        )
+      ].map((m) => m[1])
+    )
+    const shipped = preset.assets.map((a) => a.path)
+    expect(shipped.filter((p) => p.endsWith('.xml')).sort()).toEqual([...custom].sort())
+    expect(shipped.filter((p) => p.endsWith('.png')).sort()).toEqual([...custom].map((p) => p.replace(/\.xml$/, '.png')).sort())
+    // replaced by the user's own art, or never placed
+    for (const gone of ['terrain_tree_oak_apple', 'generic_shop_item', 'doodads/tree.', 'tile_dirt', 'tile_mud', 'level1/', 'kitchen/']) {
+      expect(shipped.some((p) => p.includes(gone)), gone).toBe(false)
+    }
+  })
+
+  it('is every lobby of the stock campaign, the pre-boss one with more gold, and ships its files once', () => {
+    const params = defaultParameters()
+    expect(params.lobbies.map((l) => l.preset)).toEqual(['house', 'house'])
+    expect(params.lobbies.map((l) => l.startingGold)).toEqual([10000, 20000])
+    const paths = generateOk(params, 555).files.map((f) => f.path)
+    for (const asset of preset.assets) expect(paths.filter((p) => p === asset.path), asset.path).toHaveLength(1)
   })
 })
 

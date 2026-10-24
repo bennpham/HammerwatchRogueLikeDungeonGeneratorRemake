@@ -1,56 +1,32 @@
 /**
- * The committed shop-room templates a lobby slot can be built from.
+ * The committed shop-room templates a lobby slot can be built from — one
+ * `LobbyPresetDef` per room, all edited by the same `buildLobby()`.
  *
- * Before issue #48 these were two separate, near-identical features: the
- * campaign's single starting "lobby" (`lobby/template.ts`) and a shop room
- * welded to the front of every boss fight ("bossprep",
- * `../bossprep/template.ts`). A name-normalised diff of their old `build.ts`
- * files showed every executable line identical apart from an import path and
- * a default argument — only the committed template strings and their
- * coordinate tables actually differ. This file collapses the two into one
- * `LobbyPresetDef` per template, both edited by the same `buildLobby()`.
+ * Every room is generated data, written by its own importer from a level
+ * outside this repo:
  *
- * `../bossprep/template.ts` stays where it is — it is 116 KB of data written by
- * `scripts/import-bossprep-assets.mjs`, and moving it would bury the real diff
- * of this change in a file rename. This module is simply another importer of
- * it, the way `lobby/build.ts` already imports `./template.ts`.
+ * - The House (`../house/`, `scripts/import-house.mjs`) is the user's own
+ *   editor level: the Anniversary Edition house lobby converted to Hammerwatch
+ *   1 and reworked by hand. It IS the default — every lobby a campaign gets
+ *   without naming a room, and every lobby in `defaultParameters()`, the
+ *   Claude presets and Survival in Colosseum. It ships the AE furniture and
+ *   the user's grass and dead tree.
+ * - The Temple of the Sun bazaar (`../sunBazaar/`,
+ *   `scripts/import-sun-bazaar.mjs`) is the TotS campaign's own hub read out
+ *   of `campaign2.hwm` and cleaned into a lobby. The Desert preset shops in it.
+ * - The Castle Hammerwatch bridge (`../castleBridge/`,
+ *   `scripts/import-castle-bridge.mjs`) is the same idea applied to the
+ *   stock campaign: the opening level's bridge chamber cut out of
+ *   `level_1.xml`, its collapse patched into an intact bridge with the
+ *   vendors on it, and its exits sealed. The Castle preset shops on it.
+ * - The Shaftlocke Peak sky shop (`../skyShop/`, `scripts/import-sky-shop.mjs`)
+ *   is the survival campaign's summit shop read out of `survival.hwm` the same
+ *   way. It ships the cloud layer that only that campaign carries. The Bonus
+ *   preset shops in it.
  *
- * The third room, the Temple of the Sun bazaar (`../sunBazaar/template.ts`,
- * written by `scripts/import-sun-bazaar.mjs`), is not hand-authored: it is the
- * TotS campaign's own hub read out of `campaign2.hwm` and cleaned into a
- * lobby. It is never the default — `DEFAULT_LOBBY_PRESET_ID` and every preset
- * still pick the dungeon-prep or boss-prep room.
- *
- * The fourth, the Castle Hammerwatch bridge (`../castleBridge/template.ts`,
- * written by `scripts/import-castle-bridge.mjs`), is the same idea applied to
- * the stock campaign: the opening level's bridge chamber cut out of
- * `level_1.xml`, its collapse patched into an intact bridge with the vendors
- * on it, and its exits sealed. Opt-in like the bazaar.
- * The fifth, the Shaftlocke Peak sky shop (`../skyShop/`, written by
- * `scripts/import-sky-shop.mjs`), is the survival campaign's summit shop read
- * out of `survival.hwm` the same way. It ships the cloud layer that only that
- * campaign carries. Also opt-in only.
+ * The two pre-1.0 rooms (`BETA-dungeon-prep`, `BETA-boss-prep`) are gone; a
+ * parameters.txt naming either reports the key and keeps the House.
  */
-import {
-  LOBBY_DIAMOND_SLOTS,
-  LOBBY_EXIT_NODE_ID,
-  LOBBY_ITEM_ID_BASE,
-  LOBBY_TEMPLATE,
-  LOBBY_UPGRADE_ID_BASE,
-  LOBBY_UPGRADE_SLOTS,
-  LOBBY_TEMPLATE_IDS
-} from './template'
-import type { LobbyVendorIds } from './template'
-import { LOBBY_ASSETS } from './assets'
-import {
-  BOSSPREP_DIAMOND_SLOTS,
-  BOSSPREP_EXIT_NODE_ID,
-  BOSSPREP_ITEM_ID_BASE,
-  BOSSPREP_TEMPLATE,
-  BOSSPREP_UPGRADE_ID_BASE,
-  BOSSPREP_UPGRADE_SLOTS,
-  BOSSPREP_TEMPLATE_IDS
-} from '../bossprep/template'
 import {
   SUN_BAZAAR_DIAMOND_SLOTS,
   SUN_BAZAAR_EXIT_NODE_ID,
@@ -88,7 +64,21 @@ import {
   SKY_SHOP_UPGRADE_SLOTS
 } from '../skyShop/template'
 import { SKY_SHOP_ASSETS } from '../skyShop/assets'
+import {
+  HOUSE_DIAMOND_SLOTS,
+  HOUSE_EXIT_NODE_ID,
+  HOUSE_ITEM_ID_BASE,
+  HOUSE_MUSIC_ID_BASE,
+  HOUSE_PORTAL_DOODAD_ID,
+  HOUSE_RESPAWN_ID_BASE,
+  HOUSE_TEMPLATE,
+  HOUSE_TEMPLATE_IDS,
+  HOUSE_UPGRADE_ID_BASE,
+  HOUSE_UPGRADE_SLOTS
+} from '../house/template'
+import { HOUSE_ASSETS } from '../house/assets'
 import type { UpgradeSlots } from '../levelTemplate/surgery'
+import type { LobbyVendorIds } from './shops'
 import type { GeneratedFile } from '../index'
 
 /**
@@ -143,42 +133,23 @@ export interface LobbyPresetDef {
  */
 export const LOBBY_PRESETS: readonly LobbyPresetDef[] = [
   {
-    id: 'BETA-dungeon-prep',
-    label: 'BETA Dungeon prep',
-    description: 'Pre 1.0 dungeon prep room extracted from remnant of Dreadmann Mansion campaign.',
-    surgeryLabel: 'lobby',
-    template: LOBBY_TEMPLATE,
-    templateIds: LOBBY_TEMPLATE_IDS,
-    exitNodeId: LOBBY_EXIT_NODE_ID,
-    diamondSlots: LOBBY_DIAMOND_SLOTS,
-    upgradeSlots: LOBBY_UPGRADE_SLOTS,
-    itemIdBase: LOBBY_ITEM_ID_BASE,
-    upgradeIdBase: LOBBY_UPGRADE_ID_BASE,
-    // above everything the template uses and below LOBBY_ITEM_ID_BASE, so
-    // neither the respawn rig nor the diamond/upgrade payout can collide with
-    // the template or with each other
-    respawnIdBase: 9000,
-    musicIdBase: 9600,
-    assets: LOBBY_ASSETS
-  },
-  {
-    id: 'BETA-boss-prep',
-    label: 'BETA Boss prep',
-    description: 'Custom made prep room before 1.0 release.',
-    surgeryLabel: 'bossprep',
-    template: BOSSPREP_TEMPLATE,
-    templateIds: BOSSPREP_TEMPLATE_IDS,
-    exitNodeId: BOSSPREP_EXIT_NODE_ID,
-    diamondSlots: BOSSPREP_DIAMOND_SLOTS,
-    upgradeSlots: BOSSPREP_UPGRADE_SLOTS,
-    itemIdBase: BOSSPREP_ITEM_ID_BASE,
-    upgradeIdBase: BOSSPREP_UPGRADE_ID_BASE,
-    // same reasoning as the dungeon-prep room's; the two templates' own
-    // authored ids never overlap, so both may start their respawn rig here
-    respawnIdBase: 9000,
-    musicIdBase: 9600,
-    // [VERIFIED] 2026-08-10 — stock assets only, unlike the dungeon-prep room
-    assets: []
+    id: 'house',
+    label: 'House',
+    description:
+      'A manor house after the Anniversary Edition lobby: bedrooms, a library, a dining hall with every vendor, and a lawn. Leave through the teleport in the north-west room.',
+    surgeryLabel: 'house',
+    template: HOUSE_TEMPLATE,
+    templateIds: HOUSE_TEMPLATE_IDS,
+    exitNodeId: HOUSE_EXIT_NODE_ID,
+    diamondSlots: HOUSE_DIAMOND_SLOTS,
+    upgradeSlots: HOUSE_UPGRADE_SLOTS,
+    itemIdBase: HOUSE_ITEM_ID_BASE,
+    upgradeIdBase: HOUSE_UPGRADE_ID_BASE,
+    respawnIdBase: HOUSE_RESPAWN_ID_BASE,
+    musicIdBase: HOUSE_MUSIC_ID_BASE,
+    // the AE furniture, the user's grass tileset and dead tree
+    assets: HOUSE_ASSETS,
+    portalDoodadId: HOUSE_PORTAL_DOODAD_ID
   },
   {
     id: 'sun-bazaar',
@@ -194,7 +165,6 @@ export const LOBBY_PRESETS: readonly LobbyPresetDef[] = [
     itemIdBase: SUN_BAZAAR_ITEM_ID_BASE,
     upgradeIdBase: SUN_BAZAAR_UPGRADE_ID_BASE,
     // the stock hub's ids run past 150 000, so its bases sit above them
-    // instead of at the BETA rooms' 9000/9600
     respawnIdBase: SUN_BAZAAR_RESPAWN_ID_BASE,
     musicIdBase: SUN_BAZAAR_MUSIC_ID_BASE,
     // stock assets only — the importer checks every path against the install
@@ -245,7 +215,7 @@ export const LOBBY_PRESETS: readonly LobbyPresetDef[] = [
 ]
 
 /** The preset a freshly-added lobby starts on. */
-export const DEFAULT_LOBBY_PRESET_ID = 'BETA-dungeon-prep'
+export const DEFAULT_LOBBY_PRESET_ID = 'house'
 
 export function lobbyPresetById(id: string): LobbyPresetDef | undefined {
   return LOBBY_PRESETS.find((p) => p.id === id)

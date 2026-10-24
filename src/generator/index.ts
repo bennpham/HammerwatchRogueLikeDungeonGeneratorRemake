@@ -558,7 +558,7 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
   })
 
   // The union of every preset actually used, deduped by path — two
-  // dungeon-prep lobbies (or a campaign that never uses a lobby at all) must
+  // Houses (or a campaign that never uses a lobby at all) must
   // not push the same asset file twice, or ship one nothing references.
   const seenAssetPaths = new Set<string>()
   for (const presetId of usedLobbyPresets) {

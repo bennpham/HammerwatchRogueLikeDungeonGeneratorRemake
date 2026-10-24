@@ -94,8 +94,9 @@ Two lobbies and the boss finale are **on by default**; timer mode is **off**.
 - **Lobbies** — hand-authored shop rooms you can place **anywhere in the
   campaign order**, as many as you like: one at the front as a starting hub,
   one before each boss fight, one halfway through the floors, or none at all.
-  Each has its own **preset** — `BETA-dungeon-prep` or `BETA-boss-prep`, the
-  two rooms this tool used to ship as "the lobby" and "the prep room" — its own
+  Each has its own **preset** — the `house` (the default, after the
+  Anniversary Edition house lobby), `sun-bazaar`, `castle-bridge` or
+  `sky-shop` — its own
   vendor stalls for the shop columns you pick, its own pile of starting gold,
   and its own **free upgrade pickups** (any number of each of the game's eight
   upgrade items, none by default). Anyone who died on the way in is revived on
@@ -308,7 +309,7 @@ stock player tweak are all **on by default**:
 | Parameter | Default | Meaning |
 | --- | --- | --- |
 | `lobbies` | 2 | How many shop rooms the campaign has. `0` means none. Every key below carries its lobby index — `lobby0Gold` is the first lobby's, `lobby1Gold` the second's. No upper limit, same as `levels` |
-| `lobby<i>Preset` | `BETA-dungeon-prep` | Which hand-authored room this lobby uses: `BETA-dungeon-prep` or `BETA-boss-prep` |
+| `lobby<i>Preset` | `house` | Which room this lobby uses: `house`, `sun-bazaar`, `castle-bridge` or `sky-shop` |
 | `lobby<i>Gold` | 10000, 20000 | Gold paid out in this lobby, a multiple of 500 (one red diamond each). Past the room's floor spots the diamonds simply stack — there is no upper cap beyond a safety limit that stops a typo emitting millions of items |
 | `lobby<i>Shops` | all 21 columns | Space-separated shop columns this lobby's stalls sell |
 | `lobby<i>Upgrades` | `0 0 0 0 0 0 0 0` | Free upgrade pickups lying on this lobby's floor: eight space-separated counts, in the order damage, defense, health, mana, then the four tier-2 versions. Each kind has one spot on the floor, so a count above one simply stacks there — there is no gameplay cap, only a safety limit. `0` means the kind is not laid out at all |
@@ -367,7 +368,6 @@ list with actor files is in `src/generator/objects/monsterTypes.ts`.
 │   │   │                   object sets (stairs, shop, orb)
 │   │   ├── levelTemplate/  Shared helpers for the hand-authored levels below
 │   │   ├── lobby/          Shop rooms: presets, vendor stalls, gold, portal
-│   │   ├── bossprep/       The boss-prep preset's committed template
 │   │   ├── boss/           The generated arena: geometry, spawn anchors,
 │   │   │                   cover pillars, wave rig, boss roster
 │   │   ├── tweak/          player tweak/*.xml emitters and bulk editors —

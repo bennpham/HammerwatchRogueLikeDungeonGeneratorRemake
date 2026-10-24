@@ -9,5 +9,4 @@ export {
   lobbyCategoryCounts,
   vendorOfCategory
 } from './shops'
-export type { LobbyVendorDef } from './shops'
-export type { LobbyVendorIds } from './template'
+export type { LobbyVendorDef, LobbyVendorIds } from './shops'

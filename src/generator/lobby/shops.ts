@@ -15,11 +15,28 @@ import type { PlayerTweaks } from '../tweak/types'
  * underground stays a reward for exploring.
  */
 export interface LobbyVendorDef {
-  /** key into LOBBY_TEMPLATE_IDS */
+  /** key into a preset's `templateIds` */
   id: string
   label: string
   /** shop columns this stall can sell, in canonical order */
   categories: readonly string[]
+}
+
+/**
+ * One stall's element ids in a committed room, which `buildLobby` edits.
+ * Every generated template exports a record of these, keyed by vendor id.
+ */
+export interface LobbyVendorIds {
+  /** the shape the ShopArea covers */
+  shape: number
+  /** the ShopArea node carrying `cats` */
+  shop: number
+  /** the vendor doodad */
+  vendor: number
+  /** the speech-bubble doodad */
+  speech: number
+  /** the little tier number over the vendor, or null for a single-column stall */
+  badge: number | null
 }
 
 export const LOBBY_VENDORS: readonly LobbyVendorDef[] = [

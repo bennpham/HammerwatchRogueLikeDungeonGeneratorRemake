@@ -913,7 +913,7 @@ function getArenaXML(
       tileSet.addData(dataAFromDataT(dataT))
 
       // Water first, theme second — matches the shipped stacking order (see
-      // bossprep/template.ts and campaign2/levels/level_cave_1.xml).
+      // the deleted BETA boss-prep room and campaign2/levels/level_cave_1.xml).
       const dataSets = new XMLArray('datasets')
       dataSets.addData(waterDataset())
       dataSets.addData(tileSet)

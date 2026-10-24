@@ -1,6 +1,7 @@
 /**
  * Shared by the importers that turn a stock Hammerwatch level into a lobby
- * template (scripts/import-sun-bazaar.mjs, scripts/import-castle-bridge.mjs):
+ * template (scripts/import-sun-bazaar.mjs, scripts/import-castle-bridge.mjs,
+ * scripts/import-house.mjs):
  * the editor's text dialect, a tree walk over it, the walkability model the
  * importers flood-fill over, and the pieces of the emitted TS module that do
  * not depend on which room it is.
@@ -360,6 +361,138 @@ export function pickSlots(
   const diamonds = picked.slice(0, DIAMOND_SLOT_COUNT).sort((a, b) => a[1] - b[1] || a[0] - b[0])
   const upgrades = Object.fromEntries(UPGRADE_KINDS.map((k, i) => [k, picked[DIAMOND_SLOT_COUNT + i]]))
   return { diamonds, upgrades }
+}
+
+// ------------------------------------------------------------- closure
+
+/**
+ * The file `path` resolves to under the first of `assets` (one root, or a list
+ * of roots searched in order — the install's stock tree, then a room's own
+ * custom files).
+ */
+export function assetFile(assets, path) {
+  const roots = Array.isArray(assets) ? assets : [assets]
+  for (const root of roots) {
+    const file = join(root, path)
+    if (existsSync(file)) return file
+  }
+  throw new Error(`${path} is not an asset (looked in ${roots.join(', ')})`)
+}
+
+/** Collision boxes per doodad file, in tiles relative to its position: polygons' bounds and circles'. */
+export function collisionBoxes(assets, path, cache) {
+  if (cache.has(path)) return cache.get(path)
+  const xml = readFileSync(assetFile(assets, path), 'utf8').replace(/<!--[\s\S]*?-->/g, '')
+  const boxes = []
+  const polygon = (body) => {
+    const pts = [...body.matchAll(/<point>\s*(-?[\d.]+)\s+(-?[\d.]+)\s*<\/point>/g)].map((m) => [Number(m[1]) / 16, Number(m[2]) / 16])
+    if (pts.length === 0) return
+    const xs = pts.map(([px]) => px)
+    const ys = pts.map(([, py]) => py)
+    boxes.push([Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)])
+  }
+  for (const m of xml.matchAll(/<polygon[^>]*collision="true"[^>]*>([\s\S]*?)<\/polygon>/g)) polygon(m[1])
+  for (const m of xml.matchAll(/<collision\b([^>]*)>([\s\S]*?)<\/collision>/g)) {
+    // a sensor blocks nothing
+    if (/collision-response="false"/.test(m[1])) continue
+    for (const p of m[2].matchAll(/<polygon[^>]*>([\s\S]*?)<\/polygon>/g)) polygon(p[1])
+    for (const c of m[2].matchAll(/<circle\s+offset="(-?[\d.]+)\s+(-?[\d.]+)"\s+radius="([\d.]+)"/g)) {
+      const [ox, oy, r] = [Number(c[1]) / 16, Number(c[2]) / 16, Number(c[3]) / 16]
+      boxes.push([ox - r, oy - r, ox + r, oy + r])
+    }
+  }
+  cache.set(path, boxes)
+  return boxes
+}
+
+/**
+ * The room must be closed by colliders alone — the engine takes collision from
+ * doodads, so void is walkable. Flood-fill a `grid`-per-tile mesh of `crop`
+ * (`x0 <= x < x1`, `y0 <= y < y1`, in tiles) from the arrival; a cell is solid
+ * when it overlaps any collision box, and the exit's shape is a way out the
+ * fill stops at. Reaching the crop's edge means a walkable route out of the
+ * lobby, and not reaching the exit means the lobby cannot be left; both throw.
+ *
+ * Returns the floor area reached and `reached(x, y)`, whether the fill got
+ * into any cell of the tile at (x, y) — for checking stalls and pickup slots.
+ */
+export function checkClosed(level, assets, built, crop, grid) {
+  const cols = (crop.x1 - crop.x0) * grid
+  const rows = (crop.y1 - crop.y0) * grid
+  const solid = new Uint8Array(cols * rows)
+  const cache = new Map()
+  const mark = ([x0, y0, x1, y1], value) => {
+    const c0 = Math.max(0, Math.floor((x0 - crop.x0) * grid + 1e-6))
+    const c1 = Math.min(cols, Math.ceil((x1 - crop.x0) * grid - 1e-6))
+    const r0 = Math.max(0, Math.floor((y0 - crop.y0) * grid + 1e-6))
+    const r1 = Math.min(rows, Math.ceil((y1 - crop.y0) * grid - 1e-6))
+    for (let r = r0; r < r1; r++) for (let c = c0; c < c1; c++) solid[r * cols + c] = value
+  }
+  for (const d of doodadsOf(level)) {
+    const [px, py] = posOf(d)
+    for (const [x0, y0, x1, y1] of collisionBoxes(assets, typeOf(d), cache)) mark([px + x0, py + y0, px + x1, py + y1], 1)
+  }
+  const [ex, ey] = posOf(built.exitShapes[0])
+  const ew = param(built.exitShapes[0], 'w').value
+  const eh = param(built.exitShapes[0], 'h').value
+  mark([ex - ew / 2, ey - eh / 2, ex + ew / 2, ey + eh / 2], 2)
+
+  const [sx, sy] = posOf(built.start)
+  const s = Math.floor((sy - crop.y0) * grid) * cols + Math.floor((sx - crop.x0) * grid)
+  if (solid[s] !== 0) throw new Error('the arrival stands inside a collider')
+  const from = new Int32Array(cols * rows).fill(-1)
+  const at = (cell) => [crop.x0 + (cell % cols) / grid, crop.y0 + Math.floor(cell / cols) / grid]
+  const seen = new Uint8Array(cols * rows)
+  seen[s] = 1
+  const queue = [s]
+  let exitReached = false
+  for (let i = 0; i < queue.length; i++) {
+    const cell = queue[i]
+    const c = cell % cols
+    const r = Math.floor(cell / cols)
+    if (c === 0 || r === 0 || c === cols - 1 || r === rows - 1) {
+      // name the route by the whole tiles it crosses, arrival first
+      const route = []
+      for (let p = cell; p !== -1; p = from[p]) {
+        const tile = at(p).map(Math.floor).join(',')
+        if (route[0] !== tile) route.unshift(tile)
+      }
+      throw new Error(`the lobby leaks to the crop edge at ${at(cell).join(' ')}; route by tile: ${route.join(' ')}`)
+    }
+    for (const n of [cell - 1, cell + 1, cell - cols, cell + cols]) {
+      if (seen[n]) continue
+      seen[n] = 1
+      from[n] = cell
+      if (solid[n] === 2) exitReached = true
+      else if (solid[n] === 0) queue.push(n)
+    }
+  }
+  if (!exitReached) {
+    const west = queue.reduce((a, b) => (at(b)[0] < at(a)[0] ? b : a))
+    const [wx, wy] = at(west)
+    const blockers = doodadsOf(level)
+      .filter((d) => {
+        const [px, py] = posOf(d)
+        return collisionBoxes(assets, typeOf(d), cache).some(
+          ([x0, y0, x1, y1]) => px + x0 <= wx && px + x1 >= wx - 1 && py + y0 <= wy + 1 && py + y1 >= wy - 1
+        )
+      })
+      .map((d) => `${typeOf(d).replace('doodads/', '')}@${posOf(d).join(',')}`)
+    throw new Error(`the exit is not reachable from the arrival; the fill stops at ${wx} ${wy} against ${blockers.join(' ')}`)
+  }
+  const visited = new Uint8Array(cols * rows)
+  for (const cell of queue) visited[cell] = 1
+  const reached = (x, y) => {
+    const c0 = (Math.floor(x) - crop.x0) * grid
+    const r0 = (Math.floor(y) - crop.y0) * grid
+    for (let r = r0; r < r0 + grid; r++) {
+      for (let c = c0; c < c0 + grid; c++) {
+        if (r >= 0 && r < rows && c >= 0 && c < cols && visited[r * cols + c]) return true
+      }
+    }
+    return false
+  }
+  return { cells: queue.length / (grid * grid), reached }
 }
 
 // ------------------------------------------------------------- checks
