@@ -18,23 +18,25 @@
  * The third room, the Temple of the Sun bazaar (`../sunBazaar/template.ts`,
  * written by `scripts/import-sun-bazaar.mjs`), is not hand-authored: it is the
  * TotS campaign's own hub read out of `campaign2.hwm` and cleaned into a
- * lobby. It is never the default and no preset uses it.
+ * lobby. Never the default; the Desert preset shops in it.
  *
  * The fourth, the Castle Hammerwatch bridge (`../castleBridge/template.ts`,
  * written by `scripts/import-castle-bridge.mjs`), is the same idea applied to
  * the stock campaign: the opening level's bridge chamber cut out of
  * `level_1.xml`, its collapse patched into an intact bridge with the vendors
- * on it, and its exits sealed. Opt-in like the bazaar.
+ * on it, and its exits sealed. The Castle preset shops on it.
  * The fifth, the Shaftlocke Peak sky shop (`../skyShop/`, written by
  * `scripts/import-sky-shop.mjs`), is the survival campaign's summit shop read
  * out of `survival.hwm` the same way. It ships the cloud layer that only that
- * campaign carries. Also opt-in only.
+ * campaign carries. The Bonus preset shops in it.
  *
  * The sixth, the House (`../house/`, written by `scripts/import-house.mjs`),
  * is the user's own editor level: the Anniversary Edition house lobby
  * converted to Hammerwatch 1 and reworked by hand. It IS the default — every
  * lobby a campaign gets without naming a room, and every lobby in
- * `defaultParameters()` and the castle/desert/bonus and Claude presets.
+ * `defaultParameters()` and the Claude presets. The three classics each
+ * shop in their own campaign's hub instead: Castle on the bridge, Desert in
+ * the bazaar, Bonus in the sky shop.
  * It ships the AE furniture and the user's grass and dead tree.
  */
 import {

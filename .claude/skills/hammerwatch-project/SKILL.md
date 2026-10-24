@@ -1224,7 +1224,7 @@ else. Six ship:
   stairs. The temple entrance's own exit is dropped. Its diamond and upgrade
   slots are picked by the importer's flood fill, since the hub has none
   authored, and its id bases sit above the hub's 150 000+ ids. Stock assets
-  only. It is opt-in: never the default and in no preset.
+  only. Never the default; the **Desert** preset shops in it.
 - `castle-bridge` — the stock Castle Hammerwatch opening: the bridge that
   collapses under the party in `editor/campaign/levels/level_1.xml`, cropped
   out by `scripts/import-castle-bridge.mjs`. The collapse set piece
@@ -1239,7 +1239,7 @@ else. Six ship:
   2-row walkway (`pickSlots` with `neighbourhood: 0`). Id bases sit above
   level_1's 104 000+ ids. `defaultLobby('castle-bridge')` adds
   `music: 'act1'`, the level's own track — the one per-id default besides
-  boss-prep's gold. Stock assets only, opt-in, in no preset.
+  boss-prep's gold. Stock assets only. The **Castle** preset shops on it.
 - `sky-shop` — the survival campaign's merchants guild on Shaftlocke Peak
   (`survival.hwm`, `levels/level_summit.xml.bin`), read out by
   `scripts/import-sky-shop.mjs`. Floating islands and glass walkways over a
@@ -1261,9 +1261,11 @@ else. Six ship:
   floor. Reach is a quarter-tile fill over walls alone, with polygon edges
   blocking too, since the corner colliders cross themselves. It is also the
   seal check: if it gets past the outermost doodads, the import fails.
-  Opt-in only.
+  The **Bonus** preset shops in it.
 - `house` — **the default room** (`DEFAULT_LOBBY_PRESET_ID`, both lobbies of
-  `defaultParameters()`, castle/desert/bonus and every Claude preset;
+  `defaultParameters()` (so the app opens on it) and every Claude preset;
+  the classics shop in their own hub — castle `castle-bridge`, desert
+  `sun-bazaar`, bonus `sky-shop`, `tests/presets.test.ts` pins all four;
   colosseum and Pre-Alpha keep theirs). The user's own editor level
   `editor/lobby/lobby.xml`: the AE house lobby converted to theme c and
   reworked by hand, cleaned by `scripts/import-house.mjs`. Three things the

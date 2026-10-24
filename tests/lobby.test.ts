@@ -99,8 +99,8 @@ describe('lobby — presets', () => {
     expect(ids).toContain('castle-bridge')
     expect(ids).toContain('sky-shop')
     expect(ids).toContain('house')
-    // the bazaar, the bridge and the sky shop are opt-in; the House replaced
-    // the dungeon-prep room as the default, and leads the dropdown
+    // the House replaced the dungeon-prep room as the default, and leads the
+    // dropdown; the bazaar, the bridge and the sky shop are the classics' hubs
     expect(DEFAULT_LOBBY_PRESET_ID).toBe('house')
     expect(ids[0]).toBe('house')
   })

@@ -451,7 +451,17 @@ const CLASSIC_PRESETS: readonly CampaignPreset[] = [
     description:
       '7 floors through the mixed castle themes — four act floors, then three boss rushes, with two mystery buttons hidden on every floor.',
     group: 'classic',
-    build: () => ({ ...defaultParameters(), ...castleMystery() })
+    // Both shops are the Castle Hammerwatch bridge, the campaign's own opening
+    // level; the stock default keeps the House. The bridge plays its own act1
+    // until the pre-boss shop switches to the boss track.
+    build: () => ({
+      ...defaultParameters(),
+      ...castleMystery(),
+      lobbies: [
+        defaultLobby('castle-bridge'),
+        { ...defaultLobby('castle-bridge'), startingGold: 20000, music: 'boss_1' }
+      ]
+    })
   },
   {
     id: 'desert',
@@ -508,8 +518,9 @@ const CLASSIC_PRESETS: readonly CampaignPreset[] = [
       ...desertMystery(),
       boss: withBoss('i_mixed', ['boss_anubis', 'boss_worm'], desertWaves()),
       lobbies: [
-        { ...defaultLobby('house'), music: 'desert_village' },
-        { ...defaultLobby('house'), startingGold: 20000, music: 'boss_1' }
+        // the Temple of the Sun's own village, to its own track
+        { ...defaultLobby('sun-bazaar'), music: 'desert_village' },
+        { ...defaultLobby('sun-bazaar'), startingGold: 20000, music: 'boss_1' }
       ],
       monsterMax: {
         ...defaultParameters().monsterMax,
@@ -631,9 +642,10 @@ const CLASSIC_PRESETS: readonly CampaignPreset[] = [
         bonusWaves()
       ),
       lobbies: [
-        { ...defaultLobby('house'), music: 'custom_1' },
+        // the survival campaign's summit shop, above the clouds
+        { ...defaultLobby('sky-shop'), music: 'custom_1' },
         {
-          ...defaultLobby('house'),
+          ...defaultLobby('sky-shop'),
           music: 'custom_2',
           startingGold: 25000,
           upgrades: oneOfEachUpgrade()

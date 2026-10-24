@@ -269,14 +269,31 @@ describe('campaign presets', () => {
     expect(campaignPresetById('nope')).toBeUndefined()
   })
 
-  it('makes the castle preset the built-in default plus its mystery plates, and nothing else', () => {
-    const { mysteryButtons, levelMystery, ...rest } = campaignPresetById('castle')!.build()
+  it('makes the castle preset the built-in default plus its mystery plates and bridge shops, and nothing else', () => {
+    const { mysteryButtons, levelMystery, lobbies, ...rest } = campaignPresetById('castle')!.build()
     expect(mysteryButtons).toBeDefined()
     expect(levelMystery).toBeDefined()
-    expect(rest).toEqual(defaultParameters())
+    const { lobbies: defaultLobbies, ...defaults } = defaultParameters()
+    expect(rest).toEqual(defaults)
+    // the same two shops, gold and pre-boss music as the default's Houses,
+    // stood on the Castle Hammerwatch bridge instead
+    expect(lobbies.map((l) => l.preset)).toEqual(['castle-bridge', 'castle-bridge'])
+    expect(lobbies.map((l) => l.startingGold)).toEqual(defaultLobbies.map((l) => l.startingGold))
+    expect(lobbies[1].music).toBe(defaultLobbies[1].music)
     // the app opens on the plate-free default, and parameters.txt imports onto it
     expect(defaultParameters().mysteryButtons).toBeUndefined()
     expect(defaultParameters().levelMystery).toBeUndefined()
+  })
+
+  it("shops each classic in its own campaign's hub, and every other lobby in the House", () => {
+    const rooms = (id: string) => [...new Set(campaignPresetById(id)!.build().lobbies.map((l) => l.preset))]
+    expect(rooms('castle')).toEqual(['castle-bridge'])
+    expect(rooms('desert')).toEqual(['sun-bazaar'])
+    expect(rooms('bonus')).toEqual(['sky-shop'])
+    for (const preset of CAMPAIGN_PRESETS.filter((p) => p.group === 'claude')) {
+      expect(rooms(preset.id), preset.id).toEqual(['house'])
+    }
+    expect(defaultParameters().lobbies.map((l) => l.preset)).toEqual(['house', 'house'])
   })
 
   it('resolves mystery picks by button name, and throws on an unknown one', () => {
