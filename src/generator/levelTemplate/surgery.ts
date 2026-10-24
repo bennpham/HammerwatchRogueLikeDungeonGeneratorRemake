@@ -1,11 +1,11 @@
 /**
  * Text surgery over a committed level template.
  *
- * The lobby and the boss prep room are hand-authored levels imported verbatim
- * and edited by id — never re-serialized through src/generator/xml/. These
- * helpers locate an element by its id and rewrite or remove it, treating the
- * template as opaque text. The caller passes a label ("lobby", "bossprep") so
- * failures name the level they came from.
+ * The lobby rooms are committed levels imported verbatim and edited by id —
+ * never re-serialized through src/generator/xml/. These helpers locate an
+ * element by its id and rewrite or remove it, treating the template as opaque
+ * text. The caller passes a label ("house", "sky-shop") so failures name the
+ * level they came from.
  */
 
 /**

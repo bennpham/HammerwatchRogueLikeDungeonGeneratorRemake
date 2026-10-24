@@ -10,8 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **House lobby, now the default room.** A sixth lobby room, "House" (`house` in parameters.txt), at the top of the Lobby tab's preset dropdown. It is the Anniversary Edition house lobby rebuilt for Hammerwatch: bedrooms, a library, a dining hall with all five vendors, and a lawn.
-  - **It is now the default.** New lobbies start as the House, and so do both lobbies of the stock campaign and of the Claude Generated presets. Each pre-boss lobby keeps its 20 000 gold. Survival in Colosseum and Pre-Alpha are unchanged. The BETA rooms are still in the dropdown.
-- **The Classic presets shop in their own campaign's hub.** Castle uses the Castle Hammerwatch bridge for both of its lobbies, Desert the Temple of the Sun bazaar, and Bonus the Shaftlocke Peak sky shop. Gold, shop columns and music are unchanged.
+  - **It is now the default.** New lobbies start as the House, and so do both lobbies of the stock campaign and of the Claude Generated presets. Each pre-boss lobby keeps its 20 000 gold. Survival in Colosseum uses it too; Pre-Alpha has no lobbies.
   - The party arrives in the hall west of the bedrooms and leaves through the teleport in the north-west room. The teleport is red when the lobby leads into a boss fight and blue otherwise.
   - Starting gold lies in the diamond zone along the top of the library, and nowhere else. More diamonds than the zone holds stack on the same spots. Free upgrades lie on the row in front of the vendors, one spot per kind.
   - The AE furniture (altars, fireplace, stoves, shelves, beds, wardrobes, tables, chairs, fences, target dummies) now draws over the castle wall behind it instead of disappearing. Furniture with a wall in front of it, such as the bottom bedrooms' wardrobes, stays behind that wall, so only its top shows. The candles draw over the roof, so the ones along the dining hall's east edge show. The rugs stay under everyone's feet.
@@ -19,12 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The vendors now have speech bubbles and tier badges, like the other rooms.
   - The lawn uses your own grass and dead trees. A campaign that uses the House ships the furniture, grass and tree art it needs (62 small files) and nothing else from the source folder.
   - `scripts/import-house.mjs` regenerates it from the editor level `editor/lobby/lobby.xml`. The castle-bridge importer's room-closure check now lives in `scripts/lib/hwLevel.mjs`, shared by both, and its output is unchanged.
+- **The Classic presets shop in their own campaign's hub.** Castle uses the Castle Hammerwatch bridge for both of its lobbies, Desert the Temple of the Sun bazaar, and Bonus the Shaftlocke Peak sky shop. Gold, shop columns and music are unchanged.
 
 - **Temple of the Sun bazaar lobby.** A third room in the Lobby tab's preset dropdown, "Temple of the Sun bazaar" (`sun-bazaar` in parameters.txt). It is the Temple of the Sun campaign's own desert village with all five vendors stocked.
   - The party arrives in the village square. The way out is a portal on the lit desert pad at the top of the temple stairs, north-west of the square, where the original game's boss teleporter stands. The portal is red when the lobby leads into a boss fight and blue otherwise, like the floors' portals. The temple entrance itself leads nowhere.
   - The quests, NPCs, dialog, extra exits and pickups are gone. Starting gold and free upgrades appear next to the arrival.
   - It ships no extra files: everything it uses is stock.
-  - It is opt-in. New lobbies still start as the dungeon-prep room, and no preset changes.
+  - The Desert preset shops in it.
   - Like the other lobbies, it has no music of its own. Pick `desert_village` in the lobby's music setting for the bazaar's own track.
   - `scripts/import-sun-bazaar.mjs` regenerates it from the game's `campaign2.hwm`.
 - **Castle Hammerwatch bridge lobby.** A fourth room in the Lobby tab's preset dropdown, "Castle Hammerwatch bridge" (`castle-bridge` in parameters.txt). It is the bridge from the very start of Castle Hammerwatch, the one that collapses under the party, repaired and closed off as a shop, much like the ruined castle hub in Hammerwatch 2.
@@ -34,7 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Glass walkway panels, like the ones on Shaftlocke Peak, cover the bridge's east end. That stretch looks like a hole, but it is walkable.
   - It plays Act 1 music, the track of the level it comes from.
   - It ships no extra files: everything it uses is stock.
-  - It is opt-in. New lobbies still start as the dungeon-prep room, and no preset changes.
+  - The Castle preset shops on it.
   - `scripts/import-castle-bridge.mjs` regenerates it from the game's own `level_1.xml`. The bazaar's importer now shares its level-reading code through `scripts/lib/hwLevel.mjs`, and its output is unchanged.
 - **Shaftlocke Peak sky shop lobby.** A fifth lobby room, "Shaftlocke Peak sky shop" (`sky-shop` in parameters.txt). It is the survival campaign's merchants guild: floating islands joined by glass walkways, with clouds drifting below.
   - All five vendors are stocked, filtered by the Lobby tab's columns like the other rooms, with tier badges.
@@ -42,8 +42,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Starting gold lies in a ring round the arrival and free upgrades in a block just north of it, all inside the red room. More diamonds than the ring holds stack on the same spots.
   - The survival campaign's title card and music are gone; pick a track in the lobby's music setting.
   - The cloud layer only ships with the survival campaign, so a campaign using this room carries its own copy (two small files).
-  - It is opt-in. New lobbies still start as the dungeon-prep room, and no preset changes.
+  - The Bonus preset shops in it.
   - `scripts/import-sky-shop.mjs` regenerates it from the game's `survival.hwm`.
+
+### Removed
+
+- **The BETA Dungeon prep and BETA Boss prep lobbies.** The House replaces both. A parameters.txt that names either (`BETA-dungeon-prep`, `BETA-boss-prep`) still loads: the line is reported as unrecognized and that lobby becomes a House. Survival in Colosseum's eight lobbies are Houses now, with their gold, shops, upgrades and music unchanged. A lobby built in code now starts with 10 000 gold whatever its room; the stock campaign's pre-boss lobby still sets its own 20 000.
 
 ## [0.9.5]
 

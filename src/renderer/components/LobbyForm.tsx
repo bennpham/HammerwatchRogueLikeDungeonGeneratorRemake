@@ -329,10 +329,9 @@ interface LobbyDiagramProps {
  *
  * This is why a lobby has no entry in the dungeon preview tab: `LevelPreview`
  * draws generated room and passage geometry, and a hand-authored level has
- * none. The dungeon-prep and boss-prep rooms lay their free-upgrade slots out
- * differently — one back-to-front, the other left-to-right — and the
- * boss-prep room carries 42 diamond slots to the dungeon-prep room's 12, so
- * the diagram is driven off the selected preset's own `diamondSlots` and
+ * none. The rooms lay their slots out very differently — the House carries
+ * 87 diamond slots in a band along its library, the sky shop 16 in a ring —
+ * so the diagram is driven off the selected preset's own `diamondSlots` and
  * `upgradeSlots` tables (the same coordinates `buildLobby()` edits by id)
  * rather than assuming every preset is shaped like the original lobby.
  */

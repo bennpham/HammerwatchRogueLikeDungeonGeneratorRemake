@@ -79,18 +79,13 @@ src/
 │   │   │                 one descriptor per committed room (template, its
 │   │   │                 vendor ids, exit node, diamond/upgrade slots, id
 │   │   │                 bases, assets). `house` (the default),
-│   │   │                 `BETA-dungeon-prep`, `BETA-boss-prep`,
 │   │   │                 `sun-bazaar`, `castle-bridge` and `sky-shop`;
 │   │   │                 adding a room is an entry here
-│   │   ├── template.ts   the dungeon-prep XML verbatim (generated+committed)
-│   │   ├── assets.ts     custom files it references, base64 when binary
-│   │   ├── shops.ts      the five vendor stalls and their shop columns
+│   │   ├── shops.ts      the five vendor stalls, their shop columns, and
+│   │   │                 LobbyVendorIds (the per-stall ids every template
+│   │   │                 exports)
 │   │   └── build.ts      buildLobby(preset, options, exitTarget, saves) — surgical
 │   │                     edits only, no RNG, no per-preset branching
-│   ├── bossprep/         template.ts ONLY — the boss-prep room's committed
-│   │                     XML, imported by lobby/presets.ts. It stays here
-│   │                     because scripts/import-bossprep-assets.mjs
-│   │                     regenerates it; its build.ts and index.ts are gone
 │   ├── sunBazaar/        template.ts ONLY — the Temple of the Sun hub cleaned
 │   │                     into a lobby, ~840 KB, written by
 │   │                     scripts/import-sun-bazaar.mjs from campaign2.hwm
@@ -298,7 +293,7 @@ reference/hammerwatch-tweak-stats.md
    is the **kind** of gateway it gets, which is invariant 9's business, not
    this one's. An empty `lobbies` list emits no `levels/lobby*.xml` at all, and
    a preset's `assets` ship only when some lobby actually uses that preset,
-   deduped by path so two dungeon-prep lobbies push each file once.
+   deduped by path so two Houses push each file once.
    `src/generator/boss/**` is the exception that proves the rule — it
    *does* draw, but only from `ctx.bossRand`, so turning the boss on or off
    still leaves every dungeon floor byte-identical.
@@ -374,8 +369,8 @@ reference/hammerwatch-tweak-stats.md
 | `levelMystery[i]` | absent | per floor `{count ≤ 200, pool: number[]}` — 0-based pool indices repeated to weight, drawn WITH replacement; read through `floorMystery`. Absent/all-zero = none. `mysteryFloorN=<count>:<i,i,j>` |
 | `levelLockMystery[i]` | absent | **enhanced lock buttons**: `{count, pool: number[], disguise?}` — up to `count` (clamped to `floorLockButtons`) of a locked floor's own lock buttons ALSO fire a mystery payload from `pool`, a separate per-floor pick list from `levelMystery`; read through `floorLockMystery` (undefined off an unlocked floor, an empty/dangling pool, or `count ≤ 0`). `disguise` (absent = off, read through `floorLockDisguised`) draws that floor's lock buttons as `TriggerButton`/`pressed` instead of `BossDoorButton`/`activate`, at construction time off zero draws. Purely ADDITIVE like `levelMystery`: draws only from `ctx.mysteryRand`, strictly after every ordinary plate draw on the floor. `mysteryLockN=<count>:<i,j,k>`, `mysteryLockDisguiseN=1` |
 | `playerTweaks` | `{ 'player.shared.remove.life': 1 }` | sparse `Record<lowercase key, number>` of player-balance overrides; empty = no `tweak/` folder. See below |
-| `lobbies` | **two Houses** — the starting one at 10000g and the pre-boss one at 20000g (stated explicitly: `defaultLobby`'s 20000 rule is keyed on `BETA-boss-prep`), both selling all 21 columns, no free upgrades | the campaign's shop rooms, `LobbyOptions[]`. A lobby exists iff it is in this list: there is no `enabled` flag any more, and `lobbies: []` reproduces the pre-lobby campaign exactly — the same rule `boss.fights` already followed. Any number, each independently placed by `levelOrder`. `lobbies=N` in `parameters.txt`. See *Lobbies* below |
-| `lobbies[i].preset` | `house` for a freshly added lobby (`DEFAULT_LOBBY_PRESET_ID`) | which committed room this slot edits — an id from `LOBBY_PRESETS`. `house` is the default; `BETA-dungeon-prep` is the campaign's original starting lobby, `BETA-boss-prep` the larger room that used to be welded to every fight. `lobby<i>Preset` in `parameters.txt`; an id that is not in the registry is an error, not a fallback |
+| `lobbies` | **two Houses** — the starting one at 10000g and the pre-boss one at 20000g (stated explicitly; `defaultLobby` always gives 10000), both selling all 21 columns, no free upgrades | the campaign's shop rooms, `LobbyOptions[]`. A lobby exists iff it is in this list: there is no `enabled` flag any more, and `lobbies: []` reproduces the pre-lobby campaign exactly — the same rule `boss.fights` already followed. Any number, each independently placed by `levelOrder`. `lobbies=N` in `parameters.txt`. See *Lobbies* below |
+| `lobbies[i].preset` | `house` for a freshly added lobby (`DEFAULT_LOBBY_PRESET_ID`) | which committed room this slot edits — an id from `LOBBY_PRESETS`. `house` is the default; the classics shop in `castle-bridge`, `sun-bazaar` and `sky-shop`. The deleted `BETA-dungeon-prep`/`BETA-boss-prep` import as unknown keys. `lobby<i>Preset` in `parameters.txt`; an id that is not in the registry is an error, not a fallback |
 | `lobbies[i].startingGold` | 10000 / 20000 by preset | whole multiple of `LOBBY_DIAMOND_VALUE` (500) — one red diamond each — and ≤ `GOLD_SAFETY_MAX`, which is an emission limit rather than a game one. `lobby<i>Gold` |
 | `lobbies[i].shopCategories` | all 21, `power` included | the shop columns this room's five stalls sell; a stall left with nothing is removed outright, shape included. Buyable lives are safe because the stock `player.shared.remove.life` tweak deletes that upgrade. `lobby<i>Shops` |
 | `lobbies[i].upgrades` | every kind 0 | free upgrade pickups on that lobby's floor, one count per `UPGRADE_KINDS` entry (`damage`, `defense`, `health`, `mana`, then the four `*2` tiers). Whole number 0…`UPGRADE_COUNT_MAX` (10000) each; **0 emits no item array**. One authored slot per kind **per preset**, so a count above one *stacks* on that slot rather than needing the room's layout to grow. `lobby<i>Upgrades` in `parameters.txt`. See *Free upgrades* below |
@@ -385,8 +380,7 @@ reference/hammerwatch-tweak-stats.md
 `BossOptions` (`config/parameters.ts`) is `{enabled, fights: BossFight[]}`, and a
 `BossFight` is `{mode?, arena: BossArenaOptions, survival?}` — an arena and nothing else since
 issue #48 took the prep room out of the fight (`BossPrepOptions` is deleted;
-`defaultLobby('BETA-boss-prep')` placed before `B1` in `levelOrder` is what
-replaces it). Defaults from
+an ordinary lobby placed before `B1` in `levelOrder` is what replaces it). Defaults from
 `defaultBossOptions()`, one fight from `defaultBossFight()`; read the list
 through `bossFights(boss)`, which returns `[]` for a disabled or absent boss.
 `boss.fights` itself defaults to one stock fight: ordered, at least one when
@@ -1206,14 +1200,12 @@ template text, vendor ids, exit node, diamond slots, upgrade slots, the two id
 bases, the respawn id base, the extra asset files, and the label surgery's error
 messages use. There is **no per-preset branching** anywhere in the builder, and
 adding a room means regenerating a template and adding an entry, nothing
-else. Six ship:
+else. Four ship. The two pre-1.0 hand-authored rooms, `BETA-dungeon-prep`
+and `BETA-boss-prep`, were deleted on 2026-10-24 with their templates
+(`lobby/template.ts`, `bossprep/template.ts`), `LOBBY_ASSETS` and their
+importers. A parameters.txt naming either reports the key and keeps the
+House (`tests/configFile.test.ts`).
 
-- `BETA-dungeon-prep` — the campaign's original starting lobby, five vendor
-  stalls around a teleport. Ships `LOBBY_ASSETS`, the custom files its template
-  references.
-- `BETA-boss-prep` — the larger room that used to be welded to every fight, now
-  placeable anywhere. Stock assets only (`[VERIFIED]` 2026-08-10), which is why
-  its `assets` is `[]`.
 - `sun-bazaar` — the Temple of the Sun campaign's own hub, not hand-authored.
   `scripts/import-sun-bazaar.mjs` decodes it out of the shipped
   `campaign2.hwm` (`levels/level_hub.xml.bin`), flattens its five vendor
@@ -1238,8 +1230,7 @@ else. Six ship:
   the import if the arrival can reach the crop's edge. Pickups go on the
   2-row walkway (`pickSlots` with `neighbourhood: 0`). Id bases sit above
   level_1's 104 000+ ids. `defaultLobby('castle-bridge')` adds
-  `music: 'act1'`, the level's own track — the one per-id default besides
-  boss-prep's gold. Stock assets only. The **Castle** preset shops on it.
+  `music: 'act1'`, the level's own track — the one per-id default. Stock assets only. The **Castle** preset shops on it.
 - `sky-shop` — the survival campaign's merchants guild on Shaftlocke Peak
   (`survival.hwm`, `levels/level_summit.xml.bin`), read out by
   `scripts/import-sky-shop.mjs`. Floating islands and glass walkways over a
@@ -1301,9 +1292,6 @@ The preset id is stored in `LobbyOptions.preset` and written to
 `parameters.txt` as `lobby<i>Preset`, so it is a compatibility surface: an id
 that is not in `LOBBY_PRESETS` is a validation error on the parameter object
 and an `unknownKeys` entry on import, never a silent fallback.
-`bossprep/template.ts` stays where it is rather than moving under `lobby/` —
-it is generated data (`scripts/import-bossprep-assets.mjs` rewrites it), and
-`presets.ts` is simply another importer of it.
 
 **Emission** (`index.ts`). Lobbies are built after the floor loop *and* the
 fight loop, drawing from neither stream, so which lobbies exist and where they
@@ -1311,7 +1299,7 @@ sit cannot move a seed's dungeon (invariant 8). Each lobby slot in the campaign
 order emits one `levels/lobby<i>.xml`, and its single `LevelExitArea` is
 repointed at `slotEntryId` of whatever slot follows it — a floor, a fight's
 arena, or another lobby. A preset's `assets` are pushed once per *used* preset,
-deduped by path, so two dungeon-prep lobbies ship each file once and an unused
+deduped by path, so two Houses ship each file once and an unused
 preset ships none.
 
 **`parameters.txt`.** `lobbies=N` is the count, and every other key is fully
@@ -1606,10 +1594,9 @@ case did not exist and every monster sent to C spawned inside the boss.
 
 ## Free upgrades and the arrival revive (`levelTemplate/surgery.ts`)
 
-Two things both hand-authored rooms — the `BETA-dungeon-prep` and
-`BETA-boss-prep` lobby templates — gained after they shipped, neither drawing
-from any stream. Both are per-preset data on `LobbyPresetDef` now, which is
-what lets one `buildLobby()` serve either room.
+Two things every lobby room gets, neither drawing from any stream. Both are
+per-preset data on `LobbyPresetDef`, which is what lets one `buildLobby()`
+serve every room.
 
 **Free upgrade pickups.** `UPGRADE_KINDS` is the fixed eight-entry order
 (`damage`, `defense`, `health`, `mana`, `damage2`, `defense2`, `health2`,
@@ -1618,8 +1605,8 @@ out in, the order `parameters.txt` writes the counts in, and the order the form
 shows them in. `upgradeArrays(counts, slots, idBase)` emits one `ItemSection`
 per kind with a count above 0; a kind at 0 emits **no** array, for the same
 reason zero gold emits no diamond array (LevelPacker throws on an empty one).
-Each template has exactly one slot per kind (`LOBBY_UPGRADE_SLOTS`,
-`BOSSPREP_UPGRADE_SLOTS`, reached as `preset.upgradeSlots`), so a count above
+Each template has exactly one slot per kind (`HOUSE_UPGRADE_SLOTS` and its
+siblings, reached as `preset.upgradeSlots`), so a count above
 one **stacks** on that slot — which
 is why the count needs no gameplay cap, only `UPGRADE_COUNT_MAX` (10000) to stop
 a typo emitting an unserializable pile. `upgradeItemPath` maps `mana2` to
@@ -1629,15 +1616,14 @@ second copy.
 The id base is **derived, not round**: `*_UPGRADE_ID_BASE = *_ITEM_ID_BASE +
 MAX_DIAMOND_COUNT`, the first id no diamond can reach however much gold is
 asked for. Raising the gold cap moves the upgrade ids with it instead of
-silently colliding. Both rooms' two extra lights had to be renumbered into the
-authored range for the same reason: a light entry references nothing, so its id
-is never rewritten at build time, and the ids the source levels carried
-(10020/10021, 10047/10048) sat inside the span a deep diamond payout walks.
-The lights are unconditional and have no parameter.
+silently colliding. A light entry references nothing, so its id is never
+rewritten at build time; a template must keep its lights below its item id
+base, or a deep diamond payout walks into them (the deleted BETA rooms
+once had to renumber theirs for exactly this).
 
 **Arrival revive.** `respawnOnEntryNodes()` + `insertNodes()` (ids from 9000,
 `preset.respawnIdBase`)
-give both lobby templates and the arena the one-shot `RespawnPlayers` rig
+give every lobby template and the arena the one-shot `RespawnPlayers` rig
 every dungeon floor's `ExitUp` prefab already emitted — an `AreaTrigger` over
 the spawn point, then a `ToggleElement` that disables the trigger, so dying
 mid-fight stays permanent. Inserted at **build** time, never by editing

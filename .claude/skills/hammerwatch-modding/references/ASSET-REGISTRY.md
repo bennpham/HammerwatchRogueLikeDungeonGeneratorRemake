@@ -954,6 +954,12 @@ The 6-wide `ExitUp`/`ExitDn` footprint is why `maxRoomSize` must be ≥ 7.
 
 ## The lobby template `[VERIFIED 2026-07-31]`
 
+> **Deleted 2026-10-24.** This room (`BETA-dungeon-prep`), its template,
+> `LOBBY_ASSETS` and `scripts/import-lobby-assets.mjs` are gone; the House
+> (`src/generator/house/`, `scripts/import-house.mjs`) replaced it. The notes
+> below are kept as the record of what the editor dialect and a
+> campaign-local asset set looked like.
+
 `src/generator/lobby/template.ts` is not generated geometry — it is a level
 saved out of the game's own editor, carried verbatim and edited by id. The
 committed one is `levels/test_lobby.xml` from the Dreadmann Mansion campaign

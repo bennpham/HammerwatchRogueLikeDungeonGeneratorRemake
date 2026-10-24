@@ -1,4 +1,4 @@
-import type { LobbyVendorIds } from '../lobby/template'
+import type { LobbyVendorIds } from '../lobby/shops'
 
 /**
  * The Temple of the Sun bazaar lobby level.

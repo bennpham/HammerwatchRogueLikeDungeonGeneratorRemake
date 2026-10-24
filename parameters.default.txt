@@ -45,10 +45,8 @@ lockFinalRoom=1
 # list, and a lobby that used to be off is simply absent.
 #
 # lobby<i>Preset picks which committed room this lobby edits — house (the
-# default: the Anniversary Edition house lobby, reworked), BETA-dungeon-prep
-# (the campaign's original starting lobby), BETA-boss-prep (the room that used
-# to be welded to the front of every boss fight), sun-bazaar, castle-bridge or
-# sky-shop.
+# default: the Anniversary Edition house lobby, reworked), sun-bazaar,
+# castle-bridge or sky-shop.
 # lobby<i>Gold is a multiple of 500 (one red diamond each); more diamonds than
 # the room has spots simply stack on the same spots. lobby<i>Shops is the
 # space-separated list of shop columns its stalls sell. lobby<i>Upgrades is the
@@ -95,7 +93,7 @@ lobby1Music=boss_1
 # Omit the key for the default order — every lobby, then every floor, then
 # every boss fight. The stock campaign is NOT that order (it would put both
 # lobbies ahead of every floor): floor 8 is the escape floor, played after the
-# boss arena, and the boss-prep lobby sits right before the fight rather than
+# boss arena, and the pre-boss lobby sits right before the fight rather than
 # at the very front, so it is written out below.
 levelOrder=L1,1,2,3,4,5,6,7,L2,AB1,8
 #

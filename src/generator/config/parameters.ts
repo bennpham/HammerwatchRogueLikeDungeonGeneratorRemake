@@ -1575,10 +1575,9 @@ export function isMultiBoss(count: number): boolean {
  * interface comment for why: extra lives matter more right before a boss than
  * at the start of a run, and the one thing that made buying them anywhere
  * questionable is removed by `defaultParameters()`'s own
- * `player.shared.remove.life` tweak. The gold is 10000, except
- * 20000 for the boss-prep room — the last shop before a fight, so the party
- * arrives able to actually spend at it. A House standing before a fight (the
- * stock campaign's second lobby) states its 20000 itself.
+ * `player.shared.remove.life` tweak. The gold is 10000; a lobby
+ * standing before a fight (the stock campaign's second) states its own 20000,
+ * so the party arrives able to actually spend at it.
  *
  * The Castle Hammerwatch bridge also starts on `act1`, the track its source
  * level plays — the other rooms' templates carry no music of their own worth
@@ -1588,7 +1587,7 @@ export function isMultiBoss(count: number): boolean {
 export function defaultLobby(presetId: string): LobbyOptions {
   return {
     preset: presetId,
-    startingGold: presetId === 'BETA-boss-prep' ? 20000 : 10000,
+    startingGold: 10000,
     shopCategories: [...ALL_LOBBY_CATEGORIES],
     // no free upgrades by default: the vendors are the intended way to get
     // them, so handing eight out on the floor is opt-in per kind
@@ -2167,8 +2166,7 @@ export function defaultParameters(): DungeonParameters {
     // fight's welded-on prep room (20000 gold) — now just the second lobby in
     // the order, placed by `shippedOrder` right before the fight. Both are the
     // House and both sell every column including power; see `defaultLobby`'s
-    // comment for why. The second states its 20000 itself, because
-    // `defaultLobby` keys that amount on the boss-prep room.
+    // comment for why. The second states its own 20000.
     lobbies: [
       defaultLobby('house'),
       { ...defaultLobby('house'), startingGold: 20000, music: 'boss_1' }

@@ -332,13 +332,13 @@ describe('campaign order — lobbies never move a floor (invariant #6)', () => {
     one.lobbies = [defaultLobby(DEFAULT_LOBBY_PRESET_ID)]
 
     const two = campaign(undefined, 1, 0)
-    two.lobbies = [defaultLobby(DEFAULT_LOBBY_PRESET_ID), defaultLobby('BETA-boss-prep')]
+    two.lobbies = [defaultLobby(DEFAULT_LOBBY_PRESET_ID), defaultLobby('sky-shop')]
 
     // "reordering": the same two lobbies, swapped which index carries which
     // preset — still both ahead of every floor under the implicit order, so
     // still no floor moves
     const swapped = campaign(undefined, 1, 0)
-    swapped.lobbies = [defaultLobby('BETA-boss-prep'), defaultLobby(DEFAULT_LOBBY_PRESET_ID)]
+    swapped.lobbies = [defaultLobby('sky-shop'), defaultLobby(DEFAULT_LOBBY_PRESET_ID)]
 
     for (const seed of [1, SEED]) {
       const results = [none, one, two, swapped].map((params) => generateOk(params, seed))

@@ -1,4 +1,4 @@
-import type { LobbyVendorIds } from '../lobby/template'
+import type { LobbyVendorIds } from '../lobby/shops'
 
 /**
  * The House lobby level.

@@ -204,7 +204,7 @@ const PORTAL = [-92.5, -1]
 const EXIT_SHAPE = { pos: [-92.5, -1.5], w: 3, h: 3 }
 /**
  * A light on the portal, so the way out stands out in the dark west end: the
- * blue teleport light the dungeon-prep room authors (lobby/template.ts ids
+ * blue teleport light the deleted BETA dungeon-prep room authored (its ids
  * 191-192), centred on the portal's sprite rather than its feet.
  */
 const PORTAL_LIGHT = {
@@ -566,7 +566,7 @@ function dump(level, assets, built, slots) {
 function emitTemplate(xml, meta) {
   const { vendorIds, slots, upgradeSlots } = metaBlocks(meta)
 
-  return `import type { LobbyVendorIds } from '../lobby/template'
+  return `import type { LobbyVendorIds } from '../lobby/shops'
 
 /**
  * The Castle Hammerwatch bridge lobby level.

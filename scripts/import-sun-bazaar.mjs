@@ -485,7 +485,7 @@ function clean(level, pack) {
 function emitTemplate(xml, source, meta) {
   const { vendorIds, slots, upgradeSlots } = metaBlocks(meta)
 
-  return `import type { LobbyVendorIds } from '../lobby/template'
+  return `import type { LobbyVendorIds } from '../lobby/shops'
 
 /**
  * The Temple of the Sun bazaar lobby level.

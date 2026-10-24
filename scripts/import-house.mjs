@@ -447,7 +447,7 @@ function checkReach(closure, cleaned) {
 function emitTemplate(xml, meta) {
   const { vendorIds, slots, upgradeSlots } = metaBlocks(meta)
 
-  return `import type { LobbyVendorIds } from '../lobby/template'
+  return `import type { LobbyVendorIds } from '../lobby/shops'
 
 /**
  * The House lobby level.

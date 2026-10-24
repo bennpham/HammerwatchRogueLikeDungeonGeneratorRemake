@@ -1370,13 +1370,13 @@ describe('parameters.txt — lobbies (issue #48)', () => {
     // must be re-parsed against the object they were exported from)
     const original = defaultParameters()
     original.lobbies[0].startingGold = 2500
-    original.lobbies[0].preset = 'BETA-boss-prep'
+    original.lobbies[0].preset = 'sun-bazaar'
     original.lobbies[1].shopCategories = ['misc1', 'power']
     original.lobbies[1].startingGold = 15000
 
     const text = serializeParametersTxt(original)
     expect(text).toContain('lobbies=2')
-    expect(text).toContain('lobby0Preset=BETA-boss-prep')
+    expect(text).toContain('lobby0Preset=sun-bazaar')
     expect(text).toContain('lobby0Gold=2500')
     expect(text).toContain('lobby1Shops=misc1 power')
     expect(text).toContain('lobby1Gold=15000')
@@ -1425,14 +1425,14 @@ describe('parameters.txt — lobbies (issue #48)', () => {
   })
 
   it('overwrites a named lobby without a `lobbies=` count, and never trims', () => {
-    // index 1 already exists (the base object's second stock lobby is
-    // 'BETA-boss-prep'); naming it a different preset proves the key was
-    // actually read rather than just already matching the default
-    const text = ['lobby1Preset=BETA-dungeon-prep'].join('\r\n')
+    // index 1 already exists (the base object's second stock lobby is a
+    // House); naming a different preset proves the key was actually read
+    // rather than just already matching the default
+    const text = ['lobby1Preset=sky-shop'].join('\r\n')
     const parsed = parseParametersTxt(text)
     expect(parsed.unknownKeys).toEqual([])
     expect(parsed.params.lobbies).toHaveLength(2)
-    expect(parsed.params.lobbies[1].preset).toBe('BETA-dungeon-prep')
+    expect(parsed.params.lobbies[1].preset).toBe('sky-shop')
   })
 
   it('grows past the base object\'s own lobbies when a higher index is named', () => {
@@ -1452,7 +1452,7 @@ describe('parameters.txt — lobbies (issue #48)', () => {
   })
 
   it('reports keys for a lobby past `lobbies` instead of adding one', () => {
-    const text = ['lobbies=1', 'lobby0Preset=BETA-boss-prep', 'lobby1Preset=BETA-boss-prep'].join('\r\n')
+    const text = ['lobbies=1', 'lobby0Preset=sky-shop', 'lobby1Preset=sky-shop'].join('\r\n')
     const parsed = parseParametersTxt(text)
     expect(parsed.params.lobbies).toHaveLength(1)
     expect(parsed.unknownKeys).toEqual(['lobby1Preset'])
@@ -1462,6 +1462,15 @@ describe('parameters.txt — lobbies (issue #48)', () => {
     const parsed = parseParametersTxt('lobby0Preset=nonsense')
     expect(parsed.unknownKeys).toEqual(['lobby0Preset value "nonsense"'])
     expect(parsed.params.lobbies[0].preset).toBe(defaultParameters().lobbies[0].preset)
+  })
+
+  it('reports the deleted BETA rooms as unknown, and keeps the House', () => {
+    const parsed = parseParametersTxt(['lobby0Preset=BETA-dungeon-prep', 'lobby1Preset=BETA-boss-prep'].join('\r\n'))
+    expect(parsed.unknownKeys).toEqual([
+      'lobby0Preset value "BETA-dungeon-prep"',
+      'lobby1Preset value "BETA-boss-prep"'
+    ])
+    expect(parsed.params.lobbies.map((l) => l.preset)).toEqual(['house', 'house'])
   })
 
   it('reports malformed gold instead of throwing', () => {

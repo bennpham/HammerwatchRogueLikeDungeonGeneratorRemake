@@ -49,21 +49,6 @@ import { isFloorPath, isLobbyPath, lobbyXml } from './levelFiles'
  */
 const EXIT_TARGET = 'some-level'
 
-/**
- * The two warm lights each hand-authored room carries, unconditional — position is
- * fixed data read off the source level the same way the diamond and upgrade
- * slots are, but `LobbyPresetDef` has no field for it (nothing downstream
- * needs to know), so it is spelled out here instead, the same way each half
- * of the pre-#48 test files independently hardcoded its own.
- */
-const LIGHT_POSITIONS: Record<string, readonly [string, string]> = {
-  'BETA-dungeon-prep': ['-7.75 -4', '8 -3.75'],
-  'BETA-boss-prep': ['9 -5', '-9 -5']
-  // 'sun-bazaar' is a daylight map with no lights at all, and 'castle-bridge'
-  // keeps whichever of level_1's lights fall inside its crop — their own
-  // suites below
-}
-
 function optionsFor(preset: LobbyPresetDef, patch: Partial<LobbyOptions> = {}): LobbyOptions {
   return { ...defaultLobby(preset.id), ...patch }
 }
@@ -93,8 +78,9 @@ describe('lobby — presets', () => {
   it('has unique ids, and the House is the default', () => {
     const ids = LOBBY_PRESETS.map((p) => p.id)
     expect(new Set(ids).size).toBe(ids.length)
-    expect(ids).toContain('BETA-dungeon-prep')
-    expect(ids).toContain('BETA-boss-prep')
+    // the two pre-1.0 rooms are gone
+    expect(ids).not.toContain('BETA-dungeon-prep')
+    expect(ids).not.toContain('BETA-boss-prep')
     expect(ids).toContain('sun-bazaar')
     expect(ids).toContain('castle-bridge')
     expect(ids).toContain('sky-shop')
@@ -451,20 +437,6 @@ for (const preset of LOBBY_PRESETS) {
       })
     })
 
-    describe('lighting', () => {
-      it.runIf(preset.id in LIGHT_POSITIONS)('carries the two warm lights, always', () => {
-        const [posA, posB] = LIGHT_POSITIONS[preset.id]
-        for (const patch of [{}, { shopCategories: [] }, { startingGold: 0, upgrades: noUpgrades() }]) {
-          const xml = xmlFor(preset, patch)
-          for (const pos of [posA, posB]) {
-            expect(xml, JSON.stringify(patch)).toContain(`<vec2 name="pos">${pos}</vec2>`)
-          }
-          // the torch colour block, so a re-import cannot quietly change the mood
-          expect(xml).toContain('<int-arr name="mulColor3">255 165 0 255</int-arr>')
-        }
-      })
-    })
-
     describe('int-arr safety', () => {
       // LevelPacker.exe parses every <int-arr> body with Int32.Parse and dies
       // on an empty one — `System.FormatException: Input string was not in a
@@ -552,9 +524,8 @@ for (const preset of LOBBY_PRESETS) {
       // catches a re-import that forgot an --asset.
       it('references nothing that is neither stock nor shipped', () => {
         // `doodads/theme_*` covers any theme's folder generically — the
-        // dungeon-prep room decorates with theme c, the boss-prep room with
-        // bonus4, and neither needs bundling since both are stock game
-        // assets. `actors/` is the boss-prep room's decorative statues.
+        // House builds its walls from theme c, the sky shop from bonus5, and
+        // neither needs bundling since both are stock game assets.
         const stock = ['doodads/generic/', 'doodads/special/', 'doodads/theme_', 'items/', 'tilemaps/', 'sound/', 'actors/']
         const shipped = new Set(preset.assets.map((a) => a.path))
         const xml = xmlFor(preset)
