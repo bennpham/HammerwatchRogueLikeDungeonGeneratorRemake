@@ -22,15 +22,19 @@
  * already: one arrival, one teleport, five stalls, a diamond zone and an
  * upgrade row. The cleanup:
  *
- * - The AE doodads (`doodads/ae/*`) all carry `defaultlayer="0"`, the stock
- *   walls' layer, so the walls y-sort over the furniture standing in their
- *   band, and the layer-90 roof squares hide the candles along the dining
+ * - The AE doodads (`doodads/ae/*`) carry `defaultlayer="0"` (the rugs -20),
+ *   the stock walls' layer, so the wall behind a piece of furniture is drawn
+ *   over it, and the layer-90 roof squares hide the candles along the dining
  *   hall's east edge. Each instance gets an explicit `<int name="layer">` — the
  *   per-instance override the editor itself writes (the stove's jug and pot
  *   already carry one) — rather than an edited def, so the shipped files stay
  *   exactly the user's: candles `CANDLE_LAYER`, rugs untouched (players walk
  *   on them), everything else `FURNITURE_LAYER` plus whatever layer it already
- *   had, which keeps the jug and pot on top of the stove.
+ *   had, which keeps the jug and pot on top of the stove. The exception is a
+ *   piece with a wall face IN FRONT of it (south, overlapping its sprite — the
+ *   bottom bedrooms' wardrobes, the shelf above the bedroom wall): lifted, it
+ *   would cover that wall, so it keeps its own layer and the wall hides its
+ *   lower half, showing only its top.
  * - The stalls carry no speech bubble and no tier badge. Both are laid on each
  *   vendor, the way the other rooms have them, so buildLobby can show how many
  *   columns a stall sells and remove the whole stall when it sells none.
@@ -73,6 +77,8 @@ import {
   param,
   allIds,
   checkClosed,
+  assetFile,
+  maybeChild,
   literal,
   metaBlocks,
   idBase,
@@ -105,6 +111,15 @@ const FURNITURE_LAYER = 21
 /** Above the roof squares (90), which cover the candles on the hall's east edge; under the speech bubbles (100). */
 const CANDLE_LAYER = 95
 
+/** The stock wall pieces. */
+const WALL = /^doodads\/theme_[a-z0-9]+\/[a-z0-9]+_(h|v|x|crn)_/
+/**
+ * A wall FACE — the tall front of a horizontal run (`c_h_8`, `c_x_t_dn`, the
+ * caps and down corners: 3 tiles of sprite) — as opposed to the 1-tile tops
+ * seen from above. Only a face in front of a piece can hide its lower half.
+ */
+const WALL_FACE_HEIGHT = 2
+
 const ROOF = 'doodads/special/color_theme_c_16.xml'
 /** Stock roof squares, largest first: side in tiles -> path. */
 const ROOF_SIZES = [
@@ -125,7 +140,32 @@ const ASSET_PATH = /^(doodads|tilemaps|actors|items|effects|sound)\/.+\.xml(:.*)
 
 // ------------------------------------------------------------------ clean
 
-function clean(level) {
+/** A doodad's sprite in tiles (x0, y0, x1, y1), from its def's first `<origin>` and `<frame>`. */
+function spriteBox(roots, d, cache) {
+  const type = typeOf(d)
+  if (!cache.has(type)) {
+    const xml = readFileSync(assetFile(roots, type), 'utf8')
+    const origin = /<origin>\s*(-?[\d.]+)\s+(-?[\d.]+)\s*<\/origin>/.exec(xml)
+    const frame = /<frame[^>]*>\s*-?\d+\s+-?\d+\s+(\d+)\s+(\d+)\s*<\/frame>/.exec(xml)
+    if (origin === null || frame === null) throw new Error(`${type} has no sprite box`)
+    cache.set(type, [-Number(origin[1]) / 16, -Number(origin[2]) / 16, Number(frame[1]) / 16, Number(frame[2]) / 16])
+  }
+  const [ox, oy, w, h] = cache.get(type)
+  const [px, py] = posOf(d)
+  return [px + ox, py + oy, px + ox + w, py + oy + h]
+}
+
+/** Whether a wall face standing south of `d` (in front of it) overlaps its sprite. */
+function fronted(d, box, faces) {
+  const [x0, y0, x1, y1] = box
+  const py = posOf(d)[1]
+  return faces.some(
+    ({ y, box: [wx0, wy0, wx1, wy1] }) => y > py && wx0 < x1 && wx1 > x0 && wy0 < y1 && wy1 > y0
+  )
+}
+
+function clean(level, roots) {
+  const sprites = new Map()
   const doodadList = doodadsOf(level)
   const nodes = nodesOf(level)
   const byId = new Map([...doodadList, ...nodes].map((el) => [idOf(el), el]))
@@ -195,7 +235,11 @@ function clean(level) {
   doodadList.push(...laid)
 
   // ---- layers
-  const layers = { candle: 0, rug: 0, furniture: 0 }
+  const faces = doodadList
+    .filter((d) => WALL.test(typeOf(d)))
+    .map((d) => ({ y: posOf(d)[1], box: spriteBox(roots, d, sprites) }))
+    .filter(({ box }) => box[3] - box[1] >= WALL_FACE_HEIGHT)
+  const layers = { candle: 0, rug: 0, furniture: 0, fronted: [] }
   for (const d of doodadList) {
     const type = typeOf(d)
     if (!AE.test(type)) continue
@@ -203,11 +247,22 @@ function clean(level) {
       layers.rug++
       continue
     }
-    const own = d.children.find((c) => c.name === 'layer')
-    const value = CANDLE.test(type) ? CANDLE_LAYER : FURNITURE_LAYER + (own?.value ?? 0)
+    let value
+    if (CANDLE.test(type)) {
+      value = CANDLE_LAYER
+      layers.candle++
+    } else if (fronted(d, spriteBox(roots, d, sprites), faces)) {
+      // a wall face stands in front of it: left on its own layer, that wall
+      // hides its lower half and only its top shows over the wall
+      layers.fronted.push(d)
+      continue
+    } else {
+      value = FURNITURE_LAYER + (maybeChild(d, 'layer')?.value ?? 0)
+      layers.furniture++
+    }
+    const own = maybeChild(d, 'layer')
     if (own !== undefined) own.value = value
     else d.children.splice(d.children.indexOf(child(d, 'pos')) + 1, 0, { t: 'int', name: 'layer', value })
-    layers[CANDLE.test(type) ? 'candle' : 'furniture']++
   }
 
   // ---- slots, then the authored items go
@@ -502,7 +557,7 @@ if (args.src === undefined || args.assets === undefined) {
 }
 
 const level = parseText(readFileSync(join(args.src, SOURCE_LEVEL), 'utf8').replace(/^﻿/, ''))
-const cleaned = clean(level)
+const cleaned = clean(level, [args.assets, args.src])
 const roof = compactRoof(level)
 const custom = customAssets(level, args.assets, args.src)
 const shipped = shippedFiles(custom, args.assets, args.src)
@@ -521,7 +576,12 @@ writeFileSync(join(outDir, 'assets.ts'), emitAssets(shipped), 'utf-8')
 console.log(`wrote template.ts (${xml.length} chars) and assets.ts (${shipped.length} files) from ${args.src}`)
 console.log(`  arrival ${posOf(cleaned.start).join(' ')}, exit ${meta.exit}, portal ${meta.portal}`)
 console.log(`  stalls ${JSON.stringify(meta.ids)}`)
-console.log(`  layers: ${cleaned.layers.furniture} furniture at ${FURNITURE_LAYER}+, ${cleaned.layers.candle} candles at ${CANDLE_LAYER}, ${cleaned.layers.rug} rugs left at 0`)
+console.log(
+  `  layers: ${cleaned.layers.furniture} furniture at ${FURNITURE_LAYER}+, ${cleaned.layers.candle} candles at ${CANDLE_LAYER}, ${cleaned.layers.rug} rugs left alone`
+)
+console.log(
+  `  behind a wall face, left on their own layer: ${cleaned.layers.fronted.map((d) => `${typeOf(d).replace('doodads/ae/', '')}@${posOf(d).join(',')}`).join(' ')}`
+)
 console.log(`  roof: ${roof.before} squares over ${roof.tiles} tiles merged into ${roof.after}`)
 console.log(`  closed: the arrival reaches ${closure.cells} tiles of floor and nothing past the level`)
 console.log(`  ${cleaned.slots.diamonds.length} diamond slots, upgrades ${JSON.stringify(cleaned.slots.upgrades)}`)

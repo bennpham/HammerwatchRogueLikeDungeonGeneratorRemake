@@ -1972,7 +1972,7 @@ export const HOUSE_TEMPLATE = `<dictionary>
 			<dictionary>
 				<int name="id">1751</int>
 				<string name="type">doodads/generic/exit_teleport.xml</string>
-				<vec2 name="pos">9 5</vec2>
+				<vec2 name="pos">9 6</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
@@ -2480,7 +2480,7 @@ export const HOUSE_TEMPLATE = `<dictionary>
 			<dictionary>
 				<int name="id">1958</int>
 				<string name="type">doodads/ae/furniture_bed_common.xml</string>
-				<vec2 name="pos">4.5 28</vec2>
+				<vec2 name="pos">4 28</vec2>
 				<int name="layer">21</int>
 				<bool name="need-sync">False</bool>
 			</dictionary>
@@ -2856,21 +2856,20 @@ export const HOUSE_TEMPLATE = `<dictionary>
 			<dictionary>
 				<int name="id">1780</int>
 				<string name="type">doodads/ae/furniture_shelf_1_v.xml</string>
-				<vec2 name="pos">11.25 14.75</vec2>
+				<vec2 name="pos">10.75 14.75</vec2>
 				<int name="layer">21</int>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">1781</int>
 				<string name="type">doodads/ae/furniture_shelf_1_v.xml</string>
-				<vec2 name="pos">11.25 17</vec2>
-				<int name="layer">21</int>
+				<vec2 name="pos">10.75 17</vec2>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">1786</int>
 				<string name="type">doodads/ae/furniture_shelf_1_v.xml</string>
-				<vec2 name="pos">11.25 27.75</vec2>
+				<vec2 name="pos">10.75 28</vec2>
 				<int name="layer">21</int>
 				<bool name="need-sync">False</bool>
 			</dictionary>
@@ -3003,7 +3002,7 @@ export const HOUSE_TEMPLATE = `<dictionary>
 			<dictionary>
 				<int name="id">1955</int>
 				<string name="type">doodads/ae/furniture_bed_common_r180.xml</string>
-				<vec2 name="pos">19.5 27.5</vec2>
+				<vec2 name="pos">19 27.5</vec2>
 				<int name="layer">21</int>
 				<bool name="need-sync">False</bool>
 			</dictionary>
@@ -3011,7 +3010,6 @@ export const HOUSE_TEMPLATE = `<dictionary>
 				<int name="id">1956</int>
 				<string name="type">doodads/ae/furniture_bed_common_r180.xml</string>
 				<vec2 name="pos">19.5 16</vec2>
-				<int name="layer">21</int>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
@@ -3300,14 +3298,14 @@ export const HOUSE_TEMPLATE = `<dictionary>
 			<dictionary>
 				<int name="id">1757</int>
 				<string name="type">doodads/ae/furniture_stove.xml</string>
-				<vec2 name="pos">41 3.5</vec2>
+				<vec2 name="pos">41 3</vec2>
 				<int name="layer">21</int>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">1758</int>
 				<string name="type">doodads/ae/furniture_stove.xml</string>
-				<vec2 name="pos">34 3.5</vec2>
+				<vec2 name="pos">34 3</vec2>
 				<int name="layer">21</int>
 				<bool name="need-sync">False</bool>
 			</dictionary>
@@ -3321,14 +3319,14 @@ export const HOUSE_TEMPLATE = `<dictionary>
 			<dictionary>
 				<int name="id">1970</int>
 				<string name="type">doodads/ae/generic_deco_stove_jug.xml</string>
-				<vec2 name="pos">37.25 5</vec2>
+				<vec2 name="pos">34 2.25</vec2>
 				<int name="layer">22</int>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">1973</int>
 				<string name="type">doodads/ae/generic_deco_stove_pot_2.xml</string>
-				<vec2 name="pos">41 2.75</vec2>
+				<vec2 name="pos">41 2.25</vec2>
 				<int name="layer">22</int>
 				<bool name="need-sync">False</bool>
 			</dictionary>
@@ -3431,7 +3429,7 @@ export const HOUSE_TEMPLATE = `<dictionary>
 			<dictionary>
 				<int name="id">1778</int>
 				<string name="type">doodads/ae/lamps_candle_holder.xml</string>
-				<vec2 name="pos">53.5 8</vec2>
+				<vec2 name="pos">53 8</vec2>
 				<int name="layer">95</int>
 				<bool name="need-sync">False</bool>
 			</dictionary>
@@ -4271,14 +4269,14 @@ export const HOUSE_TEMPLATE = `<dictionary>
 			<dictionary>
 				<int name="id">1773</int>
 				<string name="type">doodads/ae/lamps_candle_holder.xml</string>
-				<vec2 name="pos">53.5 17.5</vec2>
+				<vec2 name="pos">53 17.5</vec2>
 				<int name="layer">95</int>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">1774</int>
 				<string name="type">doodads/ae/lamps_candle_holder.xml</string>
-				<vec2 name="pos">53.5 12.5</vec2>
+				<vec2 name="pos">53 12.5</vec2>
 				<int name="layer">95</int>
 				<bool name="need-sync">False</bool>
 			</dictionary>
@@ -4375,7 +4373,7 @@ export const HOUSE_TEMPLATE = `<dictionary>
 			<dictionary>
 				<int name="id">1760</int>
 				<string name="type">doodads/ae/furniture_table_stone_common_square.xml</string>
-				<vec2 name="pos">4.5 30</vec2>
+				<vec2 name="pos">4 30</vec2>
 				<int name="layer">21</int>
 				<bool name="need-sync">False</bool>
 			</dictionary>
@@ -4383,7 +4381,6 @@ export const HOUSE_TEMPLATE = `<dictionary>
 				<int name="id">1882</int>
 				<string name="type">doodads/ae/furniture_wardrobe.xml</string>
 				<vec2 name="pos">7.5 33</vec2>
-				<int name="layer">21</int>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
@@ -4691,14 +4688,14 @@ export const HOUSE_TEMPLATE = `<dictionary>
 			<dictionary>
 				<int name="id">1759</int>
 				<string name="type">doodads/ae/furniture_table_stone_common_square.xml</string>
-				<vec2 name="pos">19.5 30</vec2>
+				<vec2 name="pos">19 30.25</vec2>
 				<int name="layer">21</int>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">1784</int>
 				<string name="type">doodads/ae/furniture_shelf_1_v.xml</string>
-				<vec2 name="pos">11.25 30</vec2>
+				<vec2 name="pos">10.75 30</vec2>
 				<int name="layer">21</int>
 				<bool name="need-sync">False</bool>
 			</dictionary>
@@ -4706,7 +4703,6 @@ export const HOUSE_TEMPLATE = `<dictionary>
 				<int name="id">1883</int>
 				<string name="type">doodads/ae/furniture_wardrobe.xml</string>
 				<vec2 name="pos">16 33</vec2>
-				<int name="layer">21</int>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
@@ -5238,14 +5234,12 @@ export const HOUSE_TEMPLATE = `<dictionary>
 				<int name="id">1899</int>
 				<string name="type">doodads/ae/generic_fence_bars_v_32.xml</string>
 				<vec2 name="pos">54.5 33</vec2>
-				<int name="layer">21</int>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
 				<int name="id">1901</int>
 				<string name="type">doodads/ae/generic_fence_bars_v_32.xml</string>
 				<vec2 name="pos">54.5 33</vec2>
-				<int name="layer">21</int>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
@@ -5259,7 +5253,6 @@ export const HOUSE_TEMPLATE = `<dictionary>
 				<int name="id">1905</int>
 				<string name="type">doodads/ae/generic_fence_bars_v_32.xml</string>
 				<vec2 name="pos">54.5 31.5</vec2>
-				<int name="layer">21</int>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
@@ -5301,7 +5294,6 @@ export const HOUSE_TEMPLATE = `<dictionary>
 				<int name="id">7287</int>
 				<string name="type">doodads/ae/generic_fence_bars_v_32.xml</string>
 				<vec2 name="pos">54.5 33</vec2>
-				<int name="layer">21</int>
 				<bool name="need-sync">False</bool>
 			</dictionary>
 			<dictionary>
@@ -5515,7 +5507,7 @@ export const HOUSE_TEMPLATE = `<dictionary>
 				<string name="type">RectangleShape</string>
 				<bool name="enabled">True</bool>
 				<int name="trigger-times">-1</int>
-				<vec2 name="pos">9 5</vec2>
+				<vec2 name="pos">9 6</vec2>
 				<dictionary name="parameters">
 					<float name="w">3</float>
 					<float name="h">3</float>
@@ -5527,7 +5519,7 @@ export const HOUSE_TEMPLATE = `<dictionary>
 				<string name="type">LevelExitArea</string>
 				<bool name="enabled">True</bool>
 				<int name="trigger-times">-1</int>
-				<vec2 name="pos">9 7</vec2>
+				<vec2 name="pos">9 8</vec2>
 				<dictionary name="parameters">
 					<string name="level">1</string>
 					<int name="start id">0</int>

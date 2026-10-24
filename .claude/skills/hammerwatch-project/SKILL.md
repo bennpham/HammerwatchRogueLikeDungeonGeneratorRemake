@@ -1273,8 +1273,12 @@ else. Six ship:
     and the layer-90 roof hides the candles on the hall's east edge. Each
     `doodads/ae/` instance gets an `<int name="layer">` after its `pos`
     (the editor's own override): candles 95, rugs untouched, everything else
-    21 + its own layer (the stove's jug and pot stay one above it). The
-    shipped defs are the user's, byte for byte.
+    21 + its own layer (the stove's jug and pot stay one above it) — EXCEPT a
+    piece a wall FACE (a 3-tile `_h_`/`x_t_dn`/cap/corner front) stands in
+    front of: south of its pos and overlapping its sprite. Lifted, it covered
+    that wall (playtest 2026-10-24: the bottom bedrooms' wardrobes); left
+    alone, the wall hides its lower half and only its top shows. The shipped
+    defs are the user's, byte for byte.
   - **Authored slots.** The diamonds the user laid out ARE the diamond slots
     (87, row order) and the one upgrade per kind IS that kind's slot; nothing
     lands anywhere else.

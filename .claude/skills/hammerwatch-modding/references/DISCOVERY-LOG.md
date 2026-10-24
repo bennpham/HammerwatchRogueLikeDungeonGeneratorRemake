@@ -5157,3 +5157,25 @@ the dungeon-prep room's `LOBBY_ASSETS`. Still to confirm in game:
 
 Note that a doodad at 21 also draws over an actor standing in front of it.
 That is the price of lifting it over the wall it overlaps.
+
+### 2026-10-24 — the House: a lifted piece must not cover the wall in front of it
+
+**Tag:** [EMITTED] — seen in the editor; not yet booted in game.
+**Context:** The first House build lifted every AE furniture piece to layer 21.
+In the editor, pieces standing just north of a horizontal wall now drew over
+that wall: the bottom bedrooms' wardrobes at y 33 over the wall at y 34, and the
+shelf at (10.75, 17) over the bedroom wall at y 19.
+**Evidence:** a theme c wall FACE (`c_h_8`, `c_x_t_dn`, the caps and down
+corners) is a 16x48 sprite with origin (0, 32), so it covers two tiles above its
+own tile as well as that tile. The 1-tile wall tops (`c_v_8`, `c_x_x`,
+`c_x_t_l/r/up`) are 16x16. At layer 0 a face south of a piece draws over the
+piece's lower half, so only the top shows. That is what the user wants.
+**Impact:** `scripts/import-house.mjs` keeps a piece on its own layer when a
+wall face whose pos is south of the piece's pos overlaps its sprite (8
+instances: those two wardrobes, that shelf, the top-right bed and the east lawn
+fence by the hall). Everything else is still lifted to 21.
+
+The user's own nudges, made in a generated `01_lobby1.xml`, were copied into
+the source `editor/lobby/lobby.xml`: the portal, its shape and its exit 1 tile
+down, plus shelves, beds, tables, stoves, the jug, the pot and the east-edge
+candles.

@@ -1059,12 +1059,26 @@ describe('lobby — house', () => {
   const preset = lobbyPresetById('house')!
   const xml = buildLobby(preset, defaultLobby(preset.id), EXIT_TARGET)
 
-  /** Every `doodads/ae/` instance: its type, and its per-instance layer (undefined: the def's own). */
+  /** Every `doodads/ae/` instance: its type, where, and its per-instance layer (undefined: the def's own). */
   const aeDoodads = [
     ...xml.matchAll(
-      /<string name="type">(doodads\/ae\/[^<]*)<\/string>\s*<vec2 name="pos">[^<]*<\/vec2>\s*(?:<int name="layer">(-?\d+)<\/int>)?/g
+      /<string name="type">(doodads\/ae\/[^<]*)<\/string>\s*<vec2 name="pos">([^<]*)<\/vec2>\s*(?:<int name="layer">(-?\d+)<\/int>)?/g
     )
-  ].map((m) => ({ type: m[1], layer: m[2] === undefined ? undefined : Number(m[2]) }))
+  ].map((m) => ({ type: m[1], at: m[2].replace(' ', ','), layer: m[3] === undefined ? undefined : Number(m[3]) }))
+
+  /**
+   * The pieces with a wall face in front of them (south, overlapping the
+   * sprite). Lifted, they would cover that wall; left alone, it hides their
+   * lower half and only the top shows — user playtest, 2026-10-24.
+   */
+  const FRONTED = new Set([
+    'furniture_wardrobe@7.5,33',
+    'furniture_wardrobe@16,33',
+    'furniture_shelf_1_v@10.75,17',
+    'furniture_bed_common_r180@19.5,16',
+    'generic_fence_bars_v_32@54.5,31.5',
+    'generic_fence_bars_v_32@54.5,33'
+  ])
 
   it('has exactly one arrival and one way out, the teleport', () => {
     expect(nodesOfType(xml, 'LevelStart')).toHaveLength(1)
@@ -1145,11 +1159,17 @@ describe('lobby — house', () => {
 
   it('lifts the AE furniture over the walls and the candles over the roof, and leaves the rugs underfoot', () => {
     expect(aeDoodads.length).toBeGreaterThan(0)
-    for (const { type, layer } of aeDoodads) {
-      if (/lamps_candle_/.test(type)) expect(layer, type).toBe(95)
-      else if (/carpeting_|generic_deco_vendor_carpet_/.test(type)) expect(layer, type).toBeUndefined()
-      else expect(layer, type).toBeGreaterThanOrEqual(21)
+    const fronted = new Set<string>()
+    for (const { type, at, layer } of aeDoodads) {
+      const key = `${type.replace(/^doodads\/ae\/|\.xml$/g, '')}@${at}`
+      if (/lamps_candle_/.test(type)) expect(layer, key).toBe(95)
+      else if (/carpeting_|generic_deco_vendor_carpet_/.test(type)) expect(layer, key).toBeUndefined()
+      else if (FRONTED.has(key)) {
+        expect(layer, key).toBeUndefined()
+        fronted.add(key)
+      } else expect(layer, key).toBeGreaterThanOrEqual(21)
     }
+    expect([...fronted].sort()).toEqual([...FRONTED].sort())
     // the jug and pot stood a layer above the stove in the editor, and still do
     const layerOf = (name: string) => aeDoodads.filter((d) => d.type === `doodads/ae/${name}.xml`).map((d) => d.layer!)
     const stove = Math.max(...layerOf('furniture_stove'))
