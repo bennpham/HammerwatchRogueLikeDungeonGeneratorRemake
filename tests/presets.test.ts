@@ -92,16 +92,17 @@ describe('campaign presets', () => {
   describe('Campaign Mode', () => {
     const MODE = CAMPAIGN_PRESETS.filter((p) => p.group === 'campaign')
     const TOWNS: Record<string, string> = {
-      'campaign-castle': 'castle-bridge'
+      'campaign-castle': 'castle-bridge',
+      'campaign-desert': 'sun-bazaar'
     }
     /** The highest skill tier a town sells, from its `combo1`..`combo5` columns. */
     const skillTier = (shops: readonly string[]) =>
       Math.max(0, ...shops.filter((c) => /^combo\d$/.test(c)).map((c) => Number(c.slice(5))))
 
-    it('is its own group, after Classic, holding exactly the stock campaigns so far', () => {
+    it('is its own group, after Classic, holding exactly the stock campaigns', () => {
       const groups = PRESET_GROUPS.map((g) => g.id)
       expect(groups.indexOf('campaign')).toBe(groups.indexOf('classic') + 1)
-      expect(MODE.map((p) => p.id)).toEqual(['campaign-castle'])
+      expect(MODE.map((p) => p.id)).toEqual(['campaign-castle', 'campaign-desert'])
     })
 
     it('plays in acts: three floors, the town, then the boss', () => {

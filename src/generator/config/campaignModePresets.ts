@@ -3,6 +3,7 @@ import type { BossWave, DungeonParameters, FloorMystery, LobbyOptions } from './
 import type { CampaignSlot } from '../campaign'
 import { deepLoot, midLoot, mysteryKit, shallowLoot } from './presetMystery'
 import type { MysteryPicks } from './presetMystery'
+import { desertWaves } from './familyWaves'
 import { B, F, L, bossFight, campaign, lightArenaWaves, lobby } from './presetHelpers'
 // Type-only: presets.ts imports CAMPAIGN_MODE_PRESETS from this file at
 // runtime, so a runtime import of CampaignPreset back would cycle.
@@ -193,6 +194,64 @@ function castleCampaign(): DungeonParameters {
   })
 }
 
+function desertCampaign(): DungeonParameters {
+  const params = acts({
+    town: 'sun-bazaar',
+    townMusic: 'desert_village',
+    waves: desertWaves,
+    // four towns: two tiers to start, the fifth before Anubis
+    skillTiers: [2, 3, 4, 5],
+    // TODO(world): opening island W1 (128 tiles, three buttons, no boss, Temple
+    // monsters) goes before floor 1 once the world slot exists; the order is
+    // then L1, W1, 1, 2, 3, L2, AB1, ...
+    acts: [
+      {
+        themes: ['h', 'e', 'e_mixed'],
+        monsters: [
+          ['tick1', 'maggot', 'bat1', 'tower_flower1_small'],
+          ['tick1', 'maggot', 'bat1', 'spider', 'tower_flower1_small', 'tower_flower1'],
+          ['tick1', 'maggot', 'spider', 'tower_flower1', 'mb_tick']
+        ],
+        music: 'desert_cavern',
+        boss: 'boss_worm',
+        arenaTheme: 'e_mixed',
+        arenaMusic: 'boss_1',
+        threats: [['Tick nest', 3], ['Spider nest', 3], ['Bat swarm', 2], ['Arrow storm', 3], ['Spike gauntlet', 1]]
+      },
+      {
+        themes: ['f', 'f_frozen', 'f_mixed'],
+        // tower_static_frost is capped at 2 below, which makes a lair's horde 0 or 1
+        // (trunc(fRand(0, 2))): at most one per lair that rolls it, and it is
+        // pooled once a floor. The frost lich is pinned (#2), never rolled.
+        monsters: [
+          ['wisp1', 'skeleton2', 'tick2'],
+          ['wisp1', 'wisp2', 'skeleton2', 'tick2', 'tower_static_frost'],
+          ['wisp2', 'skeleton2', 'tick2', 'lich#0', 'tower_static_frost']
+        ],
+        music: 'desert_cavern',
+        boss: 'boss_krilith',
+        arenaTheme: 'f_mixed',
+        arenaMusic: 'boss_1',
+        threats: [['Wisps', 4], ['Nova towers', 2], ['Eye cluster', 2], ['Frost wall', 2], ['Confusion', 1]]
+      },
+      {
+        themes: ['g_mixed', 'i_symbols', 'i_mixed'],
+        monsters: [
+          ['guard_desert', 'guard_desert_range', 'mummy_desert', 'tower_banner'],
+          ['mummy_desert', 'mummy_ranged', 'guard_desert', 'lich_desert', 'tower_banner', 'tower_tracking'],
+          ['mb_mummy', 'mummy_desert', 'mummy_ranged', 'lich_desert', 'tower_tracking', 'spider']
+        ],
+        music: 'desert_temple',
+        boss: 'boss_anubis',
+        arenaTheme: 'i_mixed',
+        arenaMusic: 'boss_final',
+        threats: [['Mummy tomb', 4], ['Fire pillars', 2], ['Kamikazes', 1], ["Anubis' wrath", 1], ['Spike gauntlet', 2]]
+      }
+    ]
+  })
+  return { ...params, monsterMax: { ...params.monsterMax, tower_static_frost: 2 } }
+}
+
 /** The Campaign Mode group, in the order the stock campaigns came out. */
 export const CAMPAIGN_MODE_PRESETS: readonly CampaignPreset[] = [
   {
@@ -202,5 +261,13 @@ export const CAMPAIGN_MODE_PRESETS: readonly CampaignPreset[] = [
       "Castle Hammerwatch in four acts: three floors each, then back to the castle bridge, whose shops sell one more tier of skills, then the act's boss: the queen, the knight, the lich and the dragon. About 3 to 4 hours.",
     group: 'campaign',
     build: castleCampaign
+  },
+  {
+    id: 'campaign-desert',
+    label: 'Desert Campaign',
+    description:
+      "The Temple of the Sun in three acts: the caves, the ice caves and the pyramid, three floors each, then back to the bazaar, whose shops sell one more tier of skills, then the worm, Krilith and Anubis. About 2½ to 3 hours.",
+    group: 'campaign',
+    build: desertCampaign
   }
 ]
