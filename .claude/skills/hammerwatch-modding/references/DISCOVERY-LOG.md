@@ -5217,3 +5217,32 @@ slot). The questions it leaves for a play session are in
 **Impact:** the world plan drops `collision_small` as a fence, builds the
 coast from the theme's own wall pieces, and treats any level above 240 tiles
 as untested until played.
+
+### 2026-11-18 — World mode built ahead of pass 0: the defaults chosen without play answers
+**Tag:** [UNVERIFIED]
+**Context:** the owner asked for World mode, its terrain and the 1.0
+presets to be built before the in-game discovery (`docs/discovery/world-mode.md`,
+D1–D10) is played. Every world fact the generator now relies on is therefore
+emitted, not booted, until its `docs/BOOT-CHECKLIST.md` row (W1–W20) is
+confirmed.
+**Evidence:** none from play. The choices, each the plan's recommendation or
+the owner's 2026-11-18 call:
+1. D1/D2: the coast is the existing wall matcher run with water as wall mass —
+   theme h fences for desert, a theme e/f canyon (band of 3 or more, greedy
+   `color_theme_<t>_*` roof, no water) for oasis, dry grass and frozen. Every
+   island must pass a flood over the theme's collision model or is re-rolled.
+2. D3: no invisible blocker is emitted.
+3. D5: the size cap is 512 tiles (warning above 240, the stock maximum). Above
+   240 nothing stock has been seen to load.
+4. D6: the exit is the stock `desert_teleport_boss` rig — `ChangeDoodadState`
+   `closed` on `LevelLoaded`, a `LevelExitArea` saved disabled, opened at zero
+   by `ChangeDoodadState` `open` plus `ToggleElement` state 0.
+5. D7: a last-slot world hides its orb with `HideObject` state 1 on
+   `LevelLoaded` and shows it with state 0 at zero. Stock aims `HideObject`
+   only at doodads; an item target is unproven.
+6. D9: plateaus use `e_ledge_*` with `e_stairs_*` on every side, copied from
+   `level_cave_1`'s instances; frozen and desert raise mesas instead.
+7. D10: desert uses the Temple hub's lighting; the other biomes are full-bright
+   with a slight tint.
+**Impact:** none of the above is `[VERIFIED]`. A failed boot row supersedes the
+matching item here with a `[REFUTED]` entry and its fallback from the plans.
