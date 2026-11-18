@@ -1,7 +1,7 @@
 import { getTheme } from '../config/themes'
 import type { Level } from './level'
 import type { GenerationContext } from '../core/context'
-import type { DoodadTypeName } from '../objects/doodad'
+import type { Doodad, DoodadTypeName } from '../objects/doodad'
 
 /**
  * Can the party reach the orb without opening the gate that guards it?
@@ -26,7 +26,7 @@ import type { DoodadTypeName } from '../objects/doodad'
  */
 
 /** Which tile boundary a wall piece closes on a `directionalFences` theme. */
-type Fence =
+export type Fence =
   /** the whole tile is impassable */
   | 'tile'
   /** the boundary between this tile and its left / right / upper neighbour */
@@ -52,7 +52,7 @@ type Fence =
  * Anything absent here counts as `none`, which makes the model *more* permissive
  * and so can only ever cost an extra re-roll — never let a leaking floor ship.
  */
-const FENCE: Partial<Record<DoodadTypeName, Fence>> = {
+export const FENCE: Partial<Record<DoodadTypeName, Fence>> = {
   Vertical: 'right', //     h_v_8_l,       x 10..18 of its own tile
   TLeft: 'right', //        h_v_8_l
   TRight: 'left', //        h_v_8_r,       x -2..6
@@ -84,7 +84,7 @@ const STEPS: ReadonlyArray<readonly [number, number]> = [
 ]
 
 /** Where the player can walk: solid tiles, plus boundaries that cannot be crossed. */
-class Passability {
+export class Passability {
   private readonly solid: Uint8Array
   /** `blocked[dir][idx]` — leaving `idx` in direction `dir` is barred */
   private readonly blocked: Uint8Array[]
@@ -142,6 +142,19 @@ class Passability {
 }
 
 /**
+ * A movement graph read off a set of fence-theme doodads alone: each piece
+ * closes the boundary `FENCE` names for its type, and a type not listed closes
+ * nothing. Exported so a caller that builds its own walls out of theme h pieces
+ * (the world's coast) can prove an enclosure closed with the same model the
+ * floor seal check uses.
+ */
+export function fencePassability(width: number, height: number, doodads: readonly Doodad[]): Passability {
+  const pass = new Passability(width, height)
+  for (const d of doodads) pass.apply(d.x, d.y, FENCE[d.type] ?? 'none')
+  return pass
+}
+
+/**
  * The floor's movement graph, with the gate treated as intact.
  *
  * A solid-tile theme reads straight off the tile grid, and deliberately without
@@ -152,14 +165,10 @@ class Passability {
  */
 function passabilityOf(level: Level, ctx: GenerationContext): Passability {
   const { width, height } = level
-  const pass = new Passability(width, height)
   const fenced = getTheme(level.theme)?.directionalFences === true
+  const pass = fenced ? fencePassability(width, height, ctx.doodads) : new Passability(width, height)
 
-  if (fenced) {
-    for (const d of ctx.doodads) {
-      pass.apply(d.x, d.y, FENCE[d.type] ?? 'none')
-    }
-  } else {
+  if (!fenced) {
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         if (level.tileArray[x + y * width].wall) pass.setSolid(x, y)
@@ -190,7 +199,7 @@ function passabilityOf(level: Level, ctx: GenerationContext): Passability {
 }
 
 /** Tiles reachable from `start`. */
-function fill(pass: Passability, start: number): Uint8Array {
+export function fenceFill(pass: Passability, start: number): Uint8Array {
   const { width, height } = pass
   const seen = new Uint8Array(width * height)
   const stack = [start]
@@ -278,5 +287,5 @@ export function sealHolds(level: Level, ctx: GenerationContext): boolean {
   const to = standing(pass, goal.x, goal.y)
   if (from === null || to === null) return true // nothing to walk between
 
-  return fill(pass, from)[to] === 0
+  return fenceFill(pass, from)[to] === 0
 }
