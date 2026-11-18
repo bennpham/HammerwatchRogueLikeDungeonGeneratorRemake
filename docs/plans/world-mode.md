@@ -1,6 +1,7 @@
 # World mode for Original Hammerwatch: implementation plan
 
-**Status:** plan, nothing built. Date: 2026-11-15. Replaces the 2026-11-14 draft.
+**Status:** plan, nothing built. Date: 2026-11-15, updated 2026-11-18 for AE
+PRs #18 (the audit fixed) and #19 (the orb moved). Replaces the 2026-11-14 draft.
 
 ## What it is
 
@@ -17,8 +18,12 @@ island, coast, objectives, encounters, mystery plates, UI) to this generator,
 emitting HW1 level XML with stock HW1 assets only.
 
 - Source (read-only): `HammerwatchAERogueLikeDungeonGenerator`,
-  `src/generator/world/` (18 files, 2,956 lines), and its audit
-  `docs/plans/world-mode-audit.md` on branch `audits` (findings A1–A8, B, C, D).
+  `src/generator/world/` (18 files, 2,956 lines, before PR #18 added
+  `previewScale.ts`), and its audit `docs/plans/world-mode-audit.md` (findings
+  A1–A8, B, C, D). AE PR #18 fixed every A item and most C and D items, one
+  commit per item, each with a test. The audit's "Status" section lists them,
+  and the module map below names the fix the port copies. AE PR #19 moved the
+  last-slot orb 3 tiles north of the centre (`ORB_AT`).
 - **Plateaus and the biome roster:** `docs/plans/world-mode-terrain.md`. Here
   only the `BiomeDef` shape and the first biome.
 - **In-game questions:** `docs/discovery/world-mode.md`. Choices marked *waits
@@ -150,16 +155,16 @@ on) look with water beneath; whether the `h_h_8_up` corners z-fight badly.
 | `grid.ts` | Port as is | Flags `LAND CLIFF TRAIL SOLID RESERVED PATH` (`HIGH` is the terrain doc's). `CLIFF` cells take no prop, spawn or site; the flood uses `overhangRows(theme)` (terrain doc §2, point 4). `reach()` keeps `floodFill` (`map/reachability.ts` ~72). |
 | `island.ts` | Port with changes | Theme-keyed gaps, diagonal rule; `null` when not converged. |
 | `coast.ts` | **Rewrite** | `buildCoast(ctx, mask, theme)` runs the matcher; `coastCloses(...)` is the proof. No fence. D2 gone. |
-| `place.ts` | Port with changes | Audit **D1**: bosses take every k-th sector, not sites 0..n−1. **A1** enforced in validation. |
-| `paths.ts` | Port with changes | Early exit once every site is settled (**C2**). |
-| `scatter.ts` | Port with changes | HW1 entries; walk-through cover marks nothing (**C5**). |
+| `place.ts` | Port with changes | Audit **D1**: bosses take sites `bossSiteIndexes(n, b)` = `floor(i·n/b)`, AE's fix (it lives in AE's `objectives.ts`), not sites 0..n−1. **A1** enforced in validation. |
+| `paths.ts` | Port with changes | Early exit once the last site is settled, on a typed-array heap (**C2**, as AE fixed it). Hash-equal before and after. |
+| `scatter.ts` | Port with changes | HW1 entries; walk-through cover marks nothing (**C5**). AE found the real over-block was the village's walk-through props; the port has no village. |
 | `hub.ts` | Port with changes, pass 4 | `bare`, `camp`; `village` dropped (no tents or wells). Camp: `generic/deco_vendor_cart`, `deco_signpost`, `lamp_torch`. |
 | `landmarks.ts` | Defer | Terrain doc; use `grid.free` (**A3**). |
 | `monsterThemes.ts` | Rewrite, pass 4 | HW1 groups only (Classic, Desert). |
 | `objectives.ts` | Rewrite | HW1 nodes ("Objectives and exit"). No statues, bar node, `SetUnitScene` or `UseTrigger`. |
-| `encounters.ts` | Port placement, rewrite emission | `rollPoolKey` kept (world stream only). Same-level, no-`CLIFF`-between spots (**A4**). Payload tiles and spewer lines `RESERVED` when chosen (**A5**). HW1 `sound/*.xml` cues, never AE `event:/` paths. |
+| `encounters.ts` | Port placement, rewrite emission | `rollPoolKey` kept (world stream only). Same-level, no-`CLIFF`-between spots through AE's `WorldGrid.sameGround(a, b)` (**A4**). Payload tiles and spewer lines `RESERVED` from `emitPayload`'s returned `PayloadSpots` (**A5**). HW1 `sound/*.xml` cues, never AE `event:/` paths. |
 | `saves.ts` | Drop | No HW1 save plate. |
-| `options.ts` | Port with changes | HW1 bounds. `worldSiteCapacity` net of the safe and hub discs (**A2**). `WORLD_MAX_COUNT` (**A8**). |
+| `options.ts` | Port with changes | HW1 bounds. `worldSiteCapacityOf(w)` net of the safe and hub discs and the plateaus that fit (**A2**). `worldMaxSafeRadius` (**A1**). `WORLD_MAX_COUNT` (**A8**; AE's is `MAX_WORLDS = 20`). |
 | `presets.ts` | Port with changes, pass 4 | HW1 numbers; Speedrun at 96×96. |
 | `biomes.ts` | Rewrite | HW1 `BiomeDef`; desert only in pass 1. |
 | `build.ts` | Port pipeline, rewrite emit | Size drawn **inside** the attempt loop, and a per-step failure tally named in the error (**C4**). `MAX_WORLD_ATTEMPTS = 20`. |
@@ -167,10 +172,13 @@ on) look with water beneath; whether the `h_h_8_up` corners z-fight badly.
 
 **A7** (unguarded reads of hand-edited arrays): `parseParametersTxt` always
 fills `monsters`, `bossPool`, `ambushTypes[].monsters` and `mystery.pool`, and
-`validateWorld` checks `Array.isArray` before `.length`. **C1** (synchronous
-generation in `src/main/ipc.ts` ~63): measured in pass 1 with a timing test at
-240. Whether generation moves to a worker whatever that number is the roadmap's
-open decision 8 (it recommends yes, in M4).
+`validateWorld` checks `Array.isArray` before `.length`. AE found its loader
+already filled them; the risk was a hand-built object, so its fix is a
+`listOf(field)` guard that reports a missing list and carries on with `[]`. Copy
+it. **C1** (synchronous generation in `src/main/ipc.ts` ~63): AE moved
+generation to a worker thread with a Cancel button in PR #18. The roadmap ports
+that before M1 (open decision 8), so pass 1 only measures the time at 240 with a
+timing test.
 
 ## Changes outside `world/`
 
@@ -220,7 +228,13 @@ in list order, then lobbies, levels.xml, tweaks. Per world: `ctx.clearLevel()`,
 
 Only one changes: **`emitPayload`** (`mystery/rig.ts` ~124) gains `rand: Rand`
 for its `takeSlot` (~179), floor callers passing `ctx.mysteryRand`, and is
-exported. The rest are avoided, so floors cannot move:
+exported. AE's final shape (PR #18) is `rand: Rand = ctx.mysteryRand` as a
+trailing default, so no floor call site changes, and a return value
+`PayloadSpots { spawns: Slot[]; spewers: Array<{ slot; direction }> }`, filled as
+each loot spawn, monster spawn and spewer slot is used. Floors ignore it. A
+world reserves every returned tile and line before the scatter (audit A5). The
+return adds no draw, so floors stay byte-identical. The rest are avoided, so
+floors cannot move:
 
 - `Item.create` (`objects/item.ts` ~85, `ctx.rand` when `index` is omitted):
   always pass `index`, drawn from the world stream.
@@ -262,7 +276,10 @@ exported. The rest are avoided, so floors cannot move:
 - **Preview:** `LevelPreview.world?: { map; hub; sites: Array<Tile & { kind }> }`,
   AE's alphabet (`0` water, `1` land, `2` band, `3` trail, `4` solid), kinds
   `button | boss | ambush | pack | loot | mystery`. `walls` is filled too. At
-  240 a map is 57,600 characters, so audit C3 does not arise.
+  240 a map is 57,600 characters, so audit C3 does not arise. (AE fixed C3 by
+  building the strings in one pass and downsampling above 512 tiles for the
+  window only, `world/previewScale.ts` `downsamplePreview`. Build in one pass
+  here too, and port the downsampling only if the cap ever passes 512.)
 
 ### CLAUDE.md text to update
 
@@ -309,7 +326,9 @@ on `DungeonParameters.world`; `defaultParameters()` leaves it **absent**.
 | `trails`, `scatter` | false, 50 | —, 0–100 | |
 | `timer?`, `music?` | absent | floor timer rules; known track | |
 
-Constants: `WORLD_MAX_COUNT = 8`, `WORLD_SITE_SPACING = 20`, `SITE_RADIUS = 4`.
+Constants: `WORLD_MAX_COUNT = 8` (AE: `MAX_WORLDS = 20`; HW1 islands are
+smaller, but each is still a whole level), `WORLD_SITE_SPACING = 20`,
+`SITE_RADIUS = 4`, `ORB_AT = { x: 0, y: -3 }` (AE PR #19).
 **Monster guidance:** placed actors ≈ `packs × 0.75 × packSize`; warn above 600,
 and no single group above 20. Stock spreads 2,461 actors over 240 tiles, but
 about 400 in one place lags ([V] DISCOVERY-LOG ~3978). Warn when estimated
@@ -332,18 +351,27 @@ Checked in `configFile.ts`: no key starts with `world`. `^boss(\d*)(.+)$`
 `world0BossPool` are safe; never add a `bossWorld…` key. Match `worlds` before
 `^world(\d+)(.+)$`, as `lobbies` precedes `^lobby(\d+)(.+)$` (~1430–1443).
 Unknown suffixes and bad values go to `unknownKeys`. No world line is written
-when `params.world` is absent.
+when `params.world` is absent. As in AE (audit A8), the loader enforces the
+cap itself: `worlds=` above `WORLD_MAX_COUNT`, and any `world<i>…` key with
+`i ≥ WORLD_MAX_COUNT`, go to `unknownKeys` and never grow the list, so a stray
+index cannot allocate thousands of worlds.
 
 ### Validation rules (`validateWorlds` in `config/validation.ts`)
 
 Fields `world.worlds.<i>.<field>`; each rule gets a `tests/validation.test.ts`
 case using `fieldsOf(result.errors)`.
 
-1. Enabled with no worlds; more than `WORLD_MAX_COUNT` (**A8**).
+1. Enabled with no worlds; more than `WORLD_MAX_COUNT` (**A8**), also enforced
+   by the loader and the World tab's add button.
 2. Unknown biome or hub; every bound above as a whole number; min above max.
 3. Size above 192: warning.
-4. **A1:** `safeRadius + SITE_RADIUS < min(minWidth, minHeight) / 2 − waterMargin − 4`.
-5. **A2:** `buttons + bosses ≤ worldSiteCapacity`; warning within 80%.
+4. **A1:** `safeRadius ≤ worldMaxSafeRadius(minWidth, minHeight, waterMargin)`,
+   i.e. `safeRadius + SITE_RADIUS < min(minWidth, minHeight) / 2 − waterMargin − 4`,
+   checked only when the world has objectives. The message names the largest
+   radius allowed.
+5. **A2:** `buttons + bosses ≤ worldSiteCapacityOf(w)`. Exactly at capacity
+   (and capacity > 1) is a warning, AE's rule, since a ragged coast may not fit
+   them on every seed.
 6. Bosses in random mode with an empty pool; a non-mobile id in pool or lineup.
 7. Packs or pool ambushes with no monsters; unknown keys; a spawner tier.
 8. Ambush type count, weights and rows.
@@ -352,7 +380,8 @@ case using `fieldsOf(result.errors)`.
 11. `levels = 0` is valid with a world; level order: unknown, duplicate,
     missing or out-of-order world slots.
 12. Actor and doodad estimates: warnings.
-13. **A7:** a world missing any array gives an error, never a throw.
+13. **A7:** a world missing any array gives an error, never a throw (AE's
+    `listOf` guard, plus `Array.isArray` on each ambush type's rows).
 
 ## Objectives and exit
 
@@ -376,7 +405,13 @@ case using `fieldsOf(result.errors)`.
   "open")`, `ToggleElement(state 0)` on the exit, "The portal has opened!" and a
   sound. Multi-boss needs nothing more: each boss is its own decrementer, the [V]
   `buildAllBossesDied` trigger fed into the [V] countdown.
-- **World last (`orb`):** no portal. `Item.create(ctx, …, 'Orb', 0)` with
+- **World last (`orb`):** no portal. The orb stands at `hub + ORB_AT`, 3 tiles
+  **north** of the centre, and its tile is reserved (`markDisc(at, 1,
+  RESERVED)`) before anything else is placed. AE first put it at the centre,
+  where the save plate and the arrival hid it (owner, 2026-11-16; AE PR #19).
+  HW1 has no save plate, but the arrival is at `hub + (0, 3)` and the pass 4
+  camp sits round the hub. North is clear of both. `Item.create(ctx, at.x + 0.5,
+  at.y + 0.5, 'Orb', 0)` with
   `ObjectEventTrigger(connectItem)` → `GameEnd`, as `ObjectSet` `'Orb'` (~181).
   `LevelLoaded` → `HideObject(state 1, orb)`; at zero `HideObject(state 0)` and
   "The orb has appeared!". **Waits on pass 0** (an item, and pickup while
@@ -484,9 +519,12 @@ button and safe-radius fields; the Objectives section.
 
 Tests: every site reachable; the countdown has one decrementer per button and
 boss and its `== 0` connects to open, enable and announce; the exit ships
-disabled; the orb rig when last; free roam; lineup mode draws no pick (byte
-equal across pools); floors unchanged by the countdown export (existing suites);
-A1, A2; round trip. Play: W5–W8.
+disabled; the orb rig when last; the orb's tile, from AE PR #19's test: on each
+start (bare, and camp once it exists) the orb is at `hub + ORB_AT`, more than 4
+tiles from the arrival, and on walkable ground; free roam; lineup mode draws no
+pick (byte equal across pools); bosses on `bossSiteIndexes` (D1); floors
+unchanged by the countdown export (existing suites); A1, A2 (including the
+exact-fill warning); round trip. Play: W5–W8.
 
 ### Pass 3: encounters and scatter
 
@@ -494,17 +532,23 @@ Scope: `encounters.ts`, `scatter.ts`, loot, mystery and disguise, timer, music,
 trails; their fields and sections.
 
 Tests: density change moves no site, pack or monster; payload tiles and spewer
-lines never under a solid prop (A5); no emitted actor under `actors/spawners/`;
-loot only on reached tiles; floors' mystery output unchanged by the
-`emitPayload` signature; round trip; actor and doodad warnings. Play: W9–W12.
+lines never under a solid prop (A5, from the returned `PayloadSpots`); pack
+members and ring spots on their centre's ground (A4); no emitted actor under
+`actors/spawners/`; loot only on reached tiles; floors' mystery output unchanged
+by the `emitPayload` signature and return value; trails hash-equal before and
+after the C2 early exit; round trip; actor and doodad warnings;
+edge-of-validation settings on six seeds each never fail (AE's D6). Install-backed,
+skipped when no install is found (AE's B3): every prop's `solid` radius covers
+the collider in its unit file. AE's hand-measured table was wrong for three
+props, so this test is not optional. Play: W9–W12.
 
 ### Pass 4: extras, each only if wanted
 
 Camp hub; World presets (Explorer, Treasure hunt, Monster island, Speedrun),
 tested in `tests/presets.test.ts` under the no-lives and mystery-trap rules; HW1
 monster themes; the AI prompt; per-objective `Checkpoint`; oasis (if not the
-fallback); the C1 worker (roadmap decision 8). Landmarks and plateaus:
-terrain doc.
+fallback). The C1 worker is no longer here: the roadmap ports AE's before M1
+(decision 8). Landmarks and plateaus: terrain doc.
 
 ## Skill maintenance
 
@@ -527,10 +571,10 @@ A confirmed row becomes `[VERIFIED]` in the DISCOVERY-LOG.
 | W1 | Loads | A W1-first campaign starts on the island at the arrival, no log errors. |
 | W2 | Coast closes | Walk the whole shore: no way off at outer corners, inner corners or straights. |
 | W3 | Coast look | The cliffs read as a coast; band tiles and corners acceptable. |
-| W4 | Size and cost | Load time and frame rate at the default and at the cap. |
+| W4 | Size and cost | Load time and frame rate at the default and at the cap. The app stays responsive while it generates, and a generation cancelled halfway leaves nothing behind (AE #117). |
 | W5 | Portal | Closed on arrival; after the last objective "The portal has opened!", it animates and leads on; red before a fight, blue otherwise. |
 | W6 | Countdown | Each button and boss announces "N objectives remain". |
-| W7 | World last | No portal; the orb appears at zero and cannot be taken before. |
+| W7 | World last | No portal; the orb appears at zero, 3 tiles north of the centre and clear of the arrival, and cannot be taken before. Try a bare and a camp start (AE #99, #128). |
 | W8 | Bosses | Two bosses: the count drops per kill; note the boss bars. |
 | W9 | Ambushes | A tripwire springs one ring round the party, once; buttons at 100% do too. |
 | W10 | Packs and loot | Packs wait round the island; coins lie in caches. |

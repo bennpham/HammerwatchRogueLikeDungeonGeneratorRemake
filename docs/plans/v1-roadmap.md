@@ -1,8 +1,8 @@
 # Roadmap to 1.0
 
-Date: 2026-11-15. Status: plan, nothing in it is built. Current version: **0.9.5** (`package.json`), with an `[Unreleased]` section in `CHANGELOG.md` that holds the House lobby as the default room, the Classic presets moved into their own hubs, the Temple of the Sun bazaar, Castle Hammerwatch bridge and Shaftlocke Peak sky shop lobbies, and the BETA lobbies removed.
+Date: 2026-11-15, updated 2026-11-18 for AE PRs #18 and #19. Status: plan, nothing in it is built. Current version: **0.9.5** (`package.json`), with an `[Unreleased]` section in `CHANGELOG.md` that holds the House lobby as the default room, the Classic presets moved into their own hubs, the Temple of the Sun bazaar, Castle Hammerwatch bridge and Shaftlocke Peak sky shop lobbies, and the BETA lobbies removed.
 
-This is the order of work between now and 1.0. It ports World mode from the Anniversary Edition fork (AE PRs #15 and #16) to the original Hammerwatch ("HW1"), and it scopes the four documents that AE's PR #17 added. It does not write those four documents. They come in later PRs, and two of them depend on the world existing.
+This is the order of work between now and 1.0. It ports World mode from the Anniversary Edition fork (AE PRs #15 and #16) to the original Hammerwatch ("HW1"), and it scopes this repo's versions of the four documents that AE's PR #17 added. AE then built all four in PR #18 and moved the world's victory orb in PR #19 (both merged 2026-11-17). "What AE PRs #18 and #19 settled" below lists what carries over. This repo's four documents are still not written. They come in later PRs, and two of them depend on the world existing.
 
 The sibling plans in this change:
 
@@ -14,6 +14,34 @@ The sibling plans in this change:
 | `docs/plans/v1-roadmap.md` | This file: order, owners, gates, versions, and the scope of the four audit and preset documents. |
 
 Nothing Shaftlocke is built here. HW1 has no Shaftlocke dungeon, bosses, themes or town. The only Shaftlocke string in this repo is the `sky-shop` lobby's label, which is HW1's own survival summit.
+
+## What AE PRs #18 and #19 settled
+
+AE PR #18 ("Implement #17", 29 commits, one per item) fixed the world audit, applied the balance audit fixes the owner accepted, and built Campaign Mode and the six open-world presets. AE PR #19 moved the victory orb on a last-slot world. Each section below says what its milestone takes from them. In short:
+
+**Owner decisions that carry over to HW1.** The owner made these on AE. Apply them here unless the owner says otherwise.
+
+| Decision | AE source | HW1 effect |
+|---|---|---|
+| A hunt floor that runs out of time gets **more time, not a softer hazard**. "Nothing indicates" a damage rate, so a softer hazard helps nobody. | Balance audit B1, "Ben take" | M7: the hunt floors of Beat the Clock and Shell Game go from 180 s to 600 s. The hazard stays as it is. |
+| Bonus Gauntlet's last lobby (gold plus free upgrades before one ordinary boss) is **deliberate and playtested**. Do not cut it. | Balance audit B3, declined | M7 does not propose cutting Bonus Gauntlet's payout. |
+| Desert Campaign **keeps its opening island**. | `campaign-mode.md`, Status | M8/M9: see open decision 5. |
+| Town gold stays at the draft, **5000 rising to 25000**, once floor gold is measured. No free upgrades in towns. | `campaign-mode.md`, Status | M8 uses the same numbers once M7's measurement agrees. |
+| The orb on a last-slot world stands **3 tiles north of the centre**, not at it. At the centre the save plate and the arrival hid it. | AE PR #19, `ORB_AT` | M2: `world-mode.md` "Objectives and exit". |
+
+**Built in AE and portable without a world.**
+
+- **Generation in a worker thread, with Cancel** (world audit C1). The files are `src/main/generateWorker.ts` (17 lines: runs `generateDungeon` on `workerData`, posts the result back) and `src/main/env.d.ts` (`electron-vite/node` types, for the `?modulePath` import). In `src/main/ipc.ts`, `generateInWorker` starts one worker per press, a new press cancels the old one, and a `dungeon:cancel` handler terminates the worker. `cancelGenerate` is added to the preload and to `RendererApi`. In `App.tsx`, a `generating` state turns the Generate button into "Generating… Cancel". Nothing in it is world-specific, so it can ship before M1 (see M4 and open decision 8).
+- **`scripts/dev/measure-gold.ts`** (balance audit B5). It generates every preset on a few seeds and sums the coins and diamonds placed on each floor, which gives a lower bound. It reads levels with AE's `ae/levelReader` and runs through `scripts/run-ts.mjs`. This repo has neither, so the port needs its own small reader (or `scripts/lib/hwLevel.mjs`). M7.
+- **Shared preset helpers.** `config/presetHelpers.ts` holds `campaign`, `L`/`F`/`B`/`W`, `floorRange`, `actOrder`, `lobby`, `arena`, `bossFight`, `survivalFight`, `floorBoss`, `lightArenaWaves`, `island`, `clockArena` and the survival row helpers. `config/familyWaves.ts` holds the non-castle wave tables, and `castleWaves` is exported from `parameters.ts`. They are kept apart from `presets.ts`, which imports every preset module, to avoid an import cycle. M8 uses the same split.
+
+**Latent bugs AE found that this repo also has.** Bugs 1 and 2 were reproduced on this branch on 2026-11-18 with a throwaway test. A floorless or arena-less campaign hits them, so they must be fixed before M9 at the latest:
+
+1. **A disabled arena's fights still count as order slots in the loader.** `config/configFile.ts` ~1929 (the `levelOrder` repair after parsing) and ~2350 (the serializer) both use `params.boss.fights?.length`. `validateLevelOrder` (`validation.ts` ~435) counts fights only when `boss.enabled`. Reproduced: take `defaultParameters()`, switch the arena off and store the order `L1, 1–8, L2`. The export writes `levelOrder=L1,1,2,3,4,5,6,7,8,L2,AB1`, and reading it back keeps the `AB1`. AE fixed it with `fights: params.boss.enabled ? … : 0` in both places, in its own commit.
+2. **`themes=` with no value parses as one empty theme.** At `configFile.ts` ~1414 it reads back as `[""]`. It must give `[]`.
+3. **A file that declares no floor pools keeps the base's pools.** `configFile.ts` ~1766 trims `levelMonsters` only when some pool index was seen. When none is, it should trim to `levels`, so a campaign of islands and arenas alone doesn't inherit the castle's eight pools.
+
+Each fix gets a round-trip test in `tests/configFile.test.ts`. None of them changes a stock preset's output. The fingerprint test (exit criterion 1) proves that.
 
 ## What 1.0 means
 
@@ -58,7 +86,7 @@ Every milestone ends on the gate `npm run typecheck && npm test`. Play checks ar
 - **Specified in:** `docs/plans/world-mode.md` pass 2.
 - **Inputs:** M1; M0's portal and `HideObject` answers. Reuses the verified countdown: `buildButtonCountdown` (`map/buttonSeal.ts`, exported and generalised) fed by each button and by one `ObjectEventTrigger(Destroyed)` per boss, the trigger `buildAllBossesDied` builds. Bosses come from `MOBILE_BOSS_IDS`. Needs a `NodeHideObject` class.
 - **Who:** `generator-implementer`.
-- **Gate:** reachability from the arrival to every site; validation rules for every new field. Play checks: the portal opens only on the last objective, both with buttons only and with a boss; the orb ends the campaign.
+- **Gate:** reachability from the arrival to every site; validation rules for every new field; AE #19's orb test (the orb sits at `hub + ORB_AT`, more than 4 tiles from the arrival, on walkable ground, for each start). Play checks: the portal opens only on the last objective, both with buttons only and with a boss; the orb appears 3 tiles north of the centre and ends the campaign.
 - **Done:** a world with 1–N buttons and 0–N mobile bosses is finishable on every tested seed.
 
 ### M3. Encounters, loot and mystery plates
@@ -77,7 +105,7 @@ Every milestone ends on the gate `npm run typecheck && npm test`. Play checks ar
 - **Inputs:** M1–M3's parameter shape. Touches `App.tsx`, `FloorOrderEditor.tsx`, `FloorLockEditor.tsx`, `LevelPreview.tsx`, `styles/app.css`, `src/shared/llm/prompt.ts`, `src/main/ipc.ts`.
 - **Who:** `app-shell-implementer`; the orchestrator reviews the prompt text against the generator's real rules.
 - **Gate:** typecheck and test; `npm run build`. Play check: build a world campaign only through the UI, export it, pack it, load it.
-- **Done:** generation no longer freezes the window. The recommendation is to move `generateDungeon` off the Electron main process (worker or utility process, with a cancel button), which fixes AE's C1 by design. `world-mode.md` measures the cost in pass 1; open decision 8 is whether to move it whatever the number.
+- **Done:** generation no longer freezes the window. AE built this in PR #18 (C1): a `worker_threads` worker per Generate press, and a Cancel button (see "What AE PRs #18 and #19 settled"). It is not world-specific, so it should be ported **before** M1, in 0.9.6. M4 then only checks that it holds at the world size cap. The port is the `app-shell-implementer`'s. Gate: `npm run build`, then generate, cancel halfway and generate again in the built app. AE has checked Cancel only on the built bundle outside Electron, so this repo's play check is the first one done in the app window.
 
 ### M5. Terrain: biomes, then plateaus
 
@@ -99,7 +127,7 @@ Every milestone ends on the gate `npm run typecheck && npm test`. Play checks ar
 ### M7. Preset balance audit
 
 - **Goal:** `docs/plans/preset-balance-audit.md` over this repo's 15 presets, then the fixes the owner accepts.
-- **Inputs:** none from the world. Can start now.
+- **Inputs:** none from the world. Can start now. AE's audit, the owner's answers to it and AE's fixes (PR #18) are the template. See the M7 scope below.
 - **Who:** the orchestrator writes it; `generator-implementer` applies preset changes in `src/generator/config/`.
 - **Gate:** typecheck and test; `tests/presets.test.ts` (validates, generates, deterministic, round-trips) holds for every changed preset. Play check: one run of each changed preset.
 - **Done:** every finding is fixed or deferred, and the floor-gold measurement Campaign Mode needs exists.
@@ -107,16 +135,16 @@ Every milestone ends on the gate `npm run typecheck && npm test`. Play checks ar
 ### M8. Campaign Mode presets
 
 - **Goal:** a new preset group with a 4-act Castle campaign and a 3-act Desert campaign, each town selling one more skill tier.
-- **Inputs:** M7's floor-gold numbers for the town gold (the presets can be drafted before them). No world needed.
-- **Who:** orchestrator writes `docs/plans/campaign-mode.md`; `generator-implementer` builds `src/generator/config/campaignModePresets.ts`.
+- **Inputs:** M7's floor-gold numbers for the town gold (the presets can be drafted before them). No world needed. AE built its three Campaign Mode presets in PR #18. Its `campaign-mode.md` Status section settles the open questions (see the M8 scope).
+- **Who:** orchestrator writes `docs/plans/campaign-mode.md`; `generator-implementer` builds `src/generator/config/campaignModePresets.ts`, `presetHelpers.ts` and `familyWaves.ts`.
 - **Gate:** typecheck and test, plus the group tests in the scope below. Play check: each act's town shows only its tiers, and one full run of each preset.
 - **Done:** both presets ship and have been played once to the end.
 
 ### M9. Open-world presets
 
 - **Goal:** a "Claude Generated Open World" preset group.
-- **Inputs:** M1–M6 played; M8's shared helper module.
-- **Who:** orchestrator writes `docs/plans/open-world-presets.md` after the world is played; `generator-implementer` builds the presets.
+- **Inputs:** M1–M6 played; M8's shared helper module; the three loader fixes under "Latent bugs" (Archipelago and Storm Front have no floors, and Archipelago has no arena).
+- **Who:** orchestrator writes `docs/plans/open-world-presets.md` after the world is played; `generator-implementer` builds the presets in `src/generator/config/worldCampaignPresets.ts`, as AE did.
 - **Gate:** typecheck and test; one full run of each preset.
 - **Done:** exit criterion 7.
 
@@ -130,7 +158,7 @@ Every milestone ends on the gate `npm run typecheck && npm test`. Play checks ar
 Stale text already found, for M10 (or earlier if a PR touches the line):
 
 - `CHANGELOG.md` `[Unreleased]` calls the House "a sixth lobby room" and the sky shop "a fifth". With the BETA rooms removed there are four (`lobby/presets.ts`).
-- The Castle preset's description says "7 floors"; it has 8 (the escape floor). Bonus Gauntlet says "5 floors" and has 6. The comment on `CAMPAIGN_PRESETS` in `config/presets.ts` still says "the three classics", which is right today but should be checked after M8.
+- The Castle preset's description says "7 floors"; it has 8 (the escape floor). Bonus Gauntlet says "5 floors" and has 6. AE's fix (balance audit D) keeps the numbers and adds one line under the README's preset table: "A classic preset's floor count leaves out its escape floor, the extra floor played after the boss on a 90-second clock." The descriptions should name the escape floor in the same way. The comment on `CAMPAIGN_PRESETS` in `config/presets.ts` still says "the three classics", which is right today but should be checked after M8. The README's preset table gains a Campaign Mode row (M8) and a Claude Generated Open World row (M9) in the PRs that add them, as AE's did.
 - `config/themes.ts` puts themes e, f and g in the "Castle" dropdown group. In the stock game e and f are Temple of the Sun cave art (`campaign2/levels/level_cave_*`, `level_boss_1` and `level_boss_2`) and g is its temple. The default castle preset uses them too, so the grouping is a label question for the owner, not a bug.
 
 ## Dependency sketch
@@ -168,8 +196,8 @@ M7 and M8 need no world and should start at once, so a release can ship while th
 
 | Version | Contents |
 |---|---|
-| 0.9.6 | The current `[Unreleased]` lobbies; M7 audit and its accepted fixes; M8 Campaign Mode. |
-| 0.9.7 | M0 recorded; M1–M4: World mode with one biome (desert), marked experimental in the UI. |
+| 0.9.6 | The current `[Unreleased]` lobbies; the generation worker and Cancel (ported from AE C1); the three loader fixes; M7 audit and its accepted fixes; M8 Campaign Mode (Castle, and Desert without its island). |
+| 0.9.7 | M0 recorded; M1–M4: World mode with one biome (desert), marked experimental in the UI; Desert Campaign gains its opening island. |
 | 0.9.8 | M5: the other three biomes, plateaus if not cut. |
 | 0.9.9 | M6 fixes; M9 open-world presets. Release candidate. |
 | 1.0.0 | M10. |
@@ -182,21 +210,31 @@ The repo already uses patch numbers for feature releases (0.9.0 to 0.9.5), so th
 
 Written after M1–M5 by reading the built `src/generator/world/` code, in AE's shape: A likely bugs, B risks only the game can prove, C performance and robustness, D design. Each item names the file, the symbol and the fix.
 
-AE's findings are fixed in the port by design. The audit does not restate them; it checks each one really is fixed and cites the test that proves it:
+AE's findings are fixed in the port by design. The audit does not restate them; it checks each one really is fixed and cites the test that proves it. AE fixed them all in PR #18 except D5 (harmless) and the play-only B items. The middle column says how AE fixed each one. Where AE's fix is a specific technique, the port uses the same one.
 
-| AE item | What the port must show |
-|---|---|
-| A1 | A rule compares `safeRadius` with the smaller island side, less the margin. |
-| A2 | The site-capacity estimate subtracts the safe-radius disc, the camp disc and plateau area. |
-| A3 | Landmarks test the `RESERVED` flag. (The port has no boss statues.) |
-| A4 | Pack and ambush spots share their centre's level, with no cliff between. |
-| A5 | Mystery payload spots and spewer lines are reserved before scatter. |
-| A6 | A plateau that does not fit is reported, not dropped silently. |
-| A7 | Hand-edited `parameters.txt` missing a world array gives a validation error. |
-| A8 | The number of worlds has a bound and a rule. |
-| D2 | No coast-piece logic matches piece names by prefix. With the existing wall matcher this should not arise. |
-| C1 | Generation time at the size cap is measured, and generation runs off the main process if open decision 8 says so. |
-| C4 | Retries vary the size and the error names the failing step. |
+| AE item | How AE fixed it (PR #18) | What the port must show |
+|---|---|---|
+| A1 | `worldMaxSafeRadius(minW, minH, margin)`: an error when the safe radius leaves no land for sites. | The same rule, and its message names the largest safe radius allowed. |
+| A2 | `worldSiteCapacityOf(w)` subtracts the start's disc (the village's too, even for a random start) and counts only the plateaus that fit. Too many objectives is an error. Exactly filling the island is a warning. | The same estimate, net of the safe-radius disc, the camp disc and plateau area, with the same error and warning. |
+| A3 | Landmarks refuse reserved ground except their own site's disc. Every boss site's statue spot is reserved before any landmark is placed. | Landmarks test the `RESERVED` flag. (The port has no boss statues.) |
+| A4 | `WorldGrid.sameGround(a, b)`: pack members and ambush spawns stay on their centre's level. | Pack and ambush spots share their centre's level, with no cliff between. |
+| A5 | `emitPayload` returns `PayloadSpots { spawns, spewers }`, and the world reserves them before the scatter. | The same return value. A floor caller ignores it, so floors stay byte-identical. |
+| A6 | The preview reads "3 of 5 plateaus fit". | A plateau that does not fit is reported, not dropped silently. |
+| A7 | The loader already filled every list. Validation now checks `Array.isArray` (a `listOf` helper) and reports a missing list instead of throwing. | Hand-edited `parameters.txt`, or a hand-built preset, missing a world array gives a validation error. |
+| A8 | `MAX_WORLDS = 20`, enforced in validation, in the loader (`worlds=` above the cap, and any `world<i>` key with `i ≥` the cap, go to `unknownKeys`, so a stray count cannot allocate thousands of worlds) and in the form. | The same three guards. The cap is `WORLD_MAX_COUNT = 8` here, since HW1 islands are smaller and each is a whole level. |
+| B3 | An install-backed test (`it.skipIf` when no install is found) reads every scatter, village and landmark prop's collider and checks that its `solid` radius covers it. It found three props too small (the fir, the desert's minor stone and the pyramid). | The same test over every raw prop path in `world/biomes.ts`, skipped without an install. The terrain doc's hand-transcribed table is not enough on its own: AE's hand-measured table was wrong three times. |
+| C1 | Worker thread and Cancel (see "What AE PRs #18 and #19 settled"). | Already ported before M1. Generation time at the size cap is measured on top of it. |
+| C2 | The trail search stops once the last site is settled and uses a typed-array heap. Output is byte-identical (hashed equal on 40 world configs). | The same, with a before/after hash test. |
+| C3 | The preview is built in one pass and downsampled above 512 tiles, for the window only. `lastResult` keeps the full preview. | Does not arise at the HW1 cap (240). Build the preview in one pass anyway. |
+| C4 | The failure names the step that failed. | Retries vary the size, and the error names the failing step. |
+| C5 | The real over-block was the village's walk-through props, not the clumps. | No village in the port. Walk-through cover marks nothing. |
+| D1 | `bossSiteIndexes(n, b)` gives boss `i` the site `floor(i·n/b)`. | The same formula, which spreads bosses round the island. |
+| D2 | An explicit anchor table. Output is byte-identical. | No coast-piece logic matches piece names by prefix. With the existing wall matcher this should not arise. |
+| D3 | Each biome gets a `highGround` tileset for plateau tops (AE boot checklist #116). | Terrain doc, M5b. |
+| D4 | Trails keep a stairway as their corridor but paint no trail on it. | Terrain doc, M5b. |
+| D6 | Edge-of-validation settings run on six seeds each. There is also a plateau pack test. | The property test in exit criterion 4. |
+
+AE left open: B1 (stairs width), B2 (plateau rim corners) and B4 (scale), which need play (its checklist #111, #112, #117), and B5. Plates and packs are still not flood-checked after the scatter, though A5 keeps the scatter off a plate's payload. The HW1 audit carries B5 forward as a known limit unless the port closes it.
 
 Then the HW1-specific risks:
 
@@ -242,6 +280,21 @@ Rules the audit follows:
 
 The output is a findings list in AE's shape (computed, read, needs play), plus the floor-gold numbers M8 needs.
 
+**What AE's audit concluded, and the HW1 fix to propose for each.** AE's audit wrote a proposal per finding, the owner answered each one, and PR #18 applied the accepted ones. The HW1 audit should propose the same outcome wherever the finding applies here. That way the owner is not asked a question already answered.
+
+| AE item | AE outcome (PR #18) | HW1 proposal |
+|---|---|---|
+| B1 Hunt-floor timers kill in seconds | The owner rejected a softer hazard ("no one knows it's 5 damage per second since nothing indicates them") and asked for more time instead. The hunt floors got 600 s and the hazard is unchanged. `TIMER_COUNTDOWN_NODE_WARN` rose from 300 to 600. Measured on Beat the Clock's hunt floor, seed 4242, the level is 246 KB at 600 s against 160 KB at 300 s. | Beat the Clock and Shell Game hunt floors: 180 s → 600 s, hazard unchanged. Here the warning constant is 200 (`parameters.ts:211`), so it must rise to 600. Note that `SURVIVAL_COUNTDOWN_NODE_WARN` is the same constant (`parameters.ts:1123`) and would rise with it; split them if the survival warning should stay at 200. Re-measure the level size at 600 s here. |
+| B2 Random finales swing too far | Pandemonium's and Arena Marathon's finales draw from `MOBILE_BOSS_IDS` only. | The same. Here they draw from all 7 `BOSS_IDS` (`claudePresets.ts` ~638, ~911). |
+| B3 Bonus Gauntlet's last lobby is too generous | **Declined.** The owner set its gold and free upgrades on purpose and playtested them. | Do not propose a change. Record the finding as by design. |
+| B4 The Long Haul's third act has no town | A town after floor 9 (15000–20000 gold). The lich is alone in the first arena. Floor 8's countdown is shown. | The same three changes. Here floor 8's timer is `countdown: false` (`claudePresets.ts` ~1102) and the first arena draws `boss_lich`/`boss_knight` (~1083). |
+| B5 Floor gold never measured | `scripts/dev/measure-gold.ts`, report only. No gold changed. Castle's floors averaged 1663, 1700, 2759, 2929, 5027, 6420, 8359 and 10602, because a lair's treasure tier is `iRand(0, 5) + level`. So a classic party reaches the boss-prep lobby with about 29000 found plus the first lobby's 10000. | Port the script (see "What AE PRs #18 and #19 settled") and record HW1's own table in the audit. Report only. |
+| C3 Thin monster pools | Every floor of Boss Rush, Pandemonium, Double or Nothing, Shell Game and The Long Haul has at least three monster types. | The same rule for this repo's thin presets (Frozen Descent, Boss Rush, Pandemonium, Double or Nothing). The audit lists the actual floors. |
+| C8 A level-50 player preset flattens every preset | One line on the preset dialog's player tab. No preset change. | The same line for the `hw2-level-50` player preset. |
+| D Text | Descriptions name the escape floor, the README table is complete, stale comments fixed. | See "Stale text" under M10. |
+
+Each accepted fix is its own commit, and `tests/presets.test.ts` holds for every changed preset. AE also checked that its preset refactor hashes identical for every preset. Do the same with the fingerprint test.
+
 ### `docs/plans/campaign-mode.md` (M8)
 
 AE's shape per act is three floors, a town, a boss. HW1 has two stock campaigns, so two presets and no Shaftlocke one. Slot order: `L1, 1, 2, 3, L2, AB1, 4, 5, 6, L3, AB2, …`, ending on the last arena.
@@ -282,9 +335,11 @@ Gold is a draft until M7 measures floor gold. No free upgrades in any town unles
 
 Difficulty by act comes from pools, arena waves (light in act 1, the family's full table last: `castleWaves` in `config/parameters.ts`, `desertWaves` in `config/presets.ts`), invulnerability (15 s rising to 30 s) and arena size. Rigs stay light: a lock on each act's third floor (`withGatewayLocks` derives exactly these, since each leads into a lobby), one or two mystery plates a floor from `shallowLoot`/`midLoot`/`deepLoot`, no floor timers, no escape floor.
 
-Building it: new file `src/generator/config/campaignModePresets.ts`; move the private helpers in `config/claudePresets.ts` (`campaign`, `L`, `F`, `B`, `floorRange`, `lobby`, `arena`, `bossFight`, lines ~70–285) into a shared module; add a `campaign` group to `PresetGroupId` and `PRESET_GROUPS` after Classic. Not in Classic, whose tests require an escape floor (`tests/presets.test.ts`). Keep the round-trip traps already documented: lobby index 1 sets `music` explicitly, and `levelBoss` stays unset. Tests: the group holds exactly these two; every boss slot follows a lobby and every lobby after the first follows three floors; each town's top tier is one higher than the last and ends at 5; each preset uses its family's room on every lobby; no boss id in two acts.
+**As AE built it (PR #18).** Castle (4 acts), Shaftlocke (4 acts) and Desert (an opening island, then 3 acts). Each act is three floors, the town, then the boss. Each town sells one more skill and item tier, cumulatively, up to tier 5. Floor shops stay unlocked. Town gold is the draft, 5000 to 25000, with no free upgrades. Arena waves are light in act 1 and use the family's own table after that. HW1 should follow it with these differences: no Shaftlocke preset, no item tiers (HW1 has no item vendor, so only the four skill columns step up), and the Desert island only once worlds exist (open decision 5). AE's checklist rows #118–#121 become this repo's play checks: the tier lock in the first two towns; red portals out of towns before a fight, and an arena's portal leading to the next act's first floor; the same town five times reading as progress; and the gold at each town buying some, but not all, of the new tier.
 
-A Desert variant that opens on a desert island (Temple of the Sun starts outdoors) waits for M9.
+Building it: new file `src/generator/config/campaignModePresets.ts`; move the private helpers in `config/claudePresets.ts` (`campaign`, `L`, `F`, `B`, `floorRange`, `lobby`, `arena`, `bossFight`, lines ~70–285) into `config/presetHelpers.ts`, adding `W` and `actOrder` as AE's does; move the Desert wave table out of `presets.ts` into `config/familyWaves.ts`, and export `castleWaves` from `parameters.ts`, so preset modules import them without a cycle through `presets.ts`; add a `campaign` group to `PresetGroupId` and `PRESET_GROUPS` after Classic. Not in Classic, whose tests require an escape floor (`tests/presets.test.ts`). Keep the round-trip traps already documented: lobby index 1 sets `music` explicitly, and `levelBoss` stays unset. Tests: the group holds exactly these two; every boss slot follows a lobby and every lobby after the first follows three floors; each town's top tier is one higher than the last and ends at 5; each preset uses its family's room on every lobby; no boss id in two acts.
+
+Desert's opening island (Temple of the Sun starts outdoors) waits for the desert biome in 0.9.7 (open decision 5). AE's island is 128 tiles with three buttons, no boss and the Temple monster theme. Pressing all three opens the blue portal down into the caves (AE checklist #121).
 
 ### `docs/plans/open-world-presets.md` (M9)
 
@@ -299,7 +354,14 @@ Written only after M1–M5 are played; the roster is fixed then, not now. AE's s
 | Surface and Depths | `W1, 1, W2, 2, W3, 3, L1, AB1` | Needs changes. Desert island to an `i` floor, frozen island to an `f` floor, oasis island to an `e` floor. Tests a world as the first slot. |
 | Storm Front | `L1, W1, W2, W3, AS1` | Needs changes. Desert, dry grass and frozen islands on soft timers (M7's lesson), ending on a short survival arena. |
 
-Constraints that apply to all of them: four biomes, not ten; five mobile bosses, so at most a few distinct island bosses per preset; islands smaller than AE's, at the M0 cap (likely 96–192 tiles); no plateaus on desert; at most one boss per island unless M6 shows bosses spread round the island. Towns use `house` unless the preset's family has its own room.
+Constraints that apply to all of them: four biomes, not ten; five mobile bosses, so at most a few distinct island bosses per preset; islands smaller than AE's, at the M0 cap (likely 96–192 tiles); no plateaus on desert. AE's "at most one boss per island" limit came from audit D1 (bosses clustered on one side). AE fixed D1, and the port has the fix from M2, so that limit can lift once M6 confirms it. Towns use `house` unless the preset's family has its own room.
+
+**As AE built them (PR #18).** All six are in `config/worldCampaignPresets.ts`, inside AE's audited island limits. Breakout kept `1, 2, W1, 3`, ending on the escape floor, not the island-last variant. AE's notes from building them, each of which applies here:
+
+- Surface and Depths' two-boss finale draws from the mobile bosses (knight, lich, Krilith, worm, golem) on the stock wave table. The HW1 version draws from `MOBILE_BOSS_IDS`, which agrees with M7's B2.
+- Storm Front's order is the default for its slots (one town, three islands, one fight), so it is stored as absent. Every preset whose order equals `defaultOrder` must be stored that way, or the round-trip test fails.
+- A campaign with no floors keeps one placeholder theme and pool, as the Colosseum does, so that it round-trips. The loader fixes under "Latent bugs" are needed as well.
+- AE's checklist rows #122–#127 are one play check per preset. The questions to ask in play: whether the disguised buttons can be told from the plates (The Lost Entrance); whether the island timer leaves enough time on a first attempt (Breakout, Storm Front); whether a lone boss can be found without trails (Manhunt); and whether the portals and stairs between an island, a town and a floor all arrive where they should (Archipelago, Surface and Depths).
 
 ## Risks and cuts
 
@@ -326,8 +388,8 @@ M7 and M8 are cheap and independent, so they are never cut for the world.
 2. **World mode at 1.0: stable or experimental.** Recommended: stable only if M6 has no open A item and every play check passes; otherwise ship 1.0 with the World tab labelled experimental.
 3. **Castle Campaign themes.** Stock-faithful a–d, or the default preset's a–g mix. Recommended: a–d, leaving e, f and g to the Desert campaign whose art they are.
 4. **Town rooms.** One family room repeated (castle-bridge ×5, sun-bazaar ×4), or alternating with the House. Recommended: the family room; change it if the play check says it reads as repetition.
-5. **Desert opening island.** Recommended: ship Campaign Mode without it in 0.9.6 and add an island variant with M9.
+5. **Desert opening island.** On AE the owner kept it (`campaign-mode.md`, Status), so the HW1 Desert Campaign gets one too. The question left is timing. Recommended: ship Desert Campaign without it in 0.9.6, then add the island to the same preset in 0.9.7, when the desert biome lands. Adding it moves only that preset's seeds, and the changelog says so (exit criterion 1). The alternative is to hold Desert Campaign back until 0.9.7.
 6. **Coast approach.** Mark water as wall mass and run the existing matcher (`map/wallPattern.ts`), or port AE's piece table. Recommended: the existing matcher; it reuses verified pieces and the `FENCE` table.
 7. **Play-check record.** A new `docs/BOOT-CHECKLIST.md` as AE has, or DISCOVERY-LOG entries alone. Recommended: the new file, created in M1 with the rows `world-mode.md` proposes (W1–W12). The discovery doc holds the pass 0 questions, the checklist holds the per-pass play checks, and every confirmed row still gets its DISCOVERY-LOG entry.
-8. **Worker-thread generation.** Recommended: yes, in M4, even if HW1 islands stay small; a long campaign already blocks the window.
+8. **Worker-thread generation.** Recommended: yes, ported from AE PR #18 in 0.9.6, before M1, even if HW1 islands stay small. A long campaign already blocks the window, and AE's version is small and not world-specific.
 9. **The e/f/g "Castle" dropdown group.** Recommended: regroup them under Temple of the Sun in M10 if the owner agrees; a label change only, no seed moves.

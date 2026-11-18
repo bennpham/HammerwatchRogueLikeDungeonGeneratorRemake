@@ -128,6 +128,7 @@ These are the questions that only Hammerwatch itself can answer, and that `docs/
   - `HideObject` `state 1` hides and `state 0` shows, on doodads [R] (the desert teleport prefab's rune lamps). Nothing in stock shows it on an item.
   - `SpawnObject` spawns items [V] (chests from mystery buttons, 2026-09-26/28). A spawned item has no id at load, so an `ObjectEventTrigger` cannot watch it.
   - A pocket sealed by wall doodads that `DestroyObject` removes is [V] (the arena alcove).
+  - Where the orb stands: AE's play (2026-11-16, AE PR #19) found an orb at the island's centre hidden behind the save plate and the arrival. The plan now puts it 3 tiles north of the centre (`ORB_AT`). Lay probe (a)'s orb out the same way, north of a `LevelStart` and a torch or two, and also check it can be seen from the arrival.
 - **Probe:** `world-probe-orb`, three pockets, each opened by its own floor button:
   - (a) `items/crystal_purple.xml` placed, hidden by `HideObject` `state 1` on `LevelLoaded`, shown by `state 0` from the button;
   - (b) `SpawnObject items/crystal_purple.xml` from the button, with an `AreaTrigger` on its spot as a stand-in end trigger;
