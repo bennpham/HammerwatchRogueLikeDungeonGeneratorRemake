@@ -427,6 +427,18 @@ describe('campaign presets', () => {
       }
     })
 
+    it('the random finales draw only from the mobile bosses', () => {
+      // the unique, static dragon and queen made one seed's finale a different fight from the next
+      const mobile = MOBILE_BOSS_IDS as readonly string[]
+      const pand = campaignPresetById('claude-pandemonium')!.build()
+      const finale = bossFights(pand.boss)[0].arena
+      expect(finale.bossPool.every((id) => mobile.includes(id))).toBe(true)
+      const marathon = bossFights(campaignPresetById('claude-arena-marathon')!.build().boss)
+      const last = marathon[marathon.length - 1].arena
+      expect(last.bossCount).toBe(3)
+      expect(last.bossPool.every((id) => mobile.includes(id))).toBe(true)
+    })
+
     it('Beat the Clock: every floor is timed', () => {
       const params = campaignPresetById('claude-beat-the-clock')!.build()
       expect(params.levelTimers).toHaveLength(params.levels)

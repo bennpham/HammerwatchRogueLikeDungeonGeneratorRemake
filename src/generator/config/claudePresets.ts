@@ -1,5 +1,4 @@
 import {
-  BOSS_IDS,
   MOBILE_BOSS_IDS,
   bossDeathBuffs,
   defaultBossFight,
@@ -423,10 +422,10 @@ function arenaMarathon(): DungeonParameters {
             ]
           }
         ),
-        // AB3 — the finale: 3 random bosses from the full roster
+        // AB3 — the finale: 3 random bosses from the mobile roster (no unique dragon/queen)
         bossFight({
           theme: 'g_mixed',
-          bossPool: [...BOSS_IDS],
+          bossPool: [...MOBILE_BOSS_IDS],
           bossCount: 3,
           waves: tierAndDeathWaves([['skeleton1', 20]], [['lich', 4]], SHOOTER_ARROW_TRAPS),
           music: 'boss_final'
@@ -699,7 +698,7 @@ function pandemonium(): DungeonParameters {
       fights: [
         bossFight({
           theme: 'g_mixed',
-          bossPool: [...BOSS_IDS],
+          bossPool: [...MOBILE_BOSS_IDS],
           bossCount: 6,
           waves: tierAndDeathWaves([['skeleton1', 15]], [['lich', 4]], SHOOTER_ARROW_TRAPS),
           music: 'boss_final'
