@@ -497,6 +497,9 @@ describe('survival — validation', () => {
     expect(
       fields(check({ seconds: 1200, countdown: 'seconds' }).warnings)
     ).toContain('boss.fights.0.survival.countdown')
+    // the survival threshold stays 200 nodes, separate from the floor timer's 600
+    expect(fields(check({ seconds: 200, countdown: 'seconds' }).warnings)).toContain('boss.fights.0.survival.countdown')
+    expect(fields(check({ seconds: 199, countdown: 'seconds' }).warnings)).not.toContain('boss.fights.0.survival.countdown')
   })
 
   it('does not fire the boss-only rules on a survival fight', () => {

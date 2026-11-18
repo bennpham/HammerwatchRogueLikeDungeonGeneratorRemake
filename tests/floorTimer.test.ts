@@ -271,8 +271,10 @@ describe('timer mode — validation', () => {
   })
 
   it('warns about a countdown long enough to bloat the level file', () => {
-    expect(check({ seconds: 300 }).warnings.map((w) => w.field)).toContain('levelTimers.0.countdown')
-    expect(check({ seconds: 300, countdown: false }).warnings.map((w) => w.field)).not.toContain(
+    // 600 s is the hunt floors' ten minutes: the last length that does not warn
+    expect(check({ seconds: 600 }).warnings.map((w) => w.field)).not.toContain('levelTimers.0.countdown')
+    expect(check({ seconds: 601 }).warnings.map((w) => w.field)).toContain('levelTimers.0.countdown')
+    expect(check({ seconds: 601, countdown: false }).warnings.map((w) => w.field)).not.toContain(
       'levelTimers.0.countdown'
     )
   })

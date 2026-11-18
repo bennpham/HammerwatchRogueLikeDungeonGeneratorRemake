@@ -236,8 +236,8 @@ function beatTheClock(): DungeonParameters {
     boss: { enabled: true, fights: [beatTheClockArena()] }
   })
   // every floor timed, clock shrinking as the damage rate ramps — except the
-  // hunt, which gets three minutes because a boss fight eats the clock
-  const seconds = [150, 120, 100, 80, 180]
+  // hunt, which gets ten minutes because a boss fight eats the clock
+  const seconds = [150, 120, 100, 80, 600]
   const freqMs = [250, 212, 175, 137, 100]
   params.levelTimers = seconds.map((s, i) => ({ enabled: true, seconds: s, damage: 2, freqMs: freqMs[i], countdown: true }))
   // No sprinting for the stairs: the middle floors hide two buttons each. The
@@ -1127,8 +1127,8 @@ function shellGame(): DungeonParameters {
   })
   // Beat the Clock on steroids: each locked floor has less time per button
   // (150 s for one, then down to 35 s each for three), and a floor that runs
-  // out hurts harder and faster. The hunt gets three minutes for its boss.
-  const seconds = [150, 135, 120, 105, 180]
+  // out hurts harder and faster. The hunt gets ten minutes for its boss.
+  const seconds = [150, 135, 120, 105, 600]
   const freqMs = [200, 175, 150, 125, 100]
   params.levelTimers = seconds.map((s, i) => ({ enabled: true, seconds: s, damage: 3, freqMs: freqMs[i], countdown: true }))
   return params

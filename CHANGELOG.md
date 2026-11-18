@@ -46,6 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The Bonus preset shops in it.
   - `scripts/import-sky-shop.mjs` regenerates it from the game's `survival.hwm`.
 
+### Changed
+
+- **The hunt floors in Beat the Clock and Shell Game get ten minutes.** Their last floor, where a roaming boss has to be found and killed, ran on 180 seconds and then dealt 20 or 30 damage a second, which ended a party within four seconds. The clock is now 600 seconds and the hazard is unchanged. The warning for a long per-second floor countdown now starts above 600 seconds; a survival arena's countdown still warns above 200.
+
 ### Removed
 
 - **The BETA Dungeon prep and BETA Boss prep lobbies.** The House replaces both. A parameters.txt that names either (`BETA-dungeon-prep`, `BETA-boss-prep`) still loads: the line is reported as unrecognized and that lobby becomes a House. Survival in Colosseum's eight lobbies are Houses now, with their gold, shops, upgrades and music unchanged. A lobby built in code now starts with 10 000 gold whatever its room; the stock campaign's pre-boss lobby still sets its own 20 000.

@@ -206,9 +206,10 @@ export const MAX_TIMER_DAMAGE = 10_000
 /**
  * A countdown longer than this emits more than this many AnnounceText nodes on
  * that one floor, which bloats the level XML — warned about, not rejected.
- * Same threshold and same reasoning as BOSS_COUNTDOWN_NODE_WARN.
+ * 600 so the hunt floors (ten minutes, owner call) pass; the survival arena
+ * keeps its own, lower SURVIVAL_COUNTDOWN_NODE_WARN.
  */
-export const TIMER_COUNTDOWN_NODE_WARN = 200
+export const TIMER_COUNTDOWN_NODE_WARN = 600
 
 /** A fresh, disabled floor timer — the stock value for every floor. */
 export function defaultFloorTimer(): FloorTimer {
@@ -1117,10 +1118,10 @@ export const DEFAULT_SURVIVAL_INTERVAL_MS = 1500
 
 /**
  * Node budget past which a `seconds` countdown is worth warning about. Same
- * threshold and reasoning as TIMER_COUNTDOWN_NODE_WARN — one AnnounceText per
+ * reasoning as TIMER_COUNTDOWN_NODE_WARN but its own, lower threshold (200) — one AnnounceText per
  * second, all on one level.
  */
-export const SURVIVAL_COUNTDOWN_NODE_WARN = TIMER_COUNTDOWN_NODE_WARN
+export const SURVIVAL_COUNTDOWN_NODE_WARN = 200
 
 /**
  * An arena cleared by outlasting a clock instead of by killing something.
