@@ -1814,6 +1814,7 @@ Optional chat that turns a description into `parameters.txt` lines. Boundaries:
   seed users have saved. If a fix requires it, say so explicitly in the PR
   body — do not slip it in.
 - **Gate:** `npm run typecheck && npm test` must pass before handing work back.
+- **Dev scripts** (`scripts/dev/*.ts`, run through `scripts/run-ts.mjs`, which bundles with esbuild into the OS temp dir): `node scripts/run-ts.mjs scripts/dev/measure-gold.ts 3` prints, per campaign preset, the coins and diamonds placed on its floors (seeds 1000.., a lower bound: chests, breakables, drops and plate loot are not counted) beside the lobbies' starting gold. Report only; it changes no preset.
 - **Don't add dependencies** without a stated reason; the runtime deps are
   exactly `react`, `react-dom`, `jszip`.
 
