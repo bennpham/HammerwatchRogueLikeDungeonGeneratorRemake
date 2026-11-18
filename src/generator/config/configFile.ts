@@ -1412,7 +1412,7 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       continue
     }
     if (keyLower === 'themes') {
-      params.themes = value.split(',').map((t) => t.trim())
+      params.themes = value === '' ? [] : value.split(',').map((t) => t.trim())
       continue
     }
     if (keyLower === 'lobbysaves') {

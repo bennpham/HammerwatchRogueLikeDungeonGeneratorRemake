@@ -1943,3 +1943,10 @@ describe('levelOrder with a disabled arena', () => {
     expect(JSON.stringify(back.levelOrder ?? [])).not.toContain('boss')
   })
 })
+
+describe('empty themes=', () => {
+  it('parses as no themes, not one empty theme id', () => {
+    const parsed = parseParametersTxt('levels=0\r\nthemes=')
+    expect(parsed.params.themes).toEqual([])
+  })
+})
