@@ -801,8 +801,10 @@ function longHaul(): DungeonParameters {
     ...floorRange(3, 5),
     L(2),
     B(0),
-    ...floorRange(6, 11),
-    L(3),
+    ...floorRange(6, 8),
+    L(3), // a town after the Anubis floor, so floors 7-12 are no longer one unbroken run
+    ...floorRange(9, 11),
+    L(4),
     B(1),
     F(12)
   ]
@@ -860,6 +862,7 @@ function longHaul(): DungeonParameters {
       lobby('house'),
       lobby('house', { startingGold: 15000, music: 'act2' }),
       lobby('house', { startingGold: 20000, music: 'boss_1' }),
+      lobby('house', { startingGold: 15000, music: 'act3' }),
       lobby('house', { startingGold: 25000, upgrades: oneOfEachUpgrade(), music: 'boss_1' })
     ],
     levelOrder: order,
@@ -867,10 +870,10 @@ function longHaul(): DungeonParameters {
     boss: {
       enabled: true,
       fights: [
-        // the mid-campaign arena: a single random boss, lich or knight
+        // the mid-campaign arena: the lich alone (the knight is already floor 3's boss)
         bossFight({
           theme: 'e_mixed',
-          bossPool: ['boss_lich', 'boss_knight'],
+          bossPool: ['boss_lich'],
           waves: tierAndDeathWaves([['skeleton1', 15], ['archer1', 8]], [['lich', 4]]),
           music: 'boss_1'
         }),
@@ -889,7 +892,8 @@ function longHaul(): DungeonParameters {
   // 90s/100ms escape clock and fireball rig back on re-import. Giving it its
   // own real (lighter) content is what forces an explicit line, which is the
   // only way to overwrite the stale one.
-  params.levelTimers![7] = { enabled: true, seconds: 200, damage: 1, freqMs: 2000, countdown: false }
+  // the countdown is shown: the party must know why it is losing health
+  params.levelTimers![7] = { enabled: true, seconds: 200, damage: 1, freqMs: 2000, countdown: true }
   params.levelTraps![7] = [
     { projectile: 'shooter_arrow', direction: 'up', spread: 0, spawnRateMs: 1200, count: 2 },
     { projectile: 'shooter_arrow', direction: 'down', spread: 0, spawnRateMs: 1200, count: 2 }
@@ -1199,7 +1203,7 @@ export const CLAUDE_PRESETS: readonly CampaignPreset[] = [
   {
     id: 'claude-long-haul',
     label: 'The Long Haul',
-    description: 'A 13-floor campaign across four acts and two boss arenas, with more buttons to find and riskier mystery plates each act, ending in an escape floor — 2-3 hours.',
+    description: 'A 13-floor campaign across four acts and two boss arenas, with five towns between them, more buttons to find and riskier mystery plates each act, ending in an escape floor — 2-3 hours.',
     group: 'claude',
     build: longHaul
   },

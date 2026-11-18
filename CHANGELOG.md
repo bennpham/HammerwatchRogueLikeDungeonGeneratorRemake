@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The hunt floors in Beat the Clock and Shell Game get ten minutes.** Their last floor, where a roaming boss has to be found and killed, ran on 180 seconds and then dealt 20 or 30 damage a second, which ended a party within four seconds. The clock is now 600 seconds and the hazard is unchanged. The warning for a long per-second floor countdown now starts above 600 seconds; a survival arena's countdown still warns above 200.
 - **Pandemonium's and Arena Marathon's random finales draw from the mobile bosses.** The six-boss and three-boss finales used to draw from all seven bosses, so the dragon and the queen, which are fixed in place, could both land in the same fight. They now draw from Anubis, the knight, Krilith, the lich and the worm, like Pandemonium's floors already did.
+- **The Long Haul has a town after floor 9.** The run of six floors without a shop is split by a new lobby (the House, 15 000 gold, no free upgrades); the last lobby before the finale keeps its 25 000 gold and free upgrades. The mid-campaign arena fights the lich alone, since the knight is already floor 3's boss, and floor 8's damage countdown is now shown.
 
 ### Removed
 

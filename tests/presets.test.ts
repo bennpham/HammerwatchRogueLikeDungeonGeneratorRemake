@@ -606,6 +606,20 @@ describe('campaign presets', () => {
       }
     })
 
+    it('Long Haul: a town after floor 9, the lich alone in the first arena, floor 8 shows its countdown', () => {
+      const params = campaignPresetById('claude-long-haul')!.build()
+      const tokens = params.levelOrder!.map((s) => (s.kind === 'floor' ? String(s.index + 1) : s.kind === 'lobby' ? `L${s.index + 1}` : `B${s.index + 1}`))
+      expect(tokens.join(',')).toBe('L1,1,2,3,L2,4,5,6,L3,B1,7,8,9,L4,10,11,12,L5,B2,13')
+      expect(params.lobbies).toHaveLength(5)
+      expect(params.lobbies[3].startingGold).toBe(15000)
+      expect(params.lobbies[3].preset).toBe('house')
+      expect(Object.values(params.lobbies[3].upgrades ?? {}).every((n) => !n)).toBe(true)
+      expect(params.lobbies[4].startingGold).toBe(25000)
+      expect(bossFights(params.boss)[0].arena.bossPool).toEqual(['boss_lich'])
+      expect(params.levelTimers![7]).toMatchObject({ enabled: true, countdown: true })
+      expect(validateParameters(params).errors).toEqual([])
+    })
+
     it('Long Haul: 13 floors, ending on the escape floor', () => {
       const params = campaignPresetById('claude-long-haul')!.build()
       expect(params.levels).toBe(13)
