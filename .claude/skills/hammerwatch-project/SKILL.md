@@ -1795,6 +1795,11 @@ Optional chat that turns a description into `parameters.txt` lines. Boundaries:
   connectivity, spawn points, wave rig, floor patterns), and the tweak layer
   (baseline integrity, whole-file emission, no-change-no-file, loadout
   ceilings, and the bulk knobs' stat-group coverage and derive round-trip).
+- **Preset fingerprints.** `tests/fingerprint.test.ts` hashes every stock
+  preset (plus `defaultParameters()`) on seeds 1 and 4242 against
+  `tests/fixtures/preset-fingerprints.json`. A failure means a stock output
+  moved. Re-baseline only on purpose (`UPDATE_FINGERPRINTS=1 npm test`) and
+  name the re-baseline in that commit; a bug fix must never need it.
 - **An optional level's on/off switch must not move the dungeon.** The suites
   assert it directly: emptying `lobbies`, flipping `boss` or changing any tweak
   leaves every `levels/level*.xml` byte-identical for a seed. Moving a lobby
