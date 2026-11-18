@@ -5179,3 +5179,41 @@ The user's own nudges, made in a generated `01_lobby1.xml`, were copied into
 the source `editor/lobby/lobby.xml`: the portal, its shape and its exit 1 tile
 down, plus shelves, beds, tables, stoves, the jug, the pot and the east-edge
 candles.
+
+### 2026-11-15 — outdoor assets surveyed for World mode: what stock HW1 has and lacks
+
+**Tag:** [UNVERIFIED] — read from `editor/assetsExtract` and the stock level
+XML; nothing here was built or booted.
+**Context:** Survey for `docs/plans/world-mode.md` (an open-island campaign
+slot). The questions it leaves for a play session are in
+`docs/discovery/world-mode.md`.
+**Evidence:**
+1. `doodads/special/collision_small.xml` is
+   `<collision shoot-through="true" collision-response="false">` with a 4 px
+   circle: a sensor. Stock levels use it only as an anchor for
+   `PlayAttachedEffect`. It cannot fence anything.
+2. `actors/boss_krilith/collision_skeleton_1_mb.xml` is a `<doodad>` despite
+   its folder: the same 8x8 editor icon at layer -999, with a plain
+   `<collision>` circle of radius 5 and no flags. Krilith's arena
+   (`campaign2/levels/level_boss_2.xml`) places it four times. It is the one
+   stock invisible doodad with a solid collider.
+3. `doodads/generic/exit_teleport_boss_desert.xml` has no `<states>` (a 128 px
+   floor sigil), so `ChangeDoodadState` cannot drive it.
+   `exit_teleport_boss.xml` and `exit_teleport.xml` do carry `open`/`closed`.
+4. The `grass`, `grass_brown`, `grass_yellow` and `grass_frozen` tilemaps are
+   tuft overlays on transparent pixels. Stock levels always stack them over a
+   base (`h_default`, `e_default`, `f_default`).
+5. Ledge pieces (`*_ledge_*`) exist in themes a, b, c, d, e (two sets), f, g
+   and i, and not in h. Full `*_stairs_{up,dn,l,r}` sets exist only in e, g
+   and i, and they have no collider. Theme h has neither.
+6. `doodads/` holds no tree, palm, bush, cactus or lava piece, and `tilemaps/`
+   no lava, snow or dune ground.
+7. Temple of the Sun's hub (`level_hub.xml`) uses the theme h cliffs for
+   interior outcrops, not as a closed border. Its outdoor-looking levels
+   (`level_passage`, `level_cave_1..3`, `level_boss_1`) are bounded by theme e
+   rock walls with `color_theme_e_*` behind them.
+8. The largest stock level is `campaign/levels/level_11.xml`: 240x240 tiles,
+   7,087 doodads and 2,461 actors. No stock level reaches 512 tiles.
+**Impact:** the world plan drops `collision_small` as a fence, builds the
+coast from the theme's own wall pieces, and treats any level above 240 tiles
+as untested until played.
