@@ -1677,20 +1677,21 @@ describe('parameters.txt — levelOrder (issue #43)', () => {
   // order genuinely IS the plain "every floor, then the (disabled) fight"
   // default shape — but OMITTING the line does not reconstruct that. The
   // base `parseParametersTxt(content)` (no base) overlays onto —
-  // `defaultParameters()` — ships the SHIPPED order (`L1,1..7,L2,B1,8`), and
-  // repairing THAT against a lobby-less, boss-off campaign's own counts drops
-  // the lobbies but keeps the escape floor played AFTER the fight, which is
-  // not the same as the naive default (every floor, then the fight) this
-  // campaign actually wants. An explicit `levelOrder=` line naming the true
-  // default is the only way to say so.
-  it('writes an explicit default order when the base\'s own shipped order would repair to something else', () => {
+  // `defaultParameters()` — ships the SHIPPED order (`L1,1..7,L2,B1,8`).
+  // Repairing THAT against a lobby-less, boss-off campaign's own counts drops
+  // the lobbies AND the fight (a disabled arena is no order slot), which
+  // leaves floors 1..8 in order: the plain default. So no `levelOrder=` line
+  // is needed, and none is written.
+  it('writes no order line when a boss-off, lobby-less campaign\'s shipped order repairs to the default', () => {
     const params = defaultParameters()
     params.boss.enabled = false
     params.lobbies = []
     params.levelOrder = undefined
 
     const text = serializeParametersTxt(params)
-    expect(text).toMatch(/^levelOrder=1,2,3,4,5,6,7,8,AB1$/m)
+    // A disabled arena is no order slot, so the order is the plain default and
+    // no line (and certainly no AB1) is written.
+    expect(text).not.toMatch(/^levelOrder=/m)
 
     const parsed = parseParametersTxt(text)
     expect(parsed.unknownKeys).toEqual([])
@@ -1920,5 +1921,25 @@ describe('trapN — per-floor wall traps', () => {
     expect(parsed.params.levelTraps?.[0]).toEqual([])
     expect(parsed.params.levelTraps?.[1]).toHaveLength(1)
     expect(parsed.params.levelTraps?.[3]).toEqual([])
+  })
+})
+
+describe('levelOrder with a disabled arena', () => {
+  it('counts a disabled boss arena as no order slots, on export and re-import', () => {
+    const params = defaultParameters()
+    params.boss.enabled = false
+    // fights stay on the object (flipping enabled is lossless) but are not slots
+    params.levelOrder = [
+      { kind: 'lobby', index: 0 },
+      ...Array.from({ length: 8 }, (_, i) => ({ kind: 'floor' as const, index: i })),
+      { kind: 'lobby', index: 1 }
+    ]
+    const text = serializeParametersTxt(params)
+    const orderLine = text.split(/\r?\n/).find((l) => l.startsWith('levelOrder='))
+    expect(orderLine ?? '').not.toContain('B1')
+
+    const back = parseParametersTxt(text, defaultParameters()).params
+    expect(back.boss.enabled).toBe(false)
+    expect(JSON.stringify(back.levelOrder ?? [])).not.toContain('boss')
   })
 })

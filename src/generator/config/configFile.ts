@@ -1926,7 +1926,7 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   // byte-identical output, and a file saying "1,2,3,B1" should not behave
   // differently from one that says nothing.
   if (params.levelOrder !== undefined) {
-    const counts = { levels: params.levels, fights: params.boss.fights?.length ?? 0, lobbies: params.lobbies.length }
+    const counts = { levels: params.levels, fights: params.boss.enabled ? (params.boss.fights?.length ?? 0) : 0, lobbies: params.lobbies.length }
     const repaired = normalizeOrder(params.levelOrder, counts)
     params.levelOrder = isDefaultOrder(repaired, counts) ? undefined : repaired
     if (params.levelOrder === undefined) delete params.levelOrder
@@ -2347,7 +2347,7 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
   // pre-alpha) still needs an explicit line — omitting it would have
   // `parseParametersTxt` repair the base's shipped order against this
   // campaign's own counts instead, which is not the same thing.
-  const counts = { levels: params.levels, fights: fights.length, lobbies: lobbies.length }
+  const counts = { levels: params.levels, fights: params.boss.enabled ? fights.length : 0, lobbies: lobbies.length }
   const order = campaignOrder(counts, params.levelOrder)
   const isRearranged = !isDefaultOrder(order, counts)
   const absentOrder =
