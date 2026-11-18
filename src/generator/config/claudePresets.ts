@@ -275,10 +275,10 @@ function bossRush(): DungeonParameters {
   return campaign(levels, {
     themes: ['e_mixed', 'bonus3', 'f_frozen', 'i_mixed'],
     levelMonsters: [
-      ['skeleton1', 'archer1'],
-      ['bonus_archer1', 'bonus_skeleton1'],
-      ['wisp1', 'tick2'],
-      ['guard_desert', 'mummy_desert']
+      ['skeleton1', 'archer1', 'slime'],
+      ['bonus_archer1', 'bonus_skeleton1', 'skeleton1'],
+      ['wisp1', 'tick2', 'eye'],
+      ['guard_desert', 'mummy_desert', 'mummy_ranged']
     ],
     levelBoss: [
       floorBoss({ boss_knight: 1 }, floorTierAndDeathWaves([['skeleton1', 10]], [['skeleton1', 5]])),
@@ -608,11 +608,11 @@ function frozenDescent(): DungeonParameters {
   return campaign(levels, {
     themes: ['f', 'f_fine', 'f_frozen', 'f_mixed', 'f_frozen'],
     levelMonsters: [
-      ['wisp2', 'tick2'],
-      ['skeleton2', 'wisp1'],
-      ['eye', 'wisp2'],
-      ['lich', 'skeleton2'],
-      ['wisp2', 'tower_static_frost']
+      ['wisp2', 'tick2', 'wisp1'],
+      ['skeleton2', 'wisp1', 'wisp2'],
+      ['eye', 'wisp2', 'wisp1'],
+      ['lich', 'skeleton2', 'wisp2'],
+      ['wisp2', 'tower_static_frost', 'skeleton2']
     ],
     floorMusic: ['act3', 'act3', 'act4', 'act4', 'act4'],
     // F1: a frost aura on the monsters. F2: a breather — the Regeneration
@@ -678,10 +678,10 @@ function pandemonium(): DungeonParameters {
     foodMultiplier: 1.6,
     themes: ['c_mixed', 'd_mixed', 'e_mixed', 'f_mixed'],
     levelMonsters: [
-      ['bat1', 'tick1'],
-      ['maggot', 'slime'],
-      ['eye', 'wisp1'],
-      ['skeleton2', 'archer2']
+      ['bat1', 'tick1', 'maggot'],
+      ['maggot', 'slime', 'skeleton1'],
+      ['eye', 'wisp1', 'skeleton2'],
+      ['skeleton2', 'archer2', 'wisp2']
     ],
     levelBoss: [2, 2, 3, 3].map((count, i) =>
       floorBossRandom(
@@ -818,18 +818,18 @@ function longHaul(): DungeonParameters {
       'f_mixed' // escape floor
     ],
     levelMonsters: [
-      ['bat1', 'tick1'],
-      ['maggot', 'slime'],
-      ['skeleton1', 'archer1'],
-      ['skeleton2', 'archer2'],
-      ['eye', 'wisp1'],
-      ['wisp2', 'tower_static_frost'],
-      ['guard_desert', 'tick1'],
-      ['mummy_desert', 'mummy_ranged'],
-      ['lich_desert', 'spider'],
-      ['bonus_archer1', 'bonus_skeleton1'],
-      ['wisp2', 'skeleton2'],
-      ['mb_lich', 'mb_doomspawn'],
+      ['bat1', 'tick1', 'maggot'],
+      ['maggot', 'slime', 'bat1'],
+      ['skeleton1', 'archer1', 'slime'],
+      ['skeleton2', 'archer2', 'wisp1'],
+      ['eye', 'wisp1', 'skeleton2'],
+      ['wisp2', 'tower_static_frost', 'wisp1'],
+      ['guard_desert', 'tick1', 'guard_desert_range'],
+      ['mummy_desert', 'mummy_ranged', 'guard_desert'],
+      ['lich_desert', 'spider', 'mummy_desert'],
+      ['bonus_archer1', 'bonus_skeleton1', 'eye'],
+      ['wisp2', 'skeleton2', 'archer2'],
+      ['mb_lich', 'mb_doomspawn', 'lich'],
       escapeFloorPool()
     ],
     floorMusic: [
@@ -999,11 +999,11 @@ function doubleOrNothing(): DungeonParameters {
     monsterMultiplier: 0.6,
     themes: ['b_mixed', 'c_mixed', 'd_mixed', 'e_mixed', 'g_mixed'],
     levelMonsters: [
-      ['bat1', 'tick1'],
-      ['skeleton1', 'archer1'],
-      ['eye', 'wisp1'],
-      ['skeleton2', 'archer2'],
-      ['lich', 'wisp2']
+      ['bat1', 'tick1', 'maggot'],
+      ['skeleton1', 'archer1', 'slime'],
+      ['eye', 'wisp1', 'skeleton2'],
+      ['skeleton2', 'archer2', 'wisp1'],
+      ['lich', 'wisp2', 'eye']
     ],
     floorMusic: ['act1', 'act2', 'act3', 'act3', 'act4'],
     // the red buttons, never disguised: finding them is always the safe way on
@@ -1112,11 +1112,11 @@ function shellGame(): DungeonParameters {
     monsterMultiplier: 0.5,
     themes: ['b_mixed', 'c_mixed', 'd_mixed', 'e_mixed', 'f_mixed'],
     levelMonsters: [
-      ['bat1'],
-      ['tick1', 'bat1'],
-      ['skeleton1', 'bat2'],
-      ['skeleton3', 'tick2'],
-      ['skeleton3', 'bat2']
+      ['bat1', 'tick1', 'maggot'],
+      ['tick1', 'bat1', 'slime'],
+      ['skeleton1', 'bat2', 'archer1'],
+      ['skeleton3', 'tick2', 'wisp1'],
+      ['skeleton3', 'bat2', 'archer3']
     ],
     floorMusic: ['act1', 'act2', 'act2', 'act3', 'act4'],
     // the last floor is the hunt, as in Beat the Clock — no lock, its boss is the way out

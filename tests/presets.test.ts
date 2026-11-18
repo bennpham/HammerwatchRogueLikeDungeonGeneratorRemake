@@ -427,6 +427,24 @@ describe('campaign presets', () => {
       }
     })
 
+    it('the thin-pool presets give every floor at least three monster types', () => {
+      const ids = ['claude-boss-rush', 'claude-pandemonium', 'claude-double-or-nothing', 'claude-shell-game', 'claude-long-haul', 'claude-frozen-descent']
+      for (const id of ids) {
+        const params = campaignPresetById(id)!.build()
+        // The Long Haul's escape floor is a barrier pool of its own, not a monster mix
+        const floors = id === 'claude-long-haul' ? params.levels - 1 : params.levels
+        for (let level = 0; level < floors; level++) {
+          const pool = params.levelMonsters[level]
+          expect(new Set(pool).size, `${id} floor ${level + 1}: ${pool.join(',')}`).toBeGreaterThanOrEqual(3)
+          for (const key of pool) {
+            const base = key.split('#')[0]
+            // an added key must be able to spawn when the preset leaves the global caps alone
+            expect(params.monsterMax[base] ?? 1, `${id} floor ${level + 1}: ${key}`).toBeGreaterThan(0)
+          }
+        }
+      }
+    })
+
     it('the random finales draw only from the mobile bosses', () => {
       // the unique, static dragon and queen made one seed's finale a different fight from the next
       const mobile = MOBILE_BOSS_IDS as readonly string[]
