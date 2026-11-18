@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Campaign Mode presets: the Castle Campaign.** A new preset group, "Campaign Mode", after Classic. The Castle Campaign plays Castle Hammerwatch in four acts of three floors (themes a to d), with the queen, the knight, the lich and the dragon at the end of each act. Every town is the castle bridge and sells one more skill tier than the last (tier 1 at the start, tier 5 before the dragon), with 5000 to 25000 gold and no free upgrades. Act 1 uses light arena waves and 15 s boss invulnerability; later acts use the full castle waves, up to the stock 30 s. The third floor of each act is locked, and mystery plates sit on every floor. About 3 to 4 hours.
 - **Generation runs in a worker thread, with a Cancel button.** The window no longer freezes while a big campaign generates, and the Generate button turns into "Generating… Cancel" so a long run can be stopped. A cancelled run shows a neutral "Cancelled." toast and keeps the previous result.
 - **House lobby, now the default room.** A lobby room, "House" (`house` in parameters.txt), at the top of the Lobby tab's preset dropdown. It is the Anniversary Edition house lobby rebuilt for Hammerwatch: bedrooms, a library, a dining hall with all five vendors, and a lawn.
   - **It is now the default.** New lobbies start as the House, and so do both lobbies of the stock campaign and of the Claude Generated presets. Each pre-boss lobby keeps its 20 000 gold. Survival in Colosseum uses it too; Pre-Alpha has no lobbies.

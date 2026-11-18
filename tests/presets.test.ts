@@ -89,6 +89,76 @@ describe('campaign presets', () => {
     }
   })
 
+  describe('Campaign Mode', () => {
+    const MODE = CAMPAIGN_PRESETS.filter((p) => p.group === 'campaign')
+    const TOWNS: Record<string, string> = {
+      'campaign-castle': 'castle-bridge'
+    }
+    /** The highest skill tier a town sells, from its `combo1`..`combo5` columns. */
+    const skillTier = (shops: readonly string[]) =>
+      Math.max(0, ...shops.filter((c) => /^combo\d$/.test(c)).map((c) => Number(c.slice(5))))
+
+    it('is its own group, after Classic, holding exactly the stock campaigns so far', () => {
+      const groups = PRESET_GROUPS.map((g) => g.id)
+      expect(groups.indexOf('campaign')).toBe(groups.indexOf('classic') + 1)
+      expect(MODE.map((p) => p.id)).toEqual(['campaign-castle'])
+    })
+
+    it('plays in acts: three floors, the town, then the boss', () => {
+      for (const preset of MODE) {
+        const order = preset.build().levelOrder!
+        order.forEach((slot, i) => {
+          if (slot.kind === 'boss') expect(order[i - 1].kind, `${preset.id} slot ${i}`).toBe('lobby')
+          if (slot.kind === 'lobby' && i > 0) {
+            expect(order.slice(i - 3, i).map((s) => s.kind), `${preset.id} slot ${i}`).toEqual(['floor', 'floor', 'floor'])
+            expect(order[i - 4].kind, `${preset.id} slot ${i}`).not.toBe('floor')
+          }
+        })
+        // and ends on the last act's boss
+        expect(order.at(-1)!.kind, preset.id).toBe('boss')
+      }
+    })
+
+    it('sells one more skill tier in each town, ending at tier 5, cumulatively and with no free upgrades', () => {
+      for (const preset of MODE) {
+        const lobbies = preset.build().lobbies
+        const tiers = lobbies.map((l) => skillTier(l.shopCategories))
+        tiers.slice(1).forEach((t, i) => expect(t, `${preset.id} town ${i + 2}`).toBe(tiers[i] + 1))
+        expect(tiers.at(-1), preset.id).toBe(5)
+        for (const l of lobbies) {
+          for (let tier = 1; tier <= skillTier(l.shopCategories); tier++) {
+            for (const vendor of ['combo', 'def', 'misc', 'off']) expect(l.shopCategories, preset.id).toContain(`${vendor}${tier}`)
+          }
+          expect(l.shopCategories, preset.id).toContain('power')
+          expect(Object.values(l.upgrades).every((n) => n === 0), preset.id).toBe(true)
+        }
+        // never sells lives: the stock removal rides along
+        expect(preset.build().playerTweaks['player.shared.remove.life'], preset.id).toBe(1)
+      }
+    })
+
+    it("shops in the family's own town every time", () => {
+      for (const preset of MODE) {
+        for (const l of preset.build().lobbies) expect(l.preset, preset.id).toBe(TOWNS[preset.id])
+      }
+    })
+
+    it('never fields one boss in two acts', () => {
+      for (const preset of MODE) {
+        const all = preset.build().boss.fights.flatMap((f) => f.arena.bossPool)
+        expect(new Set(all).size, preset.id).toBe(all.length)
+      }
+    })
+
+    it('leaves the floor bosses off and locks the third floor of each act', () => {
+      for (const preset of MODE) {
+        const params = preset.build()
+        expect(params.levelBoss, preset.id).toBeUndefined()
+        expect(params.levelLock!.map((l) => l.enabled), preset.id).toEqual(params.themes.map((_, i) => i % 3 === 2))
+      }
+    })
+  })
+
   // These shapes are specific to the three beta-classic presets — they all
   // share one arena size/cover figure and ship a populated boss-death tier by
   // convention, not by any rule the Claude-generated presets are bound to.

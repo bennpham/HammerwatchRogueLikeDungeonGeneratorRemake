@@ -18,6 +18,7 @@ import { MUSIC_DEFAULT } from '../music/tracks'
 import { CLAUDE_PRESETS } from './claudePresets'
 import { desertWaves } from './familyWaves'
 import { COLOSSEUM_PRESETS } from './colosseumPreset'
+import { CAMPAIGN_MODE_PRESETS } from './campaignModePresets'
 import { deepLoot, escapePicks, midLoot, mysteryButton, mysteryKit, shallowLoot } from './presetMystery'
 import type { MysteryPicks } from './presetMystery'
 
@@ -27,11 +28,12 @@ import type { MysteryPicks } from './presetMystery'
  * campaign style first). `label` is the only user-visible text; the id is what
  * a preset's `group` field carries and is never shown.
  */
-export type PresetGroupId = 'preAlpha' | 'classic' | 'colosseum' | 'claude'
+export type PresetGroupId = 'preAlpha' | 'classic' | 'campaign' | 'colosseum' | 'claude'
 
 export const PRESET_GROUPS: readonly { id: PresetGroupId; label: string }[] = [
   { id: 'preAlpha', label: 'Pre-Alpha' },
   { id: 'classic', label: 'Classic' },
+  { id: 'campaign', label: 'Campaign Mode' },
   { id: 'colosseum', label: 'Colosseum' },
   { id: 'claude', label: 'Claude Generated' }
 ]
@@ -726,6 +728,7 @@ const PRE_ALPHA_PRESETS: readonly CampaignPreset[] = [
  */
 export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
   ...CLASSIC_PRESETS,
+  ...CAMPAIGN_MODE_PRESETS,
   ...COLOSSEUM_PRESETS,
   ...CLAUDE_PRESETS,
   ...PRE_ALPHA_PRESETS
