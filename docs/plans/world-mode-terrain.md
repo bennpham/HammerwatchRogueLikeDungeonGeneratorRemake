@@ -1,6 +1,6 @@
 # World mode, terrain: four HW1 biomes and raised plateaus
 
-Date: 2026-11-15. Status: plan, nothing built. Roadmap milestone M5 (`docs/plans/v1-roadmap.md`): M5a biomes, then M5b plateaus.
+Date: 2026-11-15, updated 2026-11-18 for AE PR #18, which fixed AE's world audit items A3, A4, A6, B3, D3, D4 and D6 in the code this plan ports. Status: plan, nothing built. Roadmap milestone M5 (`docs/plans/v1-roadmap.md`): M5a biomes, then M5b plateaus.
 
 ## Scope
 
@@ -163,7 +163,9 @@ Pass 1 builds the coast by marking water as wall mass and running `searchPattern
   ledge?: 't', stairs?: 't' }
 ```
 
-`ScatterEntry` is `{ path, weight, solid: 0 | radiusTiles | 'poly' }`. The collider shape is transcribed by hand and checked by a test against values copied from the install, the way `tests/sealProbe.ts` holds `THEME_H`. No test reads the install.
+`ScatterEntry` is `{ path, weight, solid: 0 | radiusTiles | 'poly' }`. The collider shape is transcribed by hand and checked by a test against values copied from the install, the way `tests/sealProbe.ts` holds `THEME_H`. That test runs everywhere. A second test reads the install itself and is skipped when no install is found, as AE's is (`it.skipIf`, AE audit B3). For every clump, cover, landmark and camp path in the table, it reads the unit's collider and checks that `solid` covers it. A prop stands at its tile's centre, so a collider of radius r px reaches `ceil((r − 8) / 16)` tiles out. AE's hand-measured radii were too small for three props (the fir, the desert's minor stone and the pyramid), and each could have closed a path the flood thought open. Cover must have no collider at all.
+
+Plateau tops get their own ground (AE audit D3, built in AE PR #18 as `BiomeDef.highGround`). Add `highGround?: { tileset, tiles }` to the shape above. It is painted instead of `base` on `HIGH` cells, so a raised patch reads as raised away from its rim. Proposed: `e_fine` (110) on oasis, `e_default_dark` (101) on dry grass, `f_fine` (121) on frozen. Desert has no plateaus, so it is unread there. Each pairing is a play check, as AE's #116 is.
 
 Parameter: `world<i>Biome = desert|oasis|drygrass|frozen`. Absent means `desert`. Validation rejects an unknown id. `monsters` is the one-click default pool. The user's own pool always wins, as AE's `monsterThemes.ts` does.
 
@@ -226,15 +228,17 @@ Gap rule: keep `PLATEAU_GAP = 4` low tiles to the coast, the hub disc and other 
 
 ### 5.6 Algorithm (bounded)
 
-Per plateau, at most `PLATEAU_TRIES = 30`: size, window, mask (`buildIsland`, as AE). Run the same matcher-coverage idea on the rim. Every rim edge maps to a piece: runs of 2 → `_up`/`_dn` (32 px) or `_l`/`_r`, odd remainders → `_v2`/`_v3` cuts, a `_crn` plug at every convex and concave corner. Stairways go on south runs of at least 4 tiles, at least `STAIR_SPACING = 4` apart, and a try with no legal stairway fails. Rasterise every placed collider at quarter-tile resolution (the importers' model, `scripts/lib/hwLevel.mjs` `collisionBoxes`/`checkClosed`). The try fails if the low ground reaches the top anywhere but a stairway. Emit pieces after every object, as AE does.
+Per plateau, at most `PLATEAU_TRIES = 30`: size, window, mask (`buildIsland`, as AE). Trails route through a stairway's cells as their corridor but paint no trail tile on them (AE audit D4, as fixed in PR #18), so the stairs art stays visible. Run the same matcher-coverage idea on the rim. Every rim edge maps to a piece: runs of 2 → `_up`/`_dn` (32 px) or `_l`/`_r`, odd remainders → `_v2`/`_v3` cuts, a `_crn` plug at every convex and concave corner. Stairways go on south runs of at least 4 tiles, at least `STAIR_SPACING = 4` apart, and a try with no legal stairway fails. Rasterise every placed collider at quarter-tile resolution (the importers' model, `scripts/lib/hwLevel.mjs` `collisionBoxes`/`checkClosed`). The try fails if the low ground reaches the top anywhere but a stairway. Emit pieces after every object, as AE does.
 
 ### 5.7 Encounters stay on one level (AE audit A4)
 
-A pack member or ambush-ring spot is legal only if it has the same `HIGH` value as the pack's centre (or the tripwire's centre), and an edge-aware flood limited to the spot's radius links the two. The same rule covers mystery payload spots and button ambushes. Ledges are `shoot-through`, so ranged monsters on top can still shoot down. That is intended.
+A pack member or ambush-ring spot is legal only if it has the same `HIGH` value as the pack's centre (or the tripwire's centre), and an edge-aware flood limited to the spot's radius links the two. The same rule covers mystery payload spots and button ambushes. AE put the check in one grid method, `WorldGrid.sameGround(a, b)`. Do the same, so every caller gets the edge-aware version.
+
+Landmarks (AE audit A3, as fixed): a landmark piece refuses `RESERVED` ground except its own site's disc. Any spot that must stay clear (each boss site's statue spot on AE; the hub, the orb's tile and stairway landings here) is reserved before landmarks are placed. Ledges are `shoot-through`, so ranged monsters on top can still shoot down. That is intended.
 
 ### 5.8 A plateau that does not fit is reported (AE audit A6)
 
-`placePlateaus` returns `{ units, placed, requested }`. `LevelPreview` gains an optional `notes: string[]` (absent for every non-world level, so no existing preview changes). A short placement adds a note there, for example "3 of 5 plateaus raised: no room for the rest". The renderer shows it under the world's preview tab. Validation's capacity warning (5.10) catches the obvious cases beforehand.
+`placePlateaus` returns `{ units, placed, requested }`. `LevelPreview` gains an optional `notes: string[]` (absent for every non-world level, so no existing preview changes). A short placement adds a note there. AE's wording, which this copies, is "3 of 5 plateaus fit". AE's site capacity (A2) also counts only the plateaus that fit, so a short placement does not leave the objectives' capacity estimate too high. The renderer shows it under the world's preview tab. Validation's capacity warning (5.10) catches the obvious cases beforehand.
 
 ### 5.9 Parameters
 
@@ -266,7 +270,9 @@ The plateau stream is `new Rand(layout.nextInt(2147483647))`. It is drawn after 
 - A no-world campaign matches the M1 fingerprint.
 - Closure: on 50 seeds per biome, a quarter-tile flood over the transcribed ledge colliders reaches each plateau's top only through its stairways. Every site and button stays reachable from the arrival.
 - Every stairway's landing cells are free of props and spawns. No spawn, prop or site sits on a `FACE` row.
-- A4: every pack member and ring spot shares its centre's `HIGH` value and connects to it inside the radius.
+- A4: every pack member and ring spot shares its centre's `HIGH` value and connects to it inside the radius. AE's D6 "plateau pack test" is the model: a Highlands world on several seeds, each pack and ring checked.
+- D3: every `HIGH` cell paints `highGround`, not `base`. D4: no trail tile on a stairway cell.
+- B3: the install-backed collider test (section 3) covers every landmark and camp path, and the ledge and stair pieces' colliders match 5.2.
 - A6: asking for more plateaus than fit gives `placed < requested` and a note, never a throw or an infinite loop.
 - Mesa: no site, spawn or loot on mesa cells, and the coast-closure test passes with mesas present.
 - Each biome emits only paths in its own table, plus the shared generic set. An oasis world names no `theme_h` path, and a desert world names no `theme_e` wall piece (the `themes.test.ts` "no theme_i" assertion, applied per biome).
@@ -302,7 +308,7 @@ Ideas only, not commitments:
 - **Stone bridges over a pool.** `generic/bridge_stone_h`/`_v` have `shoot-through` railings and an open deck [R], as the verified wooden bridge does [V].
 - **Wall dressing (e/f).** `e_deco_vgt_ivy*`, `e_deco_vgt_overhang*` and `e_deco_crack*`, and their f twins, on coast wall faces, as stock caves do.
 - **Sandstone terraces (desert).** `i_ledge_*` with `i_stairs_*` or `g_stairs_*`, if a desert with real climbs is wanted after mesas ship.
-- **A second ground for high cells** (AE audit D3): `e_fine` on plateau tops so height reads away from the rim.
+- (Moved into the plan: **a second ground for high cells**, AE audit D3, is now `BiomeDef.highGround` in section 3.)
 
 ## 8. Risks
 
