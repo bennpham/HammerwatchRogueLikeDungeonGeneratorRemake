@@ -73,7 +73,7 @@ const SEAL_TEXT = 'The way to the final room has opened!'
 const MAX_BUTTON_ATTEMPTS = 2000
 
 /** Closest two buttons' tiles may sit on either axis, in tiles. */
-const MIN_BUTTON_SPACING = 2
+export const MIN_BUTTON_SPACING = 2
 
 /**
  * One lock button placed on a floor (enhanced lock buttons): its tile, which
@@ -208,17 +208,23 @@ export function buttonsRemainingText(remaining: number): string {
  * [VERIFIED 2026-09-26] in game, on its own and feeding a boss floor's seal.
  *
  * Returns the `== 0` check. Draws no RNG. The nodes are editor markers only,
- * placed just past the map's east edge, clear of the boss rig's column.
+ * placed just past the map's east edge by default, clear of the boss rig's
+ * column; `at` moves them (a level with no dungeon map to measure). `text`
+ * words the "k remain" line from the remaining count.
  */
-function buildButtonCountdown(ctx: GenerationContext, triggers: readonly ScriptNode[]): ScriptNode {
-  const x = ctx.params.mapWidth + 8
-  const y = 0
+export function buildButtonCountdown(
+  ctx: GenerationContext,
+  triggers: readonly ScriptNode[],
+  at: { x: number; y: number } = { x: ctx.params.mapWidth + 8, y: 0 },
+  text: (remaining: number) => string = buttonsRemainingText
+): ScriptNode {
+  const { x, y } = at
   const remaining = new NodeVariable(ctx, x, y, triggers.length)
   const changes = triggers.map((_, i) => new NodeChangeVariable(ctx, x + 1, y + 1 + i, remaining, CHANGE_VAR_SUB, 1))
   const checks = triggers.map((_, k) => new NodeCheckVariable(ctx, x + 2, y + 1 + k, remaining, k, []))
   for (let k = 1; k < checks.length; k++) {
     const announce = new NodeAnnounceText(ctx, x + 3, y + 1 + k)
-    announce.setText(buttonsRemainingText(k))
+    announce.setText(text(k))
     announce.time = SEAL_ANNOUNCE_MS
     announce.textType = REMAINING_ANNOUNCE_TYPE
     checks[k].connectTo(announce)
