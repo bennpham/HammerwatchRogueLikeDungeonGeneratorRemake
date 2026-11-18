@@ -8,6 +8,7 @@ import { Doodad } from '../objects/doodad'
 import { GOLD_LOCK_TIER } from '../objects/item'
 import { getTheme, THEME_DEFS } from '../config/themes'
 import { XMLArray, XMLDictionary, XMLInt, XMLIntArray, XMLString } from '../xml'
+import { levelSectionsXML } from '../xml/levelSections'
 import { mixedDatasets, overlayDataset } from './tilemapOverlay'
 import { exitReachable } from './reachability'
 import { sealHolds } from './sealCheck'
@@ -491,62 +492,7 @@ export class Level {
     const tilemapDict = new XMLDictionary('tilemap')
     tilemapDict.addData(tiledataArray)
 
-    const doodadsArray = new XMLArray('doodads')
-    for (const d of ctx.doodads) {
-      doodadsArray.addData(d)
-    }
-    const doodadsDict = new XMLDictionary('doodads')
-    doodadsDict.addData(doodadsArray)
-
-    const actorsArray = new XMLArray('actors')
-    for (const m of ctx.monsters) {
-      actorsArray.addData(m)
-    }
-    const actorsDict = new XMLDictionary('actors')
-    actorsDict.addData(actorsArray)
-
-    const itemsArray = new XMLArray('items')
-    for (const i of ctx.items) {
-      itemsArray.addData(i)
-    }
-    const itemsDict = new XMLDictionary('items')
-    itemsDict.addData(itemsArray)
-
-    const nodesArray = new XMLArray('nodes')
-    for (const n of ctx.scriptNodes) {
-      nodesArray.addData(n)
-    }
-    const scriptingDict = new XMLDictionary('scripting')
-    scriptingDict.addData(nodesArray)
-
-    const lightingArray = new XMLArray('lights')
-
-    const ambientDict = new XMLDictionary('ambient-color')
-    ambientDict.addData(new XMLInt('r', 255))
-    ambientDict.addData(new XMLInt('g', 255))
-    ambientDict.addData(new XMLInt('b', 255))
-    ambientDict.addData(new XMLInt('a', 255))
-
-    const shadowDict = new XMLDictionary('shadow-color')
-    shadowDict.addData(new XMLInt('r', 128))
-    shadowDict.addData(new XMLInt('g', 128))
-    shadowDict.addData(new XMLInt('b', 128))
-    shadowDict.addData(new XMLInt('a', 128))
-
-    const lightingDict = new XMLDictionary('lighting')
-    lightingDict.addData(lightingArray)
-    lightingDict.addData(ambientDict)
-    lightingDict.addData(shadowDict)
-
-    const masterDict = new XMLDictionary('')
-    masterDict.addData(tilemapDict)
-    masterDict.addData(doodadsDict)
-    masterDict.addData(actorsDict)
-    masterDict.addData(scriptingDict)
-    masterDict.addData(itemsDict)
-    masterDict.addData(lightingDict)
-
-    return masterDict.getXML()
+    return levelSectionsXML(ctx, tilemapDict)
   }
 
   /**
