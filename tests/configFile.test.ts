@@ -1950,3 +1950,18 @@ describe('empty themes=', () => {
     expect(parsed.params.themes).toEqual([])
   })
 })
+
+describe('floor pools when a file declares none', () => {
+  it('trims the base pools to the level count', () => {
+    const parsed = parseParametersTxt('levels=0')
+    expect(parsed.params.levelMonsters).toEqual([])
+
+    const three = parseParametersTxt('levels=3')
+    expect(three.params.levelMonsters).toHaveLength(3)
+  })
+
+  it('keeps a declared placeholder pool on a zero-floor campaign', () => {
+    const parsed = parseParametersTxt('levels=0\r\nthemes=a_mixed\r\nmonsters0=bat1')
+    expect(parsed.params.levelMonsters).toEqual([['bat1']])
+  })
+})

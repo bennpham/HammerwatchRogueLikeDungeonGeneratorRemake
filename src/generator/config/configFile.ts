@@ -1764,6 +1764,11 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   // while `levels` stays short, then silently appended if the user raises it.
   if (highestPoolIndex >= 0) {
     params.levelMonsters.length = highestPoolIndex + 1
+  } else if (params.levelMonsters.length > params.levels) {
+    // No pool line at all: the base's pools are not this file's, so keep only
+    // as many as there are floors. A campaign of islands/arenas alone (levels=0)
+    // must not inherit the castle's eight.
+    params.levelMonsters.length = params.levels
   }
 
   // Only floors carrying a buff get a `buffN=` line, so the same padding rule
