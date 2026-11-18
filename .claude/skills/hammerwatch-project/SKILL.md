@@ -277,7 +277,11 @@ reference/hammerwatch-tweak-stats.md
 6. **`parameters.txt` stays compatible.** Keys are matched case-insensitively
    (`configFile.ts` lowercases). Unrecognized keys go into `unknownKeys` and
    are surfaced to the user — never thrown.
-7. **IPC payloads stay small.** Generated file contents live in `lastResult`
+7. **IPC payloads stay small.** `dungeon:generate` runs `generateDungeon` in a
+   worker thread (`src/main/generateWorker.ts`, started per press by
+   `generateInWorker` in `ipc.ts`); `dungeon:cancel` terminates it and the
+   generate call resolves with the `GENERATION_CANCELLED` error, which the
+   renderer shows as a neutral toast and keeps the previous result. Generated file contents live in `lastResult`
    in `src/main/ipc.ts` and are *stripped* from the renderer response; the
    renderer only ever receives previews. Don't send megabytes of XML over the
    bridge.

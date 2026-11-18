@@ -17,6 +17,9 @@ export interface AppSettings {
   cleanupFiles: boolean
 }
 
+/** The one error a cancelled generation resolves with; the renderer shows no error for it. */
+export const GENERATION_CANCELLED = 'Generation cancelled.'
+
 /** What the renderer gets back from a generate call (files stay cached in main). */
 export interface GenerateResponse {
   ok: true
@@ -64,6 +67,8 @@ export interface ImportPlayerSettingsResult {
 export interface RendererApi {
   getInitialState(): Promise<InitialState>
   generate(params: DungeonParameters, seed?: number): Promise<GenerateResponse | DungeonError>
+  /** stop the generation running now; its generate call resolves as cancelled */
+  cancelGenerate(): Promise<void>
   installToHammerwatch(): Promise<ActionResult>
   exportFolder(): Promise<ActionResult>
   exportZip(): Promise<ActionResult>

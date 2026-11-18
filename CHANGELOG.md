@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Generation runs in a worker thread, with a Cancel button.** The window no longer freezes while a big campaign generates, and the Generate button turns into "Generating… Cancel" so a long run can be stopped. A cancelled run shows a neutral "Cancelled." toast and keeps the previous result.
 - **House lobby, now the default room.** A sixth lobby room, "House" (`house` in parameters.txt), at the top of the Lobby tab's preset dropdown. It is the Anniversary Edition house lobby rebuilt for Hammerwatch: bedrooms, a library, a dining hall with all five vendors, and a lawn.
   - **It is now the default.** New lobbies start as the House, and so do both lobbies of the stock campaign and of the Claude Generated presets. Each pre-boss lobby keeps its 20 000 gold. Survival in Colosseum uses it too; Pre-Alpha has no lobbies.
   - The party arrives in the hall west of the bedrooms and leaves through the teleport in the north-west room. The teleport is red when the lobby leads into a boss fight and blue otherwise.
