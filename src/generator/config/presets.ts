@@ -365,7 +365,7 @@ const CLASSIC_PRESETS: readonly CampaignPreset[] = [
     id: 'castle',
     label: 'Castle (default)',
     description:
-      '7 floors through the mixed castle themes — four act floors, then three boss rushes, with two mystery buttons hidden on every floor.',
+      '7 floors through the mixed castle themes — four act floors, then three boss rushes, with two mystery buttons hidden on every floor — and, after the boss, a 90-second escape floor.',
     group: 'classic',
     // Both shops are the Castle Hammerwatch bridge, the campaign's own opening
     // level; the stock default keeps the House. The bridge plays its own act1
@@ -527,7 +527,7 @@ const CLASSIC_PRESETS: readonly CampaignPreset[] = [
     id: 'bonus',
     label: 'Bonus Gauntlet',
     description:
-      '5 floors of the bonus tilesets, escalating from bonus mobs to a mixed boss floor, with two mystery buttons hidden on every floor.',
+      '5 floors of the bonus tilesets, escalating from bonus mobs to a mixed boss floor, with two mystery buttons hidden on every floor — and, after the boss, a 90-second escape floor.',
     group: 'classic',
     build: () => withGatewayLocks({
       ...defaultParameters(),

@@ -202,6 +202,7 @@ When hosting a generated campaign in Hammerwatch 1.41:
    replace only the Player tab. The **(i)** at the left of the header explains
    every header button, including how parameters.txt and playersettings.txt
    differ.
+   A classic preset's floor count leaves out its escape floor, the extra floor played after the boss on a 90-second clock.
 3. **Tweak parameters** in the left panel, across five tabs — **Lobby** (the
    shop rooms and their presets), **Dungeon** (floors, rooms, monsters),
    **Boss** (the arena, its waves and its spawn modes), **Floor order** (how

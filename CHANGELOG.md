@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Generation runs in a worker thread, with a Cancel button.** The window no longer freezes while a big campaign generates, and the Generate button turns into "Generating… Cancel" so a long run can be stopped. A cancelled run shows a neutral "Cancelled." toast and keeps the previous result.
-- **House lobby, now the default room.** A sixth lobby room, "House" (`house` in parameters.txt), at the top of the Lobby tab's preset dropdown. It is the Anniversary Edition house lobby rebuilt for Hammerwatch: bedrooms, a library, a dining hall with all five vendors, and a lawn.
+- **House lobby, now the default room.** A lobby room, "House" (`house` in parameters.txt), at the top of the Lobby tab's preset dropdown. It is the Anniversary Edition house lobby rebuilt for Hammerwatch: bedrooms, a library, a dining hall with all five vendors, and a lawn.
   - **It is now the default.** New lobbies start as the House, and so do both lobbies of the stock campaign and of the Claude Generated presets. Each pre-boss lobby keeps its 20 000 gold. Survival in Colosseum uses it too; Pre-Alpha has no lobbies.
   - The party arrives in the hall west of the bedrooms and leaves through the teleport in the north-west room. The teleport is red when the lobby leads into a boss fight and blue otherwise.
   - Starting gold lies in the diamond zone along the top of the library, and nowhere else. More diamonds than the zone holds stack on the same spots. Free upgrades lie on the row in front of the vendors, one spot per kind.
@@ -37,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - It ships no extra files: everything it uses is stock.
   - The Castle preset shops on it.
   - `scripts/import-castle-bridge.mjs` regenerates it from the game's own `level_1.xml`. The bazaar's importer now shares its level-reading code through `scripts/lib/hwLevel.mjs`, and its output is unchanged.
-- **Shaftlocke Peak sky shop lobby.** A fifth lobby room, "Shaftlocke Peak sky shop" (`sky-shop` in parameters.txt). It is the survival campaign's merchants guild: floating islands joined by glass walkways, with clouds drifting below.
+- **Shaftlocke Peak sky shop lobby.** A lobby room, "Shaftlocke Peak sky shop" (`sky-shop` in parameters.txt). It is the survival campaign's merchants guild: floating islands joined by glass walkways, with clouds drifting below.
   - All five vendors are stocked, filtered by the Lobby tab's columns like the other rooms, with tier badges.
   - The party arrives in a red-floored room in the middle, which replaces the small central island. A walkway leaves each of its four doorways for the islands, and the islands have moved to meet them. They leave through the teleport on the east island. The teleport is red when the lobby leads into a boss fight and blue otherwise.
   - Starting gold lies in a ring round the arrival and free upgrades in a block just north of it, all inside the red room. More diamonds than the ring holds stack on the same spots.
@@ -52,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Pandemonium's and Arena Marathon's random finales draw from the mobile bosses.** The six-boss and three-boss finales used to draw from all seven bosses, so the dragon and the queen, which are fixed in place, could both land in the same fight. They now draw from Anubis, the knight, Krilith, the lich and the worm, like Pandemonium's floors already did.
 - **The Long Haul has a town after floor 9.** The run of six floors without a shop is split by a new lobby (the House, 15 000 gold, no free upgrades); the last lobby before the finale keeps its 25 000 gold and free upgrades. The mid-campaign arena fights the lich alone, since the knight is already floor 3's boss, and floor 8's damage countdown is now shown.
 - **Six Claude presets use three monster types on every floor.** Boss Rush, Pandemonium, Double or Nothing, Shell Game, The Long Haul and Frozen Descent had one or two types per floor, so a floor felt like the same fight in every room. Each floor now mixes three that fit its act; Frozen Descent stays on frost monsters. Beat the Clock, Trap Gauntlet and Bonus Gauntlet are unchanged.
+- **The Castle and Bonus Gauntlet descriptions name the escape floor.** Their floor counts (7 and 5) leave it out, and the descriptions now say so.
 
 ### Removed
 
