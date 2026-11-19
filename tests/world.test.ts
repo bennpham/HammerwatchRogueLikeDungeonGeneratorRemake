@@ -334,7 +334,9 @@ describe('the coast closes', () => {
           expect(near).toBe(true)
         }
       }
-    })
+      // 50 full worlds: well under the default 30 s alone, but not under the
+      // whole suite's parallel load
+    }, 120000)
   }
 
   it('closes at 512 on a few seeds', () => {
