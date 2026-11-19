@@ -45,7 +45,7 @@ This matches Temple of the Sun. Its caves use tilemap e (`level_cave_1..3`, with
 | 3 | floors 7–9 | `g_mixed`, `i_symbols`, `i_mixed` | mummies, `lich_desert`, desert guards, tracking and banner towers, `mb_mummy` late | `boss_anubis` | desert_temple |
 
 - **Town:** `sun-bazaar` every time (owner, 2026-11-18).
-- **Opening island:** included (owner, 2026-11-18, carried over from AE). The order opens `L1, W1, 1, 2, 3, L2, AB1, …`. The island is 128 tiles with three buttons, no boss and the Temple monsters. Pressing all three opens the blue portal down into the caves. It is added in its own commit once World mode exists. That commit moves only this preset's fingerprint.
+- **Opening island:** included (owner, 2026-11-18, carried over from AE). The order opens `L1, W1, 1, 2, 3, L2, AB1, …`. The island is 128 tiles with three buttons, no boss and the Temple monsters. Pressing all three opens the blue portal down into the caves. Built in `config/campaignModePresets.ts` (`desertIsland()`): bare start, 10 packs of 4, 3 ambushes of 4, no button ambush, the `temple` monster theme, `desert_village` music. Its commit moved only `campaign-desert@1` and `campaign-desert@4242`.
 - **Pools** start from the Desert preset (`config/presets.ts`) and The Long Haul's temple act.
 
 **Bosses.** The dragon and the queen are not in `MOBILE_BOSS_IDS`, so they can only fight in arenas. Every act boss here is an arena (`AB{n}`), so this holds. No boss repeats across acts.

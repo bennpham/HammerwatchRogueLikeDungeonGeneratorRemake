@@ -4,7 +4,10 @@ import type { CampaignSlot } from '../campaign'
 import { deepLoot, midLoot, mysteryKit, shallowLoot } from './presetMystery'
 import type { MysteryPicks } from './presetMystery'
 import { desertWaves } from './familyWaves'
-import { B, F, L, bossFight, campaign, lightArenaWaves, lobby } from './presetHelpers'
+import { B, F, L, W, bossFight, campaign, lightArenaWaves, lobby } from './presetHelpers'
+import { defaultWorld } from '../world/options'
+import type { WorldDef } from '../world/options'
+import { MONSTER_THEMES } from '../world/monsterThemes'
 // Type-only: presets.ts imports CAMPAIGN_MODE_PRESETS from this file at
 // runtime, so a runtime import of CampaignPreset back would cycle.
 import type { CampaignPreset } from './presets'
@@ -52,6 +55,8 @@ interface CampaignModeDef {
   waves: () => BossWave[]
   /** the highest skill tier on sale in town t (0-based); every lower tier is sold too */
   skillTiers: readonly number[]
+  /** an island played between the first town and the first floor */
+  island?: WorldDef
 }
 
 /** Town gold, a little more each town, no free upgrades (balance audit A1/B5). */
@@ -82,7 +87,7 @@ function acts(def: CampaignModeDef): DungeonParameters {
   const levels = n * 3
   const kit = mysteryKit()
 
-  const order: CampaignSlot[] = [L(0)]
+  const order: CampaignSlot[] = [L(0), ...(def.island === undefined ? [] : [W(0)])]
   def.acts.forEach((_, a) => order.push(F(a * 3), F(a * 3 + 1), F(a * 3 + 2), L(a + 1), B(a)))
 
   // the first town, then one before each fight; every lobby sets its music
@@ -125,6 +130,7 @@ function acts(def: CampaignModeDef): DungeonParameters {
       levelOrder: order,
       mysteryButtons: kit.buttons,
       levelMystery,
+      ...(def.island === undefined ? {} : { world: { enabled: true, worlds: [def.island] } }),
       boss: { enabled: true, fights }
     })
   )
@@ -194,6 +200,34 @@ function castleCampaign(): DungeonParameters {
   })
 }
 
+/**
+ * The Desert Campaign's opening island: the village's square gives onto the
+ * desert, and three floor buttons open the blue portal down into the caves.
+ * 128 tiles, no boss, the Temple roster in light packs, the village's music.
+ * The order is then `L1, W1, 1, 2, 3, L2, AB1, ...`. A world draws only from
+ * `ctx.worldRand`, so no floor, arena or town moves; only this preset's file
+ * list and `levels.xml` gain the island.
+ */
+function desertIsland(): WorldDef {
+  return {
+    ...defaultWorld(),
+    biome: 'desert',
+    minWidth: 128,
+    maxWidth: 128,
+    minHeight: 128,
+    maxHeight: 128,
+    buttons: 3,
+    bossCount: 0,
+    monsters: [...MONSTER_THEMES.find((t) => t.id === 'temple')!.monsters],
+    packs: 10,
+    packSize: 4,
+    ambushes: 3,
+    ambushSize: 4,
+    buttonAmbush: 0,
+    music: 'desert_village'
+  }
+}
+
 function desertCampaign(): DungeonParameters {
   const params = acts({
     town: 'sun-bazaar',
@@ -201,9 +235,7 @@ function desertCampaign(): DungeonParameters {
     waves: desertWaves,
     // four towns: two tiers to start, the fifth before Anubis
     skillTiers: [2, 3, 4, 5],
-    // TODO(world): opening island W1 (128 tiles, three buttons, no boss, Temple
-    // monsters) goes before floor 1 once the world slot exists; the order is
-    // then L1, W1, 1, 2, 3, L2, AB1, ...
+    island: desertIsland(),
     acts: [
       {
         themes: ['h', 'e', 'e_mixed'],
@@ -266,7 +298,7 @@ export const CAMPAIGN_MODE_PRESETS: readonly CampaignPreset[] = [
     id: 'campaign-desert',
     label: 'Desert Campaign',
     description:
-      "The Temple of the Sun in three acts: the caves, the ice caves and the pyramid, three floors each, then back to the bazaar, whose shops sell one more tier of skills, then the worm, Krilith and Anubis. About 2½ to 3 hours.",
+      "The Temple of the Sun, opening on a desert island whose three buttons open the portal to the caves, then three acts: the caves, the ice caves and the pyramid, three floors each, then back to the bazaar, whose shops sell one more tier of skills, then the worm, Krilith and Anubis. About 2½ to 3 hours.",
     group: 'campaign',
     build: desertCampaign
   }

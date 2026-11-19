@@ -83,10 +83,11 @@ export function buttonLocks(counts: readonly number[]): FloorLock[] {
   return counts.map((n) => (n === 0 ? { enabled: false } : n === 1 ? { enabled: true } : { enabled: true, buttons: n }))
 }
 
-/** `{kind:'lobby',index:i}` / `{kind:'floor',index:i}` / `{kind:'boss',index:i}` shorthands. */
+/** `{kind:'lobby',index:i}` / `{kind:'floor',index:i}` / `{kind:'boss',index:i}` / `{kind:'world',index:i}` shorthands. */
 export const L = (index: number): CampaignSlot => ({ kind: 'lobby', index })
 export const F = (index: number): CampaignSlot => ({ kind: 'floor', index })
 export const B = (index: number): CampaignSlot => ({ kind: 'boss', index })
+export const W = (index: number): CampaignSlot => ({ kind: 'world', index })
 
 /** Floors `from..to` inclusive, ascending. */
 export function floorRange(from: number, to: number): CampaignSlot[] {

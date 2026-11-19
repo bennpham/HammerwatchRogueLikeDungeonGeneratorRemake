@@ -21,6 +21,7 @@ import {
   floorLockButtons,
   floorLockDisguised,
   mysteryStarterPool,
+  worldList,
   MOBILE_BOSS_IDS
 } from '../src/generator'
 import type { BossWave, DungeonParameters } from '../src/generator'
@@ -142,6 +143,62 @@ describe('campaign presets', () => {
       for (const preset of MODE) {
         for (const l of preset.build().lobbies) expect(l.preset, preset.id).toBe(TOWNS[preset.id])
       }
+    })
+
+    describe("the Desert Campaign's opening island", () => {
+      const desert = () => MODE.find((p) => p.id === 'campaign-desert')!.build()
+
+      it('sits between the first town and the first floor, and is the only island of the group', () => {
+        const order = desert().levelOrder!
+        expect(order.slice(0, 3)).toEqual([{ kind: 'lobby', index: 0 }, { kind: 'world', index: 0 }, { kind: 'floor', index: 0 }])
+        expect(order.filter((s) => s.kind === 'world')).toHaveLength(1)
+        expect(worldList(desert())).toHaveLength(1)
+        for (const preset of MODE.filter((p) => p.id !== 'campaign-desert')) expect(worldList(preset.build()), preset.id).toHaveLength(0)
+      })
+
+      it('is a 128-tile desert island: three buttons, no boss, the Temple roster in light packs, the village music', () => {
+        const island = worldList(desert())[0]
+        expect(island.biome).toBe('desert')
+        expect([island.minWidth, island.maxWidth, island.minHeight, island.maxHeight]).toEqual([128, 128, 128, 128])
+        expect(island.buttons).toBe(3)
+        expect(island.bossCount).toBe(0)
+        expect(island.monsters).toEqual(['mummy_desert', 'mummy_ranged', 'lich_desert', 'guard_desert', 'guard_desert_range'])
+        expect(island.packs * island.packSize).toBeLessThanOrEqual(60)
+        expect(island.music).toBe('desert_village')
+      })
+
+      it('opens a blue portal into the caves and is entered from the town', () => {
+        const result = generateDungeon(desert(), 7)
+        expect(result.ok).toBe(true)
+        if (!result.ok) return
+        const files = new Map(result.files.map((f) => [f.path, f.content]))
+        const levels = files.get('levels.xml')!
+        const ids = [...levels.matchAll(/<level id="([^"]+)"/g)].map((m) => m[1])
+        expect(ids.slice(0, 3)).toEqual(['lobby0', 'world0', '0'])
+        const island = [...files].find(([path]) => /world1/.test(path))![1]
+        // the blue teleport, not the red boss portal
+        expect(island).toContain('exit_teleport')
+        expect(island).not.toContain('portal_boss')
+      })
+
+      it('moves no floor, town or arena: only the island is added', () => {
+        const withIsland = desert()
+        const without = { ...withIsland, world: undefined, levelOrder: withIsland.levelOrder!.filter((s) => s.kind !== 'world') }
+        const a = generateDungeon(without, 4242)
+        const b = generateDungeon(withIsland, 4242)
+        expect(a.ok && b.ok).toBe(true)
+        if (!a.ok || !b.ok) return
+        const strip = (name: string) => name.replace(/^levels\/\d+_/, '')
+        const body = (r: typeof a) => new Map(r.files.filter((f) => f.path.startsWith('levels/') && !/world/.test(f.path)).map((f) => [strip(f.path), f.content]))
+        const before = body(a)
+        const after = body(b)
+        expect([...after.keys()]).toEqual([...before.keys()])
+        for (const [name, content] of after) {
+          // a lobby's exit names the next slot, so only the first town's differs
+          if (name === 'lobby1.xml') continue
+          expect(content, name).toBe(before.get(name))
+        }
+      })
     })
 
     it('never fields one boss in two acts', () => {
@@ -434,7 +491,7 @@ describe('campaign presets', () => {
         // Every fight is its own arena level in the preview — a chained-arena
         // preset like Arena Marathon has more than one, so the historical
         // "+1" only held because every preset shipped exactly one fight.
-        expect(result.levels).toHaveLength(params.levels + bossFights(params.boss).length)
+        expect(result.levels).toHaveLength(params.levels + bossFights(params.boss).length + worldList(params).length)
         for (let i = 0; i < params.levels; i++) {
           expect(result.files.filter((f) => isFloorPath(f.path, i)), `floor ${i}`).toHaveLength(1)
         }

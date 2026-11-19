@@ -5400,3 +5400,8 @@ that large. W12 decides.
 **Tag:** [EMITTED] (not booted; BOOT-CHECKLIST W14)
 **Context:** world mode pass 4 (`world/objectives.ts`). The same `Checkpoint` script node the arena's save-game milestone uses (`boss/checkpoints.ts`, its `parameters` a bare `<bool>` true = save [VERIFIED] 2026-09-05), wired to the objectives' own triggers instead of a `Boss ...` event: one node at the arrival, connected from every button's one-shot `AreaTrigger` and every boss's `ObjectEventTrigger(Destroyed)`.
 **Assumption:** the respawn point is the `Checkpoint` node's own position, as the arena's `respawnAt` and `RespawnPlayers` are, so the node stands on the `LevelStart` tile. Whether a save written mid-island keeps the countdown variable's progress (the objectives done so far) when the level reloads is open: the stock `Checkpoint` was only exercised in boss arenas. W14 decides.
+
+## 2026-11-19 - the Desert Campaign's opening island [EMITTED]
+
+**Tag:** [EMITTED] (not booted; BOOT-CHECKLIST W1, W5 and the Campaign Mode rows)
+**Context:** `config/campaignModePresets.ts`. A world slot between the first town and the first floor: the town's portal leads to `world0` (a lobby exit, unchanged mechanism), and the island's blue `LobbyPortal` (next slot is a floor, so not the red boss portal) leads on to level 0. `desert_village` is the track the bazaar already plays (`music/tracks.ts`, from `sound/music_desert.xml`). Only `campaign-desert`'s outputs gain the island's level and a `levels.xml` entry; no other level file changes (tested).
