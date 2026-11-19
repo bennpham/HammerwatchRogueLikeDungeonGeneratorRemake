@@ -223,11 +223,16 @@ src/
 ├── main/                 index.ts (window), ipc.ts (handlers + last-result
 │                         cache), packer.ts (write/pack/install), settings.ts
 ├── preload/              contextBridge → window.api
-├── renderer/             App.tsx (Lobby|Dungeon|Boss|Floor order|Player and
+├── renderer/             App.tsx (Lobby|Dungeon|Boss|World|Floor order|Player and
 │                         Preview|Loadout tabs), components/{ParameterForm,
 │                         PlayerForm, QuickSetup, LobbyForm, BossForm,
-│                         FloorOrderEditor,
-│                         LevelPreview, LoadoutSheet, MonsterPoolsEditor,
+│                         WorldForm (the World tab: one island per sub-tab,
+│                         edits through set()/setWorld() and repairs levelOrder
+│                         with campaignCounts()), FloorOrderEditor,
+│                         LevelPreview (draws a world's map, sites and notes),
+│                         MonsterPoolPicker (one floor-style pool, shared by
+│                         MonsterPoolsEditor and the World tab),
+│                         LoadoutSheet, MonsterPoolsEditor,
 │                         PoolGroup, PoolTextField, MonsterFilterBar,
 │                         MonsterMaxTable, FloorTimerEditor, FloorBuffEditor,
                          FloorTrapEditor,
