@@ -50,7 +50,7 @@ Pass 1 owns this biome. Terrain adds scatter, landmarks, camp and mesas.
 |---|---|---|---|
 | Clump | `doodads/theme_h/h_deco_rock.xml` | circle r 18 | 36×38 sprite; the hub places 45 |
 | Clump | `doodads/generic/deco_block.xml`, `deco_block_v2.xml`, `deco_block_v3.xml` | polygon, x…x+1.5, y−1.5…y+1 [V] | stone blocks |
-| Clump | `doodads/theme_g/g_deco_ground_brick{,_v2,_v3}.xml` | circle r 8, shoot-through | loose brick |
+| Clump | `doodads/theme_g/g_deco_ground_brick.xml` | circle r 8 at offset (0, −2), shoot-through | loose brick (`_v2` and `_v3` have no collider in the install: cover) |
 | Cover | `doodads/theme_g/g_deco_ground_stone{,_v2,_v3,_v4}.xml` | none | pebbles |
 | Cover | `doodads/theme_g/g_deco_pillar_cut_{small,medium,large}.xml` | none | broken column stubs, 30 px tall |
 | Cover | `doodads/generic/deco_block_v2_dst.xml` | none | rubble |

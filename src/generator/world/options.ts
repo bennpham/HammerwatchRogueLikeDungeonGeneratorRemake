@@ -83,6 +83,12 @@ export const DEFAULT_WORLD_PACK_SIZE = 6
 export const DEFAULT_WORLD_AMBUSHES = 6
 export const DEFAULT_WORLD_AMBUSH_SIZE = 6
 export const DEFAULT_WORLD_BUTTON_AMBUSH = 50
+/** Props: 0 bare .. 100 crowded, a share of the most the island carries. */
+export const WORLD_SCATTER_MIN = 0
+export const WORLD_SCATTER_MAX = 100
+export const DEFAULT_WORLD_SCATTER = 50
+/** Doodads above this are a warning: the stock maximum is 7,383 (`campaign/levels/level_9.xml`), 7,087 in `level_11`. */
+export const WORLD_DOODAD_WARN = 7000
 
 export const DEFAULT_WORLD_BIOME = 'desert'
 export const DEFAULT_WORLD_SIZE = 128
@@ -139,6 +145,8 @@ export interface WorldDef {
   ambushTypes?: WorldAmbushType[]
   /** the chance, in percent, that a floor button springs a ring when pressed */
   buttonAmbush: number
+  /** how thickly props grow, 0..100 */
+  scatter: number
 }
 
 /** One ambush recipe: how often it is picked, and the monsters it springs. */
@@ -171,7 +179,8 @@ export function defaultWorld(): WorldDef {
     packSize: DEFAULT_WORLD_PACK_SIZE,
     ambushes: DEFAULT_WORLD_AMBUSHES,
     ambushSize: DEFAULT_WORLD_AMBUSH_SIZE,
-    buttonAmbush: DEFAULT_WORLD_BUTTON_AMBUSH
+    buttonAmbush: DEFAULT_WORLD_BUTTON_AMBUSH,
+    scatter: DEFAULT_WORLD_SCATTER
   }
 }
 
@@ -246,6 +255,7 @@ export const worldPackSize = (def: Partial<WorldDef>): number => num(def.packSiz
 export const worldAmbushes = (def: Partial<WorldDef>): number => num(def.ambushes, DEFAULT_WORLD_AMBUSHES)
 export const worldAmbushSize = (def: Partial<WorldDef>): number => num(def.ambushSize, DEFAULT_WORLD_AMBUSH_SIZE)
 export const worldButtonAmbush = (def: Partial<WorldDef>): number => num(def.buttonAmbush, DEFAULT_WORLD_BUTTON_AMBUSH)
+export const worldScatter = (def: Partial<WorldDef>): number => num(def.scatter, DEFAULT_WORLD_SCATTER)
 
 /** The ambush types as stated; a missing or non-list field reads as none. */
 export function worldAmbushTypes(def: Partial<WorldDef>): WorldAmbushType[] {
@@ -258,6 +268,20 @@ export function worldAmbushTypes(def: Partial<WorldDef>): WorldAmbushType[] {
  */
 export function worldActorEstimate(def: Partial<WorldDef>): number {
   return Math.round(worldPacks(def) * 0.75 * worldPackSize(def))
+}
+
+/**
+ * Doodads a world at its LARGEST size is likely to emit: the coast's pieces
+ * (about 5 a tile of the mean side, measured, padded to 6) plus the props
+ * (about 0.014 a tile of area at scatter 100, padded to 0.0165). A deliberate
+ * overestimate: it only drives a warning against the stock maximum.
+ */
+export function worldDoodadEstimate(def: Partial<WorldDef>): number {
+  const size = worldSize(def)
+  const w = size.width[1]
+  const h = size.height[1]
+  const share = Math.max(0, Math.min(100, worldScatter(def))) / 100
+  return Math.round((6 * (w + h)) / 2 + 0.0165 * w * h * share)
 }
 
 /** Buttons plus bosses: how many sites the world needs. */

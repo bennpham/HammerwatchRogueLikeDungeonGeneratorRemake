@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { defaultParameters, generateDungeon } from '../src/generator'
 import type { DungeonParameters, DungeonResult } from '../src/generator'
@@ -23,7 +24,8 @@ import { bossSiteIndexes, placeSites } from '../src/generator/world/place'
 import { MAX_BOSS_COUNT, MOBILE_BOSS_IDS } from '../src/generator/config/parameters'
 import { BOSS_DEFS } from '../src/generator/boss/bosses'
 import type { WorldDef } from '../src/generator/world/options'
-import { BIOME_DEFS, biomeById } from '../src/generator/world/biomes'
+import { BIOME_DEFS, biomeById, footprintOf } from '../src/generator/world/biomes'
+import { dropClumps, planProps } from '../src/generator/world/scatter'
 import { arenaXml, floorXml, isArenaPath, isWorldPath } from './levelFiles'
 import { plainParameters } from './params'
 
@@ -35,6 +37,7 @@ const sized = (size: number, extra: Partial<WorldDef> = {}): WorldDef => ({
   packs: 0,
   ambushes: 0,
   buttonAmbush: 0,
+  scatter: 0,
   minWidth: size,
   maxWidth: size,
   minHeight: size,
@@ -1035,7 +1038,7 @@ describe('encounters: what changes and what does not', () => {
       for (const seed of [3, 7]) {
         for (const gw of [{ kind: 'orb' }, { kind: 'exit', target: '0' }, { kind: 'portal', target: 'boss0' }] as const) {
           for (const trails of [false, true]) {
-            const def = { ...lively(size, { trails }), bossCount: 2, packs: 0, ambushes: 0, buttonAmbush: 0 }
+            const def = { ...lively(size, { trails }), bossCount: 2, packs: 0, ambushes: 0, buttonAmbush: 0, scatter: 0 }
             const ctx = new GenerationContext(plainParameters(), seed)
             const r = buildWorld(ctx, def, 0, gw)
             if ('failed' in r) throw new Error('failed')
@@ -1049,8 +1052,8 @@ describe('encounters: what changes and what does not', () => {
 
   it('draws from the encounters stream only: the sites, bosses and island do not move', () => {
     for (const seed of [2, 5, 9]) {
-      const off = built(lively(128, { packs: 0, ambushes: 0, buttonAmbush: 0 }), seed, { kind: 'exit', target: '0' }).out.preview.world!
-      const on = built(lively(128), seed, { kind: 'exit', target: '0' }).out.preview.world!
+      const off = built(lively(128, { packs: 0, ambushes: 0, buttonAmbush: 0, scatter: 0 }), seed, { kind: 'exit', target: '0' }).out.preview.world!
+      const on = built(lively(128, { scatter: 0 }), seed, { kind: 'exit', target: '0' }).out.preview.world!
       const fixed = (w: typeof on) => w.sites.filter((s) => s.kind === 'button' || s.kind === 'boss')
       expect(fixed(on)).toEqual(fixed(off))
       expect(on.map).toBe(off.map)
@@ -1212,7 +1215,7 @@ describe('encounters: bounds', () => {
     const settings: Array<Partial<WorldDef>> = [
       { packs: 0, ambushes: 0, buttonAmbush: 0 },
       { packs: 1, packSize: 1, ambushes: 1, ambushSize: 1, buttonAmbush: 1 },
-      { packs: 400, packSize: 30, ambushes: 120, ambushSize: 30, buttonAmbush: 100 }
+      { packs: 400, packSize: 30, ambushes: 120, ambushSize: 30, buttonAmbush: 100, scatter: 100 }
     ]
     for (const extra of settings) {
       for (const seed of [1, 2, 3, 4, 5, 6]) {
@@ -1220,6 +1223,227 @@ describe('encounters: bounds', () => {
         const r = buildWorld(ctx, lively(96, extra), 0, { kind: 'exit', target: '0' })
         expect('failed' in r, `${JSON.stringify(extra)} seed ${seed}`).toBe(false)
       }
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// pass 3: scatter
+// ---------------------------------------------------------------------------
+
+const DESERT_TABLE = biomeById('desert')!
+const CLUMP_PATHS = new Set(DESERT_TABLE.clumps.map((e) => e.path))
+const propsOf = (ctx: GenerationContext): Doodad[] => ctx.doodads.filter((d) => d.rawPath !== undefined)
+
+describe('scatter: the props table', () => {
+  it('lists every raw path once, clumps with a footprint and cover with none', () => {
+    const all = [...DESERT_TABLE.clumps, ...DESERT_TABLE.cover]
+    const paths = all.map((e) => e.path)
+    expect(new Set(paths).size).toBe(paths.length)
+    for (const e of all) {
+      expect(e.path).toMatch(/^doodads\/[a-z_]+\/[a-z0-9_]+\.xml$/)
+      expect(e.weight).toBeGreaterThan(0)
+    }
+    for (const e of DESERT_TABLE.clumps) expect(footprintOf(e).length, e.path).toBeGreaterThan(0)
+    for (const e of DESERT_TABLE.cover) {
+      expect(e.solid, e.path).toBe(0)
+      expect(e.cells, e.path).toBeUndefined()
+    }
+  })
+
+  it('emits only table paths as raw props', () => {
+    const { ctx } = built(lively(128), 3, { kind: 'exit', target: '0' })
+    const known = new Set([...CLUMP_PATHS, ...DESERT_TABLE.cover.map((e) => e.path)])
+    const props = propsOf(ctx)
+    expect(props.length).toBeGreaterThan(50)
+    for (const p of props) expect(known.has(p.rawPath!), p.rawPath).toBe(true)
+  })
+})
+
+describe('scatter: where props may stand', () => {
+  it('keeps every prop off cliffs, trails, the centre, every site disc and every pack', () => {
+    for (const seed of [1, 2, 3, 4]) {
+      const { ctx, out } = built(lively(160, { trails: true, scatter: 100 }), seed, { kind: 'exit', target: '0' })
+      const { map, hub, sites } = out.preview.world!
+      const w = out.preview.mapWidth
+      const props = propsOf(ctx)
+      expect(props.length).toBeGreaterThan(100)
+      for (const p of props) {
+        const x = Math.floor(p.x)
+        const y = Math.floor(p.y)
+        const code = map.charCodeAt(y * w + x) - 48
+        // 1 land or 4 solid: never water (0), cliff (2) or trail (3)
+        expect([1, 4], `${p.rawPath} at ${x},${y} on code ${code}`).toContain(code)
+        expect(Math.hypot(x - hub.x, y - hub.y), 'centre').toBeGreaterThan(5)
+        for (const s of sites) {
+          const r = s.kind === 'pack' ? 3 : s.kind === 'ambush' ? 0 : 4
+          expect(Math.hypot(x - s.x, y - s.y), `${s.kind} at ${s.x},${s.y}`).toBeGreaterThan(r)
+        }
+      }
+    }
+  })
+
+  it('marks exactly the clumps\' footprints SOLID, and cover marks nothing', () => {
+    for (const seed of [1, 2, 3]) {
+      const { ctx, out } = built(lively(128, { scatter: 100 }), seed, { kind: 'exit', target: '0' })
+      const { map } = out.preview.world!
+      const w = out.preview.mapWidth
+      const solid = new Set<number>()
+      for (let i = 0; i < map.length; i++) if (map.charCodeAt(i) - 48 === 4) solid.add(i)
+      const expected = new Set<number>()
+      for (const p of propsOf(ctx)) {
+        const entry = DESERT_TABLE.clumps.find((e) => e.path === p.rawPath)
+        if (entry === undefined) continue
+        for (const [dx, dy] of footprintOf(entry)) expected.add((Math.floor(p.y) + dy) * w + Math.floor(p.x) + dx)
+      }
+      expect(expected.size).toBeGreaterThan(20)
+      expect(solid).toEqual(expected)
+    }
+  })
+
+  it('leaves every objective reachable with the props down, and the clumps stay in the sample', () => {
+    let clumps = 0
+    for (const size of [96, 160]) {
+      for (let seed = 1; seed <= 8; seed++) {
+        const { ctx, out } = built(lively(size, { scatter: 100, buttons: 4, bossCount: 2 }), seed, { kind: 'exit', target: '0' })
+        const seen = reachableFrom(out)
+        const w = out.preview.mapWidth
+        const { hub, sites } = out.preview.world!
+        for (const s of sites.filter((t) => t.kind === 'button' || t.kind === 'boss')) expect(seen[s.y * w + s.x], `site ${s.x},${s.y}`).toBe(1)
+        expect(seen[hub.y * w + hub.x]).toBe(1)
+        expect(out.droppedClumps).toBe(0)
+        clumps += propsOf(ctx).filter((p) => CLUMP_PATHS.has(p.rawPath!)).length
+      }
+    }
+    expect(clumps).toBeGreaterThan(200)
+  })
+
+  it('keeps the way from the arrival to the orb open when the world ends the campaign', () => {
+    for (let seed = 1; seed <= 8; seed++) {
+      const { out } = built(lively(96, { scatter: 100, buttons: 2, bossCount: 1 }), seed, { kind: 'orb' })
+      const seen = reachableFrom(out)
+      const { hub } = out.preview.world!
+      expect(seen[(hub.y + ORB_AT.y) * out.preview.mapWidth + hub.x + ORB_AT.x]).toBe(1)
+    }
+  })
+})
+
+describe('scatter: density moves nothing but props', () => {
+  it('moves no site, pack, monster or tile, only the props themselves', () => {
+    for (const seed of [2, 5, 9]) {
+      const none = built(lively(128, { scatter: 0 }), seed, { kind: 'exit', target: '0' })
+      const some = built(lively(128, { scatter: 40 }), seed, { kind: 'exit', target: '0' })
+      const lots = built(lively(128, { scatter: 100 }), seed, { kind: 'exit', target: '0' })
+      const monsters = (c: GenerationContext) => c.monsters.map((m) => [m.id, m.x, m.y, m.tier, m.type.id])
+      expect(monsters(some.ctx)).toEqual(monsters(none.ctx))
+      expect(monsters(lots.ctx)).toEqual(monsters(none.ctx))
+      expect(some.out.preview.world!.sites).toEqual(none.out.preview.world!.sites)
+      expect(lots.out.preview.world!.sites).toEqual(none.out.preview.world!.sites)
+      // the ground variants and tuft patches are the scatter stream's first draws, ahead of the props
+      const tiles = (xml: string) => xml.slice(xml.indexOf('<array name="tiledata">'), xml.indexOf('</array><array name="doodads">') + 1)
+      const tilesOf = (c: { out: { xml: string } }) => tiles(c.out.xml)
+      expect(tilesOf(some)).toBe(tilesOf(none))
+      expect(tilesOf(lots)).toBe(tilesOf(none))
+      expect(propsOf(lots.ctx).length).toBeGreaterThan(propsOf(some.ctx).length)
+      expect(propsOf(none.ctx)).toHaveLength(0)
+    }
+  })
+})
+
+describe('scatter: the plan can be taken back', () => {
+  it('drops a clump\'s footprint and keeps the cover', () => {
+    const grid = new WorldGrid(40, 40)
+    for (let y = 0; y < 40; y++) for (let x = 0; x < 40; x++) grid.set(x, y, WorldGrid.LAND)
+    const plan = planProps(new Rand(5), grid, DESERT_TABLE, 100)
+    const clumps = plan.filter((p) => p.marks.length > 0)
+    const cover = plan.filter((p) => p.marks.length === 0)
+    expect(clumps.length).toBeGreaterThan(0)
+    expect(cover.length).toBeGreaterThan(0)
+    let solid = 0
+    for (let i = 0; i < grid.flags.length; i++) if ((grid.flags[i] & WorldGrid.SOLID) !== 0) solid++
+    expect(solid).toBeGreaterThan(0)
+    const kept = dropClumps(grid, plan)
+    expect(kept).toEqual(cover)
+    for (let i = 0; i < grid.flags.length; i++) expect(grid.flags[i] & WorldGrid.SOLID).toBe(0)
+  })
+
+  it('draws nothing at density 0', () => {
+    const grid = new WorldGrid(20, 20)
+    for (let y = 0; y < 20; y++) for (let x = 0; x < 20; x++) grid.set(x, y, WorldGrid.LAND)
+    const rand = new Rand(9)
+    expect(planProps(rand, grid, DESERT_TABLE, 0)).toEqual([])
+    expect(rand.nextInt(1000000)).toBe(new Rand(9).nextInt(1000000))
+  })
+})
+
+describe('scatter: bounds', () => {
+  it('at scatter 0, 1 and 100 on six seeds each, generation never fails', () => {
+    for (const scatter of [0, 1, 100]) {
+      for (const seed of [1, 2, 3, 4, 5, 6]) {
+        const ctx = new GenerationContext(small(), seed)
+        const r = buildWorld(ctx, lively(96, { scatter, packs: 400, ambushes: 120 }), 0, { kind: 'exit', target: '0' })
+        expect('failed' in r, `scatter ${scatter} seed ${seed}`).toBe(false)
+      }
+    }
+  })
+})
+
+// The unit files are the only evidence for a collider: this reads each prop's
+// own XML from an install and checks the table covers every tile it touches.
+// The terrain doc's hand-measured radii were wrong for brick_v2 and brick_v3
+// (they have none), and AE's were wrong for three props, so this is not optional
+// where an install exists; without one it is skipped.
+const INSTALL = process.env.HAMMERWATCH_DIR ?? 'D:/Program Files (x86)/Steam/steamapps/common/Hammerwatch'
+const ASSETS = `${INSTALL}/editor/assetsExtract`
+
+/** Tile offsets from a prop's own tile that its collider touches, sampled to a pixel. */
+function touchedCells(xml: string): Set<string> {
+  const text = xml.replace(/<!--[\s\S]*?-->/g, '')
+  const cells = new Set<string>()
+  const mark = (px: number, py: number) => cells.add(`${Math.floor((px + 8) / 16)},${Math.floor((py + 8) / 16)}`)
+  for (const m of text.matchAll(/<circle\s+offset="(-?[\d.]+) (-?[\d.]+)"\s+radius="([\d.]+)"/g)) {
+    const [ox, oy, r] = [Number(m[1]), Number(m[2]), Number(m[3])]
+    for (let py = Math.floor(oy - r); py <= Math.ceil(oy + r); py++) {
+      for (let px = Math.floor(ox - r); px <= Math.ceil(ox + r); px++) if ((px - ox) ** 2 + (py - oy) ** 2 < r * r) mark(px + 0.5, py + 0.5)
+    }
+  }
+  for (const m of text.matchAll(/<polygon collision="true"[^>]*>([\s\S]*?)<\/polygon>/g)) {
+    const pts = [...m[1].matchAll(/<point>(-?[\d.]+) (-?[\d.]+)<\/point>/g)].map((p) => [Number(p[1]), Number(p[2])])
+    const xs = pts.map((p) => p[0])
+    const ys = pts.map((p) => p[1])
+    for (let py = Math.min(...ys); py < Math.max(...ys); py++) {
+      for (let px = Math.min(...xs); px < Math.max(...xs); px++) {
+        // even-odd test of the pixel's centre
+        let inside = false
+        for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+          const [xi, yi] = pts[i]
+          const [xj, yj] = pts[j]
+          if (yi > py + 0.5 !== yj > py + 0.5 && px + 0.5 < ((xj - xi) * (py + 0.5 - yi)) / (yj - yi) + xi) inside = !inside
+        }
+        if (inside) mark(px + 0.5, py + 0.5)
+      }
+    }
+  }
+  return cells
+}
+
+describe.skipIf(!existsSync(`${ASSETS}/doodads`))('scatter: the table against the install', () => {
+  const read = (path: string) => readFileSync(`${ASSETS}/${path}`, 'utf8')
+
+  it('every prop exists, and every clump footprint covers its collider', () => {
+    for (const e of DESERT_TABLE.clumps) {
+      expect(existsSync(`${ASSETS}/${e.path}`), e.path).toBe(true)
+      const touched = touchedCells(read(e.path))
+      expect(touched.size, `${e.path} declares no collider`).toBeGreaterThan(0)
+      const have = new Set(footprintOf(e).map(([dx, dy]) => `${dx},${dy}`))
+      for (const cell of touched) expect(have.has(cell), `${e.path} touches ${cell}`).toBe(true)
+    }
+  })
+
+  it('every cover prop exists and declares no collider', () => {
+    for (const e of DESERT_TABLE.cover) {
+      expect(existsSync(`${ASSETS}/${e.path}`), e.path).toBe(true)
+      expect(touchedCells(read(e.path)).size, e.path).toBe(0)
     }
   })
 })

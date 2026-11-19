@@ -65,6 +65,9 @@ import {
   DEFAULT_WORLD_BUTTONS,
   DEFAULT_WORLD_SAFE_RADIUS,
   WORLD_ACTOR_WARN,
+  WORLD_DOODAD_WARN,
+  WORLD_SCATTER_MAX,
+  WORLD_SCATTER_MIN,
   WORLD_AMBUSHES_MAX,
   WORLD_AMBUSH_ROWS_MAX,
   WORLD_AMBUSH_ROW_COUNT_MAX,
@@ -88,6 +91,8 @@ import {
   WORLD_WATER_MARGIN_MAX,
   WORLD_WATER_MARGIN_MIN,
   worldActorEstimate,
+  worldDoodadEstimate,
+  worldScatter,
   worldAmbushSize,
   worldAmbushTypes,
   worldAmbushes,
@@ -667,6 +672,7 @@ function validateWorldEncounters(
   const ambushesOk = whole('ambushes', worldAmbushes(def), 0, WORLD_AMBUSHES_MAX, 'The ambush count')
   const ambushSizeOk = whole('ambushSize', worldAmbushSize(def), WORLD_AMBUSH_SIZE_MIN, WORLD_AMBUSH_SIZE_MAX, 'The ambush size')
   whole('buttonAmbush', worldButtonAmbush(def), 0, 100, 'The button ambush chance')
+  const scatterOk = whole('scatter', worldScatter(def), WORLD_SCATTER_MIN, WORLD_SCATTER_MAX, 'The scatter')
 
   // A7: a list a hand-built object lacks is reported and read as empty
   if (def.monsters !== undefined && !Array.isArray(def.monsters)) {
@@ -729,6 +735,12 @@ function validateWorldEncounters(
   }
 
   // budgets: warnings only
+  if (scatterOk && worldDoodadEstimate(def) > WORLD_DOODAD_WARN) {
+    warnings.push({
+      field: at('scatter'),
+      message: `${subject}: about ${worldDoodadEstimate(def)} scenery pieces (above ${WORLD_DOODAD_WARN}, the most any stock level has) may load slowly. Lower the scatter or the size.`
+    })
+  }
   if (packsOk && packSizeOk) {
     const actors = worldActorEstimate(def)
     if (actors > WORLD_ACTOR_WARN) {

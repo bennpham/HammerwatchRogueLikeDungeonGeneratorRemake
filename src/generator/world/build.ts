@@ -12,8 +12,9 @@
  *   5. every object: the arrival, the portal or the orb, then the objectives
  *   6. what lurks (`encounters.ts`): roaming packs, ambush tripwires, and a
  *      ring on each button that rolls one
- *   7. the coast's pieces, LAST, so no id of an object depends on how many
- *   8. tiles and the shared section tail (`emit.ts`)
+ *   7. the tilemap, then the props (`scatter.ts`), planned and re-proved
+ *   8. the coast's pieces, LAST, so no id of an object depends on how many
+ *   9. the shared section tail (`emit.ts`)
  *
  * Draws only from `ctx.worldRand`: exactly three values per world, whatever
  * happens after, the seeds of this world's `layout`, `scatter` and
@@ -41,7 +42,7 @@ import { overhangRows } from '../map/reachability'
 import type { LevelPreview } from '../index'
 import { BIOME_DEFS, biomeById } from './biomes'
 import { coastCloses, coastPieces, placeCoast, syncWalls, wallTilesOf, wrapSafe } from './coast'
-import { emitWorld } from './emit'
+import { buildTilemap, emitWorld } from './emit'
 import { WorldGrid } from './grid'
 import type { Tile } from './grid'
 import { buildIsland, islandRulesFor } from './island'
@@ -51,8 +52,9 @@ import type { WorldEncounters } from './encounters'
 import { buildObjectives } from './objectives'
 import type { WorldObjectives } from './objectives'
 import { carveTrails } from './paths'
-import { placeSites } from './place'
-import { ORB_AT, worldBiomeId, worldCoast, worldObjectiveCount, worldSafeRadius, worldSize, worldTrails, worldWaterMargin } from './options'
+import { placeSites, SITE_RADIUS } from './place'
+import { commitProps, dropClumps, planProps } from './scatter'
+import { ORB_AT, worldBiomeId, worldCoast, worldObjectiveCount, worldSafeRadius, worldScatter, worldSize, worldTrails, worldWaterMargin } from './options'
 import type { WorldDef } from './options'
 
 /** Fresh islands tried before the world gives up. */
@@ -100,6 +102,8 @@ export interface BuiltWorld {
   preview: LevelPreview
   /** the tries it took, for the tests and the error tally */
   attempts: number
+  /** clumps taken back because, once placed, they walled an objective in (normally 0) */
+  droppedClumps: number
 }
 
 /**
@@ -198,12 +202,34 @@ export function buildWorld(
     // every encounter off returns before touching its stream.
     const lurking = buildEncounters(ctx, encounterRand, grid, def, hub, sites, objectives.plates, reached)
 
+    // --- the tilemap, before any prop is planned: it reads only the island's own
+    // flags, so the props' density can never move a tile
+    const tilemap = buildTilemap(biome, grid, scatter)
+
+    // --- what grows: after everything placed, off everything reserved. The
+    // centre and every site keep an open disc. Props are PLANNED first and the
+    // island re-proved with them down; if a clump walled something in, the
+    // clumps are taken back (never the cover, which blocks nothing).
+    let droppedClumps = 0
+    const density = worldScatter(def)
+    if (density > 0) {
+      grid.markDisc(hub, HUB_RADIUS, WorldGrid.RESERVED)
+      for (const site of sites) grid.markDisc(site, SITE_RADIUS, WorldGrid.RESERVED)
+      let plan = planProps(scatter, grid, biome, density)
+      const after = grid.reach(arrival)
+      if (![target, ...sites].every((t) => after[t.y * width + t.x] === 1)) {
+        droppedClumps = plan.filter((p) => p.marks.length > 0).length
+        plan = dropClumps(grid, plan)
+      }
+      commitProps(ctx, plan)
+    }
+
     // --- the coast LAST: nothing references a wall piece, so its ids come after
     // every object's
     placeCoast(ctx, pieces, biome.theme)
 
-    const xml = emitWorld(ctx, biome, grid, scatter)
-    return { xml, preview: previewOf(ctx, grid, hub, levelNumber, biome.id, objectives, lurking), attempts: attempt }
+    const xml = emitWorld(ctx, biome, tilemap)
+    return { xml, preview: previewOf(ctx, grid, hub, levelNumber, biome.id, objectives, lurking), attempts: attempt, droppedClumps }
   }
   // the step that failed most; ties go to the earlier step
   const failed = WORLD_STEPS.reduce((a, b) => (tally[b] > tally[a] ? b : a))

@@ -1981,3 +1981,27 @@ describe('world encounter validation', () => {
     expect(warningsOf({ ambushSize: 25 })).toContain('world.worlds.0.ambushSize')
   })
 })
+
+describe('world scatter validation', () => {
+  const withWorld = (w: Partial<WorldDef>) => {
+    const p = plainParameters()
+    p.world = { enabled: true, worlds: [{ ...defaultWorld(), ...w }] }
+    return p
+  }
+  const errorsOf = (w: Partial<WorldDef>) => fieldsOf(validateParameters(withWorld(w)).errors)
+  const warningsOf = (w: Partial<WorldDef>) => fieldsOf(validateParameters(withWorld(w)).warnings)
+
+  it('holds the scatter to a whole number from 0 to 100', () => {
+    for (const ok of [0, 1, 50, 100]) expect(errorsOf({ scatter: ok })).not.toContain('world.worlds.0.scatter')
+    for (const bad of [-1, 101, 12.5]) expect(errorsOf({ scatter: bad })).toContain('world.worlds.0.scatter')
+  })
+
+  it('warns, never errors, when the scenery would pass the stock maximum', () => {
+    const big = { minWidth: 512, maxWidth: 512, minHeight: 512, maxHeight: 512 }
+    expect(warningsOf({ ...big, scatter: 100 })).toContain('world.worlds.0.scatter')
+    expect(errorsOf({ ...big, scatter: 100 })).not.toContain('world.worlds.0.scatter')
+    // a bare island that large, and the default one, stay quiet
+    expect(warningsOf({ ...big, scatter: 0 })).not.toContain('world.worlds.0.scatter')
+    expect(warningsOf({})).not.toContain('world.worlds.0.scatter')
+  })
+})

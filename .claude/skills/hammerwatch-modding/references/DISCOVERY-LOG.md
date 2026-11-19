@@ -5332,3 +5332,23 @@ decrement. Whether a spawned monster attacks at once is open (discovery D8).
 player is within an actor's update range ([UNVERIFIED] on a 512-tile island).
 **Impact:** W9 (a tripwire springs one ring, once; buttons at 100% do too) and
 W10 (packs wait round the island) decide whether any of it holds.
+
+## 2026-11-19 - world scatter props and their colliders [EMITTED]
+
+**Tag:** [EMITTED] for the placement; the colliders are [R] (read from the install)
+**Context:** world mode pass 3 (`src/generator/world/scatter.ts`, the one raw-path
+table in `world/biomes.ts`). Props are `Doodad.prop` raw paths, no theme token.
+**Colliders read from `editor/assetsExtract/doodads`:** `theme_h/h_deco_rock`
+circle r 18 px at offset (-1, 0); `generic/deco_block`, `_v2` polygon x 0..24,
+y -24..16 px; `_v3` x -2..26; `theme_g/g_deco_ground_brick` circle r 8 at
+offset (0, -2), shoot-through. Everything else in the desert table
+(`g_deco_ground_stone*`, `g_deco_ground_brick_v2`/`_v3`, `g_deco_pillar_cut_*`,
+`generic/deco_block_v2_dst`, `deco_corpse_bone*`, `deco_corpse_skull*`) declares
+no collider. The terrain plan listed `brick_v2` and `_v3` as clumps; they are
+cover. `tests/world.test.ts` re-reads every prop's unit file when an install is
+present and checks the table's footprint covers each tile the collider touches.
+**Size:** a measured 512 world carries about 2,500-2,900 coast doodads, and
+props add up to about 4,000 at scatter 100 (6,100-6,700 doodads with every
+encounter at its maximum), under the stock maximum of 7,383 (`level_9`).
+**Impact:** W2 and W4 (walk the island; load time and frame rate at the cap)
+decide whether the prop mix and count read well.

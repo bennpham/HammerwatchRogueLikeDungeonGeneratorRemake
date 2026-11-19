@@ -85,6 +85,7 @@ import {
   worldPackSize,
   worldPacks,
   worldSafeRadius,
+  worldScatter,
   worldTrails
 } from '../world/options'
 import type { WorldAmbushType, WorldDef, WorldOptions } from '../world/options'
@@ -377,7 +378,7 @@ function parseMonsterCountRows(key: string, value: string, unknownKeys: string[]
 }
 
 /** The world suffixes (lowercased) that carry one whole number each, besides the island and objective ones. */
-const WORLD_ENCOUNTER_INTS: ReadonlySet<string> = new Set(['packs', 'packsize', 'ambushes', 'ambushsize', 'buttonambush'])
+const WORLD_ENCOUNTER_INTS: ReadonlySet<string> = new Set(['packs', 'packsize', 'ambushes', 'ambushsize', 'buttonambush', 'scatter'])
 
 /**
  * One world ambush type, `<weight>|<monster>:<count>,<monster>:<count>`. A bad
@@ -1622,6 +1623,7 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
         else if (suffix === 'packsize') world.packSize = one[0]
         else if (suffix === 'ambushes') world.ambushes = one[0]
         else if (suffix === 'ambushsize') world.ambushSize = one[0]
+        else if (suffix === 'scatter') world.scatter = one[0]
         else world.buttonAmbush = one[0]
         continue
       }
@@ -2594,6 +2596,7 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
       lines.push(`world${i}Ambushes=${worldAmbushes(def)}`)
       lines.push(`world${i}AmbushSize=${worldAmbushSize(def)}`)
       lines.push(`world${i}ButtonAmbush=${worldButtonAmbush(def)}`)
+      lines.push(`world${i}Scatter=${worldScatter(def)}`)
       worldAmbushTypes(def).forEach((type, t) => {
         const rows = Array.isArray(type.monsters) ? type.monsters : []
         lines.push(`world${i}AmbushType${t + 1}=${type.weight}|${rows.map((m) => `${m.monster}:${m.count}`).join(',')}`)

@@ -50,7 +50,13 @@ function blockSpan(tiles: number): number {
   return Math.trunc((tiles + 9) / WORLD_BLOCK)
 }
 
-export function emitWorld(ctx: GenerationContext, biome: BiomeDef, grid: WorldGrid, scatter: Rand): string {
+/**
+ * The tilemap section. Draws the ground variants and tuft patches from the
+ * world's scatter stream, and reads only the flags the island and corridors set
+ * (LAND, CLIFF, TRAIL), so it may be built before the props are planned and
+ * their density can never move a tile.
+ */
+export function buildTilemap(biome: BiomeDef, grid: WorldGrid, scatter: Rand): XMLDictionary {
   const { width, height } = grid
   // one noise field per tuft tileset, built up front so the draw order is fixed
   const noises = biome.overlays.map(() => new ValueNoise(scatter, width, height, PATCH_SPACING, 2))
@@ -104,5 +110,10 @@ export function emitWorld(ctx: GenerationContext, biome: BiomeDef, grid: WorldGr
 
   const tilemap = new XMLDictionary('tilemap')
   tilemap.addData(tiledata)
+  return tilemap
+}
+
+/** The level file: the tilemap, then the shared section tail (every doodad, actor and node made so far). */
+export function emitWorld(ctx: GenerationContext, biome: BiomeDef, tilemap: XMLDictionary): string {
   return levelSectionsXML(ctx, tilemap, biome.lighting)
 }

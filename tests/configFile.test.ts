@@ -2005,6 +2005,7 @@ describe('world keys', () => {
       'world0Ambushes=6',
       'world0AmbushSize=6',
       'world0ButtonAmbush=50',
+      'world0Scatter=50',
       'world1Biome=desert',
       'world1Width=128,128',
       'world1Height=128,128',
@@ -2019,7 +2020,8 @@ describe('world keys', () => {
       'world1PackSize=6',
       'world1Ambushes=6',
       'world1AmbushSize=6',
-      'world1ButtonAmbush=50'
+      'world1ButtonAmbush=50',
+      'world1Scatter=50'
     ])
     const back = parseParametersTxt(text, plainParameters())
     expect(back.params.world).toEqual(p.world)
@@ -2075,6 +2077,7 @@ describe('world keys', () => {
           ambushes: 12,
           ambushSize: 4,
           buttonAmbush: 80,
+          scatter: 75,
           ambushTypes: [
             { weight: 3, monsters: [{ monster: 'mummy_desert', count: 4 }] },
             { weight: 1, monsters: [{ monster: 'lich_desert#2', count: 1 }, { monster: 'mummy_ranged', count: 2 }] }
@@ -2086,6 +2089,7 @@ describe('world keys', () => {
     const lines = worldLines(text)
     expect(lines).toContain('world0Monsters=mummy_desert,lich_desert#2')
     expect(lines).toContain('world0Packs=33')
+    expect(lines).toContain('world0Scatter=75')
     expect(lines).toContain('world0AmbushType1=3|mummy_desert:4')
     expect(lines).toContain('world0AmbushType2=1|lich_desert#2:1,mummy_ranged:2')
     const back = parseParametersTxt(text, plainParameters())
@@ -2100,6 +2104,7 @@ describe('world keys', () => {
         'worlds=1',
         'world0Packs=x',
         'world0PackSize=-2',
+        'world0Scatter=lots',
         'world0Monsters=mummy_desert,ghost',
         'world0AmbushType1=heavy|mummy_desert:2',
         'world0AmbushType2=2|mummy_desert:2,ghost:1,mummy_ranged:z',
@@ -2111,6 +2116,7 @@ describe('world keys', () => {
     expect(unknownKeys).toEqual([
       'world0Packs value "x"',
       'world0PackSize value "-2"',
+      'world0Scatter value "lots"',
       'world0Monsters monster "ghost"',
       'world0AmbushType1 weight "heavy"',
       'world0AmbushType2 monster "ghost"',
