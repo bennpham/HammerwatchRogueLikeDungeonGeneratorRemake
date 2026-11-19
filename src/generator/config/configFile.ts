@@ -1747,6 +1747,20 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
         worldAt(index, key).checkpoints = text === '1' || text === 'true'
         continue
       }
+      if (suffix === 'plateaus' || suffix === 'plateaumin' || suffix === 'plateaumax' || suffix === 'plateaustairs') {
+        // terrain: whole numbers, kept as stated (a flat world writes none of them)
+        const one = ints(value, 1)
+        if (one === null) {
+          result.unknownKeys.push(`${key} value "${value}"`)
+          continue
+        }
+        const world = worldAt(index, key)
+        if (suffix === 'plateaus') world.plateaus = one[0]
+        else if (suffix === 'plateaumin') world.plateauMinSize = one[0]
+        else if (suffix === 'plateaumax') world.plateauMaxSize = one[0]
+        else world.plateauStairs = one[0]
+        continue
+      }
       if (suffix === 'landmarks') {
         const text = value.trim().toLowerCase()
         if (text !== '0' && text !== '1' && text !== 'true' && text !== 'false') {
@@ -2660,6 +2674,11 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
       lines.push(`world${i}Trails=${worldTrails(def) ? 1 : 0}`)
       if (worldCheckpoints(def)) lines.push(`world${i}Checkpoints=1`)
       if (worldLandmarks(def)) lines.push(`world${i}Landmarks=1`)
+      // terrain, each only when stated: a flat world writes not one new line
+      if (def.plateaus !== undefined) lines.push(`world${i}Plateaus=${def.plateaus}`)
+      if (def.plateauMinSize !== undefined) lines.push(`world${i}PlateauMin=${def.plateauMinSize}`)
+      if (def.plateauMaxSize !== undefined) lines.push(`world${i}PlateauMax=${def.plateauMaxSize}`)
+      if (def.plateauStairs !== undefined) lines.push(`world${i}PlateauStairs=${def.plateauStairs}`)
       lines.push(`world${i}Monsters=${worldMonsters(def).join(',')}`)
       lines.push(`world${i}Packs=${worldPacks(def)}`)
       lines.push(`world${i}PackSize=${worldPackSize(def)}`)

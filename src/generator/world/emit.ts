@@ -70,6 +70,9 @@ export function buildTilemap(biome: BiomeDef, grid: WorldGrid, scatter: Rand): X
       const ground = new Array<number>(WORLD_BLOCK * WORLD_BLOCK).fill(0)
       const trail = new Array<number>(WORLD_BLOCK * WORLD_BLOCK).fill(0)
       const tufts = biome.overlays.map(() => new Array<number>(WORLD_BLOCK * WORLD_BLOCK).fill(0))
+      // a plateau's top (audit D3): the biome's own raised ground INSTEAD of the base
+      const raised = new Array<number>(WORLD_BLOCK * WORLD_BLOCK).fill(0)
+      let usedRaised = false
       let usedGround = false
       let usedTrail = false
       const usedTufts = biome.overlays.map(() => false)
@@ -78,17 +81,30 @@ export function buildTilemap(biome: BiomeDef, grid: WorldGrid, scatter: Rand): X
         const tx = bx * WORLD_BLOCK - 10 + (i % WORLD_BLOCK)
         const ty = by * WORLD_BLOCK - 10 + Math.trunc(i / WORLD_BLOCK)
         if (!grid.has(tx, ty, WorldGrid.LAND)) continue
+        // the ground this cell stands on: the raised ground on a plateau, the base elsewhere
+        const top = biome.highGround !== undefined && grid.has(tx, ty, WorldGrid.HIGH)
+        const under = top ? biome.highGround! : biome.base
         if (grid.has(tx, ty, WorldGrid.TRAIL)) {
           trail[i] = variant(biome.trail.tiles)
           usedTrail = true
           if (biome.baseUnderTrail === true) {
-            ground[i] = variant(biome.base.tiles)
-            usedGround = true
+            if (top) {
+              raised[i] = variant(under.tiles)
+              usedRaised = true
+            } else {
+              ground[i] = variant(under.tiles)
+              usedGround = true
+            }
           }
           continue
         }
-        ground[i] = variant(biome.base.tiles)
-        usedGround = true
+        if (top) {
+          raised[i] = variant(under.tiles)
+          usedRaised = true
+        } else {
+          ground[i] = variant(under.tiles)
+          usedGround = true
+        }
         if (grid.has(tx, ty, WorldGrid.CLIFF)) continue
         biome.overlays.forEach((ref, k) => {
           if (noises[k].at(tx, ty) <= PATCH_THRESHOLD) return
@@ -100,8 +116,17 @@ export function buildTilemap(biome: BiomeDef, grid: WorldGrid, scatter: Rand): X
       const datasets = new XMLArray('datasets')
       // a wall-set canyon has no sea: the rock is void under its roof, as in a dungeon
       if (biome.edge === 'fence') datasets.addData(water)
-      else if (!usedGround && !usedTrail && !usedTufts.some(Boolean)) continue
+      else if (!usedGround && !usedRaised && !usedTrail && !usedTufts.some(Boolean)) continue
       if (usedGround) datasets.addData(layer(biome.base, ground))
+      // a tileset one block carries only once: a raised ground that is also one of the
+      // biome's tuft tilesets (e_fine, e_default_dark) merges into that layer
+      const high = biome.highGround
+      const merged = high === undefined ? -1 : biome.overlays.findIndex((o) => o.tileset === high.tileset)
+      if (usedRaised && merged >= 0) {
+        for (let i = 0; i < raised.length; i++) if (raised[i] !== 0) tufts[merged][i] = raised[i]
+        usedTufts[merged] = true
+      }
+      if (usedRaised && merged < 0) datasets.addData(layer(high!, raised))
       biome.overlays.forEach((ref, k) => {
         if (usedTufts[k]) datasets.addData(layer(ref, tufts[k]))
       })

@@ -60,7 +60,7 @@ import type { BossTrapDirection, TrapDirection } from './parameters'
 import type { BossFight, BossOptions, FloorTimer, MysteryButton } from './parameters'
 import type { CampaignSlot } from '../campaign'
 import { getTheme } from './themes'
-import { BIOME_IDS } from '../world/biomes'
+import { BIOME_IDS, biomeById } from '../world/biomes'
 import { LANDMARK_MIN_SIZE } from '../world/landmarks'
 import { WORLD_HUBS } from '../world/hub'
 import {
@@ -85,6 +85,9 @@ import {
   WORLD_MYSTERY_MAX,
   WORLD_MAX_COUNT,
   WORLD_PACKS_MAX,
+  WORLD_PLATEAU_SIZE_MIN,
+  WORLD_PLATEAU_STAIRS_MAX,
+  WORLD_PLATEAU_STAIRS_MIN,
   WORLD_PACK_SIZE_MAX,
   WORLD_PACK_SIZE_MIN,
   WORLD_SAFE_RADIUS_MAX,
@@ -105,6 +108,10 @@ import {
   worldLoot,
   worldMaxSafeRadius,
   worldMonsters,
+  worldPlateauCapacity,
+  worldPlateauCountMax,
+  worldPlateauSizeMax,
+  worldTerrain,
   worldPackSize,
   worldPacks,
   worldSiteCapacityOf
@@ -540,6 +547,7 @@ function validateWorlds(p: DungeonParameters, errors: ValidationIssue[], warning
       })
     }
     validateWorldObjectives(def, i, at, whole, minW && minH && marginOk, errors, warnings)
+    validateWorldTerrain(def, i, at, whole, minW && minH, errors, warnings)
     validateWorldEncounters(def, i, at, whole, errors, warnings)
     validateWorldMystery(def, i, at, whole, p.mysteryButtons ?? [], errors)
     validateWorldTimerAndMusic(def, i, at, errors, warnings)
@@ -655,6 +663,76 @@ function validateWorldObjectives(
       field: at('buttons'),
       message: `${subject}: ${objectives} objectives fill the island exactly; a ragged coast may not fit them all on every seed.`
     })
+  }
+}
+
+/**
+ * The terrain rules of one world (plateaus on a plateau biome, mesas on a mesa
+ * one). Every field is optional and absent means a flat island, so a world that
+ * states none is never checked. The bounds SCALE with the island: a plateau is
+ * at most a third of the smaller island side and the count at most one per 1,024
+ * tiles of the smallest island. A field a biome cannot use stays on the object,
+ * unread, as a survival arena's boss-only fields do.
+ */
+function validateWorldTerrain(
+  def: WorldDef,
+  index: number,
+  at: (field: string) => string,
+  whole: (field: string, value: number, min: number, max: number, what: string) => boolean,
+  sizeOk: boolean,
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[]
+): void {
+  const subject = `World ${index + 1}`
+  const states =
+    def.plateaus !== undefined ||
+    def.plateauMinSize !== undefined ||
+    def.plateauMaxSize !== undefined ||
+    def.plateauStairs !== undefined
+  if (!states) return
+  // the scaled bounds need a real island size; a bad size is reported by its own rule
+  const sizeMax = sizeOk ? worldPlateauSizeMax(def.minWidth, def.minHeight) : WORLD_SIZE_MAX
+  const countMax = sizeOk ? worldPlateauCountMax(def.minWidth, def.minHeight) : 0
+  let countOk = true
+  let sizesOk = true
+  if (def.plateaus !== undefined && sizeOk) {
+    countOk = whole('plateaus', def.plateaus, 0, countMax, `The plateau count (one per 1,024 tiles of the smallest island)`)
+  }
+  if (def.plateauMinSize !== undefined) {
+    sizesOk = whole('plateauMinSize', def.plateauMinSize, WORLD_PLATEAU_SIZE_MIN, WORLD_SIZE_MAX, 'The smallest plateau') && sizesOk
+  }
+  if (def.plateauMaxSize !== undefined) {
+    sizesOk = whole('plateauMaxSize', def.plateauMaxSize, WORLD_PLATEAU_SIZE_MIN, WORLD_SIZE_MAX, 'The largest plateau') && sizesOk
+  }
+  if (def.plateauStairs !== undefined) {
+    whole('plateauStairs', def.plateauStairs, WORLD_PLATEAU_STAIRS_MIN, WORLD_PLATEAU_STAIRS_MAX, 'The stairways per plateau')
+  }
+  const terrain = worldTerrain(def)
+  if (sizesOk && terrain.minSize > terrain.maxSize) {
+    errors.push({ field: at('plateauMinSize'), message: `${subject}: the smallest plateau is above the largest.` })
+  }
+  // a plateau a third of the island is the most that leaves low ground round it
+  if (sizeOk && terrain.plateaus > 0 && countOk && Number.isInteger(terrain.maxSize) && terrain.maxSize > sizeMax) {
+    errors.push({
+      field: at('plateauMaxSize'),
+      message: `${subject}: a plateau ${terrain.maxSize} tiles across is too big for a ${def.minWidth}x${def.minHeight} island; keep it to a third of the smaller side (${sizeMax}).`
+    })
+  }
+  const biome = biomeById(def.biome)
+  if (biome?.terrain === 'mesa' && def.plateauStairs !== undefined) {
+    warnings.push({
+      field: at('plateauStairs'),
+      message: `${subject}: ${biome.label} raises mesas, which have no stairways, so the stairs setting is unused here.`
+    })
+  }
+  if (sizeOk && countOk && sizesOk && terrain.plateaus > 0 && terrain.maxSize <= sizeMax) {
+    const fits = worldPlateauCapacity(def)
+    if (terrain.plateaus > fits) {
+      warnings.push({
+        field: at('plateaus'),
+        message: `${subject}: about ${fits} ${biome?.terrain === 'mesa' ? 'mesas' : 'plateaus'} this size fit on a ${def.minWidth}x${def.minHeight} island, so only some of the ${terrain.plateaus} will be raised.`
+      })
+    }
   }
 }
 

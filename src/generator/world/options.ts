@@ -15,7 +15,7 @@
 import { MOBILE_BOSS_IDS, bossSelection, lineupTotal } from '../config/parameters'
 import type { BossSelection } from '../config/parameters'
 import type { BossId } from '../boss/bosses'
-import { DEFAULT_WORLD_HUB } from './hub'
+import { DEFAULT_WORLD_HUB, hubRadius } from './hub'
 import type { WorldHub } from './hub'
 import { biomeById } from './biomes'
 import type { FloorMystery, FloorTimer, MysteryMonster } from '../config/parameters'
@@ -96,6 +96,31 @@ export const WORLD_SCATTER_MAX = 100
 export const DEFAULT_WORLD_SCATTER = 50
 /** Doodads above this are a warning: the stock maximum is 7,383 (`campaign/levels/level_9.xml`), 7,087 in `level_11`. */
 export const WORLD_DOODAD_WARN = 7000
+
+/**
+ * Terrain (docs/plans/world-mode-terrain.md section 5). The bounds SCALE with
+ * the island (owner's call, over the doc's fixed 0..12 and 8..48): a plateau is
+ * at most a third of the smaller island side, and the count at most one per
+ * 1,024 tiles of the smallest island.
+ */
+export const WORLD_PLATEAU_SIZE_MIN = 8
+export const WORLD_PLATEAU_STAIRS_MIN = 1
+export const WORLD_PLATEAU_STAIRS_MAX = 4
+export const DEFAULT_WORLD_PLATEAU_MIN_SIZE = 10
+export const DEFAULT_WORLD_PLATEAU_MAX_SIZE = 16
+export const DEFAULT_WORLD_PLATEAU_STAIRS = 1
+/** Low ground kept between a plateau and the coast, the hub or another plateau (and the wall art's overhang on a wall set). */
+export const PLATEAU_GAP = 4
+
+/** The largest plateau side an island of this smallest size allows: a third of its smaller side. */
+export function worldPlateauSizeMax(minWidth: number, minHeight: number): number {
+  return Math.trunc(Math.min(minWidth, minHeight) / 3)
+}
+
+/** The most plateaus an island of this smallest size allows. */
+export function worldPlateauCountMax(minWidth: number, minHeight: number): number {
+  return Math.trunc((minWidth * minHeight) / 1024)
+}
 
 export const DEFAULT_WORLD_BIOME = 'desert'
 export const DEFAULT_WORLD_SIZE = 128
@@ -188,6 +213,19 @@ export interface WorldDef {
   timer?: FloorTimer
   /** a `MUSIC_TRACKS` id (or `default`, which changes nothing); absent: the level's own */
   music?: string
+  /**
+   * Raised plateaus (oasis, dry grass) or, on a mesa biome, rock mesas. **Absent
+   * means 0, a flat island**, byte-identical to before; read through
+   * `worldTerrain`. Every field stays on the object whatever the biome, so a
+   * biome flip is lossless: a biome that cannot use one leaves it unread.
+   */
+  plateaus?: number
+  /** the smallest plateau, in tiles a side (absent: 10) */
+  plateauMinSize?: number
+  /** the largest plateau (absent: 16) */
+  plateauMaxSize?: number
+  /** stairways per plateau, spread over its sides (absent: 1); unread on a mesa biome */
+  plateauStairs?: number
 }
 
 /** One ambush recipe: how often it is picked, and the monsters it springs. */
@@ -364,7 +402,12 @@ export function worldDoodadEstimate(def: Partial<WorldDef>): number {
   // a wall-set canyon: its pieces are about 5 a tile of the mean side and its
   // merged roof about 3 more (measured at 128 and 512, padded)
   const perSide = biomeById(worldBiomeId(def))?.edge === 'wall' ? 9 : 6
-  return Math.round((perSide * (w + h)) / 2 + 0.0165 * w * h * share)
+  // a plateau's rim: about one 2-tile ledge piece per 2 tiles of its perimeter, plus plugs and
+  // stairways (measured, padded); only the plateaus that can fit, and none on a flat island
+  const terrain = worldTerrain(def)
+  const raised = biomeById(worldBiomeId(def))?.terrain === 'plateau' ? Math.min(terrain.plateaus, worldPlateauCapacity(def)) : 0
+  const rims = raised * (2 * terrain.maxSize + 8)
+  return Math.round((perSide * (w + h)) / 2 + 0.0165 * w * h * share + rims)
 }
 
 /** Buttons plus bosses: how many sites the world needs. */
@@ -378,20 +421,68 @@ export function worldObjectiveCount(def: Partial<WorldDef>): number {
  * site may use, and never more than half the area inside the water margin.
  * Each site needs a `WORLD_SITE_SPACING` square, and the arrival takes one.
  */
-export function worldSiteCapacity(width: number, height: number, margin: number, clearRadius = 0): number {
+export function worldSiteCapacity(
+  width: number,
+  height: number,
+  margin: number,
+  clearRadius = 0,
+  raised = 0,
+  raisedSize = 0
+): number {
   const square = WORLD_SITE_SPACING * WORLD_SITE_SPACING
   const rough = Math.max(0, width - 2 * margin) * Math.max(0, height - 2 * margin) * 0.5
   const a = Math.max(0, width / 2 - margin) * LAND_REACH
   const b = Math.max(0, height / 2 - margin) * LAND_REACH
   const r = Math.min(clearRadius, a, b)
-  const land = Math.PI * (a * b - r * r)
+  // a plateau (or mesa) takes its own area, and a site's disc cannot straddle its rim (audit A2)
+  const taken = raised * Math.min(raisedSize * raisedSize, 8 * WORLD_SITE_RADIUS * raisedSize)
+  const land = Math.PI * (a * b - r * r) - taken
   return Math.max(0, Math.floor(Math.min(rough, Math.max(0, land)) / square) - 1)
 }
 
-/** `worldSiteCapacity` for world `w` at its smallest size. */
+/**
+ * `worldSiteCapacity` for world `w` at its smallest size. Only the plateaus
+ * that can fit are counted (`worldPlateauCapacity`), so a request for more than
+ * fit does not leave the estimate too low (audit A2).
+ */
 export function worldSiteCapacityOf(w: Partial<WorldDef>): number {
   const size = worldSize(w)
-  return worldSiteCapacity(size.width[0], size.height[0], worldWaterMargin(w), worldSafeRadius(w))
+  const terrain = worldTerrain(w)
+  const raised = Math.min(terrain.plateaus, worldPlateauCapacity(w))
+  return worldSiteCapacity(size.width[0], size.height[0], worldWaterMargin(w), worldSafeRadius(w), raised, terrain.maxSize)
+}
+
+/** A world's terrain with every absent field at its default: 0 plateaus is a flat island. */
+export function worldTerrain(def: Partial<WorldDef>): { plateaus: number; minSize: number; maxSize: number; stairs: number } {
+  return {
+    plateaus: num(def.plateaus, 0),
+    minSize: num(def.plateauMinSize, DEFAULT_WORLD_PLATEAU_MIN_SIZE),
+    maxSize: num(def.plateauMaxSize, DEFAULT_WORLD_PLATEAU_MAX_SIZE),
+    stairs: num(def.plateauStairs, DEFAULT_WORLD_PLATEAU_STAIRS)
+  }
+}
+
+/**
+ * How many plateaus of its largest size world `def` can hold, roughly, at its
+ * smallest size: the land its mask grows, less the disc round the start (the
+ * start's open ground plus the gap) and a square for each objective site (audit
+ * A2), then each plateau a square of its side plus the gap, at most 60% of the
+ * rest filled. Optimistic on purpose: it drives a warning, and the build
+ * reports what it really raised.
+ */
+export function worldPlateauCapacity(def: Partial<WorldDef>): number {
+  const size = worldSize(def)
+  const margin = worldWaterMargin(def)
+  const terrain = worldTerrain(def)
+  const wall = biomeById(worldBiomeId(def))?.edge === 'wall'
+  const gap = PLATEAU_GAP + (wall ? 2 : 0)
+  const a = Math.max(0, size.width[0] / 2 - margin) * LAND_REACH
+  const b = Math.max(0, size.height[0] / 2 - margin) * LAND_REACH
+  const start = hubRadius(worldHub(def)) + gap
+  const site = 2 * WORLD_SITE_RADIUS + 1
+  const free = Math.PI * a * b - Math.PI * Math.min(start, a, b) ** 2 - worldObjectiveCount(def) * site * site
+  const each = (terrain.maxSize + gap) ** 2
+  return Math.max(0, Math.floor((Math.max(0, free) * 0.6) / each))
 }
 
 /**

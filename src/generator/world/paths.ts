@@ -47,7 +47,8 @@ export function carveTrails(
     for (let k = 0; k < 4; k++) {
       const nx = x + DX[k]
       const ny = y + DY[k]
-      if (!grid.walkable(nx, ny)) continue
+      // a plateau is entered only along a stairway (`canStep`); on a flat island it is `walkable`
+      if (!grid.canStep(x, y, nx, ny)) continue
       const j = ny * width + nx
       const nd = d + cost(nx, ny)
       if (nd < dist[j]) {
@@ -65,9 +66,12 @@ export function carveTrails(
     for (let steps = 0; i !== -1 && steps < width * height; steps++) {
       const x = i % width
       const y = (i - x) / width
-      grid.set(x, y, flag)
+      // a stairway's own cells are never painted as a trail (audit D4): the flight stays visible
+      grid.set(x, y, grid.stairOf(x, y) === 0 ? flag : flag & ~WorldGrid.TRAIL)
       // two wide: the corridor's second column, where the land allows
-      if (grid.walkable(x + 1, y)) grid.set(x + 1, y, flag)
+      if (grid.walkable(x + 1, y) && grid.high(x + 1, y) === grid.high(x, y)) {
+        grid.set(x + 1, y, grid.stairOf(x + 1, y) === 0 ? flag : flag & ~WorldGrid.TRAIL)
+      }
       i = prev[i]
     }
   }

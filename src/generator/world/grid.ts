@@ -26,8 +26,22 @@ export class WorldGrid {
   static readonly RESERVED = 16
   /** the corridor from the start to a site, painted as a trail or not */
   static readonly PATH = 32
+  /** a plateau's top, its rim included (`plateau.ts`): a second level of ground */
+  static readonly HIGH = 64
+  /**
+   * The two low rows a plateau's south face hangs over: walkable, but its art
+   * covers them, so nothing is placed there (no prop, spawn or site).
+   */
+  static readonly FACE = 128
 
   readonly flags: Uint8Array
+  /**
+   * The stairway each cell belongs to, 0 for none: the cells under the flight
+   * and the low cells it lands on. Allocated by the first stairway.
+   */
+  private stairs: Int32Array | null = null
+  /** Any `HIGH` cell at all: a flat island keeps the plain flood. */
+  private raised = false
 
   /**
    * `overhangRows`: how many rows of land under a CLIFF cell the biome's wall
@@ -51,7 +65,39 @@ export class WorldGrid {
   }
 
   set(x: number, y: number, flag: number): void {
-    if (this.inside(x, y)) this.flags[y * this.width + x] |= flag
+    if (this.inside(x, y)) {
+      this.flags[y * this.width + x] |= flag
+      if ((flag & WorldGrid.HIGH) !== 0) this.raised = true
+    }
+  }
+
+  /** Put cell (x, y) in stairway `id` (a positive number). */
+  setStair(x: number, y: number, id: number): void {
+    if (!this.inside(x, y)) return
+    if (this.stairs === null) this.stairs = new Int32Array(this.width * this.height)
+    this.stairs[y * this.width + x] = id
+  }
+
+  /** The stairway cell (x, y) belongs to, 0 for none. */
+  stairOf(x: number, y: number): number {
+    return this.stairs !== null && this.inside(x, y) ? this.stairs[y * this.width + x] : 0
+  }
+
+  /** Whether cell (x, y) is on a plateau (rim included). */
+  high(x: number, y: number): boolean {
+    return this.has(x, y, WorldGrid.HIGH)
+  }
+
+  /**
+   * Whether a step from (x, y) to its neighbour (nx, ny) is open: both walkable,
+   * and a step between a plateau and the low ground only along one stairway
+   * (terrain doc 5.5: the rim is an EDGE, crossed only where a stairway is).
+   */
+  canStep(x: number, y: number, nx: number, ny: number): boolean {
+    if (!this.walkable(nx, ny)) return false
+    if (this.high(x, y) === this.high(nx, ny)) return true
+    const s = this.stairOf(x, y)
+    return s !== 0 && s === this.stairOf(nx, ny)
   }
 
   clear(x: number, y: number, flag: number): void {
@@ -78,21 +124,32 @@ export class WorldGrid {
 
   /** Walkable and free of everything placed so far: where a new prop may go. */
   free(x: number, y: number): boolean {
-    return this.walkable(x, y) && !this.has(x, y, WorldGrid.RESERVED | WorldGrid.TRAIL)
+    return this.walkable(x, y) && !this.has(x, y, WorldGrid.RESERVED | WorldGrid.TRAIL | WorldGrid.FACE)
   }
 
   /**
-   * `b` stands on the same ground as `a`: no cliff cell on the straight line
-   * between them, so a monster placed round a centre this way can walk to it
-   * (audit A4). Plateaus will add their own level to this check; the island
-   * has one level, so a cliff on the line is the only way to be cut off.
+   * Walkable ground something may be PLACED on: not under a plateau's south
+   * face, and not on a stairway or its landing, so a flight is never crowded.
+   */
+  standable(x: number, y: number): boolean {
+    return this.walkable(x, y) && !this.has(x, y, WorldGrid.FACE) && this.stairOf(x, y) === 0
+  }
+
+  /**
+   * `b` stands on the same ground as `a`: the same level (`HIGH` or not), and
+   * no cliff cell on the straight line between them, so a monster placed round
+   * a centre this way can walk to it (audit A4). The line itself is the
+   * connection inside the radius: every cell of it is on `a`'s level.
    */
   sameGround(a: Tile, b: Tile): boolean {
+    const level = this.high(a.x, a.y)
+    if (this.high(b.x, b.y) !== level) return false
     const steps = Math.max(Math.abs(b.x - a.x), Math.abs(b.y - a.y))
     for (let s = 1; s <= steps; s++) {
       const x = Math.round(a.x + ((b.x - a.x) * s) / steps)
       const y = Math.round(a.y + ((b.y - a.y) * s) / steps)
       if (this.has(x, y, WorldGrid.CLIFF) || !this.has(x, y, WorldGrid.LAND) || this.buried(x, y)) return false
+      if (this.high(x, y) !== level) return false
     }
     return true
   }
@@ -116,8 +173,13 @@ export class WorldGrid {
     }
   }
 
-  /** Every tile reachable on foot from `from`: 1 = reached. */
+  /**
+   * Every tile reachable on foot from `from`: 1 = reached. With a plateau on
+   * the grid the flood is edge-aware (`canStep`): the low ground reaches a
+   * plateau's top only along a stairway.
+   */
   reach(from: Tile): Uint8Array {
+    if (this.raised) return this.reachEdges(from)
     const blocked = new Uint8Array(this.width * this.height)
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
@@ -126,6 +188,35 @@ export class WorldGrid {
       }
     }
     return floodFill(blocked, this.width, this.height, from)
+  }
+
+  /** The edge-aware flood: every cell visited at most once, so it is bounded by the grid. */
+  private reachEdges(from: Tile): Uint8Array {
+    const { width, height } = this
+    const visited = new Uint8Array(width * height)
+    const sx = Math.min(width - 1, Math.max(0, Math.round(from.x)))
+    const sy = Math.min(height - 1, Math.max(0, Math.round(from.y)))
+    if (!this.walkable(sx, sy)) return visited
+    const stack = [sy * width + sx]
+    visited[stack[0]] = 1
+    while (stack.length > 0) {
+      const i = stack.pop()!
+      const x = i % width
+      const y = (i - x) / width
+      for (const [nx, ny] of [
+        [x - 1, y],
+        [x + 1, y],
+        [x, y - 1],
+        [x, y + 1]
+      ]) {
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue
+        const j = ny * width + nx
+        if (visited[j] === 1 || !this.canStep(x, y, nx, ny)) continue
+        visited[j] = 1
+        stack.push(j)
+      }
+    }
+    return visited
   }
 }
 

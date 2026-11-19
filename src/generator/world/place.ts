@@ -37,7 +37,7 @@ export function placeSites(
 ): Tile[] | null {
   const sites: Tile[] = []
   const ok = (t: Tile) =>
-    grid.discAll(t, SITE_RADIUS, (x, y) => grid.walkable(x, y) && !grid.has(x, y, WorldGrid.RESERVED)) &&
+    grid.discAll(t, SITE_RADIUS, (x, y) => grid.standable(x, y) && !grid.has(x, y, WorldGrid.RESERVED)) &&
     (reached === undefined || reached[t.y * grid.width + t.x] === 1) &&
     dist2(t, hub) >= safeRadius * safeRadius &&
     sites.every((s) => dist2(s, t) >= WORLD_SITE_SPACING * WORLD_SITE_SPACING)

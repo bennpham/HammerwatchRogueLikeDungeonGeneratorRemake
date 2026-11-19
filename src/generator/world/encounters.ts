@@ -126,7 +126,7 @@ export function buildEncounters(
       for (let m = 0; m < count; m++) {
         const spot = { x: at.x + rand.iRand(-PACK_SPREAD, PACK_SPREAD + 1), y: at.y + rand.iRand(-PACK_SPREAD, PACK_SPREAD + 1) }
         // on the pack's own ground: never across a cliff or an inlet
-        if (!grid.walkable(spot.x, spot.y) || !grid.sameGround(at, spot)) continue
+        if (!grid.standable(spot.x, spot.y) || !grid.sameGround(at, spot)) continue
         const { type, tier } = rollPoolKey(rand, key)
         Monster.create(ctx, spot.x + 0.5, spot.y + 0.5, type, tier)
       }
@@ -141,7 +141,7 @@ export function buildEncounters(
   if (worldAmbushes(def) > 0 && canAmbush(def)) {
     for (let y = 0; y < grid.height; y++) {
       for (let x = 0; x < grid.width; x++) {
-        if (grid.walkable(x, y) && grid.has(x, y, WorldGrid.PATH)) path.push({ x, y })
+        if (grid.standable(x, y) && grid.has(x, y, WorldGrid.PATH)) path.push({ x, y })
       }
     }
   }
@@ -269,7 +269,7 @@ function spewerLine(grid: WorldGrid, at: Tile, direction: TrapDirection): Tile[]
             : direction === 'left'
               ? { x: at.x + TRAP_REACH, y: at.y + off }
               : { x: at.x - TRAP_REACH, y: at.y + off }
-      if (grid.walkable(t.x, t.y) && grid.sameGround(at, t)) out.push(t)
+      if (grid.standable(t.x, t.y) && grid.sameGround(at, t)) out.push(t)
     }
   }
   return out
@@ -281,7 +281,7 @@ function openGround(grid: WorldGrid, at: Tile): Tile[] {
   for (let dy = -PAYLOAD_REACH; dy <= PAYLOAD_REACH; dy++) {
     for (let dx = -PAYLOAD_REACH; dx <= PAYLOAD_REACH; dx++) {
       const t = { x: at.x + dx, y: at.y + dy }
-      if (grid.walkable(t.x, t.y) && grid.sameGround(at, t)) out.push(t)
+      if (grid.standable(t.x, t.y) && grid.sameGround(at, t)) out.push(t)
     }
   }
   return out
@@ -336,7 +336,7 @@ function springRing(ctx: GenerationContext, rand: Rand, grid: WorldGrid, def: Wo
     let spot: Tile | null = null
     for (let r = AMBUSH_RING; r >= 1 && spot === null; r--) {
       const t = { x: Math.round(at.x + Math.cos(angle) * r), y: Math.round(at.y + Math.sin(angle) * r) }
-      if (grid.walkable(t.x, t.y) && grid.sameGround(at, t)) spot = t
+      if (grid.standable(t.x, t.y) && grid.sameGround(at, t)) spot = t
     }
     if (spot === null) continue
     let actor: string

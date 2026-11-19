@@ -5435,3 +5435,31 @@ that large. W12 decides.
 **Landmark colliders read from the install:** `theme_h/h_pyramid` is a 192x192 px polygon from its position (12x12 tiles, 144 cells when the prop stands on a tile CORNER); `h_pyramid_shadow` (layer -1, 215 px, origin 0 23) has none. `deco_altar_stone_sun`, `deco_altar_jade`, `deco_altar_stone_blood` and `deco_altar_stone` (all frames of `deco_altar.png`, layers -10 and -9) have none. `deco_signpost` is a circle r 4 offset (1, 0): its tile. `deco_spike_frost` a circle r 5: its tile. The terrain doc listed the pyramid as 12x12 and the install agrees only when the prop stands on a corner; centred on a tile (as every scatter prop is) it spills onto a 13th row and column.
 **Placement:** a landmark is a handful of props round an anchor tile with a rectangular footprint nothing else takes; the colliders are marked solid and the island re-proved with them down, so a landmark can be refused but never trap anyone. A crossroads stands beside a corridor junction (a corridor cell with an arm of corridor three tiles out in at least three directions). Whether the pyramid's shadow looks right on grass or ice (it is desert art) is not a question here: the landmark lists name the desert pyramid for the desert alone.
 **Open:** W15. Whether the altars read as altars on their biomes' ground, and whether 2 lit torches per altar plus crystals cost frame time on a 512 island with four copies.
+
+## 2026-11-19 - world plateaus: the ledge and stairs rim [EMITTED]
+
+**Tag:** [EMITTED] for everything emitted; the unit files, colliders and the stock stairway instances are [R] (read from the install, not played). Played check: BOOT-CHECKLIST W16, W17, W18.
+**Context:** world mode terrain M5b, commit 44 (`world/plateau.ts`). A plateau is a terrace drawn by `doodads/theme_e/e_ledge_*` (layer -10) and climbed by `e_stairs_*` (layer -20, no collider). HW1 has no elevation, so the rim is its pieces' thin `shoot-through` colliders, which still stop walkers.
+**Collider of each piece [R], in tiles, measured from the doodad's POSITION (not its sprite origin, 2026-10-19):**
+
+| Piece (plain / `v2` kerb) | Sprite origin | Collider from pos |
+| --- | --- | --- |
+| `e_ledge_up` / `e_ledge_v2_up` | 0 0 | x 0..2, y 0..1 |
+| `_up_v3` (1 tile) | 0 0 | x 0..1, y 0..1 |
+| `_dn` | 0 8 px | x 0..2, y 0..0.5 |
+| `_dn_v2` (1 tile) | 0 8 px | x 0..1, y 0..0.5 |
+| `_l` | 0 32 px | x 0..0.5, y -2..0 |
+| `_r` | 8 32 px | x 0..0.5, y -2..0 |
+| `_l_v2`, `_r_v2` (1 tile) | | x 0..0.5, y -1..0 |
+| `e_ledge_crn` | 0 0 | x 0..0.5, y 0..0.5 |
+| `e_stairs_up`, `_v2_up`, `_dn`, `_v2_dn`, `_l`, `_r`, `_v2_r` | | none |
+
+The `v2` kerbs collide exactly like their plain twins; `e_ledge_crn` has no `v2`; `e_stairs_l` has no `v2`.
+**How a rim is laid (a high cell is the tile [x, x+1] x [y, y+1]; every collider sits INSIDE the high cell it edges):** a south edge takes `up` at (x, y), so the whole rim row is blocked and the face art hangs over the two low rows under it (the `FACE` rows); a north edge `dn` at (x, y), the top half of the row; a west edge `l` at (x, y+2) per two rows (or `l_v2` at (x, y+1)), the left half of the column; an east edge `r` at (x+0.5, y+2). Runs are cut into 2-tile pieces and one 1-tile remainder. A concave corner (three of the four cells round a lattice point high) takes one `e_ledge_crn` in the diagonal cell's corner at the point, touching both strips. The plateau is proved closed on a quarter-tile flood over these colliders (`tests/plateauProbe.ts`, the importers' model).
+**How each stairway is built, copied from `campaign2/levels/level_cave_1.xml`:**
+- South, from the stock (-129, 4.5): `e_stairs_v2_up` stands at the centre of a 2-tile gap between two `e_ledge_up` at (-132, 4.5) and (-128, 4.5), at the same y as the run. Here: `e_stairs_up`/`_v2_up` at (gap x + 1, rim y).
+- Recessed north, from (-131, -10) under an `e_ledge_dn` run at y -11.5: the run has a 2-tile gap, the stairs stand 1.5 tiles south of it, and `e_ledge_r_v2` at (-132.5, -10) and `e_ledge_l_v2` at (-130, -10) flank it, the cheeks at the gap's edges. Here: `e_stairs_dn`/`_v2_dn` at (gap x + 1, rim y + 1.5), cheeks at (gap x - 0.5, rim y + 1.5) and (gap x + 2, rim y + 1.5).
+- Vertical: stock `e_stairs_v2_r` at (-80, 35) between `e_ledge_r` at (-80, 34) and (-80, 36). **Those two ledges are contiguous (each collider is 2 tiles tall) and script-toggled (ids 111515 and 111547 are targets of the level's toggle nodes), so the stock vertical instance is a gate, not a plain run with a gap.** The geometry is derived from the south case instead: the flight shares its x with the run's pieces (`e_stairs_l` at (x, gap y + 1), `e_stairs_r`/`_v2_r` at (x + 0.5, gap y + 1)) in a 2-tile gap.
+**What a stairway needs:** a rim cell either side of its gap (so ledge pieces flank the flight), and the interior behind it to climb into (a cell with all eight neighbours high). A stairway's cells carry no trail (audit D4), prop or spawn, and the low landing and the high rows behind are kept clear.
+**Ground:** `BiomeDef.highGround` is painted INSTEAD of the base on high cells: `e_fine` (110) on oasis, `e_default_dark` (101) on dry grass. Both are also one of the biome's own tuft tilesets, so the emitter merges them into that dataset (a block carries one dataset per tileset).
+**Open:** W16 whether the party walks only through the gaps and monsters use the stairs; W17 corners, plugs and shots; W18 whether the kerb and stairs read as terraces, whether the south face rows can be stood on (they are walkable in the model), the raised ground's look, and the north lip's half-tile straddle over the low row.

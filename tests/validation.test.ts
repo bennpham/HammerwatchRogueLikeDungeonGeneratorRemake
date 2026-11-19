@@ -28,7 +28,7 @@ import { plainParameters } from './params'
 import { samplePool } from './mysterySample'
 import { noUpgrades, oneOfEachUpgrade } from '../src/generator/levelTemplate/surgery'
 import type { CampaignSlot } from '../src/generator/campaign'
-import { WORLD_BUTTONS_MAX, WORLD_MAX_COUNT, WORLD_SIZE_MAX, WORLD_SIZE_MIN, WORLD_SIZE_WARN, defaultWorld, worldSiteCapacityOf } from '../src/generator/world/options'
+import { WORLD_BUTTONS_MAX, WORLD_MAX_COUNT, WORLD_SIZE_MAX, WORLD_SIZE_MIN, WORLD_SIZE_WARN, defaultWorld, worldPlateauCapacity, worldSiteCapacityOf } from '../src/generator/world/options'
 import type { WorldDef } from '../src/generator/world/options'
 import type { FloorTimer, MysteryButton } from '../src/generator/config/parameters'
 import { MAX_TIMER_DAMAGE, MAX_TIMER_FREQ_MS, MAX_TIMER_SECONDS, MIN_TIMER_FREQ_MS, TIMER_COUNTDOWN_NODE_WARN } from '../src/generator/config/parameters'
@@ -2130,5 +2130,96 @@ describe('world timer and music validation', () => {
     expect(fieldsOf(result({ music: 'default' }).errors)).not.toContain('world.worlds.0.music')
     expect(fieldsOf(result({ music: 'act1' }).errors)).not.toContain('world.worlds.0.music')
     expect(fieldsOf(result({ music: undefined }).errors)).not.toContain('world.worlds.0.music')
+  })
+})
+
+describe('world terrain validation', () => {
+  /** A 128-tile free-roam island: a third of its side is 42, one plateau per 1,024 tiles is 16. */
+  const roomy = { minWidth: 128, maxWidth: 128, minHeight: 128, maxHeight: 128, buttons: 0, bossCount: 0 }
+  const check = (world: Partial<WorldDef>) => {
+    const p = plainParameters()
+    p.world = { enabled: true, worlds: [{ ...defaultWorld(), ...roomy, ...world }] }
+    return validateParameters(p)
+  }
+  const errors = (world: Partial<WorldDef>) => fieldsOf(check(world).errors)
+  const warnings = (world: Partial<WorldDef>) => fieldsOf(check(world).warnings)
+
+  it('accepts the Hills and Highlands shortcuts, and a world that states no terrain at all', () => {
+    for (const w of [
+      { plateaus: 3, plateauMinSize: 10, plateauMaxSize: 16, plateauStairs: 1, biome: 'oasis' },
+      { plateaus: 5, plateauMinSize: 12, plateauMaxSize: 20, plateauStairs: 2, biome: 'drygrass' },
+      {}
+    ] as Array<Partial<WorldDef>>) {
+      const r = check(w)
+      expect(r.errors, JSON.stringify(w)).toEqual([])
+      expect(fieldsOf(r.warnings).filter((f) => f.includes('plateau'))).toEqual([])
+    }
+  })
+
+  it('needs whole numbers, and bounds the plateau count by the island (one per 1,024 tiles)', () => {
+    expect(errors({ plateaus: 2.5 })).toContain('world.worlds.0.plateaus')
+    expect(errors({ plateaus: -1 })).toContain('world.worlds.0.plateaus')
+    expect(errors({ plateaus: 17 })).toContain('world.worlds.0.plateaus')
+    expect(errors({ plateaus: 16 })).not.toContain('world.worlds.0.plateaus')
+    expect(errors({ plateaus: 0 })).not.toContain('world.worlds.0.plateaus')
+    // the bound scales: a 64-tile island holds at most 4
+    const tiny = { minWidth: 64, maxWidth: 64, minHeight: 64, maxHeight: 64 }
+    expect(errors({ ...tiny, plateaus: 5 })).toContain('world.worlds.0.plateaus')
+    expect(errors({ ...tiny, plateaus: 4 })).not.toContain('world.worlds.0.plateaus')
+  })
+
+  it('needs whole plateau sizes of at least 8, and a stair count of 1 to 4', () => {
+    for (const [field, value] of [['plateauMinSize', 7], ['plateauMinSize', 9.5], ['plateauMaxSize', 7], ['plateauMaxSize', 12.5]] as const) {
+      expect(errors({ plateaus: 1, [field]: value }), `${field} ${value}`).toContain(`world.worlds.0.${field}`)
+    }
+    expect(errors({ plateaus: 1, plateauMinSize: 8, plateauMaxSize: 8 })).toEqual([])
+    for (const stairs of [0, 5, 1.5, -1]) expect(errors({ plateaus: 1, plateauStairs: stairs }), `stairs ${stairs}`).toContain('world.worlds.0.plateauStairs')
+    for (const stairs of [1, 2, 3, 4]) expect(errors({ plateaus: 1, plateauStairs: stairs })).not.toContain('world.worlds.0.plateauStairs')
+  })
+
+  it('rejects a smallest plateau above the largest', () => {
+    expect(errors({ plateaus: 2, plateauMinSize: 20, plateauMaxSize: 12 })).toContain('world.worlds.0.plateauMinSize')
+    expect(errors({ plateaus: 2, plateauMinSize: 12, plateauMaxSize: 12 })).not.toContain('world.worlds.0.plateauMinSize')
+    // the defaults count: a largest of 8 under the default smallest of 10
+    expect(errors({ plateaus: 2, plateauMaxSize: 8 })).toContain('world.worlds.0.plateauMinSize')
+  })
+
+  it('rejects a plateau above a third of the smaller island side, but only when some are raised', () => {
+    expect(errors({ plateaus: 1, plateauMinSize: 12, plateauMaxSize: 43 })).toContain('world.worlds.0.plateauMaxSize')
+    expect(errors({ plateaus: 1, plateauMinSize: 12, plateauMaxSize: 42 })).not.toContain('world.worlds.0.plateauMaxSize')
+    expect(errors({ plateaus: 0, plateauMinSize: 12, plateauMaxSize: 60 })).not.toContain('world.worlds.0.plateauMaxSize')
+    // it scales with the SMALLER side
+    expect(errors({ plateaus: 1, minHeight: 64, maxHeight: 64, plateauMaxSize: 22 })).toContain('world.worlds.0.plateauMaxSize')
+    expect(errors({ plateaus: 1, minHeight: 64, maxHeight: 64, plateauMaxSize: 21 })).not.toContain('world.worlds.0.plateauMaxSize')
+  })
+
+  it('warns when more plateaus are asked for than the island can hold, and only then', () => {
+    const fits = worldPlateauCapacity({ ...defaultWorld(), ...roomy, plateauMaxSize: 20 })
+    expect(fits).toBeGreaterThan(0)
+    expect(fits).toBeLessThan(16)
+    expect(warnings({ plateaus: fits, plateauMinSize: 12, plateauMaxSize: 20 })).not.toContain('world.worlds.0.plateaus')
+    const over = check({ plateaus: fits + 1, plateauMinSize: 12, plateauMaxSize: 20 })
+    expect(over.errors).toEqual([])
+    expect(fieldsOf(over.warnings)).toContain('world.worlds.0.plateaus')
+    expect(over.warnings.find((w) => w.field === 'world.worlds.0.plateaus')!.message).toContain(`about ${fits}`)
+    // objectives take land too (audit A2)
+    expect(worldPlateauCapacity({ ...defaultWorld(), ...roomy, plateauMaxSize: 20, buttons: 30, bossCount: 0 })).toBeLessThan(fits)
+  })
+
+  it('counts only the plateaus that fit in the objectives capacity (audit A2)', () => {
+    const base = { ...defaultWorld(), ...roomy, plateauMinSize: 12, plateauMaxSize: 20 }
+    const flat = worldSiteCapacityOf(base)
+    const fits = worldPlateauCapacity(base)
+    expect(worldSiteCapacityOf({ ...base, plateaus: fits })).toBeLessThanOrEqual(flat)
+    // asking for far more takes no more land than what fits
+    expect(worldSiteCapacityOf({ ...base, plateaus: fits + 50 })).toBe(worldSiteCapacityOf({ ...base, plateaus: fits }))
+  })
+
+  it('warns that stairs are unused on a mesa biome, and on no other', () => {
+    for (const biome of ['desert', 'frozen']) {
+      expect(warnings({ biome, plateaus: 2, plateauStairs: 3 }), biome).toContain('world.worlds.0.plateauStairs')
+      expect(warnings({ biome, plateaus: 2 }), biome).not.toContain('world.worlds.0.plateauStairs')
+    }
+    for (const biome of ['oasis', 'drygrass']) expect(warnings({ biome, plateaus: 2, plateauStairs: 3 }), biome).not.toContain('world.worlds.0.plateauStairs')
   })
 })

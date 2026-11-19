@@ -375,6 +375,12 @@ export interface LevelPreview {
    * '2' band (the shore), '3' trail, '4' solid.
    */
   world?: { map: string; hub: { x: number; y: number }; sites: Array<{ x: number; y: number; kind: string }> }
+  /**
+   * What the build has to say about this level, one line each: a world that
+   * raised fewer plateaus than asked for says "3 of 5 plateaus fit". Absent on
+   * every level with nothing to say.
+   */
+  notes?: string[]
 }
 
 export interface DungeonResult {

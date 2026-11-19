@@ -87,6 +87,20 @@ export interface BiomeDef {
   monsters: readonly string[]
   /** advisory: `MOBILE_BOSS_IDS` that suit the biome */
   bosses: readonly string[]
+  /**
+   * What the terrain fields (`world<i>Plateaus` and the rest) raise here:
+   * `plateau` is a terrace of ledge art, high ground with stairways (theme e);
+   * `mesa` is a block of rock mass ringed by the coast's own wall pieces, with
+   * no top and no stairs (desert and frozen: theme h has no ledge set, and the
+   * owner's call is that frozen raises mesas, not borrowed stairs).
+   */
+  terrain: 'plateau' | 'mesa'
+  /**
+   * The ground painted INSTEAD of `base` on a plateau's top (audit D3), so a
+   * raised patch reads as raised away from its rim. Absent on a mesa biome,
+   * which has no top.
+   */
+  highGround?: TilesetRef
   /** a sentence for the World tab: what the biome will look like */
   note?: string
 }
@@ -149,7 +163,8 @@ const DESERT: BiomeDef = {
   },
   landmarks: ['pyramid', 'sunAltar', 'boneField', 'rockRing'],
   monsters: ['mummy_desert', 'mummy_ranged', 'lich_desert', 'guard_desert', 'guard_desert_range', 'tick2'],
-  bosses: ['boss_anubis', 'boss_worm']
+  bosses: ['boss_anubis', 'boss_worm'],
+  terrain: 'mesa'
 }
 
 const CRYSTAL_SMALL = [
@@ -217,6 +232,9 @@ const OASIS: BiomeDef = {
   landmarks: ['jadeShrine', 'crystalGrove'],
   monsters: ['tick1', 'maggot', 'bat1', 'bat2', 'slime', 'spider', 'tower_flower1_small', 'tower_flower2'],
   bosses: ['boss_worm', 'boss_knight'],
+  terrain: 'plateau',
+  // e_fine (110) over e_default (100): fine grit, the raised patch reads apart from the earth below
+  highGround: { tileset: 'tilemaps/e_fine.xml', tiles: 2 },
   note: 'A clearing ringed by rock, not an island in a sea: brown earth with green tufts, no palms or water.'
 }
 
@@ -264,6 +282,9 @@ const DRYGRASS: BiomeDef = {
   landmarks: ['battlefield', 'bloodAltar', 'crossroads'],
   monsters: ['skeleton1', 'skeleton2', 'archer1', 'archer2', 'bat1'],
   bosses: ['boss_knight', 'boss_lich'],
+  terrain: 'plateau',
+  // e_default_dark (101): a darker top over the plain earth
+  highGround: { tileset: 'tilemaps/e_default_dark.xml', tiles: 2 },
   note: 'A clearing ringed by rock, not an island in a sea: brown grass among the dead of a lost battle. The barest biome.'
 }
 
@@ -309,6 +330,7 @@ const FROZEN: BiomeDef = {
   landmarks: ['frostSpire', 'frozenAltar', 'crystalField'],
   monsters: ['wisp1', 'wisp2', 'eye', 'skeleton2', 'lich#0', 'krilith_mb_skeleton'],
   bosses: ['boss_krilith', 'boss_lich'],
+  terrain: 'mesa',
   note: 'A clearing ringed by rock, not an island in a sea: teal rock round slate ground with ice patches. A frozen cave, not a snowfield.'
 }
 

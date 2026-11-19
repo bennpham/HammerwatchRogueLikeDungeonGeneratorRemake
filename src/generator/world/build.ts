@@ -55,11 +55,14 @@ import type { WorldEncounters } from './encounters'
 import { buildObjectives } from './objectives'
 import type { WorldObjectives } from './objectives'
 import { carveTrails } from './paths'
+import { placePlateaus } from './plateau'
+import type { PlateauResult } from './plateau'
+import { Doodad } from '../objects/doodad'
 import { placeSites, SITE_RADIUS } from './place'
 import { commitProps, dropClumps, landCount, planProps } from './scatter'
 import { commitLandmarks, planLandmarks } from './landmarks'
 import { BARE_HUB_RADIUS, commitCamp, hubRadius, planCamp } from './hub'
-import { ORB_AT, worldBiomeId, worldCheckpoints, worldCoast, worldDisguised, worldHub, worldLandmarks, worldMusic, worldObjectiveCount, worldSafeRadius, worldScatter, worldSize, worldTimer, worldTrails, worldWaterMargin } from './options'
+import { ORB_AT, worldBiomeId, worldCheckpoints, worldCoast, worldDisguised, worldHub, worldLandmarks, worldMusic, worldObjectiveCount, worldSafeRadius, worldScatter, worldSize, worldTerrain, worldTimer, worldTrails, worldWaterMargin } from './options'
 import type { WorldDef } from './options'
 
 /** Fresh islands tried before the world gives up. */
@@ -109,6 +112,10 @@ export interface BuiltWorld {
   attempts: number
   /** clumps taken back because, once placed, they walled an objective in (normally 0) */
   droppedClumps: number
+  /** the finished grid, for the tests' proofs */
+  grid: WorldGrid
+  /** plateaus (or mesas) raised against asked for; both 0 on a flat island */
+  terrain: { placed: number; requested: number }
 }
 
 /**
@@ -175,6 +182,16 @@ export function buildWorld(
     // the camp's footprints go down BEFORE anything is proved: the flood, the
     // sites and the corridors all see the props. Bare plans nothing.
     const camp = planCamp(grid, hub, hubKind)
+
+    // --- terrain, from a stream of its own: seeded by ONE layout draw, taken only
+    // when the world asks for plateaus, so a flat world draws exactly what it did
+    // before. Raised after the start is reserved and before anything is proved,
+    // so the flood, the sites and the corridors all see the stairways.
+    const terrain = worldTerrain(def)
+    let raised: PlateauResult | null = null
+    if (biome.terrain === 'plateau' && terrain.plateaus > 0) {
+      raised = placePlateaus(new Rand(layout.nextInt(2147483647)), grid, terrain, rows, hub, keepOpen)
+    }
     const reached = grid.reach(arrival)
     const target = gateway.kind === 'orb' ? orb : hub
     if (reached[target.y * width + target.x] !== 1) {
@@ -263,6 +280,9 @@ export function buildWorld(
     buildFloorHazardRig(ctx, worldTimer(def), width, height)
     buildMusicRig(ctx, worldMusic(def), hub.x, hub.y)
 
+    // --- the plateaus' ledges and stairs, after every object and before the coast
+    if (raised !== null) for (const p of raised.pieces) Doodad.prop(ctx, p.x, p.y, p.path)
+
     // --- the coast LAST: nothing references a wall piece, so its ids come after
     // every object's
     placeCoast(ctx, pieces, biome.theme)
@@ -270,7 +290,13 @@ export function buildWorld(
     if (biome.edge === 'wall') placeRoof(ctx, roofSquares(width, height, island.land), biome.theme)
 
     const xml = emitWorld(ctx, biome, tilemap)
-    return { xml, preview: previewOf(ctx, grid, hub, levelNumber, biome.id, objectives, lurking), attempts: attempt, droppedClumps }
+    const placedTerrain = { placed: raised?.placed ?? 0, requested: raised?.requested ?? 0 }
+    const preview = previewOf(ctx, grid, hub, levelNumber, biome.id, objectives, lurking)
+    // a plateau that never fit is said so (audit A6); absent on every level that asked for none
+    if (placedTerrain.placed < placedTerrain.requested) {
+      preview.notes = [`${placedTerrain.placed} of ${placedTerrain.requested} plateaus fit`]
+    }
+    return { xml, preview, attempts: attempt, droppedClumps, grid, terrain: placedTerrain }
   }
   // the step that failed most; ties go to the earlier step
   const failed = WORLD_STEPS.reduce((a, b) => (tally[b] > tally[a] ? b : a))
