@@ -2,7 +2,7 @@
 
 Date: 2026-11-15, updated 2026-11-18 for AE PR #18, which fixed AE's world audit items A3, A4, A6, B3, D3, D4 and D6 in the code this plan ports. Status: plan; M5a is being built on branch `v1-roadmap-build` (see Built, below). Roadmap milestone M5 (`docs/plans/v1-roadmap.md`): M5a biomes, then M5b plateaus.
 
-**Built (M5a):** commit 39, oasis with the canyon edge; commit 40, dry grass (data only, on the same edge) (`world/roof.ts`, `solidCoastCloses`, `WorldGrid.buried`, `IslandRules.landRows`/`strict`). Commit 41, frozen (theme f). Lighting, landmarks and the install check of every table follow, one commit each. Nothing here has been played.
+**Built (M5a):** commit 39, oasis with the canyon edge (`world/roof.ts`, `solidCoastCloses`, `WorldGrid.buried`, `IslandRules.landRows`/`strict`); commit 40, dry grass (data only, on the same edge); commit 41, frozen (theme f); commit 42, per-biome lighting and landmarks (`world/landmarks.ts`, key `world<i>Landmarks`, default off so existing worlds stay byte-identical); commit 43, the install check of every clump, cover, landmark and camp path. M5a is complete; M5b (plateaus) is not started. Nothing here has been played.
 
 ## Scope
 

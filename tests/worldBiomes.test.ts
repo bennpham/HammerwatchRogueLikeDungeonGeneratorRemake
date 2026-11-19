@@ -760,3 +760,71 @@ describe.skipIf(!existsSync(`${ASSETS}/doodads`))('landmarks against the install
     }
   })
 })
+
+// ---------------------------------------------------------------------------
+// every world prop against the install
+// ---------------------------------------------------------------------------
+
+describe.skipIf(!existsSync(`${ASSETS}/doodads`))('every world prop against the install', () => {
+  const read = (p: string) => readFileSync(`${ASSETS}/${p}`, 'utf8')
+
+  /** The tiles a circle collider reaches from its tile centre: `ceil((r - 8) / 16)` at the farthest point of the farthest circle. */
+  function circleReach(xml: string): number {
+    let reach = 0
+    for (const m of xml.replace(/<!--[\s\S]*?-->/g, '').matchAll(/<circle\s+offset="(-?[\d.]+) (-?[\d.]+)"\s+radius="([\d.]+)"/g)) {
+      reach = Math.max(reach, Math.abs(Number(m[1])) + Number(m[3]), Math.abs(Number(m[2])) + Number(m[3]))
+    }
+    return Math.max(0, Math.ceil((reach - 8) / 16))
+  }
+
+  it('gives every circular clump a solid radius that reaches its collider', () => {
+    for (const b of BIOME_DEFS) {
+      for (const e of b.clumps) {
+        const xml = read(e.path)
+        if (!/<circle/.test(xml)) continue
+        const need = circleReach(xml)
+        const reach = Math.max(0, ...footprintOf(e).map(([dx, dy]) => Math.max(Math.abs(dx), Math.abs(dy))))
+        expect(reach, `${b.id} ${e.path} needs ${need}`).toBeGreaterThanOrEqual(need)
+      }
+    }
+  })
+
+  it('would catch a radius that is too small (negative control: a crystal at 0, the pyramid centred on its tile)', () => {
+    expect(circleReach(read('doodads/generic/deco_crystal.xml'))).toBe(1)
+    expect(circleReach(read('doodads/theme_h/h_deco_rock.xml'))).toBe(1)
+    expect(circleReach(read('doodads/generic/deco_spike_frost.xml'))).toBe(0)
+    // centred on a tile the 12x12 polygon touches a 13th row and column: the landmark stands it on a corner
+    expect(touchedCells(read('doodads/theme_h/h_pyramid.xml'), 0.5).size).toBe(169)
+    expect(touchedCells(read('doodads/theme_h/h_pyramid.xml'), 0).size).toBe(144)
+  })
+
+  it('gives every polygon clump cells that cover its sampled polygon, never its bounding box', () => {
+    for (const b of BIOME_DEFS) {
+      for (const e of b.clumps) {
+        const xml = read(e.path)
+        if (!/<polygon collision="true"/.test(xml)) continue
+        const have = new Set(footprintOf(e).map(([dx, dy]) => `${dx},${dy}`))
+        for (const cell of touchedCells(xml)) expect(have.has(cell), `${b.id} ${e.path} ${cell}`).toBe(true)
+      }
+    }
+  })
+
+  it('names, in a whole world of each biome with a camp, landmarks, scatter and plates, only paths the install has', () => {
+    for (const id of IDS) {
+      const def = open(id, 160, { hub: 'camp', landmarks: true, scatter: 100, buttons: 3, bossCount: 1, packs: 4, ambushes: 2, loot: 4, trails: true })
+      const xml = worldFile(generate(withWorlds([def]), 23), 0)
+      const paths = new Set([...docTypes(xml), ...[...xml.matchAll(/<string name="type">((?:items|actors)\/[^<]+)<\/string>/g)].map((m) => m[1])])
+      expect(paths.size, id).toBeGreaterThan(10)
+      for (const p of paths) expect(existsSync(`${ASSETS}/${p}`), `${id} names ${p}`).toBe(true)
+    }
+  })
+
+  it('has a collider-free unit for every walk-through landmark and camp piece, and a camp that matches', async () => {
+    const { CAMP_PROPS } = await import('../src/generator/world/hub')
+    for (const p of CAMP_PROPS) {
+      expect(existsSync(`${ASSETS}/${p.path}`), p.path).toBe(true)
+      const have = new Set(p.cells.map(([dx, dy]) => `${dx},${dy}`))
+      for (const cell of touchedCells(read(p.path))) expect(have.has(cell), `${p.path} ${cell}`).toBe(true)
+    }
+  })
+})
