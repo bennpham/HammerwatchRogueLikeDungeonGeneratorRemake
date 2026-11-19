@@ -21,6 +21,9 @@ import type { Tile } from '../src/generator/world/grid'
 import { buildObjectives, objectivesRemainingText } from '../src/generator/world/objectives'
 import { carveTrails } from '../src/generator/world/paths'
 import { bossSiteIndexes, placeSites } from '../src/generator/world/place'
+import { MONSTER_THEMES, matchingTheme } from '../src/generator/world/monsterThemes'
+import { isKnownFloorPoolKey, monsterTypeById } from '../src/generator/objects/monsterTypes'
+import { validateParameters } from '../src/generator/config/validation'
 import { MAX_BOSS_COUNT, MOBILE_BOSS_IDS } from '../src/generator/config/parameters'
 import { BOSS_DEFS } from '../src/generator/boss/bosses'
 import type { WorldDef } from '../src/generator/world/options'
@@ -1924,4 +1927,67 @@ describe('per-objective checkpoints', () => {
     const { ctx } = built(sized(64, { checkpoints: true }), 3, exit)
     expect(nodesOf(ctx, 'Checkpoint')).toHaveLength(0)
   })
+})
+
+// ---------------------------------------------------------------------------
+// pass 4: monster themes (data for the World tab)
+// ---------------------------------------------------------------------------
+
+describe('monster themes', () => {
+  const asWorld = (monsters: readonly string[]) => {
+    const p = small()
+    p.world = { enabled: true, worlds: [{ ...defaultWorld(), monsters: [...monsters] }] }
+    return validateParameters(p)
+  }
+
+  it('lists each theme once, with a label, a description and a pool', () => {
+    expect(new Set(MONSTER_THEMES.map((t) => t.id)).size).toBe(MONSTER_THEMES.length)
+    expect(MONSTER_THEMES.map((t) => t.id)).toEqual(['castle_act1', 'castle_act2', 'castle_act3', 'castle_act4', 'temple', 'mixed'])
+    for (const t of MONSTER_THEMES) {
+      expect(t.label.length, t.id).toBeGreaterThan(0)
+      expect(t.description.length, t.id).toBeGreaterThan(0)
+      expect(t.monsters.length, t.id).toBeGreaterThan(0)
+      expect(new Set(t.monsters).size, `${t.id} repeats a key`).toBe(t.monsters.length)
+    }
+  })
+
+  it('names only keys the roster knows, from the castle and the temple, and the world accepts every pool', () => {
+    for (const t of MONSTER_THEMES) {
+      for (const key of t.monsters) {
+        expect(isKnownFloorPoolKey(key), `${t.id}: ${key}`).toBe(true)
+        expect(['Classic', 'Desert'], `${t.id}: ${key}`).toContain(monsterTypeById(key.split('#')[0]).group)
+      }
+      // the world's own rules: unknown keys and spawner tiers are errors there
+      expect(asWorld(t.monsters).errors.filter((e) => e.field.endsWith('.monsters')), t.id).toEqual([])
+    }
+  })
+
+  it('never pins or rolls a spawner tier', () => {
+    for (const t of MONSTER_THEMES) {
+      for (const key of t.monsters) {
+        const [id, pin] = key.split('#')
+        const type = monsterTypeById(id)
+        // a bare key rolls from tier 1 up (a one-tier type has only its own)
+        const reachable = pin !== undefined ? [type.tiers[Number(pin)]] : type.tiers.length === 1 ? type.tiers : type.tiers.slice(1)
+        for (const path of reachable) expect(path.startsWith('actors/spawners/'), `${t.id}: ${key} -> ${path}`).toBe(false)
+      }
+    }
+  })
+
+  it('the temple theme is the Temple of the Sun roster the Desert Campaign island uses', () => {
+    expect(MONSTER_THEMES.find((t) => t.id === 'temple')!.monsters).toEqual(['mummy_desert', 'mummy_ranged', 'lich_desert', 'guard_desert', 'guard_desert_range'])
+  })
+
+  it('matchingTheme finds a pool by its keys in any order, and nothing for a custom one', () => {
+    for (const t of MONSTER_THEMES) expect(matchingTheme([...t.monsters].reverse())).toBe(t)
+    expect(matchingTheme(['bat1'])).toBeUndefined()
+    expect(matchingTheme([])).toBeUndefined()
+  })
+
+  it('every theme builds a world with monsters on it', () => {
+    for (const t of MONSTER_THEMES) {
+      const { ctx } = built(lively(96, { monsters: [...t.monsters], packs: 10 }), 3, { kind: 'exit', target: '0' })
+      expect(ctx.monsters.length, t.id).toBeGreaterThan(0)
+    }
+  }, 120000)
 })
