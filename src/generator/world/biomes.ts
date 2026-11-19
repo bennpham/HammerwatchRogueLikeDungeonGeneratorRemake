@@ -258,6 +258,50 @@ const DRYGRASS: BiomeDef = {
   note: 'A clearing ringed by rock, not an island in a sea: brown grass among the dead of a lost battle. The barest biome.'
 }
 
+/**
+ * Frozen: theme f's teal rock round slate ground (`f_default`) with fine ice
+ * and frozen patches and white-green tufts, the way Krilith's arena stacks them
+ * (`level_boss_2`). `f_path` (122) draws above the ground and under
+ * `f_frozen` (123), so the emitter keeps every patch off a trail cell. The
+ * obstacles are frost spikes, crystals and the theme's pillar. `trap_frost_field`
+ * stays out: it defaults to `active`, Krilith's floor art, and nothing shows it
+ * is harmless on its own. `tower_static_frost` is not in the pool either (an
+ * inert barrier, and a pack stands in the open). The lich is pinned to its first
+ * tier: the elite frost lich overran a party (DISCOVERY-LOG 2026-10-05).
+ */
+const FROZEN: BiomeDef = {
+  id: 'frozen',
+  label: 'Frozen',
+  theme: 'f',
+  edge: 'wall',
+  base: { tileset: 'tilemaps/f_default.xml', tiles: 2 },
+  overlays: [
+    { tileset: 'tilemaps/f_fine.xml', tiles: 2 },
+    { tileset: 'tilemaps/f_frozen.xml', tiles: 2 },
+    { tileset: 'tilemaps/grass_frozen.xml', tiles: 2 }
+  ],
+  trail: { tileset: 'tilemaps/f_path.xml', tiles: 5 },
+  baseUnderTrail: true,
+  clumps: [
+    { path: 'doodads/generic/deco_spike_frost.xml', weight: 5, solid: 0, cells: [[0, 0]] },
+    { path: 'doodads/theme_f/f_special_pillar.xml', weight: 3, solid: 1, cells: blockCells(1) },
+    { path: 'doodads/generic/deco_crystal.xml', weight: 1, solid: 1, lit: true }
+  ],
+  cover: [
+    { path: 'doodads/theme_f/f_deco_vgt.xml', weight: 5, solid: 0 },
+    { path: 'doodads/theme_f/f_deco_vgt_v2.xml', weight: 5, solid: 0 },
+    { path: 'doodads/theme_f/f_deco_vgt_v3.xml', weight: 5, solid: 0 },
+    { path: 'doodads/theme_f/f_deco_vgt_v4.xml', weight: 5, solid: 0 },
+    ...STONES,
+    ...CRYSTAL_SMALL
+  ],
+  clumpDensity: 1,
+  lighting: DEFAULT_LIGHTING,
+  monsters: ['wisp1', 'wisp2', 'eye', 'skeleton2', 'lich#0', 'krilith_mb_skeleton'],
+  bosses: ['boss_krilith', 'boss_lich'],
+  note: 'A clearing ringed by rock, not an island in a sea: teal rock round slate ground with ice patches. A frozen cave, not a snowfield.'
+}
+
 /** The cells a stone block's collider covers: `wide` columns east of the prop's tile, one row above to one below. */
 function blockCells(wide: number): Array<[number, number]> {
   const out: Array<[number, number]> = []
@@ -268,7 +312,7 @@ function blockCells(wide: number): Array<[number, number]> {
 }
 
 /** Every biome, in dropdown order. Append only: a world names its biome by id. */
-export const BIOME_DEFS: readonly BiomeDef[] = [DESERT, OASIS, DRYGRASS]
+export const BIOME_DEFS: readonly BiomeDef[] = [DESERT, OASIS, DRYGRASS, FROZEN]
 
 export const BIOME_IDS: readonly string[] = BIOME_DEFS.map((b) => b.id)
 

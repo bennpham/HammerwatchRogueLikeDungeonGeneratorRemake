@@ -5421,3 +5421,9 @@ that large. W12 decides.
 **Tag:** [EMITTED] for the placement; the tilesets and colliders are [R]. Played check: BOOT-CHECKLIST W15.
 **Context:** terrain M5a, commit 40. Same edge as the oasis (theme e canyon, see the entry above). Ground `e_default` (100), patches `e_default_dark` (101) and `grass_brown` (1001), trail `g_path` (132, drawn above the ground, so the ground stays under it).
 **Read from the install:** `deco_corpse*`, `deco_corpse_skull*`, `deco_corpse_bone*`, `deco_corpse_weapon_{sword,shield,bow}`, `special/marker_grave` and `marker_grave_g` declare no collider (cover). `theme_h/h_deco_rock` is ochre on brown earth and stays out, as does every theme h piece. The 64x64 grave decals are 4 tiles wide and may overhang an unreached tile at the edge of the cover rule; harmless, they are decals.
+
+## 2026-11-19 - world frozen: ground, trail and props [EMITTED]
+
+**Tag:** [EMITTED] for the placement; the tilesets, levels and colliders are [R]. Played check: BOOT-CHECKLIST W15.
+**Context:** terrain M5a, commit 41. Theme f walls on the oasis's canyon edge. Ground `f_default` (120), patches `f_fine` (121), `f_frozen` (123) and `grass_frozen` (1003), trail `f_path` (122). The trail draws ABOVE the ground and BELOW `f_frozen`, so the ground stays under it and no patch is ever written on a trail tile (the emitter's rule for every biome).
+**Read from the install:** `f_path` has five top-level sprites (the rest have two). `deco_spike_frost` is a circle r 5 at the origin: its own tile. `f_special_pillar` is the full-tile polygon of `e_special_pillar`. `f_deco_vgt*`, `deco_crystal_small*` and `g_deco_ground_stone*` have no collider; `deco_crystal` and `deco_crystal_small*` carry a light, hence the 60-prop cap. `trap_frost_field` is left out of the scatter: it defaults to `active` and is Krilith's floor art. `tower_static_frost` is not pooled.

@@ -426,13 +426,59 @@ describe('dry grass', () => {
   })
 })
 
+describe('frozen', () => {
+  const frozen = biomeById('frozen') as BiomeDef
+
+  it('keeps the frost field and the frost tower out of its pool and scatter', () => {
+    expect([...frozen.clumps, ...frozen.cover].some((e) => e.path.includes('trap_frost_field'))).toBe(false)
+    expect(frozen.monsters.some((m) => m.startsWith('tower_'))).toBe(false)
+    // the lich at its first tier: the elite overran a party
+    expect(frozen.monsters).toContain('lich#0')
+    expect(frozen.monsters.filter((m) => m.startsWith('lich'))).toEqual(['lich#0'])
+  })
+
+  it('draws f_path above the ground and under the patches, five trail variants', () => {
+    expect(frozen.trail).toEqual({ tileset: 'tilemaps/f_path.xml', tiles: 5 })
+    expect(frozen.baseUnderTrail).toBe(true)
+    expect(frozen.overlays.map((o) => o.tileset)).toEqual(['tilemaps/f_fine.xml', 'tilemaps/f_frozen.xml', 'tilemaps/grass_frozen.xml'])
+  })
+})
+
+describe.each(IDS)('%s: patches stay off the trail', (id) => {
+  it('paints no overlay on a trail tile, and keeps the ground under a trail only where the biome says', () => {
+    const biome = biomeById(id) as BiomeDef
+    const xml = worldFile(generate(withWorlds([open(id, 128, { buttons: 4, trails: true })]), 17), 0)
+    const tilemap = xml.slice(xml.indexOf('<dictionary name="tilemap">'), xml.indexOf('<dictionary name="doodads">'))
+    const blocks = tilemap.split('<int name="x">').slice(1)
+    let trailTiles = 0
+    for (const block of blocks) {
+      const layers = new Map<string, number[]>()
+      for (const m of block.matchAll(/<string name="tileset">([^<]+)<\/string>\s*<int-arr name="data-t">([^<]*)<\/int-arr>/g)) {
+        layers.set(m[1], m[2].trim().split(/\s+/).map(Number))
+      }
+      const trail = layers.get(biome.trail.tileset)
+      if (trail === undefined) continue
+      const ground = layers.get(biome.base.tileset)
+      trail.forEach((v, i) => {
+        if (v === 0) return
+        trailTiles++
+        for (const o of biome.overlays) expect(layers.get(o.tileset)?.[i] ?? 0, `${id} ${o.tileset}`).toBe(0)
+        expect((ground?.[i] ?? 0) !== 0, id).toBe(biome.baseUnderTrail === true)
+      })
+    }
+    expect(trailTiles).toBeGreaterThan(0)
+  })
+})
+
 describe('flipping a biome', () => {
   it('moves only that world: world 0 and every other file stay byte-identical', () => {
     for (const [from, to] of [
       ['desert', 'oasis'],
       ['oasis', 'desert'],
       ['desert', 'drygrass'],
-      ['drygrass', 'oasis']
+      ['drygrass', 'oasis'],
+      ['oasis', 'frozen'],
+      ['frozen', 'desert']
     ]) {
       const a = generate(withWorlds([open('desert', 64), open(from, 80)]), 13)
       const b = generate(withWorlds([open('desert', 64), open(to, 80)]), 13)
