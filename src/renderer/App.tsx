@@ -1,12 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   arenaMode,
+  campaignCounts,
   campaignPresetById,
   defaultParameters,
   floorMystery,
+  isDefaultOrder,
+  normalizeOrder,
   playerPresetById,
   pruneTweaks,
-  validateParameters
+  validateParameters,
+  worldList
 } from '../generator'
 import type { DungeonParameters, PlayerTweaks } from '../generator'
 import { GENERATION_CANCELLED } from '../shared/ipc'
@@ -16,6 +20,7 @@ import { PlayerForm } from './components/PlayerForm'
 import { LobbyForm } from './components/LobbyForm'
 import { BossForm } from './components/BossForm'
 import { FloorOrderEditor } from './components/FloorOrderEditor'
+import { WorldForm } from './components/WorldForm'
 import { LevelPreview } from './components/LevelPreview'
 import { LoadoutSheet } from './components/LoadoutSheet'
 import { OutputPanel } from './components/OutputPanel'
@@ -45,7 +50,7 @@ export function App() {
   const [llmConfig, setLlmConfig] = useState<LlmConfig | null>(null)
   // the lobby is where a run starts, so it is where the app opens; the dungeon
   // and player passes are the optional ones
-  const [leftTab, setLeftTab] = useState<'lobby' | 'dungeon' | 'boss' | 'order' | 'player'>('lobby')
+  const [leftTab, setLeftTab] = useState<'lobby' | 'dungeon' | 'boss' | 'world' | 'order' | 'player'>('lobby')
   const [rightTab, setRightTab] = useState<'preview' | 'loadout'>('preview')
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
@@ -81,6 +86,11 @@ export function App() {
     ].filter((p): p is string => p !== false)
     return parts.join(' · ')
   }, [params.boss])
+
+  const worldTabBadge = useMemo(() => {
+    const count = worldList(params).length
+    return count === 0 ? 'off' : `${count}`
+  }, [params.world])
 
   const showToast = (kind: Toast['kind'], text: string, undo?: () => void) => {
     setToast({ kind, text, undo })
@@ -165,6 +175,17 @@ export function App() {
     } else if (leftTab === 'boss') {
       next = { ...params, boss: defaultParameters().boss }
       message = 'Arena tab reset to defaults.'
+    } else if (leftTab === 'world') {
+      // No world is the default; the stored order is repaired for the slots that go
+      next = { ...params }
+      delete next.world
+      if (next.levelOrder !== undefined) {
+        const counts = campaignCounts(next)
+        const repaired = normalizeOrder(next.levelOrder, counts)
+        if (isDefaultOrder(repaired, counts)) delete next.levelOrder
+        else next.levelOrder = repaired
+      }
+      message = 'Worlds removed.'
     } else if (leftTab === 'order') {
       // Absent IS the default order, so resetting means dropping the key.
       next = { ...params }
@@ -172,6 +193,16 @@ export function App() {
       message = 'Floor order reset — every floor, then every boss fight.'
     } else {
       next = { ...defaultParameters(), playerTweaks: params.playerTweaks, lobbies: params.lobbies, boss: params.boss }
+      if (params.world !== undefined) {
+        // worlds have their own tab, so this reset keeps them and repairs the order for their slots
+        next.world = params.world
+        if (next.levelOrder !== undefined) {
+          const counts = campaignCounts(next)
+          const repaired = normalizeOrder(next.levelOrder, counts)
+          if (isDefaultOrder(repaired, counts)) delete next.levelOrder
+          else next.levelOrder = repaired
+        }
+      }
       message = 'Dungeon parameters reset to defaults.'
     }
     setParams(next)
@@ -186,6 +217,7 @@ export function App() {
     player: { label: 'Reset player tweaks', tab: 'Player' },
     lobby: { label: 'Reset lobbies', tab: 'Lobby' },
     boss: { label: 'Reset arena tab', tab: 'Arena' },
+    world: { label: 'Reset worlds', tab: 'World' },
     order: { label: 'Reset floor order', tab: 'Floor order' },
     dungeon: { label: 'Reset defaults', tab: 'Dungeon' }
   }[leftTab]
@@ -376,7 +408,7 @@ export function App() {
               variant="danger"
               title="Reset every tab to the defaults"
               heading="Reset everything?"
-              body="This puts the Lobby, Dungeon, Arena, Floor order and Player tabs back to the defaults. Anything you have not exported to parameters.txt will be lost, unless you press Undo right afterwards."
+              body="This puts the Lobby, Dungeon, Arena, World, Floor order and Player tabs back to the defaults. Anything you have not exported to parameters.txt will be lost, unless you press Undo right afterwards."
               confirmLabel="Reset everything"
               disabled={busy}
               onConfirm={resetAll}
@@ -410,6 +442,13 @@ export function App() {
               <span className="tab-count">{arenaTabBadge}</span>
             </button>
             <button
+              className={leftTab === 'world' ? 'tab active' : 'tab'}
+              onClick={() => setLeftTab('world')}
+            >
+              World
+              <span className="tab-count">{worldTabBadge}</span>
+            </button>
+            <button
               className={leftTab === 'order' ? 'tab active' : 'tab'}
               onClick={() => setLeftTab('order')}
             >
@@ -440,6 +479,9 @@ export function App() {
           )}
           {leftTab === 'boss' && (
             <BossForm params={params} issues={validation.errors} onChange={setParams} />
+          )}
+          {leftTab === 'world' && (
+            <WorldForm params={params} issues={validation.errors} onChange={setParams} />
           )}
           {leftTab === 'order' && (
             <FloorOrderEditor params={params} issues={validation.errors} onChange={setParams} />

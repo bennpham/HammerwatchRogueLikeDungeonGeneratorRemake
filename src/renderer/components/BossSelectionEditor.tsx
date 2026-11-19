@@ -30,6 +30,8 @@ interface BossSelectionEditorProps {
   fieldPrefix: string
   issues: ValidationIssue[]
   onChange: (patch: BossSelectionPatch) => void
+  /** Fewest bosses the count field offers: 1 for an arena or floor, 0 for a world (free roam). */
+  minCount?: number
 }
 
 /**
@@ -52,7 +54,8 @@ export function BossSelectionEditor({
   defs,
   fieldPrefix,
   issues,
-  onChange
+  onChange,
+  minCount = 1
 }: BossSelectionEditorProps) {
   const setSelection = (next: BossSelection) => {
     if (next === selection) return
@@ -147,10 +150,10 @@ export function BossSelectionEditor({
             value={bossCount}
             onChange={(v) => onChange({ bossCount: !Number.isFinite(v) || v === 1 ? undefined : v })}
             issues={issues}
-            min={1}
+            min={minCount}
             max={MAX_BOSS_COUNT}
             step={1}
-            title="How many bosses this arena rolls at once"
+            title="How many bosses are rolled at once"
           />
           <p className="hint">Dragon and Queen can appear at most once.</p>
           <div className="pool-checkboxes">

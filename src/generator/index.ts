@@ -99,7 +99,8 @@ export {
   MAX_MYSTERY_MONSTERS,
   MYSTERY_NAME_MAX,
   MYSTERY_TEXT_MAX,
-  MAX_MYSTERY_TRAP_SECONDS
+  MAX_MYSTERY_TRAP_SECONDS,
+  campaignCounts
 } from './config/parameters'
 export type { BossSelection, MysteryButton, MysteryMonster, FloorMystery, FloorLockMystery } from './config/parameters'
 export { MYSTERY_LOOT_DEFS, MYSTERY_LOOT_GROUPS, mysteryLootById } from './objects/mysteryLoot'
@@ -145,10 +146,37 @@ export {
   WORLD_SIZE_WARN,
   WORLD_WATER_MARGIN_MAX,
   WORLD_WATER_MARGIN_MIN,
+  WORLD_AMBUSHES_MAX,
+  WORLD_AMBUSH_SIZE_MAX,
+  WORLD_AMBUSH_SIZE_MIN,
+  WORLD_AMBUSH_TYPES_MAX,
+  WORLD_AMBUSH_WEIGHT_MAX,
+  WORLD_BUTTONS_MAX,
+  WORLD_LOOT_MAX,
+  WORLD_MYSTERY_MAX,
+  WORLD_PACKS_MAX,
+  WORLD_PACK_SIZE_MAX,
+  WORLD_PACK_SIZE_MIN,
+  WORLD_PLATEAU_SIZE_MIN,
+  WORLD_PLATEAU_STAIRS_MAX,
+  WORLD_PLATEAU_STAIRS_MIN,
+  WORLD_SAFE_RADIUS_MAX,
+  WORLD_SAFE_RADIUS_MIN,
+  WORLD_SCATTER_MAX,
+  WORLD_SCATTER_MIN,
   defaultWorld,
-  worldList
+  worldBossCount,
+  worldCheckpoints,
+  worldHub,
+  worldLandmarks,
+  worldList,
+  worldMaxSafeRadius,
+  worldPlateauCountMax,
+  worldPlateauSizeMax,
+  worldSiteCapacityOf,
+  worldTerrain
 } from './world/options'
-export type { WorldDef, WorldOptions } from './world/options'
+export type { WorldAmbushType, WorldDef, WorldOptions } from './world/options'
 export { DEFAULT_WORLD_HUB, WORLD_HUBS } from './world/hub'
 export type { WorldHub } from './world/hub'
 export { MONSTER_THEMES, matchingTheme } from './world/monsterThemes'
