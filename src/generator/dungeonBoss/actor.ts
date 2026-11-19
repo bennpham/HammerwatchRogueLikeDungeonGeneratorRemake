@@ -20,6 +20,22 @@ import { BOSS_DEFS, pickBosses } from '../boss/bosses'
 import type { BossId } from '../boss/bosses'
 
 /**
+ * One boss actor at (x, y), with no rig and ZERO random draws — the shared
+ * primitive behind every floor-boss placement, and what a caller that picked
+ * its boss some other way (a world's fixed encounter) places directly.
+ */
+export function bossActor(ctx: GenerationContext, id: BossId, x: number, y: number): MonsterInstance {
+  const def = BOSS_DEFS[id]
+  return Monster.create(
+    ctx,
+    x,
+    y,
+    { id: def.id, configKey: '', tiers: [def.actorPath], upgradeChance: 0, defaultMax: 0, group: 'Bosses' },
+    0
+  )
+}
+
+/**
  * Places one boss from `pool` at `spot`. Returns the actor, whose id the
  * invulnerability rig needs — its `ToggleImmortality` nodes target the ACTOR,
  * not a script node.
@@ -39,13 +55,7 @@ export function placeFloorBoss(
   const bossId = known[ctx.floorBossRand.iRand(0, known.length)] as BossId
   const def = BOSS_DEFS[bossId]
 
-  return Monster.create(
-    ctx,
-    spot.x,
-    spot.y,
-    { id: def.id, configKey: '', tiers: [def.actorPath], upgradeChance: 0, defaultMax: 0, group: 'Bosses' },
-    0
-  )
+  return bossActor(ctx, def.id, spot.x, spot.y)
 }
 
 /**
@@ -84,13 +94,7 @@ export function placeFloorBosses(
     const ids = lineup.slice(0, spots.length)
     return ids.map((id, i) => {
       const def = BOSS_DEFS[id]
-      return Monster.create(
-        ctx,
-        spots[i].x,
-        spots[i].y,
-        { id: def.id, configKey: '', tiers: [def.actorPath], upgradeChance: 0, defaultMax: 0, group: 'Bosses' },
-        0
-      )
+      return bossActor(ctx, def.id, spots[i].x, spots[i].y)
     })
   }
 
@@ -106,12 +110,6 @@ export function placeFloorBosses(
   const ids = pickBosses(ctx.floorBossRand, known, Math.min(count, spots.length))
   return ids.map((id, i) => {
     const def = BOSS_DEFS[id]
-    return Monster.create(
-      ctx,
-      spots[i].x,
-      spots[i].y,
-      { id: def.id, configKey: '', tiers: [def.actorPath], upgradeChance: 0, defaultMax: 0, group: 'Bosses' },
-      0
-    )
+    return bossActor(ctx, def.id, spots[i].x, spots[i].y)
   })
 }
