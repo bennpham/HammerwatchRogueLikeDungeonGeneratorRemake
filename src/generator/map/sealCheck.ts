@@ -148,7 +148,11 @@ export class Passability {
  * (the world's coast) can prove an enclosure closed with the same model the
  * floor seal check uses.
  */
-export function fencePassability(width: number, height: number, doodads: readonly Doodad[]): Passability {
+export function fencePassability(
+  width: number,
+  height: number,
+  doodads: ReadonlyArray<Pick<Doodad, 'x' | 'y' | 'type'>>
+): Passability {
   const pass = new Passability(width, height)
   for (const d of doodads) pass.apply(d.x, d.y, FENCE[d.type] ?? 'none')
   return pass

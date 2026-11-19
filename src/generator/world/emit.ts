@@ -1,0 +1,108 @@
+/**
+ * A finished world as level XML: the tilemap, then the shared section tail.
+ *
+ * The map is cut into 20x20 blocks declared at multiples of 20 and sampled at
+ * the same coordinates (`x` and `y` that are not multiples of 20 are snapped
+ * by the engine and silently lose the offset), one block of open water beyond
+ * the map on every side so the sea does not stop dead at the edge.
+ *
+ * Per block, lowest drawn layer first (the order each tileset's own `level`
+ * attribute decides, not this one): the water base everywhere; the biome's
+ * ground on land that is not a trail; tufts in noise patches over it; and the
+ * trail tileset on trail tiles INSTEAD of the ground, since `g_path` draws
+ * below `h_default`. A layer a block does not use is not emitted. Every
+ * variant draws from the world's `scatter` stream, never from `ctx`.
+ */
+
+import type { GenerationContext } from '../core/context'
+import type { Rand } from '../core/rand'
+import { XMLArray, XMLDictionary, XMLInt, XMLIntArray, XMLString } from '../xml'
+import { levelSectionsXML } from '../xml/levelSections'
+import { dataAFromDataT, waterDataset } from '../map/tilemapOverlay'
+import type { BiomeDef, TilesetRef } from './biomes'
+import { WorldGrid } from './grid'
+import { ValueNoise } from './noise'
+
+export const WORLD_BLOCK = 20
+/** a block of sea past the map on every side */
+const BLOCK_MARGIN = 1
+/** noise above this puts a tuft patch on the ground */
+const PATCH_THRESHOLD = 0.62
+/** tiles between lattice points of the patch noise */
+const PATCH_SPACING = 12
+
+const FULL = new Array<number>(WORLD_BLOCK * WORLD_BLOCK).fill(255)
+
+function layer(ref: TilesetRef, dataT: number[]): XMLDictionary {
+  const dict = new XMLDictionary('')
+  dict.addData(new XMLString('tileset', ref.tileset))
+  dict.addData(new XMLIntArray('data-t', dataT))
+  dict.addData(new XMLIntArray('data-r', FULL))
+  dict.addData(new XMLIntArray('data-g', FULL))
+  dict.addData(new XMLIntArray('data-b', FULL))
+  dict.addData(dataAFromDataT(dataT))
+  return dict
+}
+
+/** The 0-based first and last block that carry map tiles, margin blocks excluded. */
+function blockSpan(tiles: number): number {
+  // block b draws tiles 20b - 10 .. 20b + 9
+  return Math.trunc((tiles + 9) / WORLD_BLOCK)
+}
+
+export function emitWorld(ctx: GenerationContext, biome: BiomeDef, grid: WorldGrid, scatter: Rand): string {
+  const { width, height } = grid
+  // one noise field per tuft tileset, built up front so the draw order is fixed
+  const noises = biome.overlays.map(() => new ValueNoise(scatter, width, height, PATCH_SPACING, 2))
+  const water = waterDataset()
+  const variant = (tiles: number): number => Math.trunc(scatter.nextFloat() * tiles) + 1
+
+  const tiledata = new XMLArray('tiledata')
+  for (let bx = -BLOCK_MARGIN; bx <= blockSpan(width) + BLOCK_MARGIN; bx++) {
+    for (let by = -BLOCK_MARGIN; by <= blockSpan(height) + BLOCK_MARGIN; by++) {
+      const ground = new Array<number>(WORLD_BLOCK * WORLD_BLOCK).fill(0)
+      const trail = new Array<number>(WORLD_BLOCK * WORLD_BLOCK).fill(0)
+      const tufts = biome.overlays.map(() => new Array<number>(WORLD_BLOCK * WORLD_BLOCK).fill(0))
+      let usedGround = false
+      let usedTrail = false
+      const usedTufts = biome.overlays.map(() => false)
+
+      for (let i = 0; i < WORLD_BLOCK * WORLD_BLOCK; i++) {
+        const tx = bx * WORLD_BLOCK - 10 + (i % WORLD_BLOCK)
+        const ty = by * WORLD_BLOCK - 10 + Math.trunc(i / WORLD_BLOCK)
+        if (!grid.has(tx, ty, WorldGrid.LAND)) continue
+        if (grid.has(tx, ty, WorldGrid.TRAIL)) {
+          trail[i] = variant(biome.trail.tiles)
+          usedTrail = true
+          continue
+        }
+        ground[i] = variant(biome.base.tiles)
+        usedGround = true
+        if (grid.has(tx, ty, WorldGrid.CLIFF)) continue
+        biome.overlays.forEach((ref, k) => {
+          if (noises[k].at(tx, ty) <= PATCH_THRESHOLD) return
+          tufts[k][i] = variant(ref.tiles)
+          usedTufts[k] = true
+        })
+      }
+
+      const datasets = new XMLArray('datasets')
+      datasets.addData(water)
+      if (usedGround) datasets.addData(layer(biome.base, ground))
+      biome.overlays.forEach((ref, k) => {
+        if (usedTufts[k]) datasets.addData(layer(ref, tufts[k]))
+      })
+      if (usedTrail) datasets.addData(layer(biome.trail, trail))
+
+      const block = new XMLDictionary('')
+      block.addData(new XMLInt('x', bx * WORLD_BLOCK))
+      block.addData(new XMLInt('y', by * WORLD_BLOCK))
+      block.addData(datasets)
+      tiledata.addData(block)
+    }
+  }
+
+  const tilemap = new XMLDictionary('tilemap')
+  tilemap.addData(tiledata)
+  return levelSectionsXML(ctx, tilemap, biome.lighting)
+}

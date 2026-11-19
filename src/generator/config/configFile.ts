@@ -70,6 +70,9 @@ import type {
 } from './parameters'
 import { MONSTER_FAMILIES, MONSTER_TYPES, isKnownMonsterKey } from '../objects/monsterTypes'
 import { buffById } from '../objects/buffTypes'
+import { BIOME_IDS } from '../world/biomes'
+import { WORLD_MAX_COUNT, defaultWorld } from '../world/options'
+import type { WorldDef, WorldOptions } from '../world/options'
 import { pickupById } from '../objects/pickupTypes'
 import { mysteryLootById } from '../objects/mysteryLoot'
 import { projectileById } from '../objects/projectileTypes'
@@ -1343,6 +1346,25 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     return pool[index]
   }
 
+  // World bookkeeping, the lobby shape again: `world<i>` keys carry an index
+  // and the count (`worlds=`) may come before or after them. Unlike a lobby
+  // the list is CAPPED here, in the loader: `worlds=` above WORLD_MAX_COUNT
+  // and any `world<i>` with i at or past it are reported and never grow the
+  // list, so a stray index cannot allocate thousands of worlds.
+  /** the keys that named each world index, so an index past `worlds` can be reported */
+  const worldKeys = new Map<number, string[]>()
+  /** the `worlds=` count, or null when the file never declared one */
+  let declaredWorldCount: number | null = null
+  const worldOptions = (): WorldOptions => params.world ?? (params.world = { enabled: false, worlds: [] })
+  const worldAt = (index: number, key: string): WorldDef => {
+    const list = worldOptions().worlds
+    while (list.length <= index) list.push(defaultWorld())
+    const named = worldKeys.get(index)
+    if (named === undefined) worldKeys.set(index, [key])
+    else named.push(key)
+    return list[index]
+  }
+
   const lobbyAt = (index: number, key: string): LobbyOptions => {
     while (params.lobbies.length <= index) params.lobbies.push(defaultLobby(DEFAULT_LOBBY_PRESET_ID))
     const named = lobbyKeys.get(index)
@@ -1482,6 +1504,64 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       }
 
       // an unrecognized lobby<i> suffix
+      result.unknownKeys.push(key)
+      continue
+    }
+
+    // `world=0|1` and `worlds=<n>` are matched BEFORE the indexed dispatcher
+    // below, as `lobbies` is before `lobby<i>…`: `worlds` has no digit and
+    // would otherwise fall to the catch-all.
+    if (keyLower === 'world') {
+      worldOptions().enabled = value === '1'
+      continue
+    }
+    if (keyLower === 'worlds') {
+      const n = parseInt(value, 10)
+      if (!/^\d+$/.test(value) || n > WORLD_MAX_COUNT) result.unknownKeys.push(`${key} value "${value}"`)
+      else declaredWorldCount = n
+      continue
+    }
+    const worldMatch = keyLower.match(/^world(\d+)(.+)$/)
+    if (worldMatch) {
+      const index = parseInt(worldMatch[1], 10)
+      const suffix = worldMatch[2]
+      if (!Number.isSafeInteger(index) || index >= WORLD_MAX_COUNT) {
+        result.unknownKeys.push(key)
+        continue
+      }
+      const ints = (raw: string, n: number): number[] | null => {
+        const parts = raw.split(',').map((t) => t.trim())
+        return parts.length === n && parts.every((t) => /^\d+$/.test(t)) ? parts.map((t) => parseInt(t, 10)) : null
+      }
+      // Validate before touching the list, so a bad value never grows it.
+      if (suffix === 'biome') {
+        if (!BIOME_IDS.includes(value)) result.unknownKeys.push(`${key} value "${value}"`)
+        else worldAt(index, key).biome = value
+        continue
+      }
+      if (suffix === 'width' || suffix === 'height') {
+        const pair = ints(value, 2)
+        if (pair === null) {
+          result.unknownKeys.push(`${key} value "${value}"`)
+          continue
+        }
+        const world = worldAt(index, key)
+        if (suffix === 'width') [world.minWidth, world.maxWidth] = pair
+        else [world.minHeight, world.maxHeight] = pair
+        continue
+      }
+      if (suffix === 'coast' || suffix === 'watermargin') {
+        const one = ints(value, 1)
+        if (one === null) {
+          result.unknownKeys.push(`${key} value "${value}"`)
+          continue
+        }
+        const world = worldAt(index, key)
+        if (suffix === 'coast') world.coast = one[0]
+        else world.waterMargin = one[0]
+        continue
+      }
+      // an unrecognised world<i> suffix
       result.unknownKeys.push(key)
       continue
     }
@@ -1925,6 +2005,25 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     }
   }
 
+  // How many worlds the campaign ends up with: an explicit `worlds=` wins,
+  // otherwise the list grown by whatever `world<i>` keys the file named. Keys
+  // past the declared count are reported, as the lobbies' are.
+  if (params.world !== undefined) {
+    const list = params.world.worlds
+    if (declaredWorldCount !== null) {
+      while (list.length < declaredWorldCount) list.push(defaultWorld())
+      if (list.length > declaredWorldCount) {
+        for (let i = declaredWorldCount; i < list.length; i++) {
+          for (const named of worldKeys.get(i) ?? []) result.unknownKeys.push(named)
+        }
+        list.length = declaredWorldCount
+      }
+    }
+  } else if (declaredWorldCount !== null) {
+    const world = worldOptions()
+    while (world.worlds.length < declaredWorldCount) world.worlds.push(defaultWorld())
+  }
+
   // The order is only meaningful next to the campaign it describes, and
   // `levels`, `bossFights` and `lobbies` may all be parsed after it, so it is
   // repaired here rather than inline. An order that turns out to be the
@@ -2330,6 +2429,22 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
     // on re-import.
     writeMusicLine(lines, `lobby${i}Music`, lobby.music, base.lobbies[i]?.music)
   })
+
+  // World lines only when the campaign carries `world` at all, disabled or
+  // not, so a disabled list round-trips and a campaign without worlds writes
+  // not one new byte. (`levelOrder` below counts the enabled worlds.)
+  if (params.world !== undefined) {
+    const list = Array.isArray(params.world.worlds) ? params.world.worlds : []
+    lines.push(`world=${params.world.enabled ? 1 : 0}`)
+    lines.push(`worlds=${list.length}`)
+    list.forEach((def, i) => {
+      lines.push(`world${i}Biome=${def.biome}`)
+      lines.push(`world${i}Width=${def.minWidth},${def.maxWidth}`)
+      lines.push(`world${i}Height=${def.minHeight},${def.maxHeight}`)
+      lines.push(`world${i}Coast=${def.coast}`)
+      lines.push(`world${i}WaterMargin=${def.waterMargin}`)
+    })
+  }
 
   // Add boss params after the lobby params.
   //

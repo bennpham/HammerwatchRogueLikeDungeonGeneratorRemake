@@ -59,6 +59,18 @@ import type { BossTrapDirection, TrapDirection } from './parameters'
 import type { BossFight, BossOptions } from './parameters'
 import type { CampaignSlot } from '../campaign'
 import { getTheme } from './themes'
+import { BIOME_IDS } from '../world/biomes'
+import {
+  WORLD_COAST_MAX,
+  WORLD_COAST_MIN,
+  WORLD_MAX_COUNT,
+  WORLD_SIZE_MAX,
+  WORLD_SIZE_MIN,
+  WORLD_SIZE_WARN,
+  WORLD_WATER_MARGIN_MAX,
+  WORLD_WATER_MARGIN_MIN,
+  worldList
+} from '../world/options'
 import {
   defaultTier,
   isKnownFamilyId,
@@ -130,10 +142,10 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
   // all, straight into the arena (or a lobby first, if one leads to it). The
   // rules just below keep that honest.
   requirePositiveInt('levels', p.levels, 0)
-  if (p.levels === 0 && p.boss?.enabled !== true) {
+  if (p.levels === 0 && p.boss?.enabled !== true && worldList(p).length === 0) {
     errors.push({
       field: 'levels',
-      message: 'With 0 floors the boss fight must be enabled — otherwise the campaign has no levels to play.'
+      message: 'With 0 floors the boss fight or a world must be enabled — otherwise the campaign has no levels to play.'
     })
   }
   requirePositiveInt('minRoomSize', p.minRoomSize, 3)
@@ -356,6 +368,7 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
   validateFloorMusic(p, errors, warnings)
   validateLobbies(p, errors, warnings)
   validateBoss(p, errors, warnings)
+  validateWorlds(p, errors, warnings)
   validateLevelOrder(p, errors)
 
   return { errors, warnings, valid: errors.length === 0 }
@@ -414,6 +427,78 @@ function validateUpgrades(
 }
 
 /**
+ * A list a hand-built object may be missing (A7). Returns the array, or `[]`
+ * after reporting it: a settings file or a test can omit one, and reading
+ * `.length` off `undefined` would throw instead of saying what is wrong.
+ */
+function listOf<T>(value: T[] | undefined, field: string, errors: ValidationIssue[]): T[] {
+  if (Array.isArray(value)) return value
+  errors.push({ field, message: 'This list is missing. Add it, or turn the world off.' })
+  return []
+}
+
+/**
+ * Every rule for the world slots (`world/`). Field keys are scoped by index
+ * (`world.worlds.0.*`) so the form can anchor a message to the world that is
+ * wrong, as `validateLobbies` does for `lobbies.N.*`.
+ *
+ * A disabled list builds nothing, so nothing in it can block generation: only
+ * an ENABLED `world` is checked, but then in full.
+ */
+function validateWorlds(p: DungeonParameters, errors: ValidationIssue[], warnings: ValidationIssue[]): void {
+  const w = p.world
+  if (w === undefined || w === null || w.enabled !== true) return
+
+  const worlds = listOf(w.worlds, 'world.worlds', errors)
+  if (Array.isArray(w.worlds) && worlds.length === 0) {
+    errors.push({ field: 'world.worlds', message: 'Worlds are on but there are none. Add a world, or turn them off.' })
+  }
+  if (worlds.length > WORLD_MAX_COUNT) {
+    errors.push({
+      field: 'world.worlds',
+      message: `A campaign can carry at most ${WORLD_MAX_COUNT} worlds (it has ${worlds.length}).`
+    })
+  }
+
+  worlds.forEach((def, i) => {
+    const at = (field: string) => `world.worlds.${i}.${field}`
+    if (def === null || typeof def !== 'object') {
+      errors.push({ field: `world.worlds.${i}`, message: 'This world is missing.' })
+      return
+    }
+    if (!BIOME_IDS.includes(def.biome)) {
+      errors.push({ field: at('biome'), message: `Unknown biome "${String(def.biome)}" (known: ${BIOME_IDS.join(', ')}).` })
+    }
+    const whole = (field: string, value: number, min: number, max: number, what: string): boolean => {
+      if (!Number.isInteger(value) || value < min || value > max) {
+        errors.push({ field: at(field), message: `${what} must be a whole number from ${min} to ${max}.` })
+        return false
+      }
+      return true
+    }
+    const minW = whole('minWidth', def.minWidth, WORLD_SIZE_MIN, WORLD_SIZE_MAX, 'The minimum width')
+    const maxW = whole('maxWidth', def.maxWidth, WORLD_SIZE_MIN, WORLD_SIZE_MAX, 'The maximum width')
+    const minH = whole('minHeight', def.minHeight, WORLD_SIZE_MIN, WORLD_SIZE_MAX, 'The minimum height')
+    const maxH = whole('maxHeight', def.maxHeight, WORLD_SIZE_MIN, WORLD_SIZE_MAX, 'The maximum height')
+    whole('coast', def.coast, WORLD_COAST_MIN, WORLD_COAST_MAX, 'The coast')
+    whole('waterMargin', def.waterMargin, WORLD_WATER_MARGIN_MIN, WORLD_WATER_MARGIN_MAX, 'The water margin')
+    if (minW && maxW && def.minWidth > def.maxWidth) {
+      errors.push({ field: at('minWidth'), message: 'The minimum width must be at most the maximum width.' })
+    }
+    if (minH && maxH && def.minHeight > def.maxHeight) {
+      errors.push({ field: at('minHeight'), message: 'The minimum height must be at most the maximum height.' })
+    }
+    // 240 is the largest level the stock game ships; nothing bigger is known to load
+    if ((maxW && def.maxWidth > WORLD_SIZE_WARN) || (maxH && def.maxHeight > WORLD_SIZE_WARN)) {
+      warnings.push({
+        field: at(maxW && def.maxWidth > WORLD_SIZE_WARN ? 'maxWidth' : 'maxHeight'),
+        message: `A world above ${WORLD_SIZE_WARN} tiles is bigger than any stock level (240) and may load slowly or not at all.`
+      })
+    }
+  })
+}
+
+/**
  * The campaign's play order, when one is stored.
  *
  * Absent is always valid — it means the default order, which is what every
@@ -434,8 +519,7 @@ function validateLevelOrder(p: DungeonParameters, errors: ValidationIssue[]): vo
 
   const fightCount = p.boss?.enabled === true ? (p.boss.fights?.length ?? 0) : 0
   const lobbyCount = p.lobbies?.length ?? 0
-  // no params.world yet, so no world slot exists to name
-  const worldCount = 0
+  const worldCount = worldList(p).length
   const limit = (kind: string): number =>
     kind === 'floor' ? p.levels : kind === 'boss' ? fightCount : kind === 'world' ? worldCount : lobbyCount
   const name = (slot: CampaignSlot): string =>

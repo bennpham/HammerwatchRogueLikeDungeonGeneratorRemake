@@ -10,6 +10,8 @@ import type { UpgradeCounts } from '../levelTemplate/surgery'
 import { removeKey } from '../tweak/chains'
 import type { ArenaMode, CampaignCounts, CampaignSlot } from '../campaign'
 import { ARENA_MODES, campaignOrder, gatewayAfter } from '../campaign'
+import { worldList } from '../world/options'
+import type { WorldOptions } from '../world/options'
 // Type-only: boss/bosses.ts imports BOSS_IDS/MOBILE_BOSS_IDS FROM this file at
 // runtime, so a runtime import back here would cycle. `import type` is erased
 // at compile time and carries no such risk — see BossArenaOptions.bossLineup.
@@ -835,6 +837,14 @@ export interface DungeonParameters {
    * RNG stream, so every existing seed's dungeon is unchanged.
    */
   boss: BossOptions
+  /**
+   * World slots (`world/`): open islands built from terrain. Optional, and
+   * ABSENT in `defaultParameters()` and every preset: a campaign without worlds
+   * is byte-identical to the generator before the feature, and so is its
+   * parameters.txt export. Read the list through `worldList`, never off here.
+   * Draws only from `ctx.worldRand`, after every floor and arena.
+   */
+  world?: WorldOptions
 }
 
 /**
@@ -1705,14 +1715,14 @@ export function defaultBossFight(): BossFight {
  * parameter object. The one place a `CampaignCounts` is built from params, so
  * a new slot kind changes this function and not eight call sites. `over` lets
  * a caller that holds a not-yet-stored list (a form mid-edit) override a count.
- * There is no `params.world` yet, so worlds is 0.
+ * Worlds counts the ENABLED worlds (`worldList`), so a disabled list adds no slot.
  */
 export function campaignCounts(params: DungeonParameters, over: Partial<CampaignCounts> = {}): CampaignCounts {
   return {
     levels: params.levels,
     fights: bossFights(params.boss).length,
     lobbies: (params.lobbies ?? []).length,
-    worlds: 0,
+    worlds: worldList(params).length,
     ...over
   }
 }

@@ -15,6 +15,7 @@ orchestrator.
 | Symptom | Almost always | Go to |
 | --- | --- | --- |
 | `Could not generate level N after 60 attempts` | Parameters are geometrically impossible but passed validation | §A |
+| `Could not generate world N: <advice>. (failed tries by step: island 20, start 0, coast 0, reach 0)` | A world that failed all `MAX_WORLD_ATTEMPTS` (20) islands. The step with the most failures names the advice: **island** (the mask never converged in 24 passes — calmer coast, bigger map, smaller water margin), **start** (the centre disc was not open land), **coast** (the closure proof `coastCloses` found a way off the island, or land stood in the outer columns the matcher wraps over), **reach** (the arrival could not reach the portal or orb). Validation bounds (64–512, margin 4–16, coast 0–100) rule out most of it; an island that fails 20 times is a real finding — reproduce with `tests/world.test.ts`'s `built()` helper and the seed before touching a bound | §A |
 | App freezes, never returns from Generate | Unbounded loop (should not exist — real bug) | §B |
 | `TypeError: Cannot read properties of undefined` in generator | Short `themes` / `levelMonsters` array, or an unknown monster id reaching the roster lookup | §A |
 | `RangeError: Invalid array length` / OOM | `mapWidth`/`mapHeight` absurdly large — `Tile[]` is `w*h` | §A |

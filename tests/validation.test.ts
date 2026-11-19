@@ -28,6 +28,8 @@ import { plainParameters } from './params'
 import { samplePool } from './mysterySample'
 import { noUpgrades, oneOfEachUpgrade } from '../src/generator/levelTemplate/surgery'
 import type { CampaignSlot } from '../src/generator/campaign'
+import { WORLD_MAX_COUNT, WORLD_SIZE_MAX, WORLD_SIZE_MIN, WORLD_SIZE_WARN, defaultWorld } from '../src/generator/world/options'
+import type { WorldDef } from '../src/generator/world/options'
 
 const fieldsOf = (issues: Array<{ field: string }>) => issues.map((i) => i.field)
 
@@ -1663,5 +1665,123 @@ describe('enhanced lock button validation', () => {
     const p = armed()
     p.levelLockMystery!.push({ count: 1, pool: [0] })
     expect(fieldsOf(validateParameters(p).warnings)).toContain('levelLockMystery')
+  })
+})
+
+describe('world validation', () => {
+  const withWorld = (worlds: Array<Partial<WorldDef>>, enabled = true) => {
+    const p = plainParameters()
+    p.world = { enabled, worlds: worlds.map((w) => ({ ...defaultWorld(), ...w })) }
+    return p
+  }
+  const errorsOf = (p: ReturnType<typeof plainParameters>) => fieldsOf(validateParameters(p).errors)
+
+  it('accepts a default world, and no world at all', () => {
+    const ok = validateParameters(withWorld([{}]))
+    expect(ok.errors).toEqual([])
+    expect(ok.warnings.filter((w) => w.field.startsWith('world'))).toEqual([])
+    expect(validateParameters(plainParameters()).errors).toEqual([])
+  })
+
+  it('rejects worlds switched on with none in the list, but not a disabled empty list', () => {
+    expect(errorsOf(withWorld([]))).toContain('world.worlds')
+    expect(validateParameters(withWorld([], false)).errors).toEqual([])
+  })
+
+  it('rejects more worlds than the cap', () => {
+    const p = withWorld(Array.from({ length: WORLD_MAX_COUNT + 1 }, () => ({})))
+    expect(errorsOf(p)).toContain('world.worlds')
+    expect(errorsOf(withWorld(Array.from({ length: WORLD_MAX_COUNT }, () => ({}))))).not.toContain('world.worlds')
+  })
+
+  it('rejects an unknown biome', () => {
+    expect(errorsOf(withWorld([{ biome: 'swamp' }]))).toContain('world.worlds.0.biome')
+  })
+
+  it('rejects every bound that is not a whole number in range', () => {
+    const cases: Array<[Partial<WorldDef>, string]> = [
+      [{ minWidth: WORLD_SIZE_MIN - 1 }, 'minWidth'],
+      [{ maxWidth: WORLD_SIZE_MAX + 1 }, 'maxWidth'],
+      [{ minHeight: 63.5 }, 'minHeight'],
+      [{ maxHeight: Number.NaN }, 'maxHeight'],
+      [{ coast: -1 }, 'coast'],
+      [{ coast: 101 }, 'coast'],
+      [{ coast: 50.5 }, 'coast'],
+      [{ waterMargin: 3 }, 'waterMargin'],
+      [{ waterMargin: 17 }, 'waterMargin']
+    ]
+    for (const [override, field] of cases) {
+      expect(errorsOf(withWorld([{}, override]))).toContain(`world.worlds.1.${field}`)
+    }
+    // and the bounds themselves are fine
+    const edge = withWorld([
+      { minWidth: WORLD_SIZE_MIN, maxWidth: WORLD_SIZE_MAX, minHeight: WORLD_SIZE_MIN, maxHeight: WORLD_SIZE_MAX, coast: 0, waterMargin: 4 }
+    ])
+    expect(validateParameters(edge).errors).toEqual([])
+    expect(validateParameters(withWorld([{ coast: 100, waterMargin: 16 }])).errors).toEqual([])
+  })
+
+  it('rejects a minimum above its maximum', () => {
+    expect(errorsOf(withWorld([{ minWidth: 200, maxWidth: 100 }]))).toContain('world.worlds.0.minWidth')
+    expect(errorsOf(withWorld([{ minHeight: 200, maxHeight: 100 }]))).toContain('world.worlds.0.minHeight')
+  })
+
+  it('warns, without blocking, above the largest stock level', () => {
+    const big = validateParameters(withWorld([{ maxWidth: WORLD_SIZE_WARN + 1, minWidth: WORLD_SIZE_WARN + 1 }]))
+    expect(big.errors).toEqual([])
+    expect(fieldsOf(big.warnings)).toContain('world.worlds.0.maxWidth')
+    const tall = validateParameters(withWorld([{ maxHeight: 512 }]))
+    expect(fieldsOf(tall.warnings)).toContain('world.worlds.0.maxHeight')
+    expect(fieldsOf(validateParameters(withWorld([{ maxWidth: WORLD_SIZE_WARN }])).warnings)).not.toContain('world.worlds.0.maxWidth')
+  })
+
+  it('reports a missing list or world as an error and never throws (A7)', () => {
+    const noList = plainParameters()
+    noList.world = { enabled: true } as never
+    expect(errorsOf(noList)).toContain('world.worlds')
+    const holed = plainParameters()
+    holed.world = { enabled: true, worlds: [null as never, defaultWorld()] }
+    expect(errorsOf(holed)).toContain('world.worlds.0')
+    const notAList = plainParameters()
+    notAList.world = { enabled: true, worlds: {} as never }
+    expect(() => validateParameters(notAList)).not.toThrow()
+    expect(errorsOf(notAList)).toContain('world.worlds')
+  })
+
+  it('lets a world stand in for the floors and the boss, but not nothing', () => {
+    const p = withWorld([{}])
+    p.levels = 0
+    p.themes = []
+    p.levelMonsters = []
+    p.boss = { ...p.boss, enabled: false }
+    expect(validateParameters(p).errors).toEqual([])
+    const none = plainParameters()
+    none.levels = 0
+    none.themes = []
+    none.levelMonsters = []
+    none.boss = { ...none.boss, enabled: false }
+    expect(errorsOf(none)).toContain('levels')
+  })
+
+  it('names world slots in the level order: counted, unique, and last is fine', () => {
+    const floors = plainParameters().levels
+    const asFloors = Array.from({ length: floors }, (_, index) => ({ kind: 'floor' as const, index }))
+    const messages = (p: ReturnType<typeof plainParameters>) => validateParameters(p).errors.map((e) => e.message).join(' ')
+
+    const ok = withWorld([{}, {}])
+    ok.levelOrder = [...asFloors, { kind: 'boss', index: 0 }, { kind: 'world', index: 0 }, { kind: 'world', index: 1 }]
+    expect(validateParameters(ok).errors).toEqual([])
+
+    const missing = withWorld([{}, {}])
+    missing.levelOrder = [...asFloors, { kind: 'boss', index: 0 }, { kind: 'world', index: 0 }]
+    expect(messages(missing)).toContain('never places world 2')
+
+    const dup = withWorld([{}])
+    dup.levelOrder = [...asFloors, { kind: 'boss', index: 0 }, { kind: 'world', index: 0 }, { kind: 'world', index: 0 }]
+    expect(messages(dup)).toContain('world 1 more than once')
+
+    const absent = withWorld([], false)
+    absent.levelOrder = [...asFloors, { kind: 'boss', index: 0 }, { kind: 'world', index: 0 }]
+    expect(messages(absent)).toContain('world 1, which this campaign does not have')
   })
 })

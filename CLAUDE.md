@@ -229,6 +229,13 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    `BossArenaOptions.bodyguardVariants` — absent means on) is the same kind of
    no-draw path substitution: it changes which actor path a wave/row names,
    arena-only, and never on a dungeon floor or a floor boss's own waves.
+   `world/**` (world mode) is the same shape on `ctx.worldRand`
+   (`seed + 6`): it draws only from that stream and its three private
+   sub-streams, runs after every floor and arena (and before the lobbies), and
+   leaves every floor's and arena's XML byte-identical except through invariant
+   9's gateway-kind rule — a world's own slot only ever changes a neighbour's
+   exit TARGET, and a world appended last turns the old last slot's orb into a
+   portal, nothing more.
 9. **The campaign order changes links, never generation.** `levelOrder`
    (`campaign.ts`) decides where each level leads, what `levels.xml` lists and
    in what order, and which slot carries the victory orb — via `ctx.gateway`,
@@ -254,6 +261,22 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    and rejects a floor unless the entrance reaches the exit/orb/portal and
    every key; the bounded retry loop re-rolls it. Never relax the check, or
    model fewer rows, to make a floor pass.
+11. **A world the party can leave the island from is invalid.** `world/` builds
+   an open island (`world/island.ts`, `coast.ts`, `build.ts`, `emit.ts`) and is
+   valid only when its coast CLOSES under the theme's collision model —
+   `coastCloses` floods from the arrival over `map/sealCheck.ts`'s fence model
+   of the emitted theme h pieces and rejects the island if anything reached is
+   more than one tile from land or on the map border — and, once objectives
+   exist, every objective site is reachable from the arrival. Every loop is
+   bounded: `MAX_WORLD_ATTEMPTS = 20` islands per world (size is drawn INSIDE
+   that loop), `MAX_PASSES = 24` mask-cleaning passes, capped placement tries.
+   A failed world reports `Could not generate world N: <advice>` with the tally
+   of failed tries by step. Never relax the proof to make an island pass; add a
+   mask rule or let it re-roll. Exactly three `ctx.worldRand` draws per world
+   (seeding `layout`, `scatter`, `encounters`) whatever happens, and every
+   coast piece gets its id after every object. A campaign without a world —
+   `params.world` absent, or `enabled: false` — and its `parameters.txt` export
+   are byte-identical to before the feature (`tests/fingerprint.test.ts`).
 
 ## Commands
 

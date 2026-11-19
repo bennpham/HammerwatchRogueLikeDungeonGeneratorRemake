@@ -166,6 +166,20 @@ src/
 │   │   ├── placement.ts plate tiles (reachable, plate rooms, clear of items,
 │   │   │                 lock plates and boss tiles), spawn rings, capacity
 │   │   └── rig.ts       buildMysteryButtonRig() — the fixed draw order
+│   ├── world/           WORLD slots — an open island of one biome. Draws only
+│   │   │                 from ctx.worldRand (3 values per world)
+│   │   ├── options.ts   WorldDef/WorldOptions, worldList(), the bounds
+│   │   │                 (WORLD_SIZE 64..512, warn above 240, WORLD_MAX_COUNT 20)
+│   │   │                 and ORB_AT; read fields through the accessors
+│   │   ├── biomes.ts    BiomeDef — desert only (theme h, fence edge, lighting)
+│   │   ├── noise.ts     value noise (island shape, tuft patches)
+│   │   ├── grid.ts      WorldGrid flags LAND CLIFF TRAIL SOLID RESERVED PATH
+│   │   ├── island.ts    the land mask: noise + falloff, theme-keyed cleaning,
+│   │   │                 the matcher-coverage pass; null when 24 passes fail
+│   │   ├── coast.ts     the wall matcher run with water as wall, and
+│   │   │                 coastCloses — the closure proof (invariant 11)
+│   │   ├── build.ts     buildWorld: attempts, tally, objects, coast LAST
+│   │   └── emit.ts      the tilemap (water, ground, tufts, trail) + sections
 │   ├── survival/        the SURVIVAL arena's rig — everything boss/'s tier
 │   │   │                 rigs do, re-keyed from boss health to elapsed time.
 │   │   │                 Exists because the engine fires the `Boss ...` events
@@ -347,6 +361,22 @@ reference/hammerwatch-tweak-stats.md
    room only inside that band is sealed in game while looking open in the
    tilemap. The fix for a sealed floor is the existing re-roll — never loosen
    the check, and never model fewer than `OVERHANG_ROWS` rows.
+11. **A world the party can leave the island from is invalid.** `world/` builds
+   an open island (`world/island.ts`, `coast.ts`, `build.ts`, `emit.ts`) and is
+   valid only when its coast CLOSES under the theme's collision model —
+   `coastCloses` floods from the arrival over `map/sealCheck.ts`'s fence model
+   of the emitted theme h pieces and rejects the island if anything reached is
+   more than one tile from land or on the map border — and, once objectives
+   exist, every objective site is reachable from the arrival. Every loop is
+   bounded: `MAX_WORLD_ATTEMPTS = 20` islands per world (size is drawn INSIDE
+   that loop), `MAX_PASSES = 24` mask-cleaning passes, capped placement tries.
+   A failed world reports `Could not generate world N: <advice>` with the tally
+   of failed tries by step. Never relax the proof to make an island pass; add a
+   mask rule or let it re-roll. Exactly three `ctx.worldRand` draws per world
+   (seeding `layout`, `scatter`, `encounters`) whatever happens, and every
+   coast piece gets its id after every object. A campaign without a world —
+   `params.world` absent, or `enabled: false` — and its `parameters.txt` export
+   are byte-identical to before the feature (`tests/fingerprint.test.ts`).
 
 ## Parameters (the app's whole surface)
 

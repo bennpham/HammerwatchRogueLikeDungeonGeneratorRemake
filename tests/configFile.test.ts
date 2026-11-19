@@ -15,6 +15,8 @@ import {
   wavePickups
 } from '../src/generator/config/parameters'
 import { DEFAULT_LOBBY_PRESET_ID } from '../src/generator/lobby/presets'
+import { WORLD_MAX_COUNT, defaultWorld } from '../src/generator/world/options'
+import type { DungeonParameters } from '../src/generator/config/parameters'
 import {
   SHOP_PRICE_MAX,
   applyCostPolicy,
@@ -1963,5 +1965,124 @@ describe('floor pools when a file declares none', () => {
   it('keeps a declared placeholder pool on a zero-floor campaign', () => {
     const parsed = parseParametersTxt('levels=0\r\nthemes=a_mixed\r\nmonsters0=bat1')
     expect(parsed.params.levelMonsters).toEqual([['bat1']])
+  })
+})
+
+describe('world keys', () => {
+  const serialize = (p: DungeonParameters) => serializeParametersTxt(p)
+  const worldLines = (text: string) => text.split(/\r?\n/).filter((l) => /^world/i.test(l))
+
+  it('writes no world line for a campaign without worlds, and none for the stock defaults', () => {
+    expect(worldLines(serialize(defaultParameters()))).toEqual([])
+    expect(worldLines(serialize(plainParameters()))).toEqual([])
+  })
+
+  it('round-trips every key of an enabled world list', () => {
+    const p = plainParameters()
+    p.world = {
+      enabled: true,
+      worlds: [
+        { biome: 'desert', minWidth: 64, maxWidth: 96, minHeight: 80, maxHeight: 128, coast: 12, waterMargin: 9 },
+        { ...defaultWorld(), coast: 100 }
+      ]
+    }
+    const text = serialize(p)
+    expect(worldLines(text)).toEqual([
+      'world=1',
+      'worlds=2',
+      'world0Biome=desert',
+      'world0Width=64,96',
+      'world0Height=80,128',
+      'world0Coast=12',
+      'world0WaterMargin=9',
+      'world1Biome=desert',
+      'world1Width=128,128',
+      'world1Height=128,128',
+      'world1Coast=100',
+      'world1WaterMargin=6'
+    ])
+    const back = parseParametersTxt(text, plainParameters())
+    expect(back.params.world).toEqual(p.world)
+    expect(back.unknownKeys).toEqual([])
+  })
+
+  it('round-trips a DISABLED world list, so switching worlds off loses nothing', () => {
+    const p = plainParameters()
+    p.world = { enabled: false, worlds: [{ ...defaultWorld(), minWidth: 70, maxWidth: 70 }] }
+    const back = parseParametersTxt(serialize(p), plainParameters())
+    expect(back.params.world).toEqual(p.world)
+  })
+
+  it('matches keys case-insensitively and fills unnamed fields with the defaults', () => {
+    const { params, unknownKeys } = parseParametersTxt('WORLD=1\nWORLDS=1\nWorld0COAST=33\n', plainParameters())
+    expect(unknownKeys).toEqual([])
+    expect(params.world).toEqual({ enabled: true, worlds: [{ ...defaultWorld(), coast: 33 }] })
+  })
+
+  it('grows the list from the keys alone, with the count absent', () => {
+    const { params } = parseParametersTxt('world=1\nworld2Coast=5\n', plainParameters())
+    expect(params.world!.worlds).toHaveLength(3)
+    expect(params.world!.worlds[2].coast).toBe(5)
+    expect(params.world!.worlds[0]).toEqual(defaultWorld())
+  })
+
+  it('reports an unknown suffix, an unknown biome and a bad value, and grows nothing for them', () => {
+    const { params, unknownKeys } = parseParametersTxt(
+      [
+        'world=1',
+        'worlds=1',
+        'world0Colour=red',
+        'world0Biome=swamp',
+        'world0Width=abc',
+        'world0Width=64',
+        'world0Height=64,x',
+        'world0Coast=-3',
+        'world0WaterMargin=1.5',
+        'world5Coast=oops'
+      ].join('\n'),
+      plainParameters()
+    )
+    expect(unknownKeys).toEqual([
+      'world0Colour',
+      'world0Biome value "swamp"',
+      'world0Width value "abc"',
+      'world0Width value "64"',
+      'world0Height value "64,x"',
+      'world0Coast value "-3"',
+      'world0WaterMargin value "1.5"',
+      'world5Coast value "oops"'
+    ])
+    expect(params.world!.worlds).toEqual([defaultWorld()])
+  })
+
+  it('caps the list in the loader: worlds= and world<i> at or above the cap are reported, never grown', () => {
+    const over = parseParametersTxt(`world=1\nworlds=${WORLD_MAX_COUNT + 1}\n`, plainParameters())
+    expect(over.unknownKeys).toEqual([`worlds value "${WORLD_MAX_COUNT + 1}"`])
+    expect(over.params.world!.worlds).toHaveLength(0)
+
+    const stray = parseParametersTxt(`world=1\nworld${WORLD_MAX_COUNT}Coast=5\nworld99999999Coast=5\n`, plainParameters())
+    expect(stray.unknownKeys).toEqual([`world${WORLD_MAX_COUNT}Coast`, 'world99999999Coast'])
+    expect(stray.params.world!.worlds).toHaveLength(0)
+
+    const atCap = parseParametersTxt(`world=1\nworlds=${WORLD_MAX_COUNT}\n`, plainParameters())
+    expect(atCap.params.world!.worlds).toHaveLength(WORLD_MAX_COUNT)
+    expect(atCap.unknownKeys).toEqual([])
+  })
+
+  it('drops keys past a declared count and reports them', () => {
+    const { params, unknownKeys } = parseParametersTxt('world=1\nworlds=1\nworld0Coast=1\nworld1Coast=2\n', plainParameters())
+    expect(params.world!.worlds).toHaveLength(1)
+    expect(unknownKeys).toEqual(['world1Coast'])
+  })
+
+  it('names a world in levelOrder and keeps the order repairable', () => {
+    const p = plainParameters()
+    p.world = { enabled: true, worlds: [defaultWorld()] }
+    // worlds go last in the default order, so the default stores no levelOrder line
+    expect(serialize(p)).not.toMatch(/^levelOrder=/m)
+    p.levelOrder = [{ kind: 'world', index: 0 }, ...Array.from({ length: p.levels }, (_, index) => ({ kind: 'floor' as const, index })), { kind: 'boss', index: 0 }]
+    const text = serialize(p)
+    expect(text).toMatch(/^levelOrder=W1,1,/m)
+    expect(parseParametersTxt(text, plainParameters()).params.levelOrder).toEqual(p.levelOrder)
   })
 })

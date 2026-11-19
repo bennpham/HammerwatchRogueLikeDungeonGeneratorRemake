@@ -15,6 +15,9 @@ import {
   slotLabel
 } from '../src/generator/campaign'
 import type { CampaignCounts, CampaignSlot } from '../src/generator/campaign'
+import { campaignCounts } from '../src/generator/config/parameters'
+import { defaultWorld } from '../src/generator/world/options'
+import { plainParameters } from './params'
 
 /** `1,2,B1,L1` -> slots, so the cases below read the way the UI and the file do. */
 const slots = (spec: string): CampaignSlot[] =>
@@ -257,5 +260,46 @@ describe('world slots', () => {
   it('isDefaultOrder agrees with the world-last default', () => {
     expect(isDefaultOrder(slots('1,B1,W1'), counts(1, 1, 0, 1))).toBe(true)
     expect(isDefaultOrder(slots('W1,1,B1'), counts(1, 1, 0, 1))).toBe(false)
+  })
+})
+
+describe('world slots in the campaign counts', () => {
+  it('counts only enabled worlds', () => {
+    const p = plainParameters()
+    expect(campaignCounts(p).worlds).toBe(0)
+    p.world = { enabled: false, worlds: [defaultWorld(), defaultWorld()] }
+    expect(campaignCounts(p).worlds).toBe(0)
+    p.world = { enabled: true, worlds: [defaultWorld(), defaultWorld()] }
+    expect(campaignCounts(p).worlds).toBe(2)
+    expect(campaignCounts(p, { worlds: 5 }).worlds).toBe(5)
+  })
+
+  it('appends a world to the default order, and a stored order repairs to put it last', () => {
+    const p = plainParameters()
+    p.world = { enabled: true, worlds: [defaultWorld()] }
+    const c = campaignCounts(p)
+    expect(spec(campaignOrder(c))).toBe('1,2,3,4,5,6,7,B1,W1')
+    expect(spec(campaignOrder(c, slots('1,2,3,4,5,6,7,B1')))).toBe('1,2,3,4,5,6,7,B1,W1')
+  })
+
+  it('a world mid-order points the slot before it at the world and the world at the next slot', () => {
+    const order = slots('1,W1,2')
+    expect(gatewayAfter(order, 0)).toEqual({ kind: 'exit', target: 'world0' })
+    expect(gatewayAfter(order, 1)).toEqual({ kind: 'exit', target: '1' })
+    // before a fight or a lobby a world leaves through the same kinds a floor does
+    expect(gatewayAfter(slots('W1,B1'), 0)).toEqual({ kind: 'portal', target: 'boss0' })
+    expect(gatewayAfter(slots('W1,L1,1'), 0)).toEqual({ kind: 'lobbyPortal', target: 'lobby0' })
+  })
+
+  it('files a world by its play-order position, between its neighbours', () => {
+    const order = slots('L1,1,W1,B1,W2')
+    const path = campaignFilePaths(order, [], () => false)
+    expect(order.map((s) => path(s))).toEqual([
+      'levels/01_lobby1.xml',
+      'levels/02_floor1.xml',
+      'levels/03_world1.xml',
+      'levels/04_arena_boss1.xml',
+      'levels/05_world2.xml'
+    ])
   })
 })

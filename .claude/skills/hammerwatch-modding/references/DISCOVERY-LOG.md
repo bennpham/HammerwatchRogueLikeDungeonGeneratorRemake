@@ -5257,3 +5257,35 @@ hides six). Same polarity and wrapper as `ToggleElement`. Stock saves it
 `trigger-times 1`. `NodeHideObject` (objects/nodes.ts) matches field for field.
 `Checkpoint` appears in no campaign2 level; the existing `NodeCheckpoint`
 stays as verified from the base campaign.
+
+## 2026-11-19 - the theme h sea coast, built by the wall matcher [EMITTED]
+
+**Tag:** [EMITTED] (not booted; BOOT-CHECKLIST W1-W4)
+**Context:** world mode pass 1 (`src/generator/world/`). An island is a
+`Tile[]` in which water is WALL and land is floor, and every water tile with
+land in its 3x3 is scanned with `searchPatterns` exactly as `boss/arena.ts`
+scans its band; the pieces resolve through theme h's `doodadOverrides`
+(`h_h_8_dn`, `h_v_8_l/r`, `h_h_8_up` at yOffset -1, the corners, the caps).
+**Evidence:** read from the generator, not the game.
+- Every wall pattern needs an open cell, and only rows y-1..y+1 matter, so deep
+  sea matches nothing and (theme h has `omitCover`) emits nothing. A 512x512
+  island carries about 2,600 doodads, the whole coast.
+- The only band tile the matcher cannot place is a one-tile pond; the island's
+  lake fill removes those, so the matcher-coverage pass found nothing to repair
+  on any sampled seed.
+- The closure proof (`coastCloses`: flood the arrival over `sealCheck.ts`'s
+  FENCE edge model, reject anything reached that is more than one tile from
+  land or on the border) passed on 100% of 100+ islands at 64, 128 and 512
+  with the theme-h cleaning rules (water gaps >= 2 rows and columns, land runs
+  >= 3, no diagonal-only land contact, margin >= 4). Dropping every third piece
+  makes it fail, so it is not vacuous.
+- The level's light is the Temple hub's (ambient 254 243 204, shadow 150 150 150
+  255, add 39 28 5 255, shadow length 1), but written in this generator's
+  r/g/b/a dictionary dialect (`add-color` as a dictionary, `shadow-length` as a
+  float); stock writes int-arr. Whether the game reads `add-color` in the
+  dictionary form is untested.
+- Ground is painted on land only, so a band tile stood on shows water beneath.
+**Impact:** unproven in play: that the ring reads as a coast, holds at convex
+and concave corners, and how band tiles and `h_h_8_up` corners look (W2, W3).
+Size cost unmeasured in game (W4): a 512 world is about 13 MB of XML. If W2 fails,
+the plan's fallback is a theme e oasis ring (a `BiomeDef.theme` change).

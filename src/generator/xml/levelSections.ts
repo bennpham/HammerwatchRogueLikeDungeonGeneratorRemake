@@ -1,4 +1,4 @@
-import { XMLArray, XMLDictionary, XMLInt } from './index'
+import { XMLArray, XMLDictionary, XMLFloat, XMLInt } from './index'
 import type { GenerationContext } from '../core/context'
 
 /** One RGBA colour of a level's lighting section. */
@@ -12,6 +12,14 @@ export interface LightColor {
 export interface LevelLighting {
   ambient: LightColor
   shadow: LightColor
+  /**
+   * The Temple hub's extra two keys (`add-color`, `shadow-length`). Absent on
+   * every floor and arena, which then emit nothing for them, byte for byte as
+   * before. Written in this generator's r/g/b/a dictionary dialect, which the
+   * stock int-arr form is NOT, so a world's light is `[EMITTED]`, not proven.
+   */
+  add?: LightColor
+  shadowLength?: number
 }
 
 /** What every floor and arena has always shipped: full-bright, mid-grey shadow. */
@@ -63,6 +71,8 @@ export function levelSectionsXML(
   lightingDict.addData(new XMLArray('lights'))
   lightingDict.addData(colorDict('ambient-color', lighting.ambient))
   lightingDict.addData(colorDict('shadow-color', lighting.shadow))
+  if (lighting.add !== undefined) lightingDict.addData(colorDict('add-color', lighting.add))
+  if (lighting.shadowLength !== undefined) lightingDict.addData(new XMLFloat('shadow-length', lighting.shadowLength))
 
   const masterDict = new XMLDictionary('')
   masterDict.addData(tilemapDict)

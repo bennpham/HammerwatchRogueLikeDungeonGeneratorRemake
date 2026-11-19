@@ -5,13 +5,15 @@ import { validateParameters, ValidationResult } from './config/validation'
 import { emitTweakFiles } from './tweak/overrides'
 import { DEFAULT_LOBBY_PRESET_ID, buildLobby, lobbyPresetById } from './lobby'
 import { buildBossArena } from './boss'
-import { bossArenaId, campaignFilePaths, campaignOrder, gatewayAfter, lobbyId, slotEntryId, slotLabeller } from './campaign'
+import { bossArenaId, campaignFilePaths, campaignOrder, gatewayAfter, lobbyId, slotEntryId, slotLabeller, worldId } from './campaign'
 import { buildFloorHazardRig } from './timer/hazard'
 import { buildFloorBuffRig } from './buffs/field'
 import { buildMusicRig } from './music/rig'
 import { buildFloorTrapRig } from './traps/floor'
 import { buildFloorBossRig } from './dungeonBoss'
 import { buildMysteryButtonRig } from './mystery/rig'
+import { WORLD_STEP_ADVICE, buildWorld } from './world/build'
+import { worldList } from './world/options'
 
 export type { DungeonParameters, DungeonBoss, LobbyOptions, BossOptions, BossFight, BossArenaOptions, BossWave, BossSpawnMode, BossFloorPattern, FloorTimer, FloorLock, FloorBuff, FloorTrap, TrapDirection, BuffTarget, WavePickup, BossTrap, BossTrapDirection, BossCheckpointPreset, ArenaMode, SurvivalOptions, SurvivalWave, SurvivalBuff, SurvivalPickup, SurvivalTrap, SurvivalCountdown } from './config/parameters'
 export {
@@ -132,6 +134,23 @@ export {
   slotLabel
 } from './campaign'
 export type { CampaignCounts, CampaignSlot, Gateway } from './campaign'
+export {
+  DEFAULT_WORLD_BIOME,
+  ORB_AT,
+  WORLD_COAST_MAX,
+  WORLD_COAST_MIN,
+  WORLD_MAX_COUNT,
+  WORLD_SIZE_MAX,
+  WORLD_SIZE_MIN,
+  WORLD_SIZE_WARN,
+  WORLD_WATER_MARGIN_MAX,
+  WORLD_WATER_MARGIN_MIN,
+  defaultWorld,
+  worldList
+} from './world/options'
+export type { WorldDef, WorldOptions } from './world/options'
+export { BIOME_DEFS, BIOME_IDS, biomeById } from './world/biomes'
+export type { BiomeDef } from './world/biomes'
 export { CAMPAIGN_PRESETS, DEFAULT_PRESET_ID, PRESET_GROUPS, campaignPresetById } from './config/presets'
 export type { CampaignPreset, PresetGroupId } from './config/presets'
 export { validateParameters } from './config/validation'
@@ -344,6 +363,12 @@ export interface LevelPreview {
   itemCount: number
   /** wall bitmap packed row-major as '0'/'1' chars, for the canvas preview */
   walls: string
+  /**
+   * A world's own map, for the preview (the other fields still describe it as
+   * a level with no rooms). One char per tile, row-major: '0' water, '1' land,
+   * '2' band (the shore), '3' trail, '4' solid.
+   */
+  world?: { map: string; hub: { x: number; y: number }; sites: Array<{ x: number; y: number; kind: string }> }
 }
 
 export interface DungeonResult {
@@ -391,6 +416,7 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
   // exactly.
   const floorPreviews = new Map<number, LevelPreview>()
   const arenaPreviews = new Map<number, LevelPreview>()
+  const worldPreviews = new Map<number, LevelPreview>()
   let levelString = ''
 
   // The campaign's play order — every lobby then every floor then every fight
@@ -529,6 +555,37 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
     arenaPreviews.set(i, preview)
   })
 
+  // Worlds come after every floor and arena and before the lobbies, in list
+  // order, drawing only from ctx.worldRand: three values per world, so a world
+  // never moves a floor, an arena or an earlier world, and editing world k
+  // moves only the worlds after it. The campaign ORDER decides where each one
+  // leads (and whether it carries the orb), never when it is built.
+  const worldPosition = new Map<number, number>()
+  order.forEach((slot, position) => {
+    if (slot.kind === 'world') worldPosition.set(slot.index, position)
+  })
+  const worlds = worldList(params)
+  for (let i = 0; i < worlds.length; i++) {
+    const position = worldPosition.get(i)
+    const gateway = position === undefined ? { kind: 'orb' as const } : gatewayAfter(order, position)
+    ctx.clearLevel()
+    const built = buildWorld(ctx, worlds[i], params.levels + fights.length + i, gateway)
+    if ('failed' in built) {
+      const tally = Object.entries(built.tally)
+        .map(([step, n]) => `${step} ${n}`)
+        .join(', ')
+      return {
+        ok: false,
+        errors: [
+          `Could not generate world ${i + 1}: ${WORLD_STEP_ADVICE[built.failed]}. (failed tries by step: ${tally})`
+        ]
+      }
+    }
+    files.push({ path: filePath({ kind: 'world', index: i }), content: built.xml })
+    worldPreviews.set(i, built.preview)
+    ctx.clearLevel()
+  }
+
   // Every lobby is a hand-authored shop room, built after both loops above and
   // drawing nothing from either RNG stream — exactly like emitTweakFiles. Same
   // seed means the same dungeon whatever lobbies the order carries; a lobby
@@ -592,8 +649,10 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
       const preview = arenaPreviews.get(slot.index)
       if (preview !== undefined) previews.push({ ...preview, label: label(slot) })
     } else if (slot.kind === 'world') {
-      // unreachable until a world can be configured; never fall through to lobby
-      throw new Error('internal error: world slots are not built yet')
+      levelString += `<level id="${worldId(slot.index)}" res="${filePath(slot)}" name="lvl.floor?floor=${floorLabel}" />\n`
+      floorLabel += 1
+      const preview = worldPreviews.get(slot.index)
+      if (preview !== undefined) previews.push({ ...preview, label: label(slot) })
     } else {
       // A lobby contributes no preview — it has no generated geometry, and
       // LobbyDiagram in the form is its stand-in.
