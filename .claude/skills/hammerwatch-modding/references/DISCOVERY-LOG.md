@@ -5387,3 +5387,10 @@ with a `sound/music*.xml:<cue>` track from `music/tracks.ts`.
 **Open:** whether a damage field the size of a 512-tile island, mostly open
 water, costs anything per frame, and whether the countdown reads over a map
 that large. W12 decides.
+
+## 2026-11-19 - world camp props [EMITTED]
+
+**Tag:** [EMITTED] for the placement; the colliders are [R] (read from the install, not played)
+**Context:** world mode pass 4 (`src/generator/world/hub.ts`, terrain plan 1.3 "Camp"). HW1 has no tents or fires, so the camp is the Temple's vendor stall: `doodads/generic/deco_vendor_cart`, `deco_vendor_basket`, `deco_vendor_carpet_1`, `deco_vendor_carpet_2`, `deco_signpost` and `lamp_torch` (twice), placed with `Doodad.prop`.
+**Colliders read from `editor/assetsExtract/doodads/generic`:** cart: polygon x -6..6, y -10..0 px (its tile and the one above); basket: circle r 8 at the origin (its tile); signpost: circle r 4 offset (1, 0) (its tile); both carpets (layer -5) and the torch (a light and a glow, no `<collision>`) have none. `tests/world.test.ts` re-reads every unit file when an install is present and checks the footprint covers each tile the collider touches.
+**Open:** W13 (BOOT-CHECKLIST): whether the stall reads as a camp, whether the carpets draw under the cart and basket (layer -5 against the props' default), and whether the torches light the portal.

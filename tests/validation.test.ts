@@ -1696,6 +1696,13 @@ describe('world validation', () => {
     expect(errorsOf(withWorld(Array.from({ length: WORLD_MAX_COUNT }, () => ({}))))).not.toContain('world.worlds')
   })
 
+  it('rejects an unknown hub, and accepts bare, camp and none', () => {
+    expect(errorsOf(withWorld([{ hub: 'village' as never }]))).toContain('world.worlds.0.hub')
+    expect(errorsOf(withWorld([{ hub: 'camp' }]))).not.toContain('world.worlds.0.hub')
+    expect(errorsOf(withWorld([{ hub: 'bare' }]))).not.toContain('world.worlds.0.hub')
+    expect(errorsOf(withWorld([{}]))).not.toContain('world.worlds.0.hub')
+  })
+
   it('rejects an unknown biome', () => {
     expect(errorsOf(withWorld([{ biome: 'swamp' }]))).toContain('world.worlds.0.biome')
   })

@@ -15,6 +15,8 @@
 import { MOBILE_BOSS_IDS, bossSelection, lineupTotal } from '../config/parameters'
 import type { BossSelection } from '../config/parameters'
 import type { BossId } from '../boss/bosses'
+import { DEFAULT_WORLD_HUB } from './hub'
+import type { WorldHub } from './hub'
 import type { FloorMystery, FloorTimer, MysteryMonster } from '../config/parameters'
 
 /** The most worlds a campaign may carry. An allocation guard, not a design limit. */
@@ -111,6 +113,8 @@ export interface WorldDef {
   coast: number
   /** tiles of open sea kept all round the island */
   waterMargin: number
+  /** the start: `bare` (just the portal) or `camp`. **Absent means `bare`**; read through `worldHub`. */
+  hub?: WorldHub
   /** floor buttons the party must press */
   buttons: number
   /**
@@ -243,6 +247,10 @@ export function worldCoast(def: Partial<WorldDef>): number {
 
 export function worldWaterMargin(def: Partial<WorldDef>): number {
   return num(def.waterMargin, DEFAULT_WORLD_WATER_MARGIN)
+}
+
+export function worldHub(def: Partial<WorldDef>): WorldHub {
+  return def.hub === 'camp' ? 'camp' : DEFAULT_WORLD_HUB
 }
 
 export function worldButtons(def: Partial<WorldDef>): number {

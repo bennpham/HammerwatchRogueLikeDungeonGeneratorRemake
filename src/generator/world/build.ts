@@ -56,14 +56,15 @@ import type { WorldObjectives } from './objectives'
 import { carveTrails } from './paths'
 import { placeSites, SITE_RADIUS } from './place'
 import { commitProps, dropClumps, planProps } from './scatter'
-import { ORB_AT, worldBiomeId, worldCoast, worldDisguised, worldMusic, worldObjectiveCount, worldSafeRadius, worldScatter, worldSize, worldTimer, worldTrails, worldWaterMargin } from './options'
+import { BARE_HUB_RADIUS, commitCamp, hubRadius, planCamp } from './hub'
+import { ORB_AT, worldBiomeId, worldCoast, worldDisguised, worldHub, worldMusic, worldObjectiveCount, worldSafeRadius, worldScatter, worldSize, worldTimer, worldTrails, worldWaterMargin } from './options'
 import type { WorldDef } from './options'
 
 /** Fresh islands tried before the world gives up. */
 export const MAX_WORLD_ATTEMPTS = 20
 
 /** Open ground round the centre: holds the portal or orb, and the arrival below it. */
-export const HUB_RADIUS = 5
+export const HUB_RADIUS = BARE_HUB_RADIUS
 /** The arrival stands this many tiles south of the centre. */
 export const ARRIVAL_DY = 3
 
@@ -144,7 +145,10 @@ export function buildWorld(
     const hub = { x: Math.trunc(width / 2), y: Math.trunc(height / 2) }
     const arrival = { x: hub.x, y: hub.y + ARRIVAL_DY }
     const orb = { x: hub.x + ORB_AT.x, y: hub.y + ORB_AT.y }
-    if (!grid.discAll(hub, HUB_RADIUS, (x, y) => grid.walkable(x, y))) {
+    // a camp keeps a wider disc open than the bare portal does
+    const hubKind = worldHub(def)
+    const keepOpen = hubRadius(hubKind)
+    if (!grid.discAll(hub, keepOpen, (x, y) => grid.walkable(x, y))) {
       tally.start++
       continue
     }
@@ -162,6 +166,9 @@ export function buildWorld(
       continue
     }
 
+    // the camp's footprints go down BEFORE anything is proved: the flood, the
+    // sites and the corridors all see the props. Bare plans nothing.
+    const camp = planCamp(grid, hub, hubKind)
     const reached = grid.reach(arrival)
     const target = gateway.kind === 'orb' ? orb : hub
     if (reached[target.y * width + target.x] !== 1) {
@@ -202,6 +209,8 @@ export function buildWorld(
 
     // --- what lurks: after the objectives, before anything grows. A world with
     // every encounter off returns before touching its stream.
+    commitCamp(ctx, hub, camp)
+
     const lurking = buildEncounters(ctx, encounterRand, grid, def, hub, sites, objectives.plates, reached, biome.theme)
 
     // --- the tilemap, before any prop is planned: it reads only the island's own
@@ -215,7 +224,7 @@ export function buildWorld(
     let droppedClumps = 0
     const density = worldScatter(def)
     if (density > 0) {
-      grid.markDisc(hub, HUB_RADIUS, WorldGrid.RESERVED)
+      grid.markDisc(hub, keepOpen, WorldGrid.RESERVED)
       for (const site of sites) grid.markDisc(site, SITE_RADIUS, WorldGrid.RESERVED)
       let plan = planProps(scatter, grid, biome, density)
       const after = grid.reach(arrival)

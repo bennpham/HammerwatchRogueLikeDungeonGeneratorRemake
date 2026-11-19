@@ -1769,3 +1769,111 @@ describe('the world timer and music', () => {
     }
   })
 })
+
+// ---------------------------------------------------------------------------
+// pass 4: the camp hub
+// ---------------------------------------------------------------------------
+
+describe('the camp hub', () => {
+  const CAMP_PATHS = [
+    'doodads/generic/deco_vendor_cart.xml',
+    'doodads/generic/deco_vendor_basket.xml',
+    'doodads/generic/deco_vendor_carpet_1.xml',
+    'doodads/generic/deco_vendor_carpet_2.xml',
+    'doodads/generic/deco_signpost.xml',
+    'doodads/generic/lamp_torch.xml'
+  ]
+  const exit = { kind: 'exit', target: '0' } as const
+
+  it('a bare world, or one with no hub at all, is byte-identical to before', () => {
+    for (const seed of [2, 5]) {
+      const none = built(lively(96), seed, exit).out.xml
+      expect(built(lively(96, { hub: 'bare' }), seed, exit).out.xml).toBe(none)
+      expect(propsOf(built(lively(96), seed, exit).ctx).some((p) => CAMP_PATHS.includes(p.rawPath!))).toBe(false)
+    }
+  })
+
+  it('pitches every camp prop once, and torches twice', () => {
+    const { ctx } = built(lively(96, { hub: 'camp' }), 3, exit)
+    const paths = propsOf(ctx).map((p) => p.rawPath!).filter((p) => CAMP_PATHS.includes(p))
+    expect(paths.sort()).toEqual([...CAMP_PATHS, 'doodads/generic/lamp_torch.xml'].sort())
+  })
+
+  it('draws nothing: a camp moves no site, pack or monster, only adds its props', () => {
+    for (const seed of [1, 4]) {
+      const bare = built(lively(128), seed, exit)
+      const camp = built(lively(128, { hub: 'camp' }), seed, exit)
+      expect(camp.out.preview.world!.hub).toEqual(bare.out.preview.world!.hub)
+      const sitesOf = (o: typeof bare) => o.out.preview.world!.sites
+      expect(camp.ctx.monsters.length).toBeGreaterThan(0)
+      // same island and same layout stream: the sites are where they were unless the camp's reservation forced a retry
+      if (camp.out.attempts === bare.out.attempts) expect(sitesOf(camp)).toEqual(sitesOf(bare))
+    }
+  })
+
+  it('keeps the portal, the arrival and the orb tile clear, and every site reached', () => {
+    for (const size of [96, 160]) {
+      for (let seed = 1; seed <= 8; seed++) {
+        for (const gateway of [exit, { kind: 'orb' } as const]) {
+          const { ctx, out } = built(lively(size, { hub: 'camp', scatter: 100, buttons: 3, bossCount: 1 }), seed, gateway)
+          const seen = reachableFrom(out)
+          const w = out.preview.mapWidth
+          const { hub, sites } = out.preview.world!
+          const arrival = { x: hub.x, y: hub.y + 3 }
+          const orb = { x: hub.x + ORB_AT.x, y: hub.y + ORB_AT.y }
+          const walls = out.preview.walls!
+          for (const t of [hub, arrival, ...(gateway.kind === 'orb' ? [orb] : [])]) expect(walls[t.y * w + t.x], `${t.x},${t.y}`).toBe('0')
+          expect(seen[hub.y * w + hub.x]).toBe(1)
+          if (gateway.kind === 'orb') expect(seen[orb.y * w + orb.x]).toBe(1)
+          for (const s of sites.filter((t) => t.kind === 'button' || t.kind === 'boss')) expect(seen[s.y * w + s.x], `site ${s.x},${s.y}`).toBe(1)
+          // no camp prop on the portal, the arrival or the orb
+          for (const p of propsOf(ctx).filter((d) => CAMP_PATHS.includes(d.rawPath!))) {
+            for (const t of [hub, arrival, orb]) expect(Math.floor(p.x) === t.x && Math.floor(p.y) === t.y, `${p.rawPath} on ${t.x},${t.y}`).toBe(false)
+          }
+        }
+      }
+    }
+  }, 120000)
+
+  it('stands the orb more than 4 tiles from the arrival on a camp start', () => {
+    for (let seed = 1; seed <= 8; seed++) {
+      const { ctx, out } = built(sized(64, { hub: 'camp' }), seed, { kind: 'orb' })
+      const { hub } = out.preview.world!
+      const orb = ctx.items.find((i) => i.type === 'Orb')!
+      expect(orb.x).toBe(hub.x + ORB_AT.x + 0.5)
+      expect(Math.hypot(orb.x - (hub.x + 0.5), orb.y - (hub.y + 3 + 0.5))).toBeGreaterThan(4)
+    }
+  })
+
+  it('marks the cart and the basket solid and the carpets and torches walk-through', () => {
+    const { out } = built(sized(96, { hub: 'camp' }), 3, exit)
+    const { hub } = out.preview.world!
+    const w = out.preview.mapWidth
+    const wall = (dx: number, dy: number) => out.preview.walls![(hub.y + dy) * w + hub.x + dx]
+    expect(wall(-5, -2)).toBe('1')
+    expect(wall(-5, -3)).toBe('1')
+    expect(wall(5, -2)).toBe('1')
+    expect(wall(-5, -1)).toBe('0')
+    expect(wall(-3, -4)).toBe('0')
+  })
+
+  it('keeps a wider disc open than a bare start does', () => {
+    // a camp needs radius 7 of walkable ground, so it fails more islands, never more draws per island
+    const bare = built(sized(64), 2, exit).out.attempts
+    const camp = built(sized(64, { hub: 'camp' }), 2, exit).out.attempts
+    expect(camp).toBeGreaterThanOrEqual(bare)
+  })
+})
+
+describe.skipIf(!existsSync(`${ASSETS}/doodads`))('the camp hub against the install', () => {
+  it('every prop exists and its blocked cells cover its collider (none for the walk-through ones)', async () => {
+    const { CAMP_PROPS } = await import('../src/generator/world/hub')
+    for (const p of CAMP_PROPS) {
+      expect(existsSync(`${ASSETS}/${p.path}`), p.path).toBe(true)
+      const touched = touchedCells(readFileSync(`${ASSETS}/${p.path}`, 'utf8'))
+      const have = new Set(p.cells.map(([dx, dy]) => `${dx},${dy}`))
+      for (const cell of touched) expect(have.has(cell), `${p.path} touches ${cell}`).toBe(true)
+      if (p.cells.length === 0) expect(touched.size, p.path).toBe(0)
+    }
+  })
+})

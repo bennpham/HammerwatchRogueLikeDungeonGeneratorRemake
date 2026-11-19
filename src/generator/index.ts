@@ -149,6 +149,8 @@ export {
   worldList
 } from './world/options'
 export type { WorldDef, WorldOptions } from './world/options'
+export { DEFAULT_WORLD_HUB, WORLD_HUBS } from './world/hub'
+export type { WorldHub } from './world/hub'
 export { BIOME_DEFS, BIOME_IDS, biomeById } from './world/biomes'
 export type { BiomeDef } from './world/biomes'
 export { CAMPAIGN_PRESETS, DEFAULT_PRESET_ID, PRESET_GROUPS, campaignPresetById } from './config/presets'

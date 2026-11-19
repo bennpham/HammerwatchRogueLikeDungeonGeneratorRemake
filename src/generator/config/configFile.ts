@@ -82,6 +82,7 @@ import {
   worldBossPool,
   worldButtonAmbush,
   worldButtons,
+  worldHub,
   worldLoot,
   worldMonsters,
   worldPackSize,
@@ -1614,6 +1615,12 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
         else worldAt(index, key).biome = value
         continue
       }
+      if (suffix === 'hub') {
+        const kind = value.trim().toLowerCase()
+        if (kind !== 'bare' && kind !== 'camp') result.unknownKeys.push(`${key} value "${value}"`)
+        else worldAt(index, key).hub = kind
+        continue
+      }
       if (suffix === 'width' || suffix === 'height') {
         const pair = ints(value, 2)
         if (pair === null) {
@@ -2620,6 +2627,8 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
       lines.push(`world${i}Height=${def.minHeight},${def.maxHeight}`)
       lines.push(`world${i}Coast=${def.coast}`)
       lines.push(`world${i}WaterMargin=${def.waterMargin}`)
+      // the start, only when it is not the bare default
+      if (worldHub(def) !== 'bare') lines.push(`world${i}Hub=${worldHub(def)}`)
       // objectives. `Bosses` only when stated (absent means one), the
       // selection and lineup only when they differ, as a floor's do.
       lines.push(`world${i}Buttons=${worldButtons(def)}`)

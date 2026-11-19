@@ -2030,6 +2030,18 @@ describe('world keys', () => {
     expect(back.unknownKeys).toEqual([])
   })
 
+  it('round-trips the hub, writing it only for a camp and reporting an unknown one', () => {
+    const p = plainParameters()
+    p.world = { enabled: true, worlds: [{ ...defaultWorld(), hub: 'camp' }, { ...defaultWorld(), hub: 'bare' }, defaultWorld()] }
+    const text = serialize(p)
+    expect(worldLines(text).filter((l) => /Hub/.test(l))).toEqual(['world0Hub=camp'])
+    const back = parseParametersTxt(text, plainParameters())
+    expect(back.params.world!.worlds.map((w) => w.hub)).toEqual(['camp', undefined, undefined])
+    const bad = parseParametersTxt(['world=1', 'worlds=1', 'world0Hub=village'].join('\n'), plainParameters())
+    expect(bad.unknownKeys).toContain('world0Hub value "village"')
+    expect(bad.params.world?.worlds[0]?.hub).toBeUndefined()
+  })
+
   it('round-trips every objective key, writing a boss count and a lineup only when stated', () => {
     const p = plainParameters()
     p.world = {

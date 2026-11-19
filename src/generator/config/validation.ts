@@ -61,6 +61,7 @@ import type { BossFight, BossOptions, FloorTimer, MysteryButton } from './parame
 import type { CampaignSlot } from '../campaign'
 import { getTheme } from './themes'
 import { BIOME_IDS } from '../world/biomes'
+import { WORLD_HUBS } from '../world/hub'
 import {
   DEFAULT_WORLD_BUTTONS,
   DEFAULT_WORLD_SAFE_RADIUS,
@@ -507,6 +508,9 @@ function validateWorlds(p: DungeonParameters, errors: ValidationIssue[], warning
     }
     if (!BIOME_IDS.includes(def.biome)) {
       errors.push({ field: at('biome'), message: `Unknown biome "${String(def.biome)}" (known: ${BIOME_IDS.join(', ')}).` })
+    }
+    if (def.hub !== undefined && !WORLD_HUBS.includes(def.hub)) {
+      errors.push({ field: at('hub'), message: `Unknown hub "${String(def.hub)}" (known: ${WORLD_HUBS.join(', ')}).` })
     }
     const whole = (field: string, value: number, min: number, max: number, what: string): boolean => {
       if (!Number.isInteger(value) || value < min || value > max) {
