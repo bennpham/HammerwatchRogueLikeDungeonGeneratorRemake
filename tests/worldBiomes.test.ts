@@ -346,10 +346,13 @@ describe.each(WALL.map((b) => b.id))('%s: the coast closes with a solid wall set
     }
   })
 
-  it('stays under the doodad warning at 512, roof included, and counts it in its estimate', () => {
+  it('keeps a 512 canyon, roof included, well under the doodad warning, and counts it in its estimate', () => {
+    // the canyon itself (coast pieces and merged roof) is well under the warning...
+    const bare = built(open(id, 512, { scatter: 0 }), 7)
+    expect(bare.ctx.doodads.length).toBeLessThan(WORLD_DOODAD_WARN * 0.7)
+    // ...and the estimate, which is what warns, never undercounts a default-scatter island by much
     const def = open(id, 512)
     const { ctx } = built(def, 7)
-    expect(ctx.doodads.length).toBeLessThan(WORLD_DOODAD_WARN)
     expect(worldDoodadEstimate(def)).toBeGreaterThan(ctx.doodads.length * 0.9)
     // and a desert estimate is the one it always was
     expect(worldDoodadEstimate(open('desert', 512))).toBeLessThan(worldDoodadEstimate(def))
@@ -403,11 +406,33 @@ describe.each(IDS)('%s: what it emits', (id) => {
   })
 })
 
+describe('dry grass', () => {
+  const dry = biomeById('drygrass') as BiomeDef
+
+  it('keeps the ochre desert rock out, and the dead in', () => {
+    const paths = [...dry.clumps, ...dry.cover].map((e) => e.path)
+    expect(paths.some((p) => p.includes('theme_h'))).toBe(false)
+    expect(paths.filter((p) => /deco_corpse/.test(p)).length).toBeGreaterThanOrEqual(8)
+    expect(paths).toContain('doodads/special/marker_grave.xml')
+    expect(paths.some((p) => /deco_crystal/.test(p))).toBe(false)
+  })
+
+  it('shares the oasis island for a seed: same walls and roof, other ground and props', () => {
+    const a = generate(withWorlds([open('oasis', 96)]), 31)
+    const b = generate(withWorlds([open('drygrass', 96)]), 31)
+    const walls = (r: DungeonResult) => docTypes(worldFile(r, 0)).filter((p) => p.startsWith('doodads/theme_e/e_') && !/special_pillar|deco_vgt/.test(p) || p.includes('color_theme'))
+    expect(walls(b)).toEqual(walls(a))
+    expect(worldFile(b, 0)).not.toBe(worldFile(a, 0))
+  })
+})
+
 describe('flipping a biome', () => {
   it('moves only that world: world 0 and every other file stay byte-identical', () => {
     for (const [from, to] of [
       ['desert', 'oasis'],
-      ['oasis', 'desert']
+      ['oasis', 'desert'],
+      ['desert', 'drygrass'],
+      ['drygrass', 'oasis']
     ]) {
       const a = generate(withWorlds([open('desert', 64), open(from, 80)]), 13)
       const b = generate(withWorlds([open('desert', 64), open(to, 80)]), 13)

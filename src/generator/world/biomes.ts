@@ -212,6 +212,52 @@ const OASIS: BiomeDef = {
   note: 'A clearing ringed by rock, not an island in a sea: brown earth with green tufts, no palms or water.'
 }
 
+/**
+ * Dry grass: the oasis's walls and ground (theme e, the canyon edge) with
+ * darker earth and brown grass in patches, and the castle grounds' dead in
+ * place of flowers: corpses, skulls, bones, fallen weapons and grave-mound
+ * decals. `theme_h/h_deco_rock` stays out: ochre on brown earth is the same
+ * clash as the theme h cliffs. The monsters are the castle's first two acts
+ * outdoors; its towers are left out because a pack stands in the open and a
+ * tower is a fixed structure.
+ */
+const DRYGRASS: BiomeDef = {
+  id: 'drygrass',
+  label: 'Dry grass',
+  theme: 'e',
+  edge: 'wall',
+  base: { tileset: 'tilemaps/e_default.xml', tiles: 2 },
+  overlays: [
+    { tileset: 'tilemaps/e_default_dark.xml', tiles: 2 },
+    { tileset: 'tilemaps/grass_brown.xml', tiles: 2 }
+  ],
+  trail: { tileset: 'tilemaps/g_path.xml', tiles: 2 },
+  baseUnderTrail: true,
+  clumps: [{ path: 'doodads/theme_e/e_special_pillar.xml', weight: 3, solid: 1, cells: blockCells(1) }, ...BLOCKS],
+  cover: [
+    { path: 'doodads/theme_e/e_deco_vgt_v4.xml', weight: 4, solid: 0 },
+    ...STONES,
+    { path: 'doodads/generic/deco_corpse.xml', weight: 1, solid: 0 },
+    { path: 'doodads/generic/deco_corpse_v2.xml', weight: 1, solid: 0 },
+    { path: 'doodads/generic/deco_corpse_skull.xml', weight: 1, solid: 0 },
+    { path: 'doodads/generic/deco_corpse_skull_v2.xml', weight: 1, solid: 0 },
+    { path: 'doodads/generic/deco_corpse_skull_v3.xml', weight: 1, solid: 0 },
+    { path: 'doodads/generic/deco_corpse_skull_v4.xml', weight: 1, solid: 0 },
+    { path: 'doodads/generic/deco_corpse_bone.xml', weight: 1, solid: 0 },
+    { path: 'doodads/generic/deco_corpse_bone_v2.xml', weight: 1, solid: 0 },
+    { path: 'doodads/generic/deco_corpse_weapon_sword.xml', weight: 1, solid: 0 },
+    { path: 'doodads/generic/deco_corpse_weapon_shield.xml', weight: 1, solid: 0 },
+    { path: 'doodads/generic/deco_corpse_weapon_bow.xml', weight: 1, solid: 0 },
+    { path: 'doodads/special/marker_grave.xml', weight: 2, solid: 0 },
+    { path: 'doodads/special/marker_grave_g.xml', weight: 2, solid: 0 }
+  ],
+  clumpDensity: 1,
+  lighting: DEFAULT_LIGHTING,
+  monsters: ['skeleton1', 'skeleton2', 'archer1', 'archer2', 'bat1'],
+  bosses: ['boss_knight', 'boss_lich'],
+  note: 'A clearing ringed by rock, not an island in a sea: brown grass among the dead of a lost battle. The barest biome.'
+}
+
 /** The cells a stone block's collider covers: `wide` columns east of the prop's tile, one row above to one below. */
 function blockCells(wide: number): Array<[number, number]> {
   const out: Array<[number, number]> = []
@@ -222,7 +268,7 @@ function blockCells(wide: number): Array<[number, number]> {
 }
 
 /** Every biome, in dropdown order. Append only: a world names its biome by id. */
-export const BIOME_DEFS: readonly BiomeDef[] = [DESERT, OASIS]
+export const BIOME_DEFS: readonly BiomeDef[] = [DESERT, OASIS, DRYGRASS]
 
 export const BIOME_IDS: readonly string[] = BIOME_DEFS.map((b) => b.id)
 

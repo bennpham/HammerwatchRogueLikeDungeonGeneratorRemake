@@ -5415,3 +5415,9 @@ that large. W12 decides.
 **Island:** a solid theme needs land runs of at least five rows (two buried, three to stand on) and three columns, water gaps of three rows and two columns. A cleaning pass that undid itself (clear a thin run, then a coverage fix filling the same tile) read as "no change" and left a four-row run in the mask; `IslandRules.strict` re-checks the converged mask for the lettered themes and re-rolls it instead.
 **Props:** `e_special_pillar` is the same polygon as `deco_block` (dx 0..1, dy -1..1); `deco_crystal` is a circle r 13 and its offset leaves (-1,-1) clear, inside the table's 3x3; `e_deco_vgt*`, `marker_flower_range*`, `deco_crystal_small*` and the `g_deco_ground_stone*` have no collider. `f_path` has FIVE top-level sprites (the others have two): its `tiles` is 5.
 **Open:** W15. Whether the roof edge and the void under the first band tile read as rock, whether the party can see past the map edge (the roof stops at the map edge; the tilemap blocks beyond it are empty), and the doodad cost of 6,500 on a 512 island.
+
+## 2026-11-19 - world dry grass: ground and props [EMITTED]
+
+**Tag:** [EMITTED] for the placement; the tilesets and colliders are [R]. Played check: BOOT-CHECKLIST W15.
+**Context:** terrain M5a, commit 40. Same edge as the oasis (theme e canyon, see the entry above). Ground `e_default` (100), patches `e_default_dark` (101) and `grass_brown` (1001), trail `g_path` (132, drawn above the ground, so the ground stays under it).
+**Read from the install:** `deco_corpse*`, `deco_corpse_skull*`, `deco_corpse_bone*`, `deco_corpse_weapon_{sword,shield,bow}`, `special/marker_grave` and `marker_grave_g` declare no collider (cover). `theme_h/h_deco_rock` is ochre on brown earth and stays out, as does every theme h piece. The 64x64 grave decals are 4 tiles wide and may overhang an unreached tile at the edge of the cover rule; harmless, they are decals.
