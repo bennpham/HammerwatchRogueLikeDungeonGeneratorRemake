@@ -5394,3 +5394,9 @@ that large. W12 decides.
 **Context:** world mode pass 4 (`src/generator/world/hub.ts`, terrain plan 1.3 "Camp"). HW1 has no tents or fires, so the camp is the Temple's vendor stall: `doodads/generic/deco_vendor_cart`, `deco_vendor_basket`, `deco_vendor_carpet_1`, `deco_vendor_carpet_2`, `deco_signpost` and `lamp_torch` (twice), placed with `Doodad.prop`.
 **Colliders read from `editor/assetsExtract/doodads/generic`:** cart: polygon x -6..6, y -10..0 px (its tile and the one above); basket: circle r 8 at the origin (its tile); signpost: circle r 4 offset (1, 0) (its tile); both carpets (layer -5) and the torch (a light and a glow, no `<collision>`) have none. `tests/world.test.ts` re-reads every unit file when an install is present and checks the footprint covers each tile the collider touches.
 **Open:** W13 (BOOT-CHECKLIST): whether the stall reads as a camp, whether the carpets draw under the cart and basket (layer -5 against the props' default), and whether the torches light the portal.
+
+## 2026-11-19 - world objective checkpoints [EMITTED]
+
+**Tag:** [EMITTED] (not booted; BOOT-CHECKLIST W14)
+**Context:** world mode pass 4 (`world/objectives.ts`). The same `Checkpoint` script node the arena's save-game milestone uses (`boss/checkpoints.ts`, its `parameters` a bare `<bool>` true = save [VERIFIED] 2026-09-05), wired to the objectives' own triggers instead of a `Boss ...` event: one node at the arrival, connected from every button's one-shot `AreaTrigger` and every boss's `ObjectEventTrigger(Destroyed)`.
+**Assumption:** the respawn point is the `Checkpoint` node's own position, as the arena's `respawnAt` and `RespawnPlayers` are, so the node stands on the `LevelStart` tile. Whether a save written mid-island keeps the countdown variable's progress (the objectives done so far) when the level reloads is open: the stock `Checkpoint` was only exercised in boss arenas. W14 decides.

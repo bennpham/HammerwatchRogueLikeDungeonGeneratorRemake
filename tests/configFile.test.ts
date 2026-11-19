@@ -2030,6 +2030,17 @@ describe('world keys', () => {
     expect(back.unknownKeys).toEqual([])
   })
 
+  it('round-trips checkpoints, writing the line only when on and reporting a bad value', () => {
+    const p = plainParameters()
+    p.world = { enabled: true, worlds: [{ ...defaultWorld(), checkpoints: true }, { ...defaultWorld(), checkpoints: false }, defaultWorld()] }
+    const text = serialize(p)
+    expect(worldLines(text).filter((l) => /Checkpoints/.test(l))).toEqual(['world0Checkpoints=1'])
+    const back = parseParametersTxt(text, plainParameters())
+    expect(back.params.world!.worlds.map((w) => w.checkpoints)).toEqual([true, undefined, undefined])
+    const bad = parseParametersTxt(['world=1', 'worlds=1', 'world0Checkpoints=maybe'].join('\n'), plainParameters())
+    expect(bad.unknownKeys).toContain('world0Checkpoints value "maybe"')
+  })
+
   it('round-trips the hub, writing it only for a camp and reporting an unknown one', () => {
     const p = plainParameters()
     p.world = { enabled: true, worlds: [{ ...defaultWorld(), hub: 'camp' }, { ...defaultWorld(), hub: 'bare' }, defaultWorld()] }

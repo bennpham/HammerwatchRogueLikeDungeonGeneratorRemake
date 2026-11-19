@@ -569,6 +569,9 @@ function validateWorldObjectives(
   if (def.trails !== undefined && typeof def.trails !== 'boolean') {
     errors.push({ field: at('trails'), message: 'Trails must be on or off.' })
   }
+  if (def.checkpoints !== undefined && typeof def.checkpoints !== 'boolean') {
+    errors.push({ field: at('checkpoints'), message: 'Checkpoints must be on or off.' })
+  }
   if (def.bossSelection !== undefined && !(BOSS_SELECTIONS as readonly string[]).includes(def.bossSelection)) {
     errors.push({ field: at('bossSelection'), message: `Boss selection must be one of: ${BOSS_SELECTIONS.join(', ')}.` })
   }
@@ -612,7 +615,12 @@ function validateWorldObjectives(
 
   if (!buttonsOk || !bossesOk || !sizeOk) return
   const objectives = buttons + bosses
-  if (objectives === 0) return
+  if (objectives === 0) {
+    if (def.checkpoints === true) {
+      warnings.push({ field: at('checkpoints'), message: `${subject}: checkpoints save when an objective is done, and this world has none.` })
+    }
+    return
+  }
   // A1: the safe radius must leave land beyond it for a site
   if (safeOk) {
     const largest = worldMaxSafeRadius(def.minWidth, def.minHeight, def.waterMargin)

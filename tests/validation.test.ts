@@ -1696,6 +1696,15 @@ describe('world validation', () => {
     expect(errorsOf(withWorld(Array.from({ length: WORLD_MAX_COUNT }, () => ({}))))).not.toContain('world.worlds')
   })
 
+  it('rejects a checkpoints value that is not on or off, and warns when there is no objective to save on', () => {
+    expect(errorsOf(withWorld([{ checkpoints: 'yes' as never }]))).toContain('world.worlds.0.checkpoints')
+    expect(errorsOf(withWorld([{ checkpoints: true }]))).not.toContain('world.worlds.0.checkpoints')
+    expect(errorsOf(withWorld([{}]))).not.toContain('world.worlds.0.checkpoints')
+    const idle = validateParameters(withWorld([{ checkpoints: true, buttons: 0, bossCount: 0 }]))
+    expect(fieldsOf(idle.warnings)).toContain('world.worlds.0.checkpoints')
+    expect(fieldsOf(validateParameters(withWorld([{ checkpoints: true }])).warnings)).not.toContain('world.worlds.0.checkpoints')
+  })
+
   it('rejects an unknown hub, and accepts bare, camp and none', () => {
     expect(errorsOf(withWorld([{ hub: 'village' as never }]))).toContain('world.worlds.0.hub')
     expect(errorsOf(withWorld([{ hub: 'camp' }]))).not.toContain('world.worlds.0.hub')

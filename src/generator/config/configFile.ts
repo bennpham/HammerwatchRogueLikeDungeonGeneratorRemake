@@ -82,6 +82,7 @@ import {
   worldBossPool,
   worldButtonAmbush,
   worldButtons,
+  worldCheckpoints,
   worldHub,
   worldLoot,
   worldMonsters,
@@ -1736,6 +1737,15 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
         worldAt(index, key).trails = text === '1' || text === 'true'
         continue
       }
+      if (suffix === 'checkpoints') {
+        const text = value.trim().toLowerCase()
+        if (text !== '0' && text !== '1' && text !== 'true' && text !== 'false') {
+          result.unknownKeys.push(`${key} value "${value}"`)
+          continue
+        }
+        worldAt(index, key).checkpoints = text === '1' || text === 'true'
+        continue
+      }
       if (suffix === 'bosspool') {
         // any real boss id parses, as a floor's pool does; validation holds the
         // pool to the mobile ones
@@ -2638,6 +2648,7 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
       if (lineupLine(def.bossLineup) !== '') lines.push(`world${i}BossLineup=${lineupLine(def.bossLineup)}`)
       lines.push(`world${i}SafeRadius=${worldSafeRadius(def)}`)
       lines.push(`world${i}Trails=${worldTrails(def) ? 1 : 0}`)
+      if (worldCheckpoints(def)) lines.push(`world${i}Checkpoints=1`)
       lines.push(`world${i}Monsters=${worldMonsters(def).join(',')}`)
       lines.push(`world${i}Packs=${worldPacks(def)}`)
       lines.push(`world${i}PackSize=${worldPackSize(def)}`)

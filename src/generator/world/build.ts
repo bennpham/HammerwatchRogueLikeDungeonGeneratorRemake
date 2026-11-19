@@ -57,7 +57,7 @@ import { carveTrails } from './paths'
 import { placeSites, SITE_RADIUS } from './place'
 import { commitProps, dropClumps, planProps } from './scatter'
 import { BARE_HUB_RADIUS, commitCamp, hubRadius, planCamp } from './hub'
-import { ORB_AT, worldBiomeId, worldCoast, worldDisguised, worldHub, worldMusic, worldObjectiveCount, worldSafeRadius, worldScatter, worldSize, worldTimer, worldTrails, worldWaterMargin } from './options'
+import { ORB_AT, worldBiomeId, worldCheckpoints, worldCoast, worldDisguised, worldHub, worldMusic, worldObjectiveCount, worldSafeRadius, worldScatter, worldSize, worldTimer, worldTrails, worldWaterMargin } from './options'
 import type { WorldDef } from './options'
 
 /** Fresh islands tried before the world gives up. */
@@ -205,7 +205,7 @@ export function buildWorld(
     // --- objects: nothing below can fail the island
     ctx.clearLevel()
 
-    const objectives = buildObjectives(ctx, layout, grid, def, biome.theme, hub, arrival, gateway, sites, worldDisguised(def, ctx.params.mysteryButtons?.length ?? 0))
+    const objectives = buildObjectives(ctx, layout, grid, def, biome.theme, hub, arrival, gateway, sites, worldDisguised(def, ctx.params.mysteryButtons?.length ?? 0), worldCheckpoints(def))
 
     // --- what lurks: after the objectives, before anything grows. A world with
     // every encounter off returns before touching its stream.

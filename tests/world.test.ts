@@ -1877,3 +1877,51 @@ describe.skipIf(!existsSync(`${ASSETS}/doodads`))('the camp hub against the inst
     }
   })
 })
+
+// ---------------------------------------------------------------------------
+// pass 4: a checkpoint on every objective
+// ---------------------------------------------------------------------------
+
+describe('per-objective checkpoints', () => {
+  const exit = { kind: 'exit', target: '0' } as const
+  const withCp = (extra: Partial<WorldDef> = {}) => lively(128, { buttons: 3, bossCount: 2, packs: 0, ambushes: 0, buttonAmbush: 0, loot: 0, scatter: 0, ...extra })
+
+  it('off emits no Checkpoint node and leaves the file byte-identical', () => {
+    for (const seed of [2, 5]) {
+      const none = built(withCp(), seed, exit)
+      expect(nodesOf(none.ctx, 'Checkpoint')).toHaveLength(0)
+      expect(built(withCp({ checkpoints: false }), seed, exit).out.xml).toBe(none.out.xml)
+    }
+  })
+
+  it('on: one saving Checkpoint at the arrival, fired by every button and every boss trigger', () => {
+    const { ctx, out } = built(withCp({ checkpoints: true }), 4, exit)
+    const saves = nodesOf(ctx, 'Checkpoint')
+    expect(saves).toHaveLength(1)
+    const { hub } = out.preview.world!
+    expect(saves[0].x).toBe(hub.x + 0.5)
+    expect(saves[0].y).toBe(hub.y + 3 + 0.5)
+    expect(saves[0].getXML()).toContain('<bool name="parameters">True</bool>')
+    const firing = ctx.scriptNodes.filter((n) => n.connections.includes(saves[0]))
+    expect(firing.filter((n) => n.type === 'AreaTrigger' && n.triggerTimes === 1)).toHaveLength(3)
+    expect(firing.filter((n) => n.type === 'ObjectEventTrigger')).toHaveLength(2)
+    expect(firing).toHaveLength(5)
+  })
+
+  it('moves nothing else: the island, the sites and every other node keep their ids', () => {
+    for (const seed of [1, 6]) {
+      const off = built(withCp(), seed, exit)
+      const on = built(withCp({ checkpoints: true }), seed, exit)
+      expect(on.out.preview.world).toEqual(off.out.preview.world)
+      const rest = (c: GenerationContext) => c.scriptNodes.filter((n) => n.type !== 'Checkpoint').map((n) => [n.id, n.type, n.x, n.y])
+      // the new node takes one id before the coast's, so only the coast's doodads shift by one
+      expect(on.ctx.scriptNodes.length).toBe(off.ctx.scriptNodes.length + 1)
+      expect(rest(on.ctx).slice(0, 40)).toEqual(rest(off.ctx).slice(0, 40))
+    }
+  })
+
+  it('a free-roam world has no objective, so no Checkpoint', () => {
+    const { ctx } = built(sized(64, { checkpoints: true }), 3, exit)
+    expect(nodesOf(ctx, 'Checkpoint')).toHaveLength(0)
+  })
+})

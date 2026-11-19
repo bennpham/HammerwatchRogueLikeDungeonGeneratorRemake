@@ -48,6 +48,7 @@ import {
   NodeAnnounceText,
   NodeAreaTrigger,
   NodeChangeDoodadState,
+  NodeCheckpoint,
   NodeGameEnd,
   NodeGlobalEventTrigger,
   NodeHideObject,
@@ -122,7 +123,8 @@ export function buildObjectives(
   arrival: Tile,
   gateway: Gateway,
   sites: readonly Tile[],
-  disguised = false
+  disguised = false,
+  checkpoints = false
 ): WorldObjectives {
   const freeRoam = sites.length === 0
 
@@ -232,5 +234,15 @@ export function buildObjectives(
 
   const zero = buildButtonCountdown(ctx, triggers, { x: hub.x + 8, y: hub.y - 8 }, objectivesRemainingText)
   for (const node of reveal) zero.connectTo(node)
+
+  // per-objective checkpoint, appended after everything a world without it
+  // builds: one `Checkpoint` (save game) at the arrival, which every objective's
+  // own trigger also fires. The respawn point is the node's position, as the
+  // arena's is, so a party that dies later wakes at the arrival with every
+  // objective done so far still done.
+  if (checkpoints) {
+    const save = new NodeCheckpoint(ctx, arrival.x + 0.5, arrival.y + 0.5, true)
+    for (const trigger of triggers) trigger.connectTo(save)
+  }
   return { buttons, bosses, plates }
 }

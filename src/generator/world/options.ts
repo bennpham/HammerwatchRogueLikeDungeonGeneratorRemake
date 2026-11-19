@@ -118,6 +118,12 @@ export interface WorldDef {
   /** floor buttons the party must press */
   buttons: number
   /**
+   * Each objective done (a button pressed, a boss killed) also moves the
+   * respawn point to the arrival and saves. **Absent means off**; read through
+   * `worldCheckpoints`.
+   */
+  checkpoints?: boolean
+  /**
    * Bosses to kill. **Absent means 1**; read it through `worldBossCount`,
    * which also honours the lineup. 0 with no buttons is a free-roam world.
    */
@@ -252,6 +258,8 @@ export function worldWaterMargin(def: Partial<WorldDef>): number {
 export function worldHub(def: Partial<WorldDef>): WorldHub {
   return def.hub === 'camp' ? 'camp' : DEFAULT_WORLD_HUB
 }
+
+export const worldCheckpoints = (def: Partial<WorldDef>): boolean => def.checkpoints === true
 
 export function worldButtons(def: Partial<WorldDef>): number {
   return num(def.buttons, DEFAULT_WORLD_BUTTONS)
