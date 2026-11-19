@@ -2149,9 +2149,9 @@ describe('world keys', () => {
     const text = serialize(p)
     const lines = worldLines(text)
     expect(lines).toContain('world0Loot=33')
-    expect(lines).toContain('world0Mystery=7|1,3,3')
+    expect(lines).toContain('world0Mystery=7:0,2,2')
     expect(lines).toContain('world0Disguise=1')
-    expect(lines).toContain('world1Mystery=0|')
+    expect(lines).toContain('world1Mystery=0:')
     // a world that never set them writes neither line
     expect(lines.some((l) => l.startsWith('world2Mystery') || l.startsWith('world2Disguise'))).toBe(false)
     const back = parseParametersTxt(text, plainParameters())
@@ -2161,14 +2161,15 @@ describe('world keys', () => {
 
   it('reports a bad loot, mystery or disguise value and keeps the rest', () => {
     const { params, unknownKeys } = parseParametersTxt(
-      ['world=1', 'worlds=1', 'world0Loot=few', 'world0Mystery=lots|1', 'world0Disguise=maybe'].join(String.fromCharCode(10)) + String.fromCharCode(10),
+      ['world=1', 'worlds=1', 'world0Loot=few', 'world0Mystery=lots:1', 'world0Disguise=maybe'].join(String.fromCharCode(10)) + String.fromCharCode(10),
       plainParameters()
     )
-    expect(unknownKeys).toEqual(['world0Loot value "few"', 'world0Mystery value "lots|1"', 'world0Disguise value "maybe"'])
+    expect(unknownKeys).toEqual(['world0Loot value "few"', 'world0Mystery count "lots"', 'world0Disguise value "maybe"'])
     expect(params.world!.worlds[0].loot).toBe(8)
     expect(params.world!.worlds[0].mystery).toBeUndefined()
-    const pool = parseParametersTxt(['world=1', 'worlds=1', 'world0Mystery=3|1,0,x,2'].join(String.fromCharCode(10)) + String.fromCharCode(10), plainParameters())
-    expect(pool.unknownKeys).toEqual(['world0Mystery button "0"', 'world0Mystery button "x"'])
+    // the floors' own grammar: 0-based, a negative or non-numeric token dropped
+    const pool = parseParametersTxt(['world=1', 'worlds=1', 'world0Mystery=3:0,-1,x,1'].join(String.fromCharCode(10)) + String.fromCharCode(10), plainParameters())
+    expect(pool.unknownKeys).toEqual(['world0Mystery button "-1"', 'world0Mystery button "x"'])
     expect(pool.params.world!.worlds[0].mystery).toEqual({ count: 3, pool: [0, 1] })
   })
 

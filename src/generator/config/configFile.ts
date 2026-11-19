@@ -1663,23 +1663,12 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
         continue
       }
       if (suffix === 'mystery') {
-        // Mystery=<count>|<pool>: the pool is 1-based, as the form numbers the
-        // campaign's mystery buttons. A bad count drops the line; a bad pool
-        // token is reported and skipped.
-        const bar = value.indexOf('|')
-        const countText = (bar === -1 ? value : value.slice(0, bar)).trim()
-        if (!/^\d+$/.test(countText)) {
-          result.unknownKeys.push(`${key} value "${value}"`)
-          continue
-        }
-        const pool: number[] = []
-        for (const token of (bar === -1 ? '' : value.slice(bar + 1)).split(',')) {
-          const t = token.trim()
-          if (t === '') continue
-          if (/^\d+$/.test(t) && parseInt(t, 10) >= 1) pool.push(parseInt(t, 10) - 1)
-          else result.unknownKeys.push(`${key} button "${t}"`)
-        }
-        worldAt(index, key).mystery = { count: parseInt(countText, 10), pool }
+        // Mystery=<count>:<pool index>,… — the floors' own `mysteryFloorN`
+        // grammar (`parsePoolLine`): 0-based indices into mysteryButtons,
+        // repeated to weight. A bad count drops the line; a bad pool token is
+        // reported and skipped.
+        const parsed = parsePoolLine(key, value, result.unknownKeys)
+        if (parsed !== null) worldAt(index, key).mystery = parsed
         continue
       }
       if (suffix === 'timer') {
@@ -2649,7 +2638,7 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
       lines.push(`world${i}Scatter=${worldScatter(def)}`)
       lines.push(`world${i}Loot=${worldLoot(def)}`)
       if (def.mystery !== undefined && Array.isArray(def.mystery.pool)) {
-        lines.push(`world${i}Mystery=${def.mystery.count}|${def.mystery.pool.map((n) => n + 1).join(',')}`)
+        lines.push(`world${i}Mystery=${def.mystery.count}:${def.mystery.pool.join(',')}`)
       }
       if (def.disguise === true) lines.push(`world${i}Disguise=1`)
       if (def.timer !== undefined) {
