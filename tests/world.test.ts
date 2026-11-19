@@ -3,7 +3,9 @@ import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { defaultParameters, generateDungeon } from '../src/generator'
 import type { DungeonParameters, DungeonResult } from '../src/generator'
-import { serializeParametersTxt } from '../src/generator/config/configFile'
+import { parseParametersTxt, serializeParametersTxt } from '../src/generator/config/configFile'
+import { WORLD_PRESETS, applyWorldPreset, worldPresetById, worldPresetPool } from '../src/generator/world/presets'
+import type { WorldPreset } from '../src/generator/world/presets'
 import { GenerationContext } from '../src/generator/core/context'
 import { Rand } from '../src/generator/core/rand'
 import { getTheme } from '../src/generator/config/themes'
@@ -1990,4 +1992,127 @@ describe('monster themes', () => {
       expect(ctx.monsters.length, t.id).toBeGreaterThan(0)
     }
   }, 120000)
+})
+
+
+// ---------------------------------------------------------------------------
+// pass 4: World presets (data for the World tab)
+// ---------------------------------------------------------------------------
+
+describe('world presets', () => {
+  /** A campaign with one island wearing the preset, and the starter pool when the preset needs it. */
+  const withPreset = (preset: WorldPreset, over: Partial<WorldDef> = {}): DungeonParameters => {
+    const p = withWorlds(small(), [{ ...applyWorldPreset(defaultWorld(), preset), ...over }])
+    if (preset.needsMysteryPool) p.mysteryButtons = worldPresetPool()
+    return p
+  }
+
+  it('lists the four presets once each, in the owner order', () => {
+    expect(WORLD_PRESETS.map((p) => p.id)).toEqual(['explorer', 'treasure_hunt', 'monster_island', 'speedrun'])
+    for (const preset of WORLD_PRESETS) {
+      expect(preset.label.length, preset.id).toBeGreaterThan(0)
+      expect(preset.description.length, preset.id).toBeGreaterThan(0)
+      expect(worldPresetById(preset.id)).toBe(preset)
+    }
+    expect(worldPresetById('nope')).toBeUndefined()
+  })
+
+  it('each validates, with no new error or warning beyond the stock world, and generates on a few seeds', () => {
+    for (const preset of WORLD_PRESETS) {
+      const p = withPreset(preset)
+      const result = validateParameters(p)
+      expect(result.errors, preset.id).toEqual([])
+      expect(result.warnings.filter((w) => w.field.startsWith('world')), preset.id).toEqual([])
+      for (const seed of [1, 2, 3]) expect(generateDungeon(p, seed).ok, `${preset.id} seed ${seed}`).toBe(true)
+    }
+  }, 120000)
+
+  it('is honest about the pool: plates only where a preset says it needs one', () => {
+    for (const preset of WORLD_PRESETS) {
+      expect((preset.patch.mystery?.count ?? 0) > 0, preset.id).toBe(preset.needsMysteryPool)
+    }
+  })
+
+  it('a pool-less preset applied over a world with plates clears them', () => {
+    const island = WORLD_PRESETS.find((p) => p.id === 'monster_island')!
+    const platey: WorldDef = { ...defaultWorld(), mystery: { count: 5, pool: [0] }, disguise: true }
+    const out = applyWorldPreset(platey, island)
+    expect(out.mystery).toBeUndefined()
+    expect(out.disguise).not.toBe(true)
+  })
+
+  it('sells no lives and hands none out: the stock removal stands and no plate drops an extra life', () => {
+    for (const preset of WORLD_PRESETS) {
+      const p = withPreset(preset)
+      expect(p.playerTweaks['player.shared.remove.life'], preset.id).toBe(1)
+      const pool = p.mysteryButtons ?? []
+      for (const i of preset.patch.mystery?.pool ?? []) {
+        const items = pool[i].loot.map((l) => l.item)
+        expect(items, `${preset.id}: ${pool[i].name}`).not.toContain('powerup_1up')
+      }
+    }
+  })
+
+  it('every trap a plate can fire switches itself off', () => {
+    for (const preset of WORLD_PRESETS) {
+      const pool = worldPresetPool()
+      const used = [...new Set(preset.patch.mystery?.pool ?? [])]
+      for (const i of used) {
+        const button = pool[i]
+        if (button.traps.length > 0) expect(button.trapSeconds ?? 0, `${preset.id}: ${button.name}`).toBeGreaterThan(0)
+      }
+    }
+    // the hunt does carry some, so the rule above is not vacuous
+    const hunt = WORLD_PRESETS.find((p) => p.id === 'treasure_hunt')!
+    expect(hunt.patch.mystery!.pool.some((i) => worldPresetPool()[i].traps.length > 0)).toBe(true)
+  })
+
+  it('makes the treasure hunt a hunt: disguised buttons among many plates and no boss', () => {
+    const hunt = WORLD_PRESETS.find((p) => p.id === 'treasure_hunt')!
+    expect(hunt.patch.disguise).toBe(true)
+    expect(hunt.patch.mystery!.count).toBeGreaterThan(hunt.patch.buttons!)
+    expect(worldBossCount({ ...defaultWorld(), ...hunt.patch })).toBe(0)
+    const { ctx } = builtWithPool(applyWorldPreset(defaultWorld(), hunt), 4)
+    // every real button wears the plate's art
+    expect(ctx.doodads.filter((d) => d.type === 'BossDoorButton')).toHaveLength(0)
+  })
+
+  it('puts two bosses on the monster island, and the whole mixed pool in its packs', () => {
+    const island = WORLD_PRESETS.find((p) => p.id === 'monster_island')!
+    const def = applyWorldPreset(defaultWorld(), island)
+    expect(worldBossCount(def)).toBe(2)
+    expect(matchingTheme(def.monsters)?.id).toBe('mixed')
+    const { ctx } = built(def, 2, { kind: 'exit', target: '0' })
+    expect(ctx.monsters.length).toBeGreaterThan(100)
+  }, 120000)
+
+  it('shrinks the speedrun to 96 tiles with a five-minute clock', () => {
+    const run = WORLD_PRESETS.find((p) => p.id === 'speedrun')!
+    const def = applyWorldPreset(defaultWorld(), run)
+    expect([def.minWidth, def.maxWidth, def.minHeight, def.maxHeight]).toEqual([96, 96, 96, 96])
+    expect(def.timer).toEqual({ enabled: true, seconds: 300, damage: 2, freqMs: 1000, countdown: true })
+    const { out } = built(def, 3, { kind: 'exit', target: '0' })
+    expect([out.preview.mapWidth, out.preview.mapHeight]).toEqual([96, 96])
+  })
+
+  it('applying a preset copies, never shares, and keeps what it does not name', () => {
+    for (const preset of WORLD_PRESETS) {
+      const base: WorldDef = { ...defaultWorld(), biome: 'desert', coast: 77, music: 'act1' }
+      const a = applyWorldPreset(base, preset)
+      expect(base).toEqual({ ...defaultWorld(), biome: 'desert', coast: 77, music: 'act1' })
+      expect(a.coast).toBe(77)
+      expect(a.music).toBe('act1')
+      if (preset.patch.mystery !== undefined) expect(a.mystery!.pool).not.toBe(preset.patch.mystery.pool)
+      if (preset.patch.timer !== undefined) expect(a.timer).not.toBe(preset.patch.timer)
+    }
+  })
+
+  it('round-trips through parameters.txt', () => {
+    for (const preset of WORLD_PRESETS) {
+      const p = withPreset(preset)
+      const back = parseParametersTxt(serializeParametersTxt(p), plainParameters())
+      expect(back.unknownKeys, preset.id).toEqual([])
+      expect(back.params.world, preset.id).toEqual(p.world)
+    }
+  })
 })
