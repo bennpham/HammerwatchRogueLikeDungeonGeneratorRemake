@@ -64,6 +64,7 @@ import type {
   DungeonBoss,
   BossSelection,
   FloorMystery,
+  FloorTimer,
   FloorLockMystery,
   MysteryButton,
   MysteryMonster
@@ -376,6 +377,28 @@ function parseMonsterCountRows(key: string, value: string, unknownKeys: string[]
     rows.push({ monster, count })
   }
   return rows
+}
+
+/**
+ * One `enabled|seconds|damage|freqMs|countdown` timer value into `timer`, the
+ * floors' `timerN` and a world's `Timer` alike. Per-field NaN guards, house
+ * style: a malformed segment is reported and only that field keeps its value.
+ */
+function parseTimerFields(key: string, value: string, timer: FloorTimer, unknownKeys: string[]): void {
+  const fields = value.split('|').map((f) => f.trim())
+  timer.enabled = fields[0] === '1'
+  const numeric: Array<[number, string, (n: number) => void]> = [
+    [1, 'seconds', (n) => (timer.seconds = n)],
+    [2, 'damage', (n) => (timer.damage = n)],
+    [3, 'freqMs', (n) => (timer.freqMs = n)]
+  ]
+  for (const [index, name, assign] of numeric) {
+    if (fields[index] === undefined || fields[index] === '') continue
+    const n = parseInt(fields[index], 10)
+    if (Number.isNaN(n)) unknownKeys.push(`${key} ${name} "${fields[index]}"`)
+    else assign(n)
+  }
+  if (fields[4] !== undefined && fields[4] !== '') timer.countdown = fields[4] === '1'
 }
 
 /** The world suffixes (lowercased) that carry one whole number each, besides the island and objective ones. */
@@ -1659,6 +1682,17 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
         worldAt(index, key).mystery = { count: parseInt(countText, 10), pool }
         continue
       }
+      if (suffix === 'timer') {
+        const timer = defaultFloorTimer()
+        parseTimerFields(key, value, timer, result.unknownKeys)
+        worldAt(index, key).timer = timer
+        continue
+      }
+      if (suffix === 'music') {
+        if (isKnownMusicId(value)) worldAt(index, key).music = value
+        else result.unknownKeys.push(`${key} value "${value}"`)
+        continue
+      }
       if (suffix === 'disguise') {
         const text = value.trim().toLowerCase()
         if (text !== '0' && text !== '1' && text !== 'true' && text !== 'false') {
@@ -1926,22 +1960,7 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       const levelIndex = parseInt(timerMatch[1], 10)
       const timers = params.levelTimers ?? (params.levelTimers = [])
       while (timers.length <= levelIndex) timers.push(defaultFloorTimer())
-      const timer = timers[levelIndex]
-      const fields = value.split('|').map((f) => f.trim())
-
-      timer.enabled = fields[0] === '1'
-      const numeric: Array<[number, string, (n: number) => void]> = [
-        [1, 'seconds', (n) => (timer.seconds = n)],
-        [2, 'damage', (n) => (timer.damage = n)],
-        [3, 'freqMs', (n) => (timer.freqMs = n)]
-      ]
-      for (const [index, name, assign] of numeric) {
-        if (fields[index] === undefined || fields[index] === '') continue
-        const n = parseInt(fields[index], 10)
-        if (Number.isNaN(n)) result.unknownKeys.push(`${key} ${name} "${fields[index]}"`)
-        else assign(n)
-      }
-      if (fields[4] !== undefined && fields[4] !== '') timer.countdown = fields[4] === '1'
+      parseTimerFields(key, value, timers[levelIndex], result.unknownKeys)
 
       highestTimerIndex = Math.max(highestTimerIndex, levelIndex)
       continue
@@ -2633,6 +2652,11 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
         lines.push(`world${i}Mystery=${def.mystery.count}|${def.mystery.pool.map((n) => n + 1).join(',')}`)
       }
       if (def.disguise === true) lines.push(`world${i}Disguise=1`)
+      if (def.timer !== undefined) {
+        const t = def.timer
+        lines.push(`world${i}Timer=${t.enabled ? 1 : 0}|${t.seconds}|${t.damage}|${t.freqMs}|${t.countdown ? 1 : 0}`)
+      }
+      if (def.music !== undefined) lines.push(`world${i}Music=${def.music}`)
       worldAmbushTypes(def).forEach((type, t) => {
         const rows = Array.isArray(type.monsters) ? type.monsters : []
         lines.push(`world${i}AmbushType${t + 1}=${type.weight}|${rows.map((m) => `${m.monster}:${m.count}`).join(',')}`)

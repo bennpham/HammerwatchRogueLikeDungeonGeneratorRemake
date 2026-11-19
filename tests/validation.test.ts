@@ -30,7 +30,8 @@ import { noUpgrades, oneOfEachUpgrade } from '../src/generator/levelTemplate/sur
 import type { CampaignSlot } from '../src/generator/campaign'
 import { WORLD_BUTTONS_MAX, WORLD_MAX_COUNT, WORLD_SIZE_MAX, WORLD_SIZE_MIN, WORLD_SIZE_WARN, defaultWorld, worldSiteCapacityOf } from '../src/generator/world/options'
 import type { WorldDef } from '../src/generator/world/options'
-import type { MysteryButton } from '../src/generator/config/parameters'
+import type { FloorTimer, MysteryButton } from '../src/generator/config/parameters'
+import { MAX_TIMER_DAMAGE, MAX_TIMER_FREQ_MS, MAX_TIMER_SECONDS, MIN_TIMER_FREQ_MS, TIMER_COUNTDOWN_NODE_WARN } from '../src/generator/config/parameters'
 
 const fieldsOf = (issues: Array<{ field: string }>) => issues.map((i) => i.field)
 
@@ -2066,5 +2067,52 @@ describe('world mystery validation', () => {
   it('refuses a pool monster that is a spawner', () => {
     expect(errorsOf({ mystery: { count: 2, pool: [3] } })).toContain('world.worlds.0.mystery')
     expect(errorsOf({ mystery: { count: 2, pool: [0] } })).not.toContain('world.worlds.0.mystery')
+  })
+})
+
+describe('world timer and music validation', () => {
+  const withWorld = (w: Partial<WorldDef>) => {
+    const p = plainParameters()
+    p.world = { enabled: true, worlds: [{ ...defaultWorld(), ...w }] }
+    return p
+  }
+  const result = (w: Partial<WorldDef>) => validateParameters(withWorld(w))
+  const timer = (extra: Partial<FloorTimer> = {}): FloorTimer => ({ enabled: true, seconds: 90, damage: 1, freqMs: 100, countdown: true, ...extra })
+
+  it("holds an enabled timer to the floors' bounds", () => {
+    expect(fieldsOf(result({ timer: timer() }).errors)).toEqual([])
+    for (const [bad, field] of [
+      [{ seconds: 0 }, 'seconds'],
+      [{ seconds: MAX_TIMER_SECONDS + 1 }, 'seconds'],
+      [{ seconds: 1.5 }, 'seconds'],
+      [{ freqMs: MIN_TIMER_FREQ_MS - 1 }, 'freqMs'],
+      [{ freqMs: MAX_TIMER_FREQ_MS + 1 }, 'freqMs'],
+      [{ damage: MAX_TIMER_DAMAGE + 1 }, 'damage'],
+      [{ damage: -MAX_TIMER_DAMAGE - 1 }, 'damage']
+    ] as Array<[Partial<FloorTimer>, string]>) {
+      expect(fieldsOf(result({ timer: timer(bad) }).errors), JSON.stringify(bad)).toContain(`world.worlds.0.timer.${field}`)
+    }
+    // the same value on a floor is the same error, from the same rule
+    const floor = plainParameters()
+    floor.levelTimers = floor.levelTimers!.map((t, i) => (i === 0 ? timer({ seconds: 0 }) : t))
+    expect(fieldsOf(validateParameters(floor).errors)).toContain('levelTimers.0.seconds')
+  })
+
+  it('skips a timer that is off, and refuses one with no settings', () => {
+    expect(fieldsOf(result({ timer: timer({ enabled: false, seconds: 0 }) }).errors)).toEqual([])
+    expect(fieldsOf(result({ timer: null as never }).errors)).toContain('world.worlds.0.timer')
+  })
+
+  it('warns about a 0-damage timer and a countdown that would emit hundreds of nodes', () => {
+    expect(fieldsOf(result({ timer: timer({ damage: 0 }) }).warnings)).toContain('world.worlds.0.timer.damage')
+    expect(fieldsOf(result({ timer: timer({ seconds: TIMER_COUNTDOWN_NODE_WARN + 1 }) }).warnings)).toContain('world.worlds.0.timer.countdown')
+    expect(fieldsOf(result({ timer: timer({ seconds: TIMER_COUNTDOWN_NODE_WARN + 1, countdown: false }) }).warnings)).not.toContain('world.worlds.0.timer.countdown')
+  })
+
+  it('rejects an unknown music track, and accepts the default and every listed one', () => {
+    expect(fieldsOf(result({ music: 'banjo' }).errors)).toContain('world.worlds.0.music')
+    expect(fieldsOf(result({ music: 'default' }).errors)).not.toContain('world.worlds.0.music')
+    expect(fieldsOf(result({ music: 'act1' }).errors)).not.toContain('world.worlds.0.music')
+    expect(fieldsOf(result({ music: undefined }).errors)).not.toContain('world.worlds.0.music')
   })
 })

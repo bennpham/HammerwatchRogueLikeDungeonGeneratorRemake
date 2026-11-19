@@ -2172,6 +2172,37 @@ describe('world keys', () => {
     expect(pool.params.world!.worlds[0].mystery).toEqual({ count: 3, pool: [0, 1] })
   })
 
+  it('round-trips the timer and the music, writing them only when stated', () => {
+    const p = plainParameters()
+    p.world = {
+      enabled: true,
+      worlds: [
+        { ...defaultWorld(), timer: { enabled: true, seconds: 45, damage: -3, freqMs: 250, countdown: false }, music: 'desert_temple' },
+        { ...defaultWorld(), timer: { enabled: false, seconds: 180, damage: 1, freqMs: 1000, countdown: true } },
+        defaultWorld()
+      ]
+    }
+    const text = serialize(p)
+    const lines = worldLines(text)
+    expect(lines).toContain('world0Timer=1|45|-3|250|0')
+    expect(lines).toContain('world0Music=desert_temple')
+    expect(lines).toContain('world1Timer=0|180|1|1000|1')
+    expect(lines.some((l) => l.startsWith('world2Timer') || l.startsWith('world2Music'))).toBe(false)
+    const back = parseParametersTxt(text, plainParameters())
+    expect(back.unknownKeys).toEqual([])
+    expect(back.params.world).toEqual(p.world)
+  })
+
+  it('parses a world timer the way a floor timer is: a bad field is reported and keeps its default', () => {
+    const { params, unknownKeys } = parseParametersTxt(
+      ['world=1', 'worlds=1', 'world0Timer=1|x|7||0', 'world0Music=not_a_track'].join(String.fromCharCode(10)) + String.fromCharCode(10),
+      plainParameters()
+    )
+    expect(unknownKeys).toEqual(['world0Timer seconds "x"', 'world0Music value "not_a_track"'])
+    expect(params.world!.worlds[0].timer).toEqual({ enabled: true, seconds: 180, damage: 7, freqMs: 1000, countdown: false })
+    expect(params.world!.worlds[0].music).toBeUndefined()
+  })
+
   it('reports a bad objective value or boss id and keeps the rest of the line', () => {
     const { params, unknownKeys } = parseParametersTxt(
       ['world=1', 'worlds=1', 'world0Buttons=x', 'world0Bosses=1.5', 'world0SafeRadius=-3', 'world0Trails=maybe', 'world0BossSelection=all', 'world0BossPool=boss_lich,ghost', 'world0BossLineup=boss_worm:2,ghost:1'].join('\n') + '\n',

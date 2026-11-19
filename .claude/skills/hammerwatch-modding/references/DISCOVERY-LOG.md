@@ -5373,3 +5373,17 @@ no switch-off time, since an island has no room to wait one out.
 disguise does ([VERIFIED] on floors), and each also fires a pool entry.
 **Impact:** W10 (coins lie in caches) and W11 (plates fire once, spewers switch
 off, disguised buttons count) decide whether any of it holds.
+
+## 2026-11-19 - world timer and music [EMITTED]
+
+**Tag:** [EMITTED] (not booted; BOOT-CHECKLIST W12)
+**Context:** world mode pass 3. A world's timer is the floors' timer rig
+(`timer/hazard.ts`, [VERIFIED] on floors) over the whole island: a players-only
+`RectangleShape` the size of the map, a `DangerArea` shipped disabled, and a
+`GlobalEventTrigger("LevelLoaded")` that announces each second and switches
+the field on at `seconds * 1000` (`ToggleElement` state 0 enables). A world's
+music is the floors' `GlobalEventTrigger("LevelLoaded")` -> `PlayMusic` rig
+with a `sound/music*.xml:<cue>` track from `music/tracks.ts`.
+**Open:** whether a damage field the size of a 512-tile island, mostly open
+water, costs anything per frame, and whether the countdown reads over a map
+that large. W12 decides.

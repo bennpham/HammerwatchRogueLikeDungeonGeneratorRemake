@@ -57,7 +57,7 @@ import { mysteryLootById } from '../objects/mysteryLoot'
 import { mysteryCapacity } from '../mystery/placement'
 import { MUSIC_DEFAULT, MUSIC_TRACKS, isKnownMusicId } from '../music/tracks'
 import type { BossTrapDirection, TrapDirection } from './parameters'
-import type { BossFight, BossOptions, MysteryButton } from './parameters'
+import type { BossFight, BossOptions, FloorTimer, MysteryButton } from './parameters'
 import type { CampaignSlot } from '../campaign'
 import { getTheme } from './themes'
 import { BIOME_IDS } from '../world/biomes'
@@ -537,6 +537,7 @@ function validateWorlds(p: DungeonParameters, errors: ValidationIssue[], warning
     validateWorldObjectives(def, i, at, whole, minW && minH && marginOk, errors, warnings)
     validateWorldEncounters(def, i, at, whole, errors, warnings)
     validateWorldMystery(def, i, at, whole, p.mysteryButtons ?? [], errors)
+    validateWorldTimerAndMusic(def, i, at, errors, warnings)
   })
 }
 
@@ -830,6 +831,37 @@ function validateWorldMystery(
         errors.push({ field: at('mystery'), message: `${label} spawns "${row.monster}", a spawner, which places nothing that fights.` })
       }
     }
+  }
+}
+
+/**
+ * A world's timer and music. The timer follows the floors' rules exactly
+ * (`timerErrors`, `timerWarnings`); an unknown track is an error, as on a
+ * floor. A timer that is off, or absent, is never checked: it emits nothing.
+ */
+function validateWorldTimerAndMusic(
+  def: WorldDef,
+  index: number,
+  at: (field: string) => string,
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[]
+): void {
+  const subject = `World ${index + 1}`
+  const timer: unknown = def.timer
+  if (timer !== undefined) {
+    if (timer === null || typeof timer !== 'object') {
+      errors.push({ field: at('timer'), message: `${subject}: the timer is missing its settings.` })
+    } else if ((timer as FloorTimer).enabled === true) {
+      const found = timerErrors(timer as FloorTimer, subject, (field) => at(`timer.${field}`))
+      errors.push(...found)
+      if (found.length === 0) warnings.push(...timerWarnings(timer as FloorTimer, subject, 'that island', (field) => at(`timer.${field}`)))
+    }
+  }
+  if (def.music !== undefined && !isKnownMusicId(def.music)) {
+    errors.push({
+      field: at('music'),
+      message: `${subject}: "${String(def.music)}" is not a music track. Valid tracks: ${MUSIC_DEFAULT}, ${MUSIC_TRACKS.map((t) => t.id).join(', ')}.`
+    })
   }
 }
 
@@ -2525,6 +2557,51 @@ function staleUpgrades(
  * pre-feature default and never invalid. Entries past `levels` are ignored by
  * the generator, so they are a warning rather than an error.
  */
+/**
+ * The error rules of one enabled timer, the floors' and a world's alike: a
+ * whole number of seconds, a frequency in range and a bounded damage. `subject`
+ * leads every message ("Floor 3", "World 1").
+ */
+function timerErrors(timer: FloorTimer, subject: string, at: (field: string) => string): ValidationIssue[] {
+  const out: ValidationIssue[] = []
+  if (!Number.isInteger(timer.seconds) || timer.seconds < 1 || timer.seconds > MAX_TIMER_SECONDS) {
+    out.push({
+      field: at('seconds'),
+      message: `${subject}: countdown must be a whole number of seconds between 1 and ${MAX_TIMER_SECONDS}.`
+    })
+  }
+  if (!Number.isInteger(timer.freqMs) || timer.freqMs < MIN_TIMER_FREQ_MS || timer.freqMs > MAX_TIMER_FREQ_MS) {
+    out.push({
+      field: at('freqMs'),
+      message: `${subject}: frequency must be a whole number of milliseconds between ${MIN_TIMER_FREQ_MS} and ${MAX_TIMER_FREQ_MS}.`
+    })
+  }
+  if (!Number.isInteger(timer.damage) || Math.abs(timer.damage) > MAX_TIMER_DAMAGE) {
+    out.push({
+      field: at('damage'),
+      message: `${subject}: damage must be a whole number between -${MAX_TIMER_DAMAGE} and ${MAX_TIMER_DAMAGE} (negative heals).`
+    })
+  }
+  return out
+}
+
+/** The advisories of one timer that passed `timerErrors`; `where` names the level in the node-count note. */
+function timerWarnings(timer: FloorTimer, subject: string, where: string, at: (field: string) => string): ValidationIssue[] {
+  const out: ValidationIssue[] = []
+  if (timer.damage === 0) {
+    out.push({ field: at('damage'), message: `${subject}: a timer with 0 damage does nothing once it fires.` })
+  }
+  if (timer.countdown && timer.seconds > TIMER_COUNTDOWN_NODE_WARN) {
+    out.push({
+      field: at('countdown'),
+      message:
+        `${subject}: a ${timer.seconds}s countdown emits ${timer.seconds + 1} announce nodes on ${where}. ` +
+        'Turn the countdown off, or shorten it, to keep the level file small.'
+    })
+  }
+  return out
+}
+
 function validateLevelTimers(p: DungeonParameters, errors: ValidationIssue[], warnings: ValidationIssue[]): void {
   const timers = p.levelTimers
   if (timers === undefined) return
@@ -2533,30 +2610,7 @@ function validateLevelTimers(p: DungeonParameters, errors: ValidationIssue[], wa
 
   timers.slice(0, p.levels).forEach((timer, i) => {
     if (!timer.enabled) return
-    const at = (field: string) => `levelTimers.${i}.${field}`
-
-    if (!Number.isInteger(timer.seconds) || timer.seconds < 1 || timer.seconds > MAX_TIMER_SECONDS) {
-      errors.push({
-        field: at('seconds'),
-        message: `Floor ${i + 1}: countdown must be a whole number of seconds between 1 and ${MAX_TIMER_SECONDS}.`
-      })
-    }
-    if (
-      !Number.isInteger(timer.freqMs) ||
-      timer.freqMs < MIN_TIMER_FREQ_MS ||
-      timer.freqMs > MAX_TIMER_FREQ_MS
-    ) {
-      errors.push({
-        field: at('freqMs'),
-        message: `Floor ${i + 1}: frequency must be a whole number of milliseconds between ${MIN_TIMER_FREQ_MS} and ${MAX_TIMER_FREQ_MS}.`
-      })
-    }
-    if (!Number.isInteger(timer.damage) || Math.abs(timer.damage) > MAX_TIMER_DAMAGE) {
-      errors.push({
-        field: at('damage'),
-        message: `Floor ${i + 1}: damage must be a whole number between -${MAX_TIMER_DAMAGE} and ${MAX_TIMER_DAMAGE} (negative heals).`
-      })
-    }
+    errors.push(...timerErrors(timer, `Floor ${i + 1}`, (field) => `levelTimers.${i}.${field}`))
   })
 
   if (errors.length > before) return
@@ -2573,20 +2627,7 @@ function validateLevelTimers(p: DungeonParameters, errors: ValidationIssue[], wa
 
   timers.slice(0, p.levels).forEach((timer, i) => {
     if (!timer.enabled) return
-    if (timer.damage === 0) {
-      warnings.push({
-        field: `levelTimers.${i}.damage`,
-        message: `Floor ${i + 1}: a timer with 0 damage does nothing once it fires.`
-      })
-    }
-    if (timer.countdown && timer.seconds > TIMER_COUNTDOWN_NODE_WARN) {
-      warnings.push({
-        field: `levelTimers.${i}.countdown`,
-        message:
-          `Floor ${i + 1}: a ${timer.seconds}s countdown emits ${timer.seconds + 1} announce nodes on that floor. ` +
-          'Turn the countdown off, or shorten it, to keep the level file small.'
-      })
-    }
+    warnings.push(...timerWarnings(timer, `Floor ${i + 1}`, 'that floor', (field) => `levelTimers.${i}.${field}`))
   })
 
   if (p.levels === 0) {

@@ -47,6 +47,8 @@ import { WorldGrid } from './grid'
 import type { Tile } from './grid'
 import { buildIsland, islandRulesFor } from './island'
 import type { IslandMask } from './island'
+import { buildFloorHazardRig } from '../timer/hazard'
+import { buildMusicRig } from '../music/rig'
 import { buildEncounters } from './encounters'
 import type { WorldEncounters } from './encounters'
 import { buildObjectives } from './objectives'
@@ -54,7 +56,7 @@ import type { WorldObjectives } from './objectives'
 import { carveTrails } from './paths'
 import { placeSites, SITE_RADIUS } from './place'
 import { commitProps, dropClumps, planProps } from './scatter'
-import { ORB_AT, worldBiomeId, worldCoast, worldDisguised, worldObjectiveCount, worldSafeRadius, worldScatter, worldSize, worldTrails, worldWaterMargin } from './options'
+import { ORB_AT, worldBiomeId, worldCoast, worldDisguised, worldMusic, worldObjectiveCount, worldSafeRadius, worldScatter, worldSize, worldTimer, worldTrails, worldWaterMargin } from './options'
 import type { WorldDef } from './options'
 
 /** Fresh islands tried before the world gives up. */
@@ -223,6 +225,11 @@ export function buildWorld(
       }
       commitProps(ctx, plan)
     }
+
+    // --- the optional rigs, appended after every object and before the coast:
+    // the timer's damage field and the level's music. Neither draws.
+    buildFloorHazardRig(ctx, worldTimer(def), width, height)
+    buildMusicRig(ctx, worldMusic(def), hub.x, hub.y)
 
     // --- the coast LAST: nothing references a wall piece, so its ids come after
     // every object's

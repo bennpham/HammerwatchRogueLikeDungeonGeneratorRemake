@@ -1690,3 +1690,80 @@ describe('loot and mystery bounds', () => {
     }
   })
 })
+
+// ---------------------------------------------------------------------------
+// pass 3: the timer and the music
+// ---------------------------------------------------------------------------
+
+describe('the world timer and music', () => {
+  const TIMER = { enabled: true, seconds: 30, damage: 2, freqMs: 500, countdown: true }
+  const bare = (extra: Partial<WorldDef> = {}) => lively(96, { packs: 0, ambushes: 0, buttonAmbush: 0, scatter: 0, loot: 0, ...extra })
+
+  it("builds the floors' hazard rig over the whole island: a players-only shape, a disabled danger area, a LevelLoaded clock", () => {
+    const { ctx, out } = built(bare({ timer: TIMER }), 3, { kind: 'exit', target: '0' })
+    const width = out.preview.mapWidth
+    const height = out.preview.mapHeight
+    const danger = nodesOf(ctx, 'DangerArea')
+    expect(danger).toHaveLength(1)
+    expect(danger[0].enabled).toBe(false)
+    expect(danger[0].getXML()).toContain('<int name="damage">2</int>')
+    const cover = nodesOf(ctx, 'RectangleShape').find((n) => n.getXML().includes('<int name="types">1</int>'))!
+    // it covers the whole map and a margin
+    expect(Number(/name="w">([\d.]+)</.exec(cover.getXML())![1])).toBeGreaterThanOrEqual(width)
+    expect(Number(/name="h">([\d.]+)</.exec(cover.getXML())![1])).toBeGreaterThanOrEqual(height)
+    expect(cover.x).toBe(width / 2)
+    expect(cover.y).toBe(height / 2)
+    const clock = ctx.scriptNodes.find((n) => n.type === 'GlobalEventTrigger' && n.getXML().includes('LevelLoaded') && n.connections.some((c) => c.type === 'AnnounceText'))!
+    // one announce per second of the countdown, and one switch-on
+    expect(clock.connections.filter((c) => c.type === 'AnnounceText')).toHaveLength(31)
+    expect(clock.connections.filter((c) => c.type === 'ToggleElement')).toHaveLength(1)
+  })
+
+  it('a timer that is off, or absent, emits exactly nothing', () => {
+    const none = built(bare(), 3, { kind: 'exit', target: '0' }).out.xml
+    expect(built(bare({ timer: { ...TIMER, enabled: false } }), 3, { kind: 'exit', target: '0' }).out.xml).toBe(none)
+    expect(built(bare({ music: 'default' }), 3, { kind: 'exit', target: '0' }).out.xml).toBe(none)
+    expect(built(bare({ music: undefined }), 3, { kind: 'exit', target: '0' }).out.xml).toBe(none)
+  })
+
+  it('plays the named track with one PlayMusic on load', () => {
+    const { ctx } = built(bare({ music: 'act1' }), 3, { kind: 'exit', target: '0' })
+    const play = nodesOf(ctx, 'PlayMusic')
+    expect(play).toHaveLength(1)
+    expect(play[0].getXML()).toContain('sound/music.xml:act1')
+    expect(ctx.scriptNodes.some((n) => n.type === 'GlobalEventTrigger' && n.connections.includes(play[0]))).toBe(true)
+  })
+
+  it('moves nothing on the island and leaves the coast last: only nodes are appended', () => {
+    for (const seed of [2, 6]) {
+      const off = built(bare(), seed, { kind: 'exit', target: '0' })
+      const on = built(bare({ timer: TIMER, music: 'desert_temple' }), seed, { kind: 'exit', target: '0' })
+      expect(on.out.preview.world).toEqual(off.out.preview.world)
+      expect(on.ctx.monsters.map((m) => [m.id, m.x, m.y])).toEqual(off.ctx.monsters.map((m) => [m.id, m.x, m.y]))
+      const coast = (c: GenerationContext) => c.doodads.filter((d) => doodadPath(d.type, 'h').startsWith('doodads/theme_h/h_'))
+      const rigIds = on.ctx.scriptNodes.filter((n) => !off.ctx.scriptNodes.some((o) => o.id === n.id && o.type === n.type)).map((n) => n.id)
+      expect(rigIds.length).toBeGreaterThan(30)
+      // the coast's ids follow the rigs'
+      expect(Math.min(...coast(on.ctx).map((d) => d.id))).toBeGreaterThan(Math.max(...rigIds))
+    }
+  })
+
+  it('draws no random value: a world with and without them places the same everything', () => {
+    const a = built(bare({ timer: TIMER }), 5, { kind: 'exit', target: '0' })
+    const b = built(bare(), 5, { kind: 'exit', target: '0' })
+    expect(a.ctx.doodads.map((d) => [d.x, d.y, d.rawPath ?? d.type])).toEqual(b.ctx.doodads.map((d) => [d.x, d.y, d.rawPath ?? d.type]))
+  })
+
+  it('works with the world last, with every encounter at its maximum, and at the bounds', () => {
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      for (const timer of [
+        { enabled: true, seconds: 1, damage: -10000, freqMs: 50, countdown: false },
+        { enabled: true, seconds: 3600, damage: 10000, freqMs: 600000, countdown: false }
+      ]) {
+        const ctx = new GenerationContext(poolParams(), seed)
+        const r = buildWorld(ctx, lively(96, { timer, music: 'boss_final', scatter: 100, loot: 120, packs: 400 }), 0, seed % 2 === 0 ? { kind: 'orb' } : { kind: 'exit', target: '0' })
+        expect('failed' in r, `seed ${seed}`).toBe(false)
+      }
+    }
+  })
+})

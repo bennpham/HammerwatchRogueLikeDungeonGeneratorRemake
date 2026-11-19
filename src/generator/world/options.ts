@@ -15,7 +15,7 @@
 import { MOBILE_BOSS_IDS, bossSelection, lineupTotal } from '../config/parameters'
 import type { BossSelection } from '../config/parameters'
 import type { BossId } from '../boss/bosses'
-import type { FloorMystery, MysteryMonster } from '../config/parameters'
+import type { FloorMystery, FloorTimer, MysteryMonster } from '../config/parameters'
 
 /** The most worlds a campaign may carry. An allocation guard, not a design limit. */
 export const WORLD_MAX_COUNT = 20
@@ -164,6 +164,13 @@ export interface WorldDef {
    * entry too. Needs a pool.
    */
   disguise?: boolean
+  /**
+   * The floors' timer: after `seconds` the whole island damages the party
+   * (negative heals). Absent or `enabled: false`: none.
+   */
+  timer?: FloorTimer
+  /** a `MUSIC_TRACKS` id (or `default`, which changes nothing); absent: the level's own */
+  music?: string
 }
 
 /** One ambush recipe: how often it is picked, and the monsters it springs. */
@@ -274,6 +281,13 @@ export const worldAmbushes = (def: Partial<WorldDef>): number => num(def.ambushe
 export const worldAmbushSize = (def: Partial<WorldDef>): number => num(def.ambushSize, DEFAULT_WORLD_AMBUSH_SIZE)
 export const worldButtonAmbush = (def: Partial<WorldDef>): number => num(def.buttonAmbush, DEFAULT_WORLD_BUTTON_AMBUSH)
 export const worldScatter = (def: Partial<WorldDef>): number => num(def.scatter, DEFAULT_WORLD_SCATTER)
+/** The world's timer, or undefined when it has none switched on. */
+export function worldTimer(def: Partial<WorldDef>): FloorTimer | undefined {
+  const t = def.timer
+  return t !== undefined && t !== null && t.enabled === true ? t : undefined
+}
+
+export const worldMusic = (def: Partial<WorldDef>): string | undefined => (typeof def.music === 'string' ? def.music : undefined)
 export const worldLoot = (def: Partial<WorldDef>): number => num(def.loot, DEFAULT_WORLD_LOOT)
 
 /**
