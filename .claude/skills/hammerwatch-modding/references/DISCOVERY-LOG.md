@@ -5317,3 +5317,18 @@ picked up, is unproven. Fallback in the plan: no orb, a disabled `AreaTrigger`
 -> `GameEnd` on the portal shape.
 **Impact:** nothing here is played. W5 (portal), W6 (countdown), W7 (orb) and
 W8 (several bosses, far-apart boss bars) decide whether any of it holds.
+
+## 2026-11-19 - world ambush rings and roaming packs [EMITTED]
+
+**Tag:** [EMITTED] (not booted; BOOT-CHECKLIST W9, W10)
+**Context:** world mode pass 3 (`src/generator/world/encounters.ts`).
+**Tripwire:** a `RectangleShape` 4x4 on a corridor tile, then a one-shot
+`AreaTrigger` (trigger-times 1), then `PlaySound sound/misc.xml:info_puzzle_fail`
+(a stock cue, read from the install's `sound/misc.xml`; AE's `puzzle_fail`)
+plus one `SpawnObject` (trigger-times 1) per ring point at radius 5. A button's
+ring hangs on the button's own trigger beside its `PlaySound` and its countdown
+decrement. Whether a spawned monster attacks at once is open (discovery D8).
+**Packs** are placed actors, no spawner tier and no trigger: they sleep until a
+player is within an actor's update range ([UNVERIFIED] on a 512-tile island).
+**Impact:** W9 (a tripwire springs one ring, once; buttons at 100% do too) and
+W10 (packs wait round the island) decide whether any of it holds.

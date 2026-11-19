@@ -620,5 +620,6 @@ Built so far (branch `v1-roadmap-build`; nothing here has been played):
   limit; random boss picks draw from the world's `layout` stream, after every
   placement draw, and a lineup draws none; site spacing stays 20 tiles at every
   size.
-- **Not built:** encounters, scatter, loot, mystery, timer, music, the World tab,
+- **Pass 3, commit 29 (packs and ambush tripwires):** `world/encounters.ts` draws only from the `encounters` stream, after the objectives and before the coast: packs (`rollPoolKey` tiers, ±2 tiles round a free reachable centre marked `RESERVED` r 3, members on the centre's ground through `WorldGrid.sameGround`), 4×4 tripwires on `PATH` tiles, a ring of `SpawnObject`s at radius 5 (nearest walkable inward, same ground), the same ring on a button at `buttonAmbush` %, and weighted ambush types. Keys `Monsters`, `Packs`, `PackSize`, `Ambushes`, `AmbushSize`, `AmbushType<n>`, `ButtonAmbush`; rules 7, 8, 12 (actor warning), 13. The caps are rescaled for the 512 cap (packs 0–400, packSize 1–30, ambushes 0–120, ambushSize 1–30) and the actor budget (> 600) is a warning only. Deviation from AE: pack centres and open-ground tripwires also need a tile the arrival reaches. `sameGround` checks the line for cliff or water; `HIGH` arrives with plateaus.
+- **Not built:** scatter, loot, mystery, timer, music, the World tab,
   camp hub, presets, other biomes (passes 3 and 4, and the UI).

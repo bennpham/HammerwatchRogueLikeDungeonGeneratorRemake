@@ -85,6 +85,8 @@ export function objectivesRemainingText(k: number): string {
 export interface WorldObjectives {
   buttons: Tile[]
   bosses: Tile[]
+  /** each real button and its one-shot trigger, in site order: what a button ambush or a disguise hangs more on */
+  plates: Array<{ at: Tile; trigger: ScriptNode }>
 }
 
 /**
@@ -177,7 +179,7 @@ export function buildObjectives(
     }
   }
 
-  if (freeRoam) return { buttons: [], bosses: [] }
+  if (freeRoam) return { buttons: [], bosses: [], plates: [] }
 
   reveal.push(new NodePlaySound(ctx, hub.x + 2, hub.y - 7, PORTAL_SOUND))
   const load = new NodeGlobalEventTrigger(ctx, hub.x, hub.y - 6, LEVEL_LOADED_EVENT)
@@ -199,6 +201,7 @@ export function buildObjectives(
   })
 
   const buttons = sites.filter((_, i) => !bossIndexes.includes(i))
+  const plates: WorldObjectives['plates'] = []
   const art = doodadOffset('BossDoorButton', theme)
   for (const at of buttons) {
     // `need-sync` because a script changes its state, as the lock buttons'
@@ -218,9 +221,10 @@ export function buildObjectives(
     press.setTarget(plate)
     trigger.connectTo(press)
     triggers.push(trigger)
+    plates.push({ at, trigger })
   }
 
   const zero = buildButtonCountdown(ctx, triggers, { x: hub.x + 8, y: hub.y - 8 }, objectivesRemainingText)
   for (const node of reveal) zero.connectTo(node)
-  return { buttons, bosses }
+  return { buttons, bosses, plates }
 }

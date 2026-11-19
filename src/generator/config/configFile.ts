@@ -68,11 +68,26 @@ import type {
   MysteryButton,
   MysteryMonster
 } from './parameters'
-import { MONSTER_FAMILIES, MONSTER_TYPES, isKnownMonsterKey } from '../objects/monsterTypes'
+import { MONSTER_FAMILIES, MONSTER_TYPES, isKnownFloorPoolKey, isKnownMonsterKey } from '../objects/monsterTypes'
 import { buffById } from '../objects/buffTypes'
 import { BIOME_IDS } from '../world/biomes'
-import { WORLD_MAX_COUNT, defaultWorld, worldBossPool, worldButtons, worldSafeRadius, worldTrails } from '../world/options'
-import type { WorldDef, WorldOptions } from '../world/options'
+import {
+  WORLD_AMBUSH_TYPES_MAX,
+  WORLD_MAX_COUNT,
+  defaultWorld,
+  worldAmbushSize,
+  worldAmbushTypes,
+  worldAmbushes,
+  worldBossPool,
+  worldButtonAmbush,
+  worldButtons,
+  worldMonsters,
+  worldPackSize,
+  worldPacks,
+  worldSafeRadius,
+  worldTrails
+} from '../world/options'
+import type { WorldAmbushType, WorldDef, WorldOptions } from '../world/options'
 import { pickupById } from '../objects/pickupTypes'
 import { mysteryLootById } from '../objects/mysteryLoot'
 import { projectileById } from '../objects/projectileTypes'
@@ -359,6 +374,41 @@ function parseMonsterCountRows(key: string, value: string, unknownKeys: string[]
     rows.push({ monster, count })
   }
   return rows
+}
+
+/** The world suffixes (lowercased) that carry one whole number each, besides the island and objective ones. */
+const WORLD_ENCOUNTER_INTS: ReadonlySet<string> = new Set(['packs', 'packsize', 'ambushes', 'ambushsize', 'buttonambush'])
+
+/**
+ * One world ambush type, `<weight>|<monster>:<count>,<monster>:<count>`. A bad
+ * weight makes the whole line unusable (reported, null); an unknown monster or
+ * a bad count drops just that row, as a mystery button's rows do.
+ */
+function parseAmbushType(key: string, value: string, unknownKeys: string[]): WorldAmbushType | null {
+  const bar = value.indexOf('|')
+  const weightText = (bar === -1 ? value : value.slice(0, bar)).trim()
+  if (!/^\d+$/.test(weightText)) {
+    unknownKeys.push(`${key} weight "${weightText}"`)
+    return null
+  }
+  const monsters: MysteryMonster[] = []
+  for (const segment of (bar === -1 ? '' : value.slice(bar + 1)).split(',')) {
+    const trimmed = segment.trim()
+    if (trimmed === '') continue
+    const colon = trimmed.indexOf(':')
+    const monster = (colon === -1 ? trimmed : trimmed.slice(0, colon)).trim().toLowerCase()
+    const countText = colon === -1 ? '1' : trimmed.slice(colon + 1).trim()
+    if (!isKnownMonsterKey(monster)) {
+      unknownKeys.push(`${key} monster "${monster}"`)
+      continue
+    }
+    if (!/^\d+$/.test(countText)) {
+      unknownKeys.push(`${key} count "${countText}"`)
+      continue
+    }
+    monsters.push({ monster, count: parseInt(countText, 10) })
+  }
+  return { weight: parseInt(weightText, 10), monsters }
 }
 
 /** A pool entry nothing has been set on yet — what `mysteryButton<i>…` keys grow the pool with. */
@@ -1561,6 +1611,47 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
         else world.waterMargin = one[0]
         continue
       }
+      if (WORLD_ENCOUNTER_INTS.has(suffix)) {
+        const one = ints(value, 1)
+        if (one === null) {
+          result.unknownKeys.push(`${key} value "${value}"`)
+          continue
+        }
+        const world = worldAt(index, key)
+        if (suffix === 'packs') world.packs = one[0]
+        else if (suffix === 'packsize') world.packSize = one[0]
+        else if (suffix === 'ambushes') world.ambushes = one[0]
+        else if (suffix === 'ambushsize') world.ambushSize = one[0]
+        else world.buttonAmbush = one[0]
+        continue
+      }
+      if (suffix === 'monsters') {
+        // a pool key a floor accepts; anything else is reported and dropped
+        const pool: string[] = []
+        for (const k of value.split(',').map((t) => t.trim()).filter((t) => t !== '')) {
+          if (isKnownFloorPoolKey(k)) pool.push(k)
+          else result.unknownKeys.push(`${key} monster "${k}"`)
+        }
+        worldAt(index, key).monsters = pool
+        continue
+      }
+      const ambushMatch = suffix.match(/^ambushtype(\d+)$/)
+      if (ambushMatch) {
+        // AmbushType<k>=<weight>|<monster>:<count>,<monster>:<count>, k from 1.
+        // Both an out-of-range k and a malformed line are reported, and never
+        // grow the list.
+        const slot = parseInt(ambushMatch[1], 10) - 1
+        const parsed = parseAmbushType(key, value, result.unknownKeys)
+        if (slot < 0 || slot >= WORLD_AMBUSH_TYPES_MAX || parsed === null) {
+          if (parsed !== null) result.unknownKeys.push(`${key} value "${value}"`)
+          continue
+        }
+        const world = worldAt(index, key)
+        const types = world.ambushTypes ?? (world.ambushTypes = [])
+        while (types.length <= slot) types.push({ weight: 1, monsters: [] })
+        types[slot] = parsed
+        continue
+      }
       if (suffix === 'buttons' || suffix === 'bosses' || suffix === 'saferadius') {
         const one = ints(value, 1)
         if (one === null) {
@@ -2497,6 +2588,16 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
       if (lineupLine(def.bossLineup) !== '') lines.push(`world${i}BossLineup=${lineupLine(def.bossLineup)}`)
       lines.push(`world${i}SafeRadius=${worldSafeRadius(def)}`)
       lines.push(`world${i}Trails=${worldTrails(def) ? 1 : 0}`)
+      lines.push(`world${i}Monsters=${worldMonsters(def).join(',')}`)
+      lines.push(`world${i}Packs=${worldPacks(def)}`)
+      lines.push(`world${i}PackSize=${worldPackSize(def)}`)
+      lines.push(`world${i}Ambushes=${worldAmbushes(def)}`)
+      lines.push(`world${i}AmbushSize=${worldAmbushSize(def)}`)
+      lines.push(`world${i}ButtonAmbush=${worldButtonAmbush(def)}`)
+      worldAmbushTypes(def).forEach((type, t) => {
+        const rows = Array.isArray(type.monsters) ? type.monsters : []
+        lines.push(`world${i}AmbushType${t + 1}=${type.weight}|${rows.map((m) => `${m.monster}:${m.count}`).join(',')}`)
+      })
     })
   }
 

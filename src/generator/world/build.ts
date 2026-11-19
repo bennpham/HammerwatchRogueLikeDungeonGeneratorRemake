@@ -10,14 +10,17 @@
  *   4. the objective sites (`place.ts`) and the corridors that reach them
  *      (`paths.ts`), every one proved reachable from the arrival
  *   5. every object: the arrival, the portal or the orb, then the objectives
- *   6. the coast's pieces, LAST, so no id of an object depends on how many
- *   7. tiles and the shared section tail (`emit.ts`)
+ *   6. what lurks (`encounters.ts`): roaming packs, ambush tripwires, and a
+ *      ring on each button that rolls one
+ *   7. the coast's pieces, LAST, so no id of an object depends on how many
+ *   8. tiles and the shared section tail (`emit.ts`)
  *
  * Draws only from `ctx.worldRand`: exactly three values per world, whatever
  * happens after, the seeds of this world's `layout`, `scatter` and
- * `encounters` streams (`encounters` has no use yet, but is still drawn: the
- * draw count must not change when it does). A world therefore never moves a
- * floor, an arena or another world.
+ * `encounters` streams. A world therefore never moves a floor, an arena or
+ * another world. `encounters` places the packs and tripwires (and a ring on
+ * each button that rolls one) after the objectives; with every one of them
+ * off it is not touched.
  *
  * The `layout` stream, in order: size, mask, then on the accepted try's way
  * through the sites (sector angles and tries), the corridor noise, and last
@@ -43,6 +46,8 @@ import { WorldGrid } from './grid'
 import type { Tile } from './grid'
 import { buildIsland, islandRulesFor } from './island'
 import type { IslandMask } from './island'
+import { buildEncounters } from './encounters'
+import type { WorldEncounters } from './encounters'
 import { buildObjectives } from './objectives'
 import type { WorldObjectives } from './objectives'
 import { carveTrails } from './paths'
@@ -110,7 +115,7 @@ export function buildWorld(
   levelNumber: number,
   gateway: Gateway
 ): BuiltWorld | { failed: WorldStep; tally: WorldTally } {
-  const { layout, scatter } = worldStreams(ctx.worldRand)
+  const { layout, scatter, encounters: encounterRand } = worldStreams(ctx.worldRand)
   const biome = biomeById(worldBiomeId(def)) ?? BIOME_DEFS[0]
   const size = worldSize(def)
   const margin = worldWaterMargin(def)
@@ -189,12 +194,16 @@ export function buildWorld(
 
     const objectives = buildObjectives(ctx, layout, grid, def, biome.theme, hub, arrival, gateway, sites)
 
+    // --- what lurks: after the objectives, before anything grows. A world with
+    // every encounter off returns before touching its stream.
+    const lurking = buildEncounters(ctx, encounterRand, grid, def, hub, sites, objectives.plates, reached)
+
     // --- the coast LAST: nothing references a wall piece, so its ids come after
     // every object's
     placeCoast(ctx, pieces, biome.theme)
 
     const xml = emitWorld(ctx, biome, grid, scatter)
-    return { xml, preview: previewOf(ctx, grid, hub, levelNumber, biome.id, objectives), attempts: attempt }
+    return { xml, preview: previewOf(ctx, grid, hub, levelNumber, biome.id, objectives, lurking), attempts: attempt }
   }
   // the step that failed most; ties go to the earlier step
   const failed = WORLD_STEPS.reduce((a, b) => (tally[b] > tally[a] ? b : a))
@@ -236,7 +245,8 @@ function previewOf(
   hub: Tile,
   levelNumber: number,
   biomeId: string,
-  objectives: WorldObjectives
+  objectives: WorldObjectives,
+  lurking: WorldEncounters
 ): LevelPreview {
   const ZERO = 48
   const mapCodes = new Uint8Array(grid.width * grid.height)
@@ -275,7 +285,9 @@ function previewOf(
       hub,
       sites: [
         ...objectives.buttons.map((t) => ({ x: t.x, y: t.y, kind: 'button' })),
-        ...objectives.bosses.map((t) => ({ x: t.x, y: t.y, kind: 'boss' }))
+        ...objectives.bosses.map((t) => ({ x: t.x, y: t.y, kind: 'boss' })),
+        ...lurking.packs.map((t) => ({ x: t.x, y: t.y, kind: 'pack' })),
+        ...lurking.ambushes.map((t) => ({ x: t.x, y: t.y, kind: 'ambush' }))
       ]
     }
   }

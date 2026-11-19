@@ -64,10 +64,22 @@ import { BIOME_IDS } from '../world/biomes'
 import {
   DEFAULT_WORLD_BUTTONS,
   DEFAULT_WORLD_SAFE_RADIUS,
+  WORLD_ACTOR_WARN,
+  WORLD_AMBUSHES_MAX,
+  WORLD_AMBUSH_ROWS_MAX,
+  WORLD_AMBUSH_ROW_COUNT_MAX,
+  WORLD_AMBUSH_SIZE_MAX,
+  WORLD_AMBUSH_SIZE_MIN,
+  WORLD_AMBUSH_TYPES_MAX,
+  WORLD_AMBUSH_WEIGHT_MAX,
   WORLD_BUTTONS_MAX,
   WORLD_COAST_MAX,
   WORLD_COAST_MIN,
+  WORLD_GROUP_WARN,
   WORLD_MAX_COUNT,
+  WORLD_PACKS_MAX,
+  WORLD_PACK_SIZE_MAX,
+  WORLD_PACK_SIZE_MIN,
   WORLD_SAFE_RADIUS_MAX,
   WORLD_SAFE_RADIUS_MIN,
   WORLD_SIZE_MAX,
@@ -75,8 +87,16 @@ import {
   WORLD_SIZE_WARN,
   WORLD_WATER_MARGIN_MAX,
   WORLD_WATER_MARGIN_MIN,
+  worldActorEstimate,
+  worldAmbushSize,
+  worldAmbushTypes,
+  worldAmbushes,
+  worldButtonAmbush,
   worldList,
   worldMaxSafeRadius,
+  worldMonsters,
+  worldPackSize,
+  worldPacks,
   worldSiteCapacityOf
 } from '../world/options'
 import type { WorldDef } from '../world/options'
@@ -86,6 +106,8 @@ import {
   isKnownFloorPoolKey,
   isKnownMonsterId,
   isKnownMonsterKey,
+  familyMembers,
+  floorPoolTier,
   monsterFamilyById,
   monsterTypeById,
   parseMonsterKey,
@@ -505,6 +527,7 @@ function validateWorlds(p: DungeonParameters, errors: ValidationIssue[], warning
       })
     }
     validateWorldObjectives(def, i, at, whole, minW && minH && marginOk, errors, warnings)
+    validateWorldEncounters(def, i, at, whole, errors, warnings)
   })
 }
 
@@ -601,6 +624,125 @@ function validateWorldObjectives(
       field: at('buttons'),
       message: `${subject}: ${objectives} objectives fill the island exactly; a ragged coast may not fit them all on every seed.`
     })
+  }
+}
+
+/**
+ * The actor paths a floor pool key can put on the island: the pinned tier, or
+ * every tier a roll can land on (it climbs from tier 1, so a type's tier 0
+ * is only ever reached by pinning it), across a family's members.
+ */
+function poolKeyActors(key: string): string[] {
+  const { id } = parseMonsterKey(key)
+  const family = monsterFamilyById(id)
+  const types = family !== undefined ? familyMembers(family) : [monsterTypeById(id)]
+  const pinned = family === undefined ? floorPoolTier(key) : undefined
+  return types.flatMap((type) => {
+    if (pinned !== undefined) return [type.tiers[pinned]]
+    return type.tiers.length === 1 ? [type.tiers[0]] : type.tiers.slice(1)
+  })
+}
+
+const isSpawnerPath = (path: string | undefined): boolean => typeof path === 'string' && path.startsWith('actors/spawners/')
+
+/**
+ * The encounter rules of one world: packs, ambush tripwires and the monsters
+ * they draw. Nothing emitted may be a spawner (`actors/spawners/...` places a
+ * spawner prop, not a monster), so a pool key that can resolve to one and an
+ * ambush row that names one are both errors. The actor estimate is a WARNING,
+ * not a cap: stock spreads 2,461 actors over 240 tiles, and what lags is a
+ * crowd in one place, so the size caps are the real bound.
+ */
+function validateWorldEncounters(
+  def: WorldDef,
+  index: number,
+  at: (field: string) => string,
+  whole: (field: string, value: number, min: number, max: number, what: string) => boolean,
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[]
+): void {
+  const subject = `World ${index + 1}`
+  const packsOk = whole('packs', worldPacks(def), 0, WORLD_PACKS_MAX, 'The pack count')
+  const packSizeOk = whole('packSize', worldPackSize(def), WORLD_PACK_SIZE_MIN, WORLD_PACK_SIZE_MAX, 'The pack size')
+  const ambushesOk = whole('ambushes', worldAmbushes(def), 0, WORLD_AMBUSHES_MAX, 'The ambush count')
+  const ambushSizeOk = whole('ambushSize', worldAmbushSize(def), WORLD_AMBUSH_SIZE_MIN, WORLD_AMBUSH_SIZE_MAX, 'The ambush size')
+  whole('buttonAmbush', worldButtonAmbush(def), 0, 100, 'The button ambush chance')
+
+  // A7: a list a hand-built object lacks is reported and read as empty
+  if (def.monsters !== undefined && !Array.isArray(def.monsters)) {
+    errors.push({ field: at('monsters'), message: `${subject}: the monster pool is missing. Pick the monsters packs and ambushes draw from.` })
+  }
+  const monsters = worldMonsters(def)
+  for (const key of monsters) {
+    if (typeof key !== 'string' || !isKnownFloorPoolKey(key)) {
+      errors.push({ field: at('monsters'), message: `${subject}: unknown monster "${String(key)}".` })
+    } else if (poolKeyActors(key).some(isSpawnerPath)) {
+      errors.push({
+        field: at('monsters'),
+        message: `${subject}: "${key}" is a spawner, which places nothing that fights. Pick the monster itself, not its #0 spawner tier.`
+      })
+    }
+  }
+
+  // ambush types: a weighted list, each a recipe of exact monsters
+  const rawTypes: unknown = def.ambushTypes
+  if (rawTypes !== undefined && !Array.isArray(rawTypes)) {
+    errors.push({ field: at('ambushTypes'), message: `${subject}: the ambush types are missing.` })
+  }
+  const types = worldAmbushTypes(def)
+  if (types.length > WORLD_AMBUSH_TYPES_MAX) {
+    errors.push({ field: at('ambushTypes'), message: `${subject}: at most ${WORLD_AMBUSH_TYPES_MAX} ambush types (it has ${types.length}).` })
+  }
+  types.forEach((type, t) => {
+    const tf = (field: string) => at(`ambushTypes.${t}.${field}`)
+    const label = `${subject}, ambush type ${t + 1}`
+    if (type === null || typeof type !== 'object') {
+      errors.push({ field: at(`ambushTypes.${t}`), message: `${label}: this type is missing.` })
+      return
+    }
+    if (!Number.isInteger(type.weight) || type.weight < 1 || type.weight > WORLD_AMBUSH_WEIGHT_MAX) {
+      errors.push({ field: tf('weight'), message: `${label}: the weight must be a whole number from 1 to ${WORLD_AMBUSH_WEIGHT_MAX}.` })
+    }
+    if (!Array.isArray(type.monsters)) {
+      errors.push({ field: tf('monsters'), message: `${label}: its monster list is missing.` })
+      return
+    }
+    if (type.monsters.length < 1 || type.monsters.length > WORLD_AMBUSH_ROWS_MAX) {
+      errors.push({ field: tf('monsters'), message: `${label}: it needs between 1 and ${WORLD_AMBUSH_ROWS_MAX} monster rows (it has ${type.monsters.length}).` })
+    }
+    type.monsters.forEach((row, m) => {
+      if (row === null || typeof row !== 'object' || !isKnownMonsterKey(row.monster)) {
+        errors.push({ field: tf(`monsters.${m}.monster`), message: `${label}: unknown monster "${String(row?.monster)}".` })
+      } else if (isSpawnerPath(resolveActorPath(row.monster))) {
+        errors.push({ field: tf(`monsters.${m}.monster`), message: `${label}: "${row.monster}" is a spawner, which places nothing that fights.` })
+      }
+      if (!Number.isInteger(row?.count) || row.count < 1 || row.count > WORLD_AMBUSH_ROW_COUNT_MAX) {
+        errors.push({ field: tf(`monsters.${m}.count`), message: `${label}: each count must be a whole number from 1 to ${WORLD_AMBUSH_ROW_COUNT_MAX}.` })
+      }
+    })
+  })
+
+  // packs, and ambushes with no type to pick, draw from the pool
+  const poolAmbushes = (worldAmbushes(def) > 0 || worldButtonAmbush(def) > 0) && types.length === 0
+  if ((worldPacks(def) > 0 || poolAmbushes) && monsters.length === 0) {
+    errors.push({ field: at('monsters'), message: `${subject}: packs and ambushes need at least one monster in the pool.` })
+  }
+
+  // budgets: warnings only
+  if (packsOk && packSizeOk) {
+    const actors = worldActorEstimate(def)
+    if (actors > WORLD_ACTOR_WARN) {
+      warnings.push({
+        field: at('packs'),
+        message: `${subject}: about ${actors} monsters wait on the island (above ${WORLD_ACTOR_WARN}); the game may lag. Lower the packs or their size.`
+      })
+    }
+    if (worldPackSize(def) > WORLD_GROUP_WARN) {
+      warnings.push({ field: at('packSize'), message: `${subject}: packs of more than ${WORLD_GROUP_WARN} in one place may lag.` })
+    }
+  }
+  if (ambushesOk && ambushSizeOk && worldAmbushSize(def) > WORLD_GROUP_WARN) {
+    warnings.push({ field: at('ambushSize'), message: `${subject}: ambushes of more than ${WORLD_GROUP_WARN} at once may lag.` })
   }
 }
 

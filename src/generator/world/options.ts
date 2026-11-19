@@ -15,6 +15,7 @@
 import { MOBILE_BOSS_IDS, bossSelection, lineupTotal } from '../config/parameters'
 import type { BossSelection } from '../config/parameters'
 import type { BossId } from '../boss/bosses'
+import type { MysteryMonster } from '../config/parameters'
 
 /** The most worlds a campaign may carry. An allocation guard, not a design limit. */
 export const WORLD_MAX_COUNT = 20
@@ -56,6 +57,33 @@ export const DEFAULT_WORLD_SAFE_RADIUS = 16
  */
 const LAND_REACH = 0.85
 
+/**
+ * Encounter bounds. AE's caps (packs 120, ambushes 40) were sized for a 240
+ * island; the cap here is 512, so they are rescaled by the area ratio and
+ * rounded. The actor budget is a WARNING, never one of these.
+ */
+export const WORLD_PACKS_MAX = 400
+export const WORLD_PACK_SIZE_MIN = 1
+export const WORLD_PACK_SIZE_MAX = 30
+export const WORLD_AMBUSHES_MAX = 120
+export const WORLD_AMBUSH_SIZE_MIN = 1
+export const WORLD_AMBUSH_SIZE_MAX = 30
+export const WORLD_AMBUSH_TYPES_MAX = 10
+export const WORLD_AMBUSH_WEIGHT_MAX = 99
+/** Rows (monster kinds) in one ambush type, and each row's count. */
+export const WORLD_AMBUSH_ROWS_MAX = 30
+export const WORLD_AMBUSH_ROW_COUNT_MAX = 30
+/** One group larger than this lags the island (~400 in one place did, DISCOVERY-LOG); a warning. */
+export const WORLD_GROUP_WARN = 20
+/** Placed actors above this is a warning: stock spreads 2,461 over 240 tiles. */
+export const WORLD_ACTOR_WARN = 600
+export const DEFAULT_WORLD_MONSTERS: readonly string[] = ['mummy_desert', 'mummy_ranged', 'lich_desert']
+export const DEFAULT_WORLD_PACKS = 20
+export const DEFAULT_WORLD_PACK_SIZE = 6
+export const DEFAULT_WORLD_AMBUSHES = 6
+export const DEFAULT_WORLD_AMBUSH_SIZE = 6
+export const DEFAULT_WORLD_BUTTON_AMBUSH = 50
+
 export const DEFAULT_WORLD_BIOME = 'desert'
 export const DEFAULT_WORLD_SIZE = 128
 export const DEFAULT_WORLD_COAST = 50
@@ -93,6 +121,31 @@ export interface WorldDef {
    * path. They are kept clear either way.
    */
   trails: boolean
+  /**
+   * The pool packs and pool ambushes draw from: floor pool keys (a bare id
+   * rolls the type's tiers, `id#tier` pins one, a family picks a member).
+   */
+  monsters: string[]
+  /** roaming packs, and members each (a pack rolls half to all of it) */
+  packs: number
+  packSize: number
+  /** one-shot tripwires on the corridors, and monsters each */
+  ambushes: number
+  ambushSize: number
+  /**
+   * Weighted ambush types: with any, a ring spawns EXACTLY the picked type's
+   * monsters; with none it draws `ambushSize` from `monsters`.
+   */
+  ambushTypes?: WorldAmbushType[]
+  /** the chance, in percent, that a floor button springs a ring when pressed */
+  buttonAmbush: number
+}
+
+/** One ambush recipe: how often it is picked, and the monsters it springs. */
+export interface WorldAmbushType {
+  weight: number
+  /** arena-grammar monster keys, as a mystery button's */
+  monsters: MysteryMonster[]
 }
 
 export interface WorldOptions {
@@ -112,7 +165,13 @@ export function defaultWorld(): WorldDef {
     buttons: DEFAULT_WORLD_BUTTONS,
     bossPool: [...MOBILE_BOSS_IDS],
     safeRadius: DEFAULT_WORLD_SAFE_RADIUS,
-    trails: false
+    trails: false,
+    monsters: [...DEFAULT_WORLD_MONSTERS],
+    packs: DEFAULT_WORLD_PACKS,
+    packSize: DEFAULT_WORLD_PACK_SIZE,
+    ambushes: DEFAULT_WORLD_AMBUSHES,
+    ambushSize: DEFAULT_WORLD_AMBUSH_SIZE,
+    buttonAmbush: DEFAULT_WORLD_BUTTON_AMBUSH
   }
 }
 
@@ -175,6 +234,30 @@ export function worldSafeRadius(def: Partial<WorldDef>): number {
 
 export function worldTrails(def: Partial<WorldDef>): boolean {
   return def.trails === true
+}
+
+/** The monster pool; a missing list reads as the desert default. */
+export function worldMonsters(def: Partial<WorldDef>): string[] {
+  return Array.isArray(def.monsters) ? def.monsters : [...DEFAULT_WORLD_MONSTERS]
+}
+
+export const worldPacks = (def: Partial<WorldDef>): number => num(def.packs, DEFAULT_WORLD_PACKS)
+export const worldPackSize = (def: Partial<WorldDef>): number => num(def.packSize, DEFAULT_WORLD_PACK_SIZE)
+export const worldAmbushes = (def: Partial<WorldDef>): number => num(def.ambushes, DEFAULT_WORLD_AMBUSHES)
+export const worldAmbushSize = (def: Partial<WorldDef>): number => num(def.ambushSize, DEFAULT_WORLD_AMBUSH_SIZE)
+export const worldButtonAmbush = (def: Partial<WorldDef>): number => num(def.buttonAmbush, DEFAULT_WORLD_BUTTON_AMBUSH)
+
+/** The ambush types as stated; a missing or non-list field reads as none. */
+export function worldAmbushTypes(def: Partial<WorldDef>): WorldAmbushType[] {
+  return Array.isArray(def.ambushTypes) ? def.ambushTypes : []
+}
+
+/**
+ * Actors a world places outright (packs; ambush rings only spawn when sprung):
+ * a pack rolls half to all of `packSize`, so three quarters on average.
+ */
+export function worldActorEstimate(def: Partial<WorldDef>): number {
+  return Math.round(worldPacks(def) * 0.75 * worldPackSize(def))
 }
 
 /** Buttons plus bosses: how many sites the world needs. */

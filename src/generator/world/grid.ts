@@ -68,6 +68,22 @@ export class WorldGrid {
     return this.walkable(x, y) && !this.has(x, y, WorldGrid.RESERVED | WorldGrid.TRAIL)
   }
 
+  /**
+   * `b` stands on the same ground as `a`: no cliff cell on the straight line
+   * between them, so a monster placed round a centre this way can walk to it
+   * (audit A4). Plateaus will add their own level to this check; the island
+   * has one level, so a cliff on the line is the only way to be cut off.
+   */
+  sameGround(a: Tile, b: Tile): boolean {
+    const steps = Math.max(Math.abs(b.x - a.x), Math.abs(b.y - a.y))
+    for (let s = 1; s <= steps; s++) {
+      const x = Math.round(a.x + ((b.x - a.x) * s) / steps)
+      const y = Math.round(a.y + ((b.y - a.y) * s) / steps)
+      if (this.has(x, y, WorldGrid.CLIFF) || !this.has(x, y, WorldGrid.LAND)) return false
+    }
+    return true
+  }
+
   /** Every cell within `radius` (a disc) satisfies `ok`. */
   discAll(at: Tile, radius: number, ok: (x: number, y: number) => boolean): boolean {
     for (let dy = -radius; dy <= radius; dy++) {

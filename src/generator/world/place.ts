@@ -85,3 +85,40 @@ export function bossSiteIndexes(siteCount: number, bossCount: number): number[] 
   const b = Math.min(bossCount, siteCount)
   return Array.from({ length: b }, (_, i) => Math.trunc((i * siteCount) / b))
 }
+
+/**
+ * A random free tile, or null after `tries` draws: free (nothing placed on
+ * it, off the trails), `minFromHub` from the centre, `spacing` from every
+ * tile in `avoid`, and `ok`. Bounded, so a crowded island ends the placement
+ * of that kind rather than looping. One `iRand` pair per try.
+ */
+export function freeTile(
+  rand: Rand,
+  grid: WorldGrid,
+  hub: Tile,
+  minFromHub: number,
+  avoid: readonly Tile[],
+  spacing: number,
+  tries: number,
+  ok: (t: Tile) => boolean = (t) => grid.free(t.x, t.y)
+): Tile | null {
+  for (let i = 0; i < tries; i++) {
+    const t = { x: rand.iRand(0, grid.width), y: rand.iRand(0, grid.height) }
+    if (!ok(t)) continue
+    if (dist2(t, hub) < minFromHub * minFromHub) continue
+    if (avoid.some((a) => dist2(a, t) < spacing * spacing)) continue
+    return t
+  }
+  return null
+}
+
+/** A weighted pick: one draw. */
+export function pickWeighted<T extends { weight: number }>(rand: Rand, entries: readonly T[]): T {
+  const total = entries.reduce((s, e) => s + e.weight, 0)
+  let r = rand.nextFloat() * total
+  for (const e of entries) {
+    r -= e.weight
+    if (r < 0) return e
+  }
+  return entries[entries.length - 1]
+}

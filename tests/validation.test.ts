@@ -1899,3 +1899,85 @@ describe('world validation', () => {
     expect(messages(absent)).toContain('world 1, which this campaign does not have')
   })
 })
+
+describe('world encounter validation', () => {
+  const withWorld = (w: Partial<WorldDef>) => {
+    const p = plainParameters()
+    p.world = { enabled: true, worlds: [{ ...defaultWorld(), ...w }] }
+    return p
+  }
+  const errorsOf = (w: Partial<WorldDef>) => fieldsOf(validateParameters(withWorld(w)).errors)
+  const warningsOf = (w: Partial<WorldDef>) => fieldsOf(validateParameters(withWorld(w)).warnings)
+  const type = (monsters: Array<{ monster: string; count: number }>, weight = 1) => ({ weight, monsters })
+
+  it('holds each count to its bounds: packs 0-400, size 1-30, ambushes 0-120, size 1-30, chance 0-100', () => {
+    for (const [field, lo, hi] of [
+      ['packs', 0, 400],
+      ['packSize', 1, 30],
+      ['ambushes', 0, 120],
+      ['ambushSize', 1, 30],
+      ['buttonAmbush', 0, 100]
+    ] as const) {
+      expect(errorsOf({ [field]: lo }), `${field} at ${lo}`).not.toContain(`world.worlds.0.${field}`)
+      expect(errorsOf({ [field]: hi }), `${field} at ${hi}`).not.toContain(`world.worlds.0.${field}`)
+      expect(errorsOf({ [field]: lo - 1 }), `${field} below`).toContain(`world.worlds.0.${field}`)
+      expect(errorsOf({ [field]: hi + 1 }), `${field} above`).toContain(`world.worlds.0.${field}`)
+      expect(errorsOf({ [field]: 1.5 }), `${field} fractional`).toContain(`world.worlds.0.${field}`)
+    }
+  })
+
+  it('needs a monster for packs and for pool ambushes, but not once ambush types stand in', () => {
+    expect(errorsOf({ monsters: [] })).toContain('world.worlds.0.monsters')
+    expect(errorsOf({ monsters: [], packs: 0, ambushes: 0, buttonAmbush: 0 })).not.toContain('world.worlds.0.monsters')
+    // ambushes only, and a type to pick from: the pool is not read
+    expect(errorsOf({ monsters: [], packs: 0, ambushTypes: [type([{ monster: 'mummy_desert', count: 2 }])] })).not.toContain('world.worlds.0.monsters')
+    // packs still need the pool whatever the types say
+    expect(errorsOf({ monsters: [], ambushTypes: [type([{ monster: 'mummy_desert', count: 2 }])] })).toContain('world.worlds.0.monsters')
+  })
+
+  it('rejects an unknown pool key, and reads a missing pool as an error rather than a throw (A7)', () => {
+    expect(errorsOf({ monsters: ['mummy_desert', 'ghost'] })).toContain('world.worlds.0.monsters')
+    expect(errorsOf({ monsters: ['mummy_desert#9'] })).toContain('world.worlds.0.monsters')
+    expect(errorsOf({ monsters: ['tower_banner', 'skeleton1#1', 'lich#2'] })).not.toContain('world.worlds.0.monsters')
+    expect(errorsOf({ monsters: 'mummy_desert' as never })).toContain('world.worlds.0.monsters')
+    expect(() => validateParameters(withWorld({ monsters: undefined as never, ambushTypes: 7 as never }))).not.toThrow()
+  })
+
+  it('refuses a spawner tier: a pinned #0 whose tier 0 is actors/spawners/', () => {
+    expect(errorsOf({ monsters: ['mummy_desert#0'] })).toContain('world.worlds.0.monsters')
+    expect(errorsOf({ monsters: ['bat1#0'] })).toContain('world.worlds.0.monsters')
+    // the bare id rolls from tier 1, and a pinned fighting tier is fine
+    expect(errorsOf({ monsters: ['mummy_desert', 'mummy_desert#1'] })).not.toContain('world.worlds.0.monsters')
+    // an ambush row too
+    const bad = type([{ monster: 'mummy_desert#0', count: 2 }])
+    expect(errorsOf({ ambushTypes: [bad] })).toContain('world.worlds.0.ambushTypes.0.monsters.0.monster')
+  })
+
+  it('holds ambush types to 10, a weight of 1-99 and 1-30 per row', () => {
+    const ok = type([{ monster: 'mummy_desert', count: 2 }])
+    expect(errorsOf({ ambushTypes: Array.from({ length: 10 }, () => ok) })).not.toContain('world.worlds.0.ambushTypes')
+    expect(errorsOf({ ambushTypes: Array.from({ length: 11 }, () => ok) })).toContain('world.worlds.0.ambushTypes')
+    expect(errorsOf({ ambushTypes: [{ ...ok, weight: 0 }] })).toContain('world.worlds.0.ambushTypes.0.weight')
+    expect(errorsOf({ ambushTypes: [{ ...ok, weight: 100 }] })).toContain('world.worlds.0.ambushTypes.0.weight')
+    expect(errorsOf({ ambushTypes: [{ ...ok, weight: 99 }] })).not.toContain('world.worlds.0.ambushTypes.0.weight')
+    expect(errorsOf({ ambushTypes: [type([{ monster: 'mummy_desert', count: 0 }])] })).toContain('world.worlds.0.ambushTypes.0.monsters.0.count')
+    expect(errorsOf({ ambushTypes: [type([{ monster: 'mummy_desert', count: 31 }])] })).toContain('world.worlds.0.ambushTypes.0.monsters.0.count')
+    expect(errorsOf({ ambushTypes: [type([{ monster: 'ghost', count: 1 }])] })).toContain('world.worlds.0.ambushTypes.0.monsters.0.monster')
+    expect(errorsOf({ ambushTypes: [type([])] })).toContain('world.worlds.0.ambushTypes.0.monsters')
+    expect(errorsOf({ ambushTypes: [{ weight: 1 } as never] })).toContain('world.worlds.0.ambushTypes.0.monsters')
+    const rows = Array.from({ length: 31 }, () => ({ monster: 'mummy_desert', count: 1 }))
+    expect(errorsOf({ ambushTypes: [type(rows)] })).toContain('world.worlds.0.ambushTypes.0.monsters')
+  })
+
+  it('warns, never errors, about the actor budget and crowded groups', () => {
+    // 400 packs of 30 is the maximum: legal, and loud
+    const big = { packs: 400, packSize: 30 }
+    expect(errorsOf(big)).not.toContain('world.worlds.0.packs')
+    expect(warningsOf(big)).toContain('world.worlds.0.packs')
+    expect(warningsOf(big)).toContain('world.worlds.0.packSize')
+    expect(warningsOf({ packs: 20, packSize: 6 })).not.toContain('world.worlds.0.packs')
+    expect(warningsOf({ packs: 80, packSize: 10 })).not.toContain('world.worlds.0.packs')
+    expect(warningsOf({ packs: 120, packSize: 10 })).toContain('world.worlds.0.packs')
+    expect(warningsOf({ ambushSize: 25 })).toContain('world.worlds.0.ambushSize')
+  })
+})

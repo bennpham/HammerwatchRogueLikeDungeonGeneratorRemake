@@ -1999,6 +1999,12 @@ describe('world keys', () => {
       'world0BossPool=boss_anubis,boss_knight,boss_krilith,boss_lich,boss_worm',
       'world0SafeRadius=16',
       'world0Trails=0',
+      'world0Monsters=mummy_desert,mummy_ranged,lich_desert',
+      'world0Packs=20',
+      'world0PackSize=6',
+      'world0Ambushes=6',
+      'world0AmbushSize=6',
+      'world0ButtonAmbush=50',
       'world1Biome=desert',
       'world1Width=128,128',
       'world1Height=128,128',
@@ -2007,7 +2013,13 @@ describe('world keys', () => {
       'world1Buttons=3',
       'world1BossPool=boss_anubis,boss_knight,boss_krilith,boss_lich,boss_worm',
       'world1SafeRadius=16',
-      'world1Trails=0'
+      'world1Trails=0',
+      'world1Monsters=mummy_desert,mummy_ranged,lich_desert',
+      'world1Packs=20',
+      'world1PackSize=6',
+      'world1Ambushes=6',
+      'world1AmbushSize=6',
+      'world1ButtonAmbush=50'
     ])
     const back = parseParametersTxt(text, plainParameters())
     expect(back.params.world).toEqual(p.world)
@@ -2048,6 +2060,72 @@ describe('world keys', () => {
     const back = parseParametersTxt(text, plainParameters())
     expect(back.unknownKeys).toEqual([])
     expect(back.params.world).toEqual(p.world)
+  })
+
+  it('round-trips every encounter key, ambush types included', () => {
+    const p = plainParameters()
+    p.world = {
+      enabled: true,
+      worlds: [
+        {
+          ...defaultWorld(),
+          monsters: ['mummy_desert', 'lich_desert#2'],
+          packs: 33,
+          packSize: 9,
+          ambushes: 12,
+          ambushSize: 4,
+          buttonAmbush: 80,
+          ambushTypes: [
+            { weight: 3, monsters: [{ monster: 'mummy_desert', count: 4 }] },
+            { weight: 1, monsters: [{ monster: 'lich_desert#2', count: 1 }, { monster: 'mummy_ranged', count: 2 }] }
+          ]
+        }
+      ]
+    }
+    const text = serialize(p)
+    const lines = worldLines(text)
+    expect(lines).toContain('world0Monsters=mummy_desert,lich_desert#2')
+    expect(lines).toContain('world0Packs=33')
+    expect(lines).toContain('world0AmbushType1=3|mummy_desert:4')
+    expect(lines).toContain('world0AmbushType2=1|lich_desert#2:1,mummy_ranged:2')
+    const back = parseParametersTxt(text, plainParameters())
+    expect(back.unknownKeys).toEqual([])
+    expect(back.params.world).toEqual(p.world)
+  })
+
+  it('reports a bad encounter value, pool key or ambush type and keeps the rest', () => {
+    const { params, unknownKeys } = parseParametersTxt(
+      [
+        'world=1',
+        'worlds=1',
+        'world0Packs=x',
+        'world0PackSize=-2',
+        'world0Monsters=mummy_desert,ghost',
+        'world0AmbushType1=heavy|mummy_desert:2',
+        'world0AmbushType2=2|mummy_desert:2,ghost:1,mummy_ranged:z',
+        'world0AmbushType11=1|mummy_desert:1',
+        'world0AmbushType0=1|mummy_desert:1'
+      ].join('\n') + '\n',
+      plainParameters()
+    )
+    expect(unknownKeys).toEqual([
+      'world0Packs value "x"',
+      'world0PackSize value "-2"',
+      'world0Monsters monster "ghost"',
+      'world0AmbushType1 weight "heavy"',
+      'world0AmbushType2 monster "ghost"',
+      'world0AmbushType2 count "z"',
+      'world0AmbushType11 value "1|mummy_desert:1"',
+      'world0AmbushType0 value "1|mummy_desert:1"'
+    ])
+    const world = params.world!.worlds[0]
+    expect(world.monsters).toEqual(['mummy_desert'])
+    expect(world.packs).toBe(20)
+    // type 1 was unusable, so slot 0 stays the empty filler and slot 1 holds the good row
+    expect(world.ambushTypes).toEqual([
+      { weight: 1, monsters: [] },
+      { weight: 2, monsters: [{ monster: 'mummy_desert', count: 2 }] }
+    ])
   })
 
   it('reports a bad objective value or boss id and keeps the rest of the line', () => {

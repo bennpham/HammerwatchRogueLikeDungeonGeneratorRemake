@@ -9,6 +9,7 @@ import { getTheme } from '../src/generator/config/themes'
 import { searchPatterns } from '../src/generator/map/wallPattern'
 import { fenceFill, fencePassability } from '../src/generator/map/sealCheck'
 import { doodadPath } from '../src/generator/objects/doodad'
+import { resolveActorPath } from '../src/generator/objects/monsterTypes'
 import type { Doodad } from '../src/generator/objects/doodad'
 import { MAX_WORLD_ATTEMPTS, WORLD_STEPS, WORLD_STEP_ADVICE, buildWorld, worldStreams } from '../src/generator/world/build'
 import { coastCloses, coastPieces, syncWalls, unmatchedBand, wallTilesOf, wrapSafe } from '../src/generator/world/coast'
@@ -26,11 +27,14 @@ import { BIOME_DEFS, biomeById } from '../src/generator/world/biomes'
 import { arenaXml, floorXml, isArenaPath, isWorldPath } from './levelFiles'
 import { plainParameters } from './params'
 
-/** A FREE-ROAM island: no buttons and no bosses, the pass 1 world. */
+/** A FREE-ROAM island: no buttons, no bosses and no encounters, the pass 1 world. */
 const sized = (size: number, extra: Partial<WorldDef> = {}): WorldDef => ({
   ...defaultWorld(),
   buttons: 0,
   bossCount: 0,
+  packs: 0,
+  ambushes: 0,
+  buttonAmbush: 0,
   minWidth: size,
   maxWidth: size,
   minHeight: size,
@@ -964,5 +968,258 @@ describe('boss selection', () => {
     expect(a.files).toEqual(b.files)
     expect(worldFile(a)).toContain('HideObject')
     expect(a.levels.find((l) => l.world !== undefined)!.world!.sites).toHaveLength(3)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// pass 3: encounters
+// ---------------------------------------------------------------------------
+
+/** the commit-28 world (objectives, no encounters): sha256 prefixes of its XML */
+const COMMIT28 = `96|3|orb|bare|93082b3a732f8f91
+96|3|orb|trail|a03bc7355a73cdc7
+96|3|exit|bare|01c868053503f05f
+96|3|exit|trail|4a868bc0dd9006d7
+96|3|portal|bare|4990e1a5c6d215e3
+96|3|portal|trail|3be98f65f0692609
+96|7|orb|bare|48ab30dbe9fdfdf6
+96|7|orb|trail|fbc9ea6b17c0f7f1
+96|7|exit|bare|5ee0c0978bb6b3fa
+96|7|exit|trail|fd066cb3aaf6cfa2
+96|7|portal|bare|4fcaf69e394c4b3d
+96|7|portal|trail|9da56d4e50c30812
+128|3|orb|bare|5bc0104e7521ef49
+128|3|orb|trail|396915fe67e3f1ab
+128|3|exit|bare|cbfcbf491d75328a
+128|3|exit|trail|c7a806edb94d3a99
+128|3|portal|bare|aa5f62377330b51c
+128|3|portal|trail|f94d2b70388e9954
+128|7|orb|bare|180ae3707dd91cba
+128|7|orb|trail|d09d369927261d68
+128|7|exit|bare|ee258819c98709d6
+128|7|exit|trail|e6d31c1803a731cc
+128|7|portal|bare|ccdde56d21f648c0
+128|7|portal|trail|b539017d2f38cb80`.split('\n')
+
+/** A world with objectives and every encounter at its default. */
+const lively = (size: number, extra: Partial<WorldDef> = {}): WorldDef => ({
+  ...defaultWorld(),
+  minWidth: size,
+  maxWidth: size,
+  minHeight: size,
+  maxHeight: size,
+  buttons: 3,
+  bossCount: 1,
+  ...extra
+})
+
+/** A preview's map as a WorldGrid, so a test can ask the grid's own questions of what was placed. */
+function gridOfPreview(map: string, width: number, height: number): WorldGrid {
+  const grid = new WorldGrid(width, height)
+  for (let i = 0; i < map.length; i++) {
+    const code = map.charCodeAt(i) - 48
+    if (code === 0) continue
+    grid.set(i % width, Math.trunc(i / width), WorldGrid.LAND)
+    if (code === 2) grid.set(i % width, Math.trunc(i / width), WorldGrid.CLIFF)
+  }
+  return grid
+}
+
+const spawnsOf = (ctx: GenerationContext) =>
+  nodesOf(ctx, 'SpawnObject') as unknown as Array<{ actorPath: string; x: number; y: number; triggerTimes: number }>
+
+describe('encounters: what changes and what does not', () => {
+  it('a world with every encounter off emits exactly what commit 28 did', () => {
+    const got: string[] = []
+    for (const size of [96, 128]) {
+      for (const seed of [3, 7]) {
+        for (const gw of [{ kind: 'orb' }, { kind: 'exit', target: '0' }, { kind: 'portal', target: 'boss0' }] as const) {
+          for (const trails of [false, true]) {
+            const def = { ...lively(size, { trails }), bossCount: 2, packs: 0, ambushes: 0, buttonAmbush: 0 }
+            const ctx = new GenerationContext(plainParameters(), seed)
+            const r = buildWorld(ctx, def, 0, gw)
+            if ('failed' in r) throw new Error('failed')
+            got.push(`${size}|${seed}|${gw.kind}|${trails ? 'trail' : 'bare'}|${createHash('sha256').update(r.xml).digest('hex').slice(0, 16)}`)
+          }
+        }
+      }
+    }
+    expect(got).toEqual(COMMIT28)
+  })
+
+  it('draws from the encounters stream only: the sites, bosses and island do not move', () => {
+    for (const seed of [2, 5, 9]) {
+      const off = built(lively(128, { packs: 0, ambushes: 0, buttonAmbush: 0 }), seed, { kind: 'exit', target: '0' }).out.preview.world!
+      const on = built(lively(128), seed, { kind: 'exit', target: '0' }).out.preview.world!
+      const fixed = (w: typeof on) => w.sites.filter((s) => s.kind === 'button' || s.kind === 'boss')
+      expect(fixed(on)).toEqual(fixed(off))
+      expect(on.map).toBe(off.map)
+    }
+  })
+})
+
+describe('encounters: packs', () => {
+  it("places packs of the world's monsters, each member on its centre's ground (A4)", () => {
+    let packsSeen = 0
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const { ctx, out } = built(lively(128, { buttons: 0, bossCount: 0, ambushes: 0 }), seed, { kind: 'orb' })
+      const world = out.preview.world!
+      const grid = gridOfPreview(world.map, out.preview.mapWidth, out.preview.mapHeight)
+      const centres = world.sites.filter((s) => s.kind === 'pack')
+      packsSeen += centres.length
+      expect(centres.length).toBeGreaterThan(0)
+      expect(ctx.monsters.length).toBeGreaterThan(0)
+      for (const m of ctx.monsters) {
+        const mx = Math.floor(m.x)
+        const my = Math.floor(m.y)
+        const centre = centres.find((c) => Math.abs(c.x - mx) <= 2 && Math.abs(c.y - my) <= 2)
+        expect(centre, `member at ${mx},${my} has no pack`).toBeDefined()
+        expect(grid.has(mx, my, WorldGrid.CLIFF)).toBe(false)
+        expect(grid.sameGround(centre!, { x: mx, y: my })).toBe(true)
+      }
+    }
+    expect(packsSeen).toBeGreaterThan(20)
+  })
+
+  it('keeps packs the safe radius from the centre and 10 tiles from each other and from every site', () => {
+    const { out } = built(lively(160), 4, { kind: 'exit', target: '0' })
+    const { hub, sites } = out.preview.world!
+    const packs = sites.filter((s) => s.kind === 'pack')
+    const fixed = sites.filter((s) => s.kind === 'button' || s.kind === 'boss')
+    expect(packs.length).toBeGreaterThan(0)
+    for (const p of packs) {
+      expect(Math.hypot(p.x - hub.x, p.y - hub.y)).toBeGreaterThanOrEqual(16 - 1e-9)
+      for (const o of [...fixed, ...packs.filter((q) => q !== p)]) expect(Math.hypot(p.x - o.x, p.y - o.y)).toBeGreaterThanOrEqual(10 - 1e-9)
+    }
+  })
+
+  it("pins a #tier key to that actor, and never touches a floor's ctx.rand", () => {
+    const { ctx } = built(lively(128, { buttons: 0, bossCount: 0, ambushes: 0, packSize: 10, monsters: ['mummy_desert#3'] }), 3, { kind: 'orb' })
+    expect(ctx.monsters.length).toBeGreaterThan(0)
+    for (const m of ctx.monsters) expect(m.type.tiers[m.tier]).toBe('actors/mummy_1_elite.xml')
+    const fresh = new GenerationContext(small(), 3)
+    const probe = new GenerationContext(small(), 3)
+    buildWorld(probe, lively(96), 0, { kind: 'orb' })
+    expect(probe.rand.nextInt(1 << 30)).toBe(fresh.rand.nextInt(1 << 30))
+  })
+
+  it('places no pack with an empty pool or packs 0', () => {
+    const types = [{ weight: 1, monsters: [{ monster: 'mummy_desert', count: 2 }] }]
+    const empty = built(lively(96, { monsters: [], ambushTypes: types, bossCount: 0 }), 3).ctx
+    expect(empty.monsters).toHaveLength(0)
+    const none = built(lively(96, { packs: 0, bossCount: 0 }), 3).ctx
+    expect(none.monsters).toHaveLength(0)
+  })
+})
+
+describe('encounters: ambush tripwires and rings', () => {
+  it('lays a 4x4 sensor on the corridors: shape, one-shot trigger, the stock cue and one spawn per ring point', () => {
+    const { ctx, out } = built(lively(160, { buttonAmbush: 0, ambushes: 5, ambushSize: 6, trails: true }), 4, { kind: 'exit', target: '0' })
+    const wires = nodesOf(ctx, 'RectangleShape').filter((n) => n.getXML().includes('<float name="w">4.000000</float>'))
+    expect(wires.length).toBeGreaterThan(0)
+    const triggers = nodesOf(ctx, 'AreaTrigger').filter((n) => n.connections.some((c) => c.type === 'SpawnObject'))
+    expect(triggers).toHaveLength(wires.length)
+    for (const t of triggers) {
+      expect(t.triggerTimes).toBe(1)
+      const cue = t.connections.filter((c) => c.type === 'PlaySound')
+      expect(cue).toHaveLength(1)
+      expect(cue[0].getXML()).toContain('sound/misc.xml:info_puzzle_fail')
+      const spawns = t.connections.filter((c) => c.type === 'SpawnObject')
+      expect(spawns.length).toBeGreaterThan(0)
+      expect(spawns.length).toBeLessThanOrEqual(6)
+    }
+    for (const s of spawnsOf(ctx)) expect(s.triggerTimes).toBe(1)
+    expect(out.preview.world!.sites.filter((s) => s.kind === 'ambush')).toHaveLength(wires.length)
+  })
+
+  it("springs ring points on the tripwire's own ground, within 5 tiles (and rounding), never on a cliff (A4)", () => {
+    for (const seed of [1, 2, 3, 4]) {
+      const { ctx, out } = built(lively(128, { buttonAmbush: 100, ambushes: 4 }), seed, { kind: 'exit', target: '0' })
+      const world = out.preview.world!
+      const grid = gridOfPreview(world.map, out.preview.mapWidth, out.preview.mapHeight)
+      const centres = world.sites.filter((s) => s.kind === 'ambush' || s.kind === 'button')
+      expect(spawnsOf(ctx).length).toBeGreaterThan(0)
+      for (const s of spawnsOf(ctx)) {
+        const x = Math.floor(s.x)
+        const y = Math.floor(s.y)
+        const centre = centres.find((c) => Math.hypot(c.x - x, c.y - y) <= 6)
+        expect(centre, `ring point ${x},${y}`).toBeDefined()
+        expect(grid.has(x, y, WorldGrid.CLIFF)).toBe(false)
+        expect(grid.sameGround(centre!, { x, y })).toBe(true)
+      }
+    }
+  })
+
+  it("puts the ring on a button's own trigger at buttonAmbush percent: all at 100, none at 0", () => {
+    const buttons = (ctx: GenerationContext) =>
+      nodesOf(ctx, 'AreaTrigger').filter((n) => n.connections.some((c) => c.type === 'ChangeDoodadState') && n.connections.some((c) => c.type === 'ChangeVariable'))
+    const all = built(lively(128, { ambushes: 0, buttonAmbush: 100, bossCount: 0, buttons: 4 }), 5, { kind: 'exit', target: '0' }).ctx
+    expect(buttons(all)).toHaveLength(4)
+    for (const t of buttons(all)) expect(t.connections.some((c) => c.type === 'SpawnObject')).toBe(true)
+    const none = built(lively(128, { ambushes: 0, buttonAmbush: 0, bossCount: 0, buttons: 4 }), 5, { kind: 'exit', target: '0' }).ctx
+    for (const t of buttons(none)) expect(t.connections.some((c) => c.type === 'SpawnObject')).toBe(false)
+  })
+
+  it('a weighted ambush type spawns exactly its monsters', () => {
+    const types = [
+      { weight: 1, monsters: [{ monster: 'mummy_desert', count: 3 }, { monster: 'mummy_ranged', count: 2 }] },
+      { weight: 1, monsters: [{ monster: 'lich_desert', count: 4 }] }
+    ]
+    const { ctx } = built(lively(160, { ambushes: 6, buttonAmbush: 0, ambushTypes: types, monsters: [], packs: 0 }), 6, { kind: 'exit', target: '0' })
+    const triggers = nodesOf(ctx, 'AreaTrigger').filter((n) => n.connections.some((c) => c.type === 'SpawnObject'))
+    expect(triggers.length).toBeGreaterThan(0)
+    const mummy = resolveActorPath('mummy_desert')
+    const ranged = resolveActorPath('mummy_ranged')
+    const lich = resolveActorPath('lich_desert')
+    const seen = new Set<string>()
+    for (const t of triggers) {
+      const paths = (t.connections.filter((c) => c.type === 'SpawnObject') as unknown as Array<{ actorPath: string }>).map((c) => c.actorPath)
+      const counts = (p: string) => paths.filter((x) => x === p).length
+      // a ring point with no ground is skipped, so a type may come up short but never gain a stranger
+      expect(paths.every((p) => [mummy, ranged, lich].includes(p))).toBe(true)
+      if (counts(lich) > 0) {
+        expect(counts(mummy) + counts(ranged)).toBe(0)
+        expect(counts(lich)).toBeLessThanOrEqual(4)
+        seen.add('lich')
+      } else {
+        expect(counts(mummy)).toBeLessThanOrEqual(3)
+        expect(counts(ranged)).toBeLessThanOrEqual(2)
+        seen.add('mummy')
+      }
+    }
+    expect(seen.size).toBeGreaterThan(0)
+  })
+})
+
+describe('encounters: never a spawner', () => {
+  it('emits no actor, placed or spawned, under actors/spawners/', () => {
+    const pools = [
+      ['mummy_desert', 'mummy_ranged', 'lich_desert'],
+      ['tower_banner', 'bat1', 'skeleton1#1', 'lich#2']
+    ]
+    for (const monsters of pools) {
+      for (const seed of [1, 2, 3]) {
+        const { ctx } = built(lively(128, { monsters, buttonAmbush: 100, ambushes: 6 }), seed, { kind: 'exit', target: '0' })
+        for (const m of ctx.monsters) expect(m.type.tiers[m.tier].startsWith('actors/spawners/')).toBe(false)
+        for (const s of spawnsOf(ctx)) expect(s.actorPath.startsWith('actors/spawners/')).toBe(false)
+      }
+    }
+  })
+})
+
+describe('encounters: bounds', () => {
+  it('at every bound (zero, one, the maximum) on six seeds, generation never fails', () => {
+    const settings: Array<Partial<WorldDef>> = [
+      { packs: 0, ambushes: 0, buttonAmbush: 0 },
+      { packs: 1, packSize: 1, ambushes: 1, ambushSize: 1, buttonAmbush: 1 },
+      { packs: 400, packSize: 30, ambushes: 120, ambushSize: 30, buttonAmbush: 100 }
+    ]
+    for (const extra of settings) {
+      for (const seed of [1, 2, 3, 4, 5, 6]) {
+        const ctx = new GenerationContext(small(), seed)
+        const r = buildWorld(ctx, lively(96, extra), 0, { kind: 'exit', target: '0' })
+        expect('failed' in r, `${JSON.stringify(extra)} seed ${seed}`).toBe(false)
+      }
+    }
   })
 })
