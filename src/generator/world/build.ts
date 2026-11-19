@@ -1,20 +1,30 @@
 /**
  * A world: one open island, built by terrain rather than rooms and passages
- * (docs/plans/world-mode.md). Pass 1 is FREE ROAM: an island, its coast, the
- * arrival and the way out, nothing to fight and nothing to find.
+ * (docs/plans/world-mode.md). With no objectives it is FREE ROAM: an island, its
+ * coast, the arrival and an open way out. With buttons and bosses the way out
+ * waits on them (`objectives.ts`).
  *
  *   1. size, then the island mask (`island.ts`)
  *   2. the centre: its disc must be open ground
  *   3. the coast (`coast.ts`) and its closure proof
- *   4. every object: the arrival, then the portal or the orb
- *   5. the coast's pieces, LAST, so no id of an object depends on how many
- *   6. tiles and the shared section tail (`emit.ts`)
+ *   4. the objective sites (`place.ts`) and the corridors that reach them
+ *      (`paths.ts`), every one proved reachable from the arrival
+ *   5. every object: the arrival, the portal or the orb, then the objectives
+ *   6. the coast's pieces, LAST, so no id of an object depends on how many
+ *   7. tiles and the shared section tail (`emit.ts`)
  *
  * Draws only from `ctx.worldRand`: exactly three values per world, whatever
  * happens after, the seeds of this world's `layout`, `scatter` and
  * `encounters` streams (`encounters` has no use yet, but is still drawn: the
  * draw count must not change when it does). A world therefore never moves a
  * floor, an arena or another world.
+ *
+ * The `layout` stream, in order: size, mask, then on the accepted try's way
+ * through the sites (sector angles and tries), the corridor noise, and last
+ * the boss pick (`pickBosses`; a lineup draws nothing). Bosses are layout, not
+ * encounters: WHERE they stand and WHICH they are is the island's shape of play,
+ * and the pick comes after every placement draw, so changing the pool moves
+ * no site.
  *
  * Every loop is bounded: `MAX_WORLD_ATTEMPTS` islands, `MAX_PASSES` cleaning
  * passes each. Size is drawn INSIDE the attempt loop, so a failed island may
@@ -24,10 +34,6 @@
 import type { GenerationContext } from '../core/context'
 import { Rand } from '../core/rand'
 import type { Gateway } from '../campaign'
-import { Item } from '../objects/item'
-import { ObjectSet } from '../objects/objectSet'
-import { NodeAreaTrigger, NodeGameEnd, NodeLevelStart, NodeObjectEventTrigger, NodeRectangleShape, NodeToggleElement } from '../objects/nodes'
-import { ScriptNode } from '../objects/scriptNode'
 import { overhangRows } from '../map/reachability'
 import type { LevelPreview } from '../index'
 import { BIOME_DEFS, biomeById } from './biomes'
@@ -37,7 +43,11 @@ import { WorldGrid } from './grid'
 import type { Tile } from './grid'
 import { buildIsland, islandRulesFor } from './island'
 import type { IslandMask } from './island'
-import { ORB_AT, worldBiomeId, worldCoast, worldSize, worldWaterMargin } from './options'
+import { buildObjectives } from './objectives'
+import type { WorldObjectives } from './objectives'
+import { carveTrails } from './paths'
+import { placeSites } from './place'
+import { ORB_AT, worldBiomeId, worldCoast, worldObjectiveCount, worldSafeRadius, worldSize, worldTrails, worldWaterMargin } from './options'
 import type { WorldDef } from './options'
 
 /** Fresh islands tried before the world gives up. */
@@ -48,15 +58,12 @@ export const HUB_RADIUS = 5
 /** The arrival stands this many tiles south of the centre. */
 export const ARRIVAL_DY = 3
 
-/** Side of the square the arrival-respawn trigger watches, as the arena's. */
-const RESPAWN_AREA_SIZE = 3
-
 /**
  * The steps a try at an island can fail on, in the order they run. A world
  * that fails every try reports the step that failed most, so the message can
  * say what to change.
  */
-export const WORLD_STEPS = ['island', 'start', 'coast', 'reach'] as const
+export const WORLD_STEPS = ['island', 'start', 'coast', 'reach', 'sites', 'trails'] as const
 export type WorldStep = (typeof WORLD_STEPS)[number]
 
 /** What to change when `step` keeps failing, for the error message. */
@@ -64,7 +71,9 @@ export const WORLD_STEP_ADVICE: Record<WorldStep, string> = {
   island: 'no island could be grown at this size and coast; try a calmer coast or a larger map',
   start: 'the centre kept landing on broken ground; try a calmer coast or a larger map',
   coast: 'the coast would not close; try a calmer coast, a wider water margin or a larger map',
-  reach: 'the arrival could not reach the way out; try a calmer coast or a larger map'
+  reach: 'the arrival could not reach the way out; try a calmer coast or a larger map',
+  sites: 'the buttons and bosses did not all fit; try fewer of them, a smaller safe radius or a larger map',
+  trails: 'a corridor could not be cut to every objective; try a calmer coast or a larger map'
 }
 
 export type WorldTally = Record<WorldStep, number>
@@ -108,7 +117,9 @@ export function buildWorld(
   const coast = worldCoast(def)
   const rows = overhangRows(biome.theme)
   const rules = islandRulesFor(rows)
-  const tally: WorldTally = { island: 0, start: 0, coast: 0, reach: 0 }
+  const objectiveCount = worldObjectiveCount(def)
+  const safeRadius = worldSafeRadius(def)
+  const tally: WorldTally = { island: 0, start: 0, coast: 0, reach: 0, sites: 0, trails: 0 }
 
   for (let attempt = 1; attempt <= MAX_WORLD_ATTEMPTS; attempt++) {
     const width = layout.iRand(size.width[0], size.width[1] + 1)
@@ -147,41 +158,43 @@ export function buildWorld(
       continue
     }
 
-    // --- objects: the orb's tile reserved first, then the arrival, then the way out
-    ctx.clearLevel()
+    // the orb's tile (or the portal's) is reserved before anything else is
+    // placed, then the arrival
     grid.markDisc(gateway.kind === 'orb' ? orb : hub, 1, WorldGrid.RESERVED)
     grid.markDisc(arrival, 1, WorldGrid.RESERVED)
 
-    // the start of the level, then the arrival revive every floor and arena
-    // carries, so a player who died on the slot before can still play
-    new NodeLevelStart(ctx, arrival.x + 0.5, arrival.y + 0.5)
-    const respawnShape = new NodeRectangleShape(ctx, arrival.x + 0.5, arrival.y + 0.5)
-    respawnShape.width = RESPAWN_AREA_SIZE
-    respawnShape.height = RESPAWN_AREA_SIZE
-    const respawnTrigger = new NodeAreaTrigger(ctx, arrival.x + 0.5, arrival.y + 0.5)
-    respawnTrigger.connectToShape(respawnShape)
-    respawnTrigger.connectTo(new ScriptNode(ctx, arrival.x + 0.5, arrival.y + 0.5, 'RespawnPlayers'))
-    const disableRespawn = new NodeToggleElement(ctx, arrival.x + 0.5, arrival.y + 0.5)
-    disableRespawn.connectToElement(respawnTrigger)
-    respawnTrigger.connectTo(disableRespawn)
-
-    if (gateway.kind === 'orb') {
-      // in plain sight from the start: the hidden-orb rig belongs to objectives
-      const item = Item.create(ctx, orb.x + 0.5, orb.y + 0.5, 'Orb', 0)
-      const trigger = new NodeObjectEventTrigger(ctx, orb.x + 0.5, orb.y + 2.5)
-      trigger.connectItem(item)
-      trigger.connectTo(new NodeGameEnd(ctx, orb.x + 0.5, orb.y + 4.5))
-    } else {
-      // red into a fight, blue anywhere else, open from the start
-      ObjectSet.create(ctx, hub.x, hub.y, gateway.kind === 'portal' ? 'BossPortal' : 'LobbyPortal', biome.theme, gateway.target)
+    // --- the sites, and the corridors that keep every one reachable. Free roam
+    // (nothing to place) returns before touching the stream.
+    let sites: Tile[] = []
+    if (objectiveCount > 0) {
+      const placed = placeSites(layout, grid, hub, objectiveCount, safeRadius, reached)
+      if (placed === null) {
+        tally.sites++
+        continue
+      }
+      if (!carveTrails(layout, grid, arrival, placed, worldTrails(def))) {
+        tally.trails++
+        continue
+      }
+      // the corridors are proved, not assumed: every site walkable from the arrival
+      if (!placed.every((t) => reached[t.y * width + t.x] === 1)) {
+        tally.reach++
+        continue
+      }
+      sites = placed
     }
+
+    // --- objects: nothing below can fail the island
+    ctx.clearLevel()
+
+    const objectives = buildObjectives(ctx, layout, grid, def, biome.theme, hub, arrival, gateway, sites)
 
     // --- the coast LAST: nothing references a wall piece, so its ids come after
     // every object's
     placeCoast(ctx, pieces, biome.theme)
 
     const xml = emitWorld(ctx, biome, grid, scatter)
-    return { xml, preview: previewOf(ctx, grid, hub, levelNumber, biome.id), attempts: attempt }
+    return { xml, preview: previewOf(ctx, grid, hub, levelNumber, biome.id, objectives), attempts: attempt }
   }
   // the step that failed most; ties go to the earlier step
   const failed = WORLD_STEPS.reduce((a, b) => (tally[b] > tally[a] ? b : a))
@@ -217,7 +230,14 @@ function gridOf(island: IslandMask, overhang: number): WorldGrid {
  * island is 262,144 string appends). Alphabet: 0 water, 1 land, 2 band (the
  * shore), 3 trail, 4 solid.
  */
-function previewOf(ctx: GenerationContext, grid: WorldGrid, hub: Tile, levelNumber: number, biomeId: string): LevelPreview {
+function previewOf(
+  ctx: GenerationContext,
+  grid: WorldGrid,
+  hub: Tile,
+  levelNumber: number,
+  biomeId: string,
+  objectives: WorldObjectives
+): LevelPreview {
   const ZERO = 48
   const mapCodes = new Uint8Array(grid.width * grid.height)
   const wallCodes = new Uint8Array(grid.width * grid.height)
@@ -250,6 +270,13 @@ function previewOf(ctx: GenerationContext, grid: WorldGrid, hub: Tile, levelNumb
     monsterCount: ctx.monsters.length,
     itemCount: ctx.items.length,
     walls: decoder.decode(wallCodes),
-    world: { map: decoder.decode(mapCodes), hub, sites: [] }
+    world: {
+      map: decoder.decode(mapCodes),
+      hub,
+      sites: [
+        ...objectives.buttons.map((t) => ({ x: t.x, y: t.y, kind: 'button' })),
+        ...objectives.bosses.map((t) => ({ x: t.x, y: t.y, kind: 'boss' }))
+      ]
+    }
   }
 }

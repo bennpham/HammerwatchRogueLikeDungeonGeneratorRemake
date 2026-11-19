@@ -34,7 +34,7 @@ export const SEAL_SOUND = 'sound/misc.xml:button_hatch'
  * the DISCOVERY-LOG. The old `trigger_button_floor.xml` plate was driven to
  * `pressed`; that belongs to the old asset, do not carry it back.
  */
-const SEAL_BUTTON_STATE = 'activate'
+export const SEAL_BUTTON_STATE = 'activate'
 
 /**
  * The state a DISGUISED lock button is driven to instead — the mystery
@@ -46,7 +46,7 @@ const SEAL_BUTTON_STATE = 'activate'
 const DISGUISE_BUTTON_STATE = 'pressed'
 
 /** How long the "it opened" banner stays up, in ms. */
-const SEAL_ANNOUNCE_MS = 2500
+export const SEAL_ANNOUNCE_MS = 2500
 
 /**
  * AnnounceText `type`, named as the editor's dropdown lists them: 0 Title,
@@ -57,7 +57,7 @@ const SEAL_ANNOUNCE_MS = 2500
  * "It opened" is news for the whole party, so it goes on Subtitle, the global
  * announcement (owner, 2026-09-27).
  */
-const SEAL_ANNOUNCE_TYPE = 1
+export const SEAL_ANNOUNCE_TYPE = 1
 
 /**
  * "k buttons remain" goes on Title — the style the game's own "<n> more to

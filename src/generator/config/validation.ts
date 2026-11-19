@@ -37,6 +37,7 @@ import {
   arenaBossCount,
   floorBossCount,
   bossSelection,
+  lineupTotal,
   isMultiBoss,
   arenaMode,
   survivalBuffs,
@@ -61,16 +62,24 @@ import type { CampaignSlot } from '../campaign'
 import { getTheme } from './themes'
 import { BIOME_IDS } from '../world/biomes'
 import {
+  DEFAULT_WORLD_BUTTONS,
+  DEFAULT_WORLD_SAFE_RADIUS,
+  WORLD_BUTTONS_MAX,
   WORLD_COAST_MAX,
   WORLD_COAST_MIN,
   WORLD_MAX_COUNT,
+  WORLD_SAFE_RADIUS_MAX,
+  WORLD_SAFE_RADIUS_MIN,
   WORLD_SIZE_MAX,
   WORLD_SIZE_MIN,
   WORLD_SIZE_WARN,
   WORLD_WATER_MARGIN_MAX,
   WORLD_WATER_MARGIN_MIN,
-  worldList
+  worldList,
+  worldMaxSafeRadius,
+  worldSiteCapacityOf
 } from '../world/options'
+import type { WorldDef } from '../world/options'
 import {
   defaultTier,
   isKnownFamilyId,
@@ -481,7 +490,7 @@ function validateWorlds(p: DungeonParameters, errors: ValidationIssue[], warning
     const minH = whole('minHeight', def.minHeight, WORLD_SIZE_MIN, WORLD_SIZE_MAX, 'The minimum height')
     const maxH = whole('maxHeight', def.maxHeight, WORLD_SIZE_MIN, WORLD_SIZE_MAX, 'The maximum height')
     whole('coast', def.coast, WORLD_COAST_MIN, WORLD_COAST_MAX, 'The coast')
-    whole('waterMargin', def.waterMargin, WORLD_WATER_MARGIN_MIN, WORLD_WATER_MARGIN_MAX, 'The water margin')
+    const marginOk = whole('waterMargin', def.waterMargin, WORLD_WATER_MARGIN_MIN, WORLD_WATER_MARGIN_MAX, 'The water margin')
     if (minW && maxW && def.minWidth > def.maxWidth) {
       errors.push({ field: at('minWidth'), message: 'The minimum width must be at most the maximum width.' })
     }
@@ -495,7 +504,104 @@ function validateWorlds(p: DungeonParameters, errors: ValidationIssue[], warning
         message: `A world above ${WORLD_SIZE_WARN} tiles is bigger than any stock level (240) and may load slowly or not at all.`
       })
     }
+    validateWorldObjectives(def, i, at, whole, minW && minH && marginOk, errors, warnings)
   })
+}
+
+/**
+ * The objective rules of one world: buttons, bosses, the safe radius, and
+ * whether the island holds them all. Bosses follow the arena's and the floor's
+ * rules exactly (`MAX_BOSS_COUNT`, the `BOSS_COUNT_WARN` advisory, mobile
+ * bosses only, `validateBossLineup`), except that a world may carry none, and
+ * the cap on how many is only what fits.
+ */
+function validateWorldObjectives(
+  def: WorldDef,
+  index: number,
+  at: (field: string) => string,
+  whole: (field: string, value: number, min: number, max: number, what: string) => boolean,
+  sizeOk: boolean,
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[]
+): void {
+  const subject = `World ${index + 1}`
+  const buttons = def.buttons ?? DEFAULT_WORLD_BUTTONS
+  const buttonsOk = whole('buttons', buttons, 0, WORLD_BUTTONS_MAX, 'The button count')
+  const safeRadius = def.safeRadius ?? DEFAULT_WORLD_SAFE_RADIUS
+  const safeOk = whole('safeRadius', safeRadius, WORLD_SAFE_RADIUS_MIN, WORLD_SAFE_RADIUS_MAX, 'The safe radius')
+  if (def.trails !== undefined && typeof def.trails !== 'boolean') {
+    errors.push({ field: at('trails'), message: 'Trails must be on or off.' })
+  }
+  if (def.bossSelection !== undefined && !(BOSS_SELECTIONS as readonly string[]).includes(def.bossSelection)) {
+    errors.push({ field: at('bossSelection'), message: `Boss selection must be one of: ${BOSS_SELECTIONS.join(', ')}.` })
+  }
+
+  let bosses = 0
+  let bossesOk = true
+  if (bossSelection(def) === 'lineup') {
+    validateBossLineup(def.bossLineup, at('bossLineup'), MOBILE_BOSS_IDS, errors, subject)
+    bosses = lineupTotal(def.bossLineup)
+    if (bosses > MAX_BOSS_COUNT) {
+      bossesOk = false
+      errors.push({ field: at('bossLineup'), message: `The lineup must total between 0 and ${MAX_BOSS_COUNT} bosses.` })
+    }
+  } else {
+    bosses = def.bossCount ?? 1
+    bossesOk = whole('bossCount', bosses, 0, MAX_BOSS_COUNT, 'The boss count')
+    // the pool is read only in random mode, and only when there is a boss to pick
+    if (bossesOk && bosses > 0) {
+      // a pool the object never stated reads as every mobile boss
+      const pool: unknown = def.bossPool === undefined ? [...MOBILE_BOSS_IDS] : def.bossPool
+      if (!Array.isArray(pool) || pool.length === 0) {
+        errors.push({ field: at('bossPool'), message: `${subject}: pick at least one boss for the world to draw from.` })
+      } else {
+        for (const id of pool) {
+          if (!(MOBILE_BOSS_IDS as readonly string[]).includes(id)) {
+            errors.push({
+              field: at('bossPool'),
+              message: `${subject}: "${String(id)}" cannot be a world boss: it must move to reach the party. Pick from: ${MOBILE_BOSS_IDS.join(', ')}.`
+            })
+          }
+        }
+      }
+    }
+  }
+  if (bossesOk && bosses > BOSS_COUNT_WARN) {
+    warnings.push({
+      field: bossSelection(def) === 'lineup' ? at('bossLineup') : at('bossCount'),
+      message: `${bosses} bosses is a lot: expect a crowded island and slower generation.`
+    })
+  }
+
+  if (!buttonsOk || !bossesOk || !sizeOk) return
+  const objectives = buttons + bosses
+  if (objectives === 0) return
+  // A1: the safe radius must leave land beyond it for a site
+  if (safeOk) {
+    const largest = worldMaxSafeRadius(def.minWidth, def.minHeight, def.waterMargin)
+    if (safeRadius > largest) {
+      errors.push({
+        field: at('safeRadius'),
+        message:
+          largest >= WORLD_SAFE_RADIUS_MIN
+            ? `The safe radius is at most ${largest} on a ${Math.min(def.minWidth, def.minHeight)}-tile island with a ${def.waterMargin}-tile water margin; objectives need land beyond it.`
+            : `No safe radius leaves land for objectives on a ${Math.min(def.minWidth, def.minHeight)}-tile island with a ${def.waterMargin}-tile water margin. Use a larger island or a thinner margin.`
+      })
+    }
+  }
+  // A2: every objective needs a site of its own
+  const capacity = worldSiteCapacityOf(def)
+  if (objectives > capacity) {
+    errors.push({
+      field: at('buttons'),
+      message: `${subject}: ${objectives} objectives (${buttons} buttons and ${bosses} bosses) do not fit; the smallest island holds about ${capacity}. Lower them, or use a larger island or a smaller safe radius.`
+    })
+  } else if (objectives === capacity && capacity > 1) {
+    warnings.push({
+      field: at('buttons'),
+      message: `${subject}: ${objectives} objectives fill the island exactly; a ragged coast may not fit them all on every seed.`
+    })
+  }
 }
 
 /**

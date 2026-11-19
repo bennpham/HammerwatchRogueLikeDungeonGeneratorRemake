@@ -7,10 +7,14 @@
  * hand-built or older object that lacks a field then falls back to its default
  * instead of becoming `undefined` deep in the builder.
  *
- * This file imports nothing at run time. `config/parameters.ts` reads
- * `worldList` and `validation.ts` the bounds, so a value import the other way
- * would be a cycle.
+ * The boss roster helpers are the one value import from `config/parameters.ts`
+ * (which itself reads `worldList` from here). Each side uses the other only
+ * inside functions, never at module load, so the cycle is inert.
  */
+
+import { MOBILE_BOSS_IDS, bossSelection, lineupTotal } from '../config/parameters'
+import type { BossSelection } from '../config/parameters'
+import type { BossId } from '../boss/bosses'
 
 /** The most worlds a campaign may carry. An allocation guard, not a design limit. */
 export const WORLD_MAX_COUNT = 20
@@ -31,6 +35,27 @@ export const WORLD_WATER_MARGIN_MAX = 16
  */
 export const ORB_AT = { x: 0, y: -3 } as const
 
+/** Tiles kept between two objective sites. */
+export const WORLD_SITE_SPACING = 20
+/** The clear disc round a site's centre: room for a boss, a plate and a fight. */
+export const WORLD_SITE_RADIUS = 4
+/**
+ * Most floor buttons a world asks for. Generous on purpose: the real limit is
+ * how many sites the island holds (`worldSiteCapacityOf`), which validation
+ * checks; this only stops a typo from emitting an unserializable pile.
+ */
+export const WORLD_BUTTONS_MAX = 64
+export const WORLD_SAFE_RADIUS_MIN = 6
+export const WORLD_SAFE_RADIUS_MAX = 40
+export const DEFAULT_WORLD_BUTTONS = 3
+export const DEFAULT_WORLD_SAFE_RADIUS = 16
+/**
+ * How far land reaches from the island's centre, as a share of the half-side
+ * inside the water margin. `island.ts` keeps land out to about 0.88 of it; a
+ * little less allows for a ragged coast.
+ */
+const LAND_REACH = 0.85
+
 export const DEFAULT_WORLD_BIOME = 'desert'
 export const DEFAULT_WORLD_SIZE = 128
 export const DEFAULT_WORLD_COAST = 50
@@ -48,6 +73,26 @@ export interface WorldDef {
   coast: number
   /** tiles of open sea kept all round the island */
   waterMargin: number
+  /** floor buttons the party must press */
+  buttons: number
+  /**
+   * Bosses to kill. **Absent means 1**; read it through `worldBossCount`,
+   * which also honours the lineup. 0 with no buttons is a free-roam world.
+   */
+  bossCount?: number
+  /** the bosses a random pick draws from: a non-empty subset of `MOBILE_BOSS_IDS` */
+  bossPool: string[]
+  /** absent means `'random'`; read through `bossSelection()` */
+  bossSelection?: BossSelection
+  /** exact per-boss counts for `bossSelection: 'lineup'`; the pool is then unread */
+  bossLineup?: Partial<Record<BossId, number>>
+  /** tiles round the arrival that no objective may use */
+  safeRadius: number
+  /**
+   * Whether the corridors that keep every site reachable are painted as a
+   * path. They are kept clear either way.
+   */
+  trails: boolean
 }
 
 export interface WorldOptions {
@@ -63,7 +108,11 @@ export function defaultWorld(): WorldDef {
     minHeight: DEFAULT_WORLD_SIZE,
     maxHeight: DEFAULT_WORLD_SIZE,
     coast: DEFAULT_WORLD_COAST,
-    waterMargin: DEFAULT_WORLD_WATER_MARGIN
+    waterMargin: DEFAULT_WORLD_WATER_MARGIN,
+    buttons: DEFAULT_WORLD_BUTTONS,
+    bossPool: [...MOBILE_BOSS_IDS],
+    safeRadius: DEFAULT_WORLD_SAFE_RADIUS,
+    trails: false
   }
 }
 
@@ -101,4 +150,65 @@ export function worldCoast(def: Partial<WorldDef>): number {
 
 export function worldWaterMargin(def: Partial<WorldDef>): number {
   return num(def.waterMargin, DEFAULT_WORLD_WATER_MARGIN)
+}
+
+export function worldButtons(def: Partial<WorldDef>): number {
+  return num(def.buttons, DEFAULT_WORLD_BUTTONS)
+}
+
+/**
+ * How many bosses the world carries: absent means one, and a lineup's own
+ * total replaces the count, as for an arena or a floor.
+ */
+export function worldBossCount(def: Partial<WorldDef>): number {
+  return bossSelection(def) === 'lineup' ? lineupTotal(def.bossLineup) : num(def.bossCount, 1)
+}
+
+/** The pool a random pick draws from; a missing list reads as every mobile boss. */
+export function worldBossPool(def: Partial<WorldDef>): string[] {
+  return Array.isArray(def.bossPool) ? def.bossPool : [...MOBILE_BOSS_IDS]
+}
+
+export function worldSafeRadius(def: Partial<WorldDef>): number {
+  return num(def.safeRadius, DEFAULT_WORLD_SAFE_RADIUS)
+}
+
+export function worldTrails(def: Partial<WorldDef>): boolean {
+  return def.trails === true
+}
+
+/** Buttons plus bosses: how many sites the world needs. */
+export function worldObjectiveCount(def: Partial<WorldDef>): number {
+  return Math.max(0, worldButtons(def)) + Math.max(0, worldBossCount(def))
+}
+
+/**
+ * How many objective sites a world of this size can hold, roughly. The island
+ * is the ellipse `island.ts` grows, less the disc round the arrival that no
+ * site may use, and never more than half the area inside the water margin.
+ * Each site needs a `WORLD_SITE_SPACING` square, and the arrival takes one.
+ */
+export function worldSiteCapacity(width: number, height: number, margin: number, clearRadius = 0): number {
+  const square = WORLD_SITE_SPACING * WORLD_SITE_SPACING
+  const rough = Math.max(0, width - 2 * margin) * Math.max(0, height - 2 * margin) * 0.5
+  const a = Math.max(0, width / 2 - margin) * LAND_REACH
+  const b = Math.max(0, height / 2 - margin) * LAND_REACH
+  const r = Math.min(clearRadius, a, b)
+  const land = Math.PI * (a * b - r * r)
+  return Math.max(0, Math.floor(Math.min(rough, Math.max(0, land)) / square) - 1)
+}
+
+/** `worldSiteCapacity` for world `w` at its smallest size. */
+export function worldSiteCapacityOf(w: Partial<WorldDef>): number {
+  const size = worldSize(w)
+  return worldSiteCapacity(size.width[0], size.height[0], worldWaterMargin(w), worldSafeRadius(w))
+}
+
+/**
+ * The widest safe radius that still leaves land for sites on an island of
+ * this smallest size: land reaches about `LAND_REACH` of the half-side inside
+ * the margin, and a site's disc must fit beyond the radius.
+ */
+export function worldMaxSafeRadius(minWidth: number, minHeight: number, margin: number): number {
+  return Math.floor((Math.min(minWidth, minHeight) / 2 - margin) * LAND_REACH) - WORLD_SITE_RADIUS - 1
 }

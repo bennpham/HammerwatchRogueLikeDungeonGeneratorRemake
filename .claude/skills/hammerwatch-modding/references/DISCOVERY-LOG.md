@@ -5289,3 +5289,31 @@ scans its band; the pieces resolve through theme h's `doodadOverrides`
 and concave corners, and how band tiles and `h_h_8_up` corners look (W2, W3).
 Size cost unmeasured in game (W4): a 512 world is about 13 MB of XML. If W2 fails,
 the plan's fallback is a theme e oasis ring (a `BiomeDef.theme` change).
+
+## 2026-11-19 - the world's closed portal, disabled exit and hidden orb [EMITTED]
+
+**Tag:** [EMITTED] (not booted; BOOT-CHECKLIST W5-W8)
+**Context:** world mode pass 2 (`src/generator/world/objectives.ts`). A world
+with buttons or bosses keeps its way out shut until a shared countdown hits
+zero.
+**Portal rig** (the stock `campaign2/prefabs/desert_teleport_boss.xml`'s, read
+from the install): the portal doodad (`exit_teleport_boss.xml` red, or
+`exit_teleport.xml` blue; both have `open`/`closed` states, default `open`) is
+`need-sync`; a `GlobalEventTrigger("LevelLoaded")` fans out to
+`ChangeDoodadState(portal, "closed")`. The prefab's `LevelExitArea` ships
+`enabled = False` (stock ships 61 disabled ones). At zero: `ChangeDoodadState
+(portal, "open")`, `ToggleElement(state 0)` on the exit (state 0 enables, the
+repo's usual polarity), an `AnnounceText`, and `PlaySound
+sound/misc.xml:info_teleport_activate` (the cue the Temple's own teleporter
+plays).
+**Buttons** are the lock buttons' rig (`BossDoorButton` driven to `activate`,
+[VERIFIED] on floors). **Bosses** are `ObjectEventTrigger(Destroyed,
+trigger-times 1)` per actor feeding the same `buildButtonCountdown` as the
+buttons ([VERIFIED] shape on floors), never `GlobalEventTrigger("Boss Died")`.
+**Hidden orb** (world last): `LevelLoaded` -> `HideObject(state 1, orb item)`,
+at zero `HideObject(state 0)`. Stock only ever aims `HideObject` at doodads,
+never an item, so whether it hides a pickup, and whether a hidden orb can be
+picked up, is unproven. Fallback in the plan: no orb, a disabled `AreaTrigger`
+-> `GameEnd` on the portal shape.
+**Impact:** nothing here is played. W5 (portal), W6 (countdown), W7 (orb) and
+W8 (several bosses, far-apart boss bars) decide whether any of it holds.

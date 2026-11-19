@@ -1982,7 +1982,7 @@ describe('world keys', () => {
     p.world = {
       enabled: true,
       worlds: [
-        { biome: 'desert', minWidth: 64, maxWidth: 96, minHeight: 80, maxHeight: 128, coast: 12, waterMargin: 9 },
+        { ...defaultWorld(), biome: 'desert', minWidth: 64, maxWidth: 96, minHeight: 80, maxHeight: 128, coast: 12, waterMargin: 9 },
         { ...defaultWorld(), coast: 100 }
       ]
     }
@@ -1995,15 +1995,79 @@ describe('world keys', () => {
       'world0Height=80,128',
       'world0Coast=12',
       'world0WaterMargin=9',
+      'world0Buttons=3',
+      'world0BossPool=boss_anubis,boss_knight,boss_krilith,boss_lich,boss_worm',
+      'world0SafeRadius=16',
+      'world0Trails=0',
       'world1Biome=desert',
       'world1Width=128,128',
       'world1Height=128,128',
       'world1Coast=100',
-      'world1WaterMargin=6'
+      'world1WaterMargin=6',
+      'world1Buttons=3',
+      'world1BossPool=boss_anubis,boss_knight,boss_krilith,boss_lich,boss_worm',
+      'world1SafeRadius=16',
+      'world1Trails=0'
     ])
     const back = parseParametersTxt(text, plainParameters())
     expect(back.params.world).toEqual(p.world)
     expect(back.unknownKeys).toEqual([])
+  })
+
+  it('round-trips every objective key, writing a boss count and a lineup only when stated', () => {
+    const p = plainParameters()
+    p.world = {
+      enabled: true,
+      worlds: [
+        {
+          ...defaultWorld(),
+          buttons: 7,
+          bossCount: 4,
+          bossPool: ['boss_lich', 'boss_worm'],
+          bossSelection: 'lineup',
+          bossLineup: { boss_anubis: 2, boss_worm: 3 },
+          safeRadius: 22,
+          trails: true
+        },
+        { ...defaultWorld(), bossCount: 0, buttons: 0 }
+      ]
+    }
+    const text = serialize(p)
+    const lines = worldLines(text)
+    expect(lines).toContain('world0Buttons=7')
+    expect(lines).toContain('world0Bosses=4')
+    expect(lines).toContain('world0BossPool=boss_lich,boss_worm')
+    expect(lines).toContain('world0BossSelection=lineup')
+    expect(lines).toContain('world0BossLineup=boss_anubis:2,boss_worm:3')
+    expect(lines).toContain('world0SafeRadius=22')
+    expect(lines).toContain('world0Trails=1')
+    expect(lines).toContain('world1Bosses=0')
+    // a world that never stated a count, a selection or a lineup writes none
+    const plain = worldLines(serialize({ ...plainParameters(), world: { enabled: true, worlds: [defaultWorld()] } }))
+    expect(plain.some((l) => /Bosses=|BossSelection|BossLineup/.test(l))).toBe(false)
+    const back = parseParametersTxt(text, plainParameters())
+    expect(back.unknownKeys).toEqual([])
+    expect(back.params.world).toEqual(p.world)
+  })
+
+  it('reports a bad objective value or boss id and keeps the rest of the line', () => {
+    const { params, unknownKeys } = parseParametersTxt(
+      ['world=1', 'worlds=1', 'world0Buttons=x', 'world0Bosses=1.5', 'world0SafeRadius=-3', 'world0Trails=maybe', 'world0BossSelection=all', 'world0BossPool=boss_lich,ghost', 'world0BossLineup=boss_worm:2,ghost:1'].join('\n') + '\n',
+      plainParameters()
+    )
+    expect(unknownKeys).toEqual([
+      'world0Buttons value "x"',
+      'world0Bosses value "1.5"',
+      'world0SafeRadius value "-3"',
+      'world0Trails value "maybe"',
+      'world0BossSelection value "all"',
+      'world0BossPool boss "ghost"',
+      'world0BossLineup boss "ghost"'
+    ])
+    const world = params.world!.worlds[0]
+    expect(world.bossPool).toEqual(['boss_lich'])
+    expect(world.bossLineup).toEqual({ boss_worm: 2 })
+    expect(world.buttons).toBe(3)
   })
 
   it('round-trips a DISABLED world list, so switching worlds off loses nothing', () => {

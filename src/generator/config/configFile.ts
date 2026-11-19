@@ -71,7 +71,7 @@ import type {
 import { MONSTER_FAMILIES, MONSTER_TYPES, isKnownMonsterKey } from '../objects/monsterTypes'
 import { buffById } from '../objects/buffTypes'
 import { BIOME_IDS } from '../world/biomes'
-import { WORLD_MAX_COUNT, defaultWorld } from '../world/options'
+import { WORLD_MAX_COUNT, defaultWorld, worldBossPool, worldButtons, worldSafeRadius, worldTrails } from '../world/options'
 import type { WorldDef, WorldOptions } from '../world/options'
 import { pickupById } from '../objects/pickupTypes'
 import { mysteryLootById } from '../objects/mysteryLoot'
@@ -1561,6 +1561,51 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
         else world.waterMargin = one[0]
         continue
       }
+      if (suffix === 'buttons' || suffix === 'bosses' || suffix === 'saferadius') {
+        const one = ints(value, 1)
+        if (one === null) {
+          result.unknownKeys.push(`${key} value "${value}"`)
+          continue
+        }
+        const world = worldAt(index, key)
+        if (suffix === 'buttons') world.buttons = one[0]
+        else if (suffix === 'bosses') world.bossCount = one[0]
+        else world.safeRadius = one[0]
+        continue
+      }
+      if (suffix === 'trails') {
+        const text = value.trim().toLowerCase()
+        if (text !== '0' && text !== '1' && text !== 'true' && text !== 'false') {
+          result.unknownKeys.push(`${key} value "${value}"`)
+          continue
+        }
+        worldAt(index, key).trails = text === '1' || text === 'true'
+        continue
+      }
+      if (suffix === 'bosspool') {
+        // any real boss id parses, as a floor's pool does; validation holds the
+        // pool to the mobile ones
+        const pool: string[] = []
+        for (const id of value.split(',').map((t) => t.trim()).filter((t) => t !== '')) {
+          if (!BOSS_IDS.includes(id as (typeof BOSS_IDS)[number])) result.unknownKeys.push(`${key} boss "${id}"`)
+          else pool.push(id)
+        }
+        worldAt(index, key).bossPool = pool
+        continue
+      }
+      if (suffix === 'bossselection') {
+        const text = value.trim().toLowerCase()
+        if (!(BOSS_SELECTIONS as readonly string[]).includes(text)) {
+          result.unknownKeys.push(`${key} value "${value}"`)
+          continue
+        }
+        worldAt(index, key).bossSelection = text as BossSelection
+        continue
+      }
+      if (suffix === 'bosslineup') {
+        worldAt(index, key).bossLineup = parseLineupLine(key, value, result.unknownKeys)
+        continue
+      }
       // an unrecognised world<i> suffix
       result.unknownKeys.push(key)
       continue
@@ -2443,6 +2488,15 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
       lines.push(`world${i}Height=${def.minHeight},${def.maxHeight}`)
       lines.push(`world${i}Coast=${def.coast}`)
       lines.push(`world${i}WaterMargin=${def.waterMargin}`)
+      // objectives. `Bosses` only when stated (absent means one), the
+      // selection and lineup only when they differ, as a floor's do.
+      lines.push(`world${i}Buttons=${worldButtons(def)}`)
+      if (def.bossCount !== undefined) lines.push(`world${i}Bosses=${def.bossCount}`)
+      lines.push(`world${i}BossPool=${worldBossPool(def).join(',')}`)
+      if (bossSelection(def) === 'lineup') lines.push(`world${i}BossSelection=lineup`)
+      if (lineupLine(def.bossLineup) !== '') lines.push(`world${i}BossLineup=${lineupLine(def.bossLineup)}`)
+      lines.push(`world${i}SafeRadius=${worldSafeRadius(def)}`)
+      lines.push(`world${i}Trails=${worldTrails(def) ? 1 : 0}`)
     })
   }
 

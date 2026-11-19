@@ -178,7 +178,14 @@ src/
 │   │   │                 the matcher-coverage pass; null when 24 passes fail
 │   │   ├── coast.ts     the wall matcher run with water as wall, and
 │   │   │                 coastCloses — the closure proof (invariant 11)
-│   │   ├── build.ts     buildWorld: attempts, tally, objects, coast LAST
+│   │   ├── place.ts     objective sites round the arrival (SITE_RADIUS, 20-tile
+│   │   │                 spacing) and bossSiteIndexes = floor(i*n/b)
+│   │   ├── paths.ts     corridors to every site (Dijkstra, early exit)
+│   │   ├── objectives.ts the arrival, closed portal + disabled exit, buttons,
+│   │   │                 per-boss Destroyed triggers, ONE countdown, hidden orb
+│   │   ├── build.ts     buildWorld: attempts, tally (island start coast reach
+│   │   │                 sites trails), objects, coast LAST; boss picks draw
+│   │   │                 from the layout stream, after every placement draw
 │   │   └── emit.ts      the tilemap (water, ground, tufts, trail) + sections
 │   ├── survival/        the SURVIVAL arena's rig — everything boss/'s tier
 │   │   │                 rigs do, re-keyed from boss health to elapsed time.

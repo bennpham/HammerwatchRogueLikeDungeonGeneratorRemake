@@ -600,3 +600,25 @@ A confirmed row becomes `[VERIFIED]` in the DISCOVERY-LOG.
    reaches 320).
 6. **Shared emitter.** Recommendation: extract only the section tail and keep
    the world's tilemap builder its own.
+
+## Status
+
+Built so far (branch `v1-roadmap-build`; nothing here has been played):
+
+- **Pass 1:** the slot, `ctx.worldRand`, island, coast and its closure proof,
+  free-roam desert world, preview, `parameters.txt` island keys.
+- **Pass 2 (objectives):** `world/place.ts` (sites round the arrival beyond
+  `safeRadius`, `bossSiteIndexes` = `floor(i·n/b)`), `world/paths.ts` (corridors
+  with the C2 early exit, hash-equal to a full search), `world/objectives.ts`
+  (closed portal with a disabled exit, buttons, per-boss `Destroyed` triggers,
+  one `buildButtonCountdown`, hidden orb when last), the `sites` and `trails`
+  steps, and the keys `Buttons`, `Bosses`, `BossPool`, `BossSelection`,
+  `BossLineup`, `SafeRadius`, `Trails`. Validation rules 4 (A1), 5 (A2) and 6.
+  Decisions that differ from the text above: no cap of 8 on bosses
+  (`bossCount` runs 0 to `MAX_BOSS_COUNT`, warned above `BOSS_COUNT_WARN`, as
+  arenas and floors); buttons run 0 to 64 and the island's capacity is the real
+  limit; random boss picks draw from the world's `layout` stream, after every
+  placement draw, and a lineup draws none; site spacing stays 20 tiles at every
+  size.
+- **Not built:** encounters, scatter, loot, mystery, timer, music, the World tab,
+  camp hub, presets, other biomes (passes 3 and 4, and the UI).
