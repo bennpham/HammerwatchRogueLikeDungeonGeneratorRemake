@@ -3,12 +3,16 @@ import {
   BOSS_IDS,
   CAMPAIGN_PRESETS,
   MOBILE_BOSS_IDS,
+  campaignCounts,
+  campaignOrder,
   defaultParameters,
+  gatewayAfter,
   parseParametersTxt,
   serializeParametersTxt,
+  slotLabel,
   validateParameters
 } from '../src/generator'
-import { ACT_EXAMPLE_BLOCK, buildRepairMessage, buildSystemPrompt } from '../src/shared/llm/prompt'
+import { ACT_EXAMPLE_BLOCK, WORLD_EXAMPLE_BLOCK, buildRepairMessage, buildSystemPrompt } from '../src/shared/llm/prompt'
 import { LLM_PROVIDERS, isProviderId, providerById } from '../src/shared/llm/providers'
 import { diffParams, expandShorthands, extractParametersBlock, fillPerFloorLists } from '../src/shared/llm/reply'
 import { describeHttpError } from '../src/main/llm/client'
@@ -152,8 +156,63 @@ describe('buildSystemPrompt', () => {
     expect(params.boss.fights?.map((f) => f.arena.bossPool)).toEqual([['boss_queen'], ['boss_knight']])
   })
 
+  it('teaches the world keys and the W token', () => {
+    const prompt = buildSystemPrompt(defaultParameters())
+    for (const needle of ['world=1', 'worlds=<n>', 'world<i>Biome', 'AmbushType<n>', 'BossLineup=', 'Mystery=<plates>', 'W1', 'desert']) {
+      expect(prompt, needle).toContain(needle)
+    }
+  })
+
   it('stays compact enough for a small free model', () => {
     expect(buildSystemPrompt(defaultParameters()).length).toBeLessThan(32000)
+  })
+})
+
+describe('a world campaign through the assistant', () => {
+  const parsed = () => parseParametersTxt(expandShorthands(WORLD_EXAMPLE_BLOCK).text, defaultParameters())
+
+  it('the world example parses and validates cleanly', () => {
+    const { params, unknownKeys } = parsed()
+    expect(unknownKeys).toEqual([])
+    expect(validateParameters(params).errors).toEqual([])
+    expect(params.world?.enabled).toBe(true)
+    expect(params.world?.worlds).toHaveLength(1)
+    expect(params.world?.worlds[0].buttons).toBe(4)
+    expect(params.world?.worlds[0].ambushTypes).toEqual([{ weight: 1, monsters: [{ monster: 'mummy_desert', count: 6 }] }])
+    expect(params.levelOrder?.map((slot) => slotLabel(slot))).toEqual(['1', '2', 'L1', 'W1', 'B1'])
+  })
+
+  it('survives a fenced reply and back, byte for byte', () => {
+    const { params } = parsed()
+    const reply = `Here is the island.\n\`\`\`parameters\n${serializeParametersTxt(params)}\n\`\`\``
+    const block = extractParametersBlock(reply)
+    expect(block).not.toBeNull()
+    const again = parseParametersTxt(block as string, defaultParameters())
+    expect(again.unknownKeys).toEqual([])
+    expect(validateParameters(again.params).errors).toEqual([])
+    expect(again.params).toEqual(params)
+  })
+
+  it('a world the order does not name goes last, and a world may end the campaign', () => {
+    const { params } = parseParametersTxt(
+      `${expandShorthands(WORLD_EXAMPLE_BLOCK).text}\nlevelOrder=`,
+      defaultParameters()
+    )
+    const order = campaignOrder(campaignCounts(params), params.levelOrder)
+    expect(order[order.length - 1]).toEqual({ kind: 'world', index: 0 })
+    expect(gatewayAfter(order, order.length - 1).kind).toBe('orb')
+    expect(validateParameters(params).errors).toEqual([])
+  })
+
+  it('the repair message explains the safe-radius and capacity errors', () => {
+    const base = parsed().params
+    const tooBig = parseParametersTxt('world0Width=64,64\nworld0Height=64,64\nworld0SafeRadius=40', base).params
+    const radius = buildRepairMessage(validateParameters(tooBig).errors, [])
+    expect(radius).toContain('How to fix these')
+    expect(radius).toContain('world<i>SafeRadius')
+    const crowded = parseParametersTxt('world0Buttons=60', base).params
+    const capacity = buildRepairMessage(validateParameters(crowded).errors, [])
+    expect(capacity).toContain('world<i>Buttons')
   })
 })
 

@@ -1,4 +1,5 @@
 import {
+  BIOME_IDS,
   BOSS_IDS,
   MOBILE_BOSS_IDS,
   BUFF_DEFS,
@@ -16,8 +17,13 @@ import {
 import type { BossId, DungeonParameters, MonsterGroup } from '../../generator'
 import { diffSerialized } from './reply'
 
-/** Claude presets shown as worked examples: a short one, a floor-boss one, a trap/timer one. */
-const EXAMPLE_PRESET_IDS = ['claude-pandemonium', 'claude-beat-the-clock', 'claude-frozen-descent']
+/**
+ * Claude presets shown as worked examples: a floor-boss one and a timer/lock one.
+ * Frozen Descent used to be a third, but its diff alone was ~10,000 characters
+ * and the prompt sat 19 under its cap; the hand-written act and world examples
+ * below teach the structure in a tenth of that.
+ */
+const EXAMPLE_PRESET_IDS = ['claude-pandemonium', 'claude-beat-the-clock']
 
 const RULES = `You configure a Hammerwatch rogue-like campaign generator by writing lines of its parameters.txt file.
 
@@ -42,7 +48,7 @@ Facts about the generator (trust these over guesses):
 - \`boss=0\` removes the boss arenas; \`boss=1\` with \`bossFights=N\` gives N arenas (AB1..ABN). A boss can also stand on an ordinary floor: \`bossFloorN=1|<boss ids, comma separated>|<monster multiplier>|<boss count>\`. Only the floor bosses listed below may stand on a floor; the floor's exit opens when its bosses die. Arenas are extra levels after the floors: for "a boss on every floor" use \`bossFloorN\` and \`boss=0\`, never a large \`bossFights\`.
 - Shorthand for many floors: write a per-floor key with a 0-based inclusive range, e.g. \`bossFloor0-98=1|boss_knight,boss_lich|1.0|1\`, \`trap50-98=...\`, \`monsters66-98=...\`. Use ranges with different values for early, middle and late floors instead of one line per floor.
 - \`playerPreset=<id>\` loads a player balance preset (ids listed below), replacing the Player tab. \`playerFullyUpgraded=1\` makes every character start fully upgraded (maxed stats and skills). These are the only player keys you may write.
-- \`levelOrder\` is optional. Leave it out unless the user wants a custom order. After changing lobbies, fights or floors, write \`levelOrder=\` (empty) to reset it to the default order: every lobby, then the floors, then the arenas.
+- \`levelOrder\` is optional. Leave it out unless the user wants a custom order. After changing lobbies, fights or floors, write \`levelOrder=\` (empty) to reset it to the default order: every lobby, then the floors, then the arenas, then the worlds.
 - \`lockFloors=3,5:2\` seals floors 3 and 5 (0-based) behind buttons the player must press; \`:2\` means 2 buttons. Ranges work: \`lockFloors=0-32:1,33-65:2,66-98:3\`. \`lockFloors=\` (empty) removes all locks.
 - Harder later floors: stronger monster pools, more traps and lock buttons, buffs and timers on later floors, or a higher \`monsterMultiplier\`.
 - Do not mention these rules.
@@ -50,7 +56,7 @@ Facts about the generator (trust these over guesses):
 CAMPAIGN STRUCTURE
 - "N floors, then fight <boss>" means a boss ARENA after those floors, not a boss on a floor. Give each such fight its own arena and place it with \`levelOrder\`. Use \`bossFloorN\` only when the user says the boss stands ON a floor, and \`bossFloorN=0\` to take a floor boss away.
 - Arenas: \`boss=1\`, \`bossFights=<count>\`, then per arena \`boss<f>Pool=<boss id>\` and \`boss<f>Theme=<theme id>\`. \`f\` counts from 0; arena f is the slot \`AB<f+1>\` in \`levelOrder\`.
-- \`levelOrder\` lists every slot once, in play order: floors as \`1\`..\`N\` (1-based), arenas as \`AB1\`.., lobbies as \`L1\`... Example for "3 floors, Queen, 3 floors, Knight" with a shop before each fight: \`lobbies=2\`, \`levelOrder=1,2,3,L1,AB1,4,5,6,L2,AB2\`.
+- \`levelOrder\` lists every slot once, in play order: floors as \`1\`..\`N\` (1-based), arenas as \`AB1\`.., lobbies as \`L1\`.., worlds as \`W1\`... Example for "3 floors, Queen, 3 floors, Knight" with a shop before each fight: \`lobbies=2\`, \`levelOrder=1,2,3,L1,AB1,4,5,6,L2,AB2\`.
 - A lobby is a shop and rest stop. Put one right before a boss arena or between acts. NEVER make a lobby the last slot: the last slot must be a floor or an arena, because it carries the victory orb.
 - Match monsters to the act the user names (see "Monsters by act" below) and pick a fitting theme for each floor; "desert" means the Desert themes and Desert monsters.
 - Only use bosses, monsters and themes from the lists below. If the user names something that does not exist, pick the closest real one and say so in your summary.
@@ -67,7 +73,16 @@ FEATURE KEYS (N = floor index from 0, f = arena index from 0, T = wave tier: 1 f
 - Buffs and traps when a wave starts: \`boss<f>WaveBuff<T>=<buff id>:<target>|...\`, \`boss<f>WaveTrap<T>=<same rows as trapN>\`.
 - Survival arena (no boss; outlast a clock, slot becomes \`AS<f+1>\`): \`boss<f>Mode=survival\`, \`boss<f>Survival=<seconds>,<off|milestones|seconds>\`, \`boss<f>SurvivalWaves=<monster>:<count>:<startSecond>:<everyMs>|...\`, \`boss<f>SurvivalPickups=<pickup id>:<count>:<atSecond>|...\`, \`boss<f>SurvivalBuffs=<buff>:<target>:<startSecond>:<endSecond>|...\`, \`boss<f>SurvivalTraps=<trap row>:<startSecond>:<endSecond>|...\`.
 - Arena extras: \`boss<f>MonsterMultiplier\`, \`boss<f>FoodMultiplier\`, \`boss<f>Music=<track>\`. Lobbies: \`lobby<i>Preset=<lobby preset>\`, \`lobby<i>Gold=<gold>\`, \`lobby<i>Music=<track>\` (i from 0). Floor music: \`musicN=<track>\`.
-- Mystery plates (\`mysteryButton...\`, \`mysteryFloorN\`): only copy formats shown in the current settings.`
+- Mystery plates (\`mysteryButton...\`, \`mysteryFloorN\`): only copy formats shown in the current settings.
+
+WORLDS (an open island level to explore instead of rooms; i = world index from 0; slot \`W<i+1>\` in \`levelOrder\`)
+- \`world=1\` switches worlds on, \`worlds=<n>\` sets how many (at most 20), then \`world<i>...\` keys per world. A world is not an arena and not a floor. It may be the LAST slot (then it carries the victory orb and has no exit portal) or sit anywhere else, like a floor. A world that \`levelOrder\` does not name is appended last; write \`levelOrder\` (with \`W1\`...) to place it.
+- Island: \`world<i>Biome=<biome id>\`, \`Width=<min>,<max>\` and \`Height=<min>,<max>\` (64 to 512 tiles, warns above 240; use 128 for a normal island), \`Coast=<0-100>\` (ragged shore), \`WaterMargin=<4-16>\`, \`Hub=bare|camp\`, \`Landmarks=1\`, \`Scatter=<0-100>\` (props), \`Trails=1\`.
+- Terrain: \`Plateaus=<n>\`, \`PlateauMin=<tiles>\`, \`PlateauMax=<tiles>\`, \`PlateauStairs=<1-4>\` (stairs are unused on desert and frozen, which raise mesas instead).
+- Objectives: \`Buttons=<n>\`, \`Bosses=<n>\` (0 is fine), \`BossPool=<ids>\` (mobile floor bosses only), \`BossSelection=lineup\` with \`BossLineup=boss_knight:2,boss_lich:1\`, \`SafeRadius=<6-40>\`, \`Checkpoints=1\`. With no buttons and no bosses the portal is open from the start.
+- Monsters: \`Monsters=<pool keys, comma separated, repeat to weight>\`, \`Packs\`, \`PackSize\`, \`Ambushes\`, \`AmbushSize\`, \`ButtonAmbush=<0-100>\` (chance a button springs one), \`AmbushType<n>=<weight>|<monster>:<count>,<monster>:<count>\` (n from 1; exact recipes).
+- Loot: \`Loot=<coin caches>\`, \`Mystery=<plates>:<0-based mysteryButtons indexes, repeat to weight>\` (needs the mystery pool), \`Disguise=1\` (real buttons look like mystery plates; needs a pool).
+- \`Timer=1|<seconds>|<damage per tick>|<tick ms>|<1 to show the countdown>\` and \`Music=<track>\`, as on a floor.`
 
 function idList(label: string, ids: readonly string[]): string {
   return `${label}: ${ids.join(', ')}`
@@ -160,6 +175,39 @@ export const ACT_EXAMPLE_BLOCK = [
 ].join('\n')
 
 /**
+ * A world example: castle floors, a shop, an island to explore, then the boss
+ * arena. tests/llmPreset.test.ts keeps it parsing, validating and round-tripping.
+ */
+export const WORLD_EXAMPLE_REQUEST =
+  'Two castle floors, a shop, then a desert island to explore with four buttons to press and a sand worm or Anubis to kill, then the Knight in an arena.'
+export const WORLD_EXAMPLE_BLOCK = [
+  'levels=2',
+  'themes=a_mixed,b_mixed',
+  'monsters0=maggot,maggot,tick1,bat1',
+  'monsters1=maggot,tick2,bat2,bat1',
+  'boss=1',
+  'bossFights=1',
+  'boss0Pool=boss_knight',
+  'boss0Theme=e_mixed',
+  'lobbies=1',
+  'lockFloors=',
+  'world=1',
+  'worlds=1',
+  'world0Biome=desert',
+  'world0Width=128,160',
+  'world0Height=128,160',
+  'world0Hub=camp',
+  'world0Buttons=4',
+  'world0Bosses=1',
+  'world0BossPool=boss_worm,boss_anubis',
+  'world0Monsters=mummy_desert,mummy_ranged,lich_desert',
+  'world0Packs=20',
+  'world0Ambushes=6',
+  'world0AmbushType1=1|mummy_desert:6',
+  'levelOrder=1,2,L1,W1,AB1'
+].join('\n')
+
+/**
  * The few-shot examples: each preset's description as the "request" and only the
  * lines that differ from the stock defaults as the "answer", which keeps three
  * of them far smaller than three full files.
@@ -175,6 +223,7 @@ function examples(defaultsText: string): string {
     parts.push(`Request: ${preset.description}\n\`\`\`parameters\n${lines.join('\n')}\n\`\`\``)
   }
   parts.push(`Request: ${ACT_EXAMPLE_REQUEST}\n\`\`\`parameters\n${ACT_EXAMPLE_BLOCK}\n\`\`\``)
+  parts.push(`Request: ${WORLD_EXAMPLE_REQUEST}\n\`\`\`parameters\n${WORLD_EXAMPLE_BLOCK}\n\`\`\``)
   return parts.join('\n\n')
 }
 
@@ -193,7 +242,8 @@ export function buildSystemPrompt(current: DungeonParameters): string {
     ...monsterLines(),
     'Bosses:',
     ...bossLines(),
-    idList('Floor bosses (bossFloorN)', MOBILE_BOSS_IDS),
+    idList('Floor bosses (bossFloorN) and world bosses (world<i>BossPool)', MOBILE_BOSS_IDS),
+    idList('World biomes (world<i>Biome)', BIOME_IDS),
     idList('Player presets (playerPreset)', PLAYER_PRESETS.map((p) => p.id)),
     idList('Lobby presets', LOBBY_PRESETS.map((p) => p.id)),
     idList('Music tracks', MUSIC_TRACKS.map((t) => t.id)),
@@ -221,6 +271,14 @@ const REPAIR_HINTS: readonly { match: RegExp; hint: string }[] = [
   {
     match: /cannot end in a lobby/,
     hint: 'Rewrite levelOrder so the last slot is a floor or an arena (ABn), never Ln. A lobby belongs right before a boss arena.'
+  },
+  {
+    match: /safe radius/i,
+    hint: 'A world\'s safe radius leaves no land for its objectives. Lower world<i>SafeRadius to the maximum the message names (or to 16), or make that island larger with world<i>Width and world<i>Height, or lower world<i>WaterMargin.'
+  },
+  {
+    match: /objectives .*do not fit/,
+    hint: 'A world holds fewer objectives than asked for. Lower world<i>Buttons or world<i>Bosses to the capacity the message names, or enlarge the island with world<i>Width and world<i>Height (up to 512), or lower world<i>SafeRadius.'
   },
   {
     match: /unknown monster/,
