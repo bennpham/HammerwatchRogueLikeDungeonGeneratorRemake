@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { MUSIC_DEFAULT, THEME_DEFS, defaultDungeonBoss, defaultFloorLock, defaultFloorLockMystery, defaultFloorMystery, defaultFloorTimer, floorMystery, isDefaultOrder, normalizeOrder } from '../../generator'
+import { MUSIC_DEFAULT, THEME_DEFS, campaignCounts, defaultDungeonBoss, defaultFloorLock, defaultFloorLockMystery, defaultFloorMystery, defaultFloorTimer, floorMystery, isDefaultOrder, normalizeOrder } from '../../generator'
 import type { CampaignCounts, DungeonParameters, FloorLockMystery, ValidationIssue } from '../../generator'
 import { NumberField, Section } from './fields'
 import { MusicPicker } from './MusicPicker'
@@ -117,12 +117,7 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
       }
 
       if (params.levelOrder !== undefined) {
-        const counts: CampaignCounts = {
-          levels,
-          fights: params.boss?.enabled === true ? (params.boss.fights?.length ?? 0) : 0,
-          lobbies: params.lobbies.length,
-          worlds: 0
-        }
+        const counts: CampaignCounts = campaignCounts(params, { levels })
         const repaired = normalizeOrder(params.levelOrder, counts)
         if (isDefaultOrder(repaired, counts)) delete next.levelOrder
         else next.levelOrder = repaired
@@ -180,7 +175,7 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
         <>
           <Section title="General" defaultOpen>
             <div className="field-grid">
-              <NumberField label="Levels" field="levels" value={params.levels} onChange={setLevels} issues={issues} min={0} max={50} title="Number of floors in the campaign — 0 means a boss-only campaign (needs the boss fight on, and usually a lobby to shop from first)" />
+              <NumberField label="Levels" field="levels" value={params.levels} onChange={setLevels} issues={issues} min={0} max={50} title="Number of floors in the campaign — 0 means no generated floors: the boss fight or a world must be on (usually with a lobby to shop from first)" />
               <NumberField label="Map width" field="mapWidth" value={params.mapWidth} onChange={(v) => set('mapWidth', v)} issues={issues} min={20} step={20} title="In tiles — multiples of 20 recommended" />
               <NumberField label="Map height" field="mapHeight" value={params.mapHeight} onChange={(v) => set('mapHeight', v)} issues={issues} min={20} step={20} title="In tiles — multiples of 20 recommended" />
               <NumberField label="Edge padding" field="edgePadding" value={params.edgePadding} onChange={(v) => set('edgePadding', v)} issues={issues} min={0} title="Empty border around the map" />

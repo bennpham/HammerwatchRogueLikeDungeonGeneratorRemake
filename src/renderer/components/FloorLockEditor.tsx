@@ -1,5 +1,5 @@
 import React from 'react'
-import { MAX_LOCK_BUTTONS, bossFights, campaignOrder, defaultFloorLock, floorLockButtons, gatewayAfter } from '../../generator'
+import { MAX_LOCK_BUTTONS, campaignCounts, campaignOrder, defaultFloorLock, floorLockButtons, gatewayAfter } from '../../generator'
 import type { DungeonParameters, FloorLock, ValidationIssue } from '../../generator'
 import { NumberField } from './fields'
 
@@ -20,10 +20,7 @@ interface FloorLockEditorProps {
 export function FloorLockEditor({ params, issues, onChange }: FloorLockEditorProps) {
   const count = Math.max(params.levels, 0) || 0
 
-  const order = campaignOrder(
-    { levels: count, fights: bossFights(params.boss).length, lobbies: (params.lobbies ?? []).length, worlds: 0 },
-    params.levelOrder
-  )
+  const order = campaignOrder(campaignCounts(params, { levels: count }), params.levelOrder)
   const leadsTo = new Map<number, string>()
   order.forEach((slot, position) => {
     if (slot.kind !== 'floor') return

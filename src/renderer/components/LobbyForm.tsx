@@ -6,6 +6,7 @@ import {
   LOBBY_PRESETS,
   LOBBY_VENDORS,
   UPGRADE_KINDS,
+  campaignCounts,
   defaultLobby,
   diamondCount,
   isDefaultOrder,
@@ -46,12 +47,7 @@ export function LobbyForm({ params, issues, onChange }: LobbyFormProps) {
   const setLobbies = (nextLobbies: LobbyOptions[]) => {
     const next: DungeonParameters = { ...params, lobbies: nextLobbies }
     if (params.levelOrder !== undefined) {
-      const counts: CampaignCounts = {
-        levels: params.levels,
-        fights: params.boss?.enabled === true ? (params.boss.fights?.length ?? 0) : 0,
-        lobbies: nextLobbies.length,
-        worlds: 0
-      }
+      const counts: CampaignCounts = campaignCounts(params, { lobbies: nextLobbies.length })
       const repaired = normalizeOrder(params.levelOrder, counts)
       if (isDefaultOrder(repaired, counts)) delete next.levelOrder
       else next.levelOrder = repaired
