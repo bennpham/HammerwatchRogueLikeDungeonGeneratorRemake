@@ -11,6 +11,7 @@
  * `config/themes.ts` rule), since `data-t` indexes only those.
  */
 
+import { DEFAULT_LIGHTING } from '../xml/levelSections'
 import type { LevelLighting } from '../xml/levelSections'
 
 /** A tileset a biome paints, and how many variants `data-t` may pick from. */
@@ -33,7 +34,12 @@ export interface ScatterEntry {
   weight: number
   solid: number
   cells?: ReadonlyArray<readonly [number, number]>
+  /** carries its own light (`deco_crystal*`): a world places at most `LIT_CAP` of these (risk R4) */
+  lit?: boolean
 }
+
+/** Lit props a world may carry, clumps and cover together: each costs a light's frame time. */
+export const LIT_CAP = 60
 
 /** The tiles (offsets from the prop's own) a clump blocks. */
 export function footprintOf(entry: ScatterEntry): Array<[number, number]> {
@@ -68,6 +74,19 @@ export interface BiomeDef {
   /** how many clumps a unit of land carries, against the shared rate (desert is the reference, 1) */
   clumpDensity: number
   lighting: LevelLighting
+  /**
+   * The trail tileset draws ABOVE the ground (`g_path` 132 over `e_default` 100),
+   * so the ground stays under it: a path tile's own border art is transparent
+   * where it meets nothing. Desert's `g_path` draws below `h_default` and is
+   * painted with no ground under it. Absent means false.
+   */
+  baseUnderTrail?: boolean
+  /** advisory: the one-click monster pool (floor pool keys); the user's own pool always wins */
+  monsters: readonly string[]
+  /** advisory: `MOBILE_BOSS_IDS` that suit the biome */
+  bosses: readonly string[]
+  /** a sentence for the World tab: what the biome will look like */
+  note?: string
 }
 
 /**
@@ -125,7 +144,72 @@ const DESERT: BiomeDef = {
     shadow: { r: 150, g: 150, b: 150, a: 255 },
     add: { r: 39, g: 28, b: 5, a: 255 },
     shadowLength: 1
-  }
+  },
+  monsters: ['mummy_desert', 'mummy_ranged', 'lich_desert', 'guard_desert', 'guard_desert_range', 'tick2'],
+  bosses: ['boss_anubis', 'boss_worm']
+}
+
+const CRYSTAL_SMALL = [
+  'deco_crystal_small',
+  'deco_crystal_small_v2',
+  'deco_crystal_small_v3',
+  'deco_crystal_small_v4'
+].map((n): ScatterEntry => ({ path: `doodads/generic/${n}.xml`, weight: 1, solid: 0, lit: true }))
+
+const STONES = ['', '_v2', '_v3', '_v4'].map((v): ScatterEntry => ({ path: `doodads/theme_g/g_deco_ground_stone${v}.xml`, weight: 1, solid: 0 }))
+
+const BLOCKS: ScatterEntry[] = [
+  { path: 'doodads/generic/deco_block.xml', weight: 1, solid: 1, cells: blockCells(1) },
+  { path: 'doodads/generic/deco_block_v2.xml', weight: 1, solid: 1, cells: blockCells(1) },
+  { path: 'doodads/generic/deco_block_v3.xml', weight: 1, solid: 1, cells: blockCells(2) }
+]
+
+/** Full-bright with a slight tint (D10, untested in game): the generator's own shadow, so shadows-off and shadows-on both read. */
+function tinted(r: number, g: number, b: number): LevelLighting {
+  return { ambient: { r, g, b, a: 255 }, shadow: { r: 128, g: 128, b: 128, a: 128 } }
+}
+
+/**
+ * Oasis: theme e walls round a clearing, `e_default` earth with moss, fine
+ * grit and green tufts in patches (`level_passage` and `level_cave_1` stack the
+ * same tilesets). The edge is a CANYON: rock at least three tiles thick, roofed
+ * out to the map edge (`roof.ts`), no water. Colliders from the install: the
+ * pillar and the blocks are a polygon, `deco_crystal` a circle r 13 offset off
+ * centre (the 3x3 covers it), everything else has none.
+ */
+const OASIS: BiomeDef = {
+  id: 'oasis',
+  label: 'Oasis',
+  theme: 'e',
+  edge: 'wall',
+  base: { tileset: 'tilemaps/e_default.xml', tiles: 2 },
+  overlays: [
+    { tileset: 'tilemaps/e_fine.xml', tiles: 2 },
+    { tileset: 'tilemaps/e_moss.xml', tiles: 2 },
+    { tileset: 'tilemaps/grass.xml', tiles: 2 }
+  ],
+  trail: { tileset: 'tilemaps/g_path.xml', tiles: 2 },
+  baseUnderTrail: true,
+  clumps: [
+    { path: 'doodads/theme_e/e_special_pillar.xml', weight: 4, solid: 1, cells: blockCells(1) },
+    ...BLOCKS,
+    { path: 'doodads/generic/deco_crystal.xml', weight: 1, solid: 1, lit: true }
+  ],
+  cover: [
+    { path: 'doodads/theme_e/e_deco_vgt.xml', weight: 5, solid: 0 },
+    { path: 'doodads/theme_e/e_deco_vgt_v2.xml', weight: 5, solid: 0 },
+    { path: 'doodads/theme_e/e_deco_vgt_v3.xml', weight: 5, solid: 0 },
+    { path: 'doodads/theme_e/e_deco_vgt_v4.xml', weight: 5, solid: 0 },
+    { path: 'doodads/generic/marker_flower_range.xml', weight: 2, solid: 0 },
+    { path: 'doodads/generic/marker_flower_range_h.xml', weight: 2, solid: 0 },
+    ...STONES,
+    ...CRYSTAL_SMALL
+  ],
+  clumpDensity: 1,
+  lighting: DEFAULT_LIGHTING,
+  monsters: ['tick1', 'maggot', 'bat1', 'bat2', 'slime', 'spider', 'tower_flower1_small', 'tower_flower2'],
+  bosses: ['boss_worm', 'boss_knight'],
+  note: 'A clearing ringed by rock, not an island in a sea: brown earth with green tufts, no palms or water.'
 }
 
 /** The cells a stone block's collider covers: `wide` columns east of the prop's tile, one row above to one below. */
@@ -138,7 +222,7 @@ function blockCells(wide: number): Array<[number, number]> {
 }
 
 /** Every biome, in dropdown order. Append only: a world names its biome by id. */
-export const BIOME_DEFS: readonly BiomeDef[] = [DESERT]
+export const BIOME_DEFS: readonly BiomeDef[] = [DESERT, OASIS]
 
 export const BIOME_IDS: readonly string[] = BIOME_DEFS.map((b) => b.id)
 

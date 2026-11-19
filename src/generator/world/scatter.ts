@@ -24,7 +24,7 @@ import type { GenerationContext } from '../core/context'
 import type { Rand } from '../core/rand'
 import { Doodad } from '../objects/doodad'
 import type { BiomeDef, ScatterEntry } from './biomes'
-import { footprintOf } from './biomes'
+import { LIT_CAP, footprintOf } from './biomes'
 import { WorldGrid } from './grid'
 import type { Tile } from './grid'
 import { pickWeighted } from './place'
@@ -79,6 +79,9 @@ export function planProps(rand: Rand, grid: WorldGrid, biome: BiomeDef, density:
       return true
     })
 
+  // lit props (`deco_crystal*`) each cost a light: a world carries at most LIT_CAP
+  let lit = 0
+
   const clumps = Math.round((land * share * biome.clumpDensity) / TILES_PER_CLUMP)
   for (let c = 0; c < clumps && biome.clumps.length > 0; c++) {
     const cx = rand.iRand(0, grid.width)
@@ -89,8 +92,10 @@ export function planProps(rand: Rand, grid: WorldGrid, biome: BiomeDef, density:
       const entry: ScatterEntry = pickWeighted(rand, biome.clumps)
       const x = cx + rand.iRand(-CLUMP_SPREAD, CLUMP_SPREAD + 1)
       const y = cy + rand.iRand(-CLUMP_SPREAD, CLUMP_SPREAD + 1)
+      if (entry.lit === true && lit >= LIT_CAP) continue
       const cells = footprintOf(entry)
       if (!fits(cells, x, y)) continue
+      if (entry.lit === true) lit++
       const marks = cells.map(([dx, dy]) => ({ x: x + dx, y: y + dy }))
       for (const m of marks) grid.set(m.x, m.y, WorldGrid.SOLID)
       plans.push({ x: x + 0.5, y: y + 0.5, path: entry.path, marks })
@@ -103,6 +108,10 @@ export function planProps(rand: Rand, grid: WorldGrid, biome: BiomeDef, density:
     const x = rand.iRand(0, grid.width)
     const y = rand.iRand(0, grid.height)
     if (!open(grid, x, y) || grid.has(x + 1, y, WorldGrid.CLIFF) || grid.has(x, y + 1, WorldGrid.CLIFF)) continue
+    if (entry.lit === true) {
+      if (lit >= LIT_CAP) continue
+      lit++
+    }
     const ox = rand.nextFloat()
     const oy = rand.nextFloat()
     plans.push({ x: x + ox, y: y + oy, path: entry.path, marks: [] })

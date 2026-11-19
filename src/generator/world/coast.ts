@@ -135,3 +135,61 @@ export function coastCloses(
   }
   return true
 }
+
+/**
+ * The closure proof for a SOLID wall theme (e, f): every piece the matcher
+ * puts on a rock tile is a full-width collider (`e_h_8` and all its siblings
+ * span x 0..16, y -24..16 px or -8..16 px from their position, [R]
+ * 2026-11-19), so a rock tile with a piece is a wall and the `overhangRows`
+ * land rows under it are dead. The party's reach is a 4-way flood from the
+ * arrival over land that is not buried; it leaks if it ever touches rock that
+ * has no piece, or the map border. A piece the matcher did not place counts as
+ * absent, so the proof can only cost a re-roll, never wave a leak through.
+ */
+export function solidCoastCloses(
+  width: number,
+  height: number,
+  land: Uint8Array,
+  pieces: readonly CoastPiece[],
+  arrival: { x: number; y: number },
+  overhang: number
+): boolean {
+  const start = arrival.y * width + arrival.x
+  if (land[start] !== 1) return false
+  const piece = new Uint8Array(width * height)
+  for (const p of pieces) piece[p.y * width + p.x] = 1
+  const buried = (x: number, y: number): boolean => {
+    for (let d = 1; d <= overhang; d++) {
+      if (y - d >= 0 && land[(y - d) * width + x] !== 1) return true
+    }
+    return false
+  }
+  if (buried(arrival.x, arrival.y)) return false
+  const seen = new Uint8Array(width * height)
+  const stack = [start]
+  seen[start] = 1
+  while (stack.length > 0) {
+    const i = stack.pop()!
+    const x = i % width
+    const y = (i - x) / width
+    if (x === 0 || y === 0 || x === width - 1 || y === height - 1) return false
+    for (const [nx, ny] of [
+      [x + 1, y],
+      [x - 1, y],
+      [x, y + 1],
+      [x, y - 1]
+    ]) {
+      const j = ny * width + nx
+      if (seen[j] === 1) continue
+      if (land[j] !== 1) {
+        // rock: a wall only where the matcher put a piece
+        if (piece[j] !== 1) return false
+        continue
+      }
+      if (buried(nx, ny)) continue
+      seen[j] = 1
+      stack.push(j)
+    }
+  }
+  return true
+}

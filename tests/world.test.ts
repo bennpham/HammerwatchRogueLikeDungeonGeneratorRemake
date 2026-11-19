@@ -34,6 +34,7 @@ import { BIOME_DEFS, biomeById, footprintOf } from '../src/generator/world/biome
 import { dropClumps, planProps } from '../src/generator/world/scatter'
 import { arenaXml, floorXml, isArenaPath, isWorldPath } from './levelFiles'
 import { plainParameters } from './params'
+import { ASSETS, touchedCells } from './worldInstall'
 
 /** A FREE-ROAM island: no buttons, no bosses and no encounters, the pass 1 world. */
 const sized = (size: number, extra: Partial<WorldDef> = {}): WorldDef => ({
@@ -1402,40 +1403,6 @@ describe('scatter: bounds', () => {
 // The terrain doc's hand-measured radii were wrong for brick_v2 and brick_v3
 // (they have none), and AE's were wrong for three props, so this is not optional
 // where an install exists; without one it is skipped.
-const INSTALL = process.env.HAMMERWATCH_DIR ?? 'D:/Program Files (x86)/Steam/steamapps/common/Hammerwatch'
-const ASSETS = `${INSTALL}/editor/assetsExtract`
-
-/** Tile offsets from a prop's own tile that its collider touches, sampled to a pixel. */
-function touchedCells(xml: string): Set<string> {
-  const text = xml.replace(/<!--[\s\S]*?-->/g, '')
-  const cells = new Set<string>()
-  const mark = (px: number, py: number) => cells.add(`${Math.floor((px + 8) / 16)},${Math.floor((py + 8) / 16)}`)
-  for (const m of text.matchAll(/<circle\s+offset="(-?[\d.]+) (-?[\d.]+)"\s+radius="([\d.]+)"/g)) {
-    const [ox, oy, r] = [Number(m[1]), Number(m[2]), Number(m[3])]
-    for (let py = Math.floor(oy - r); py <= Math.ceil(oy + r); py++) {
-      for (let px = Math.floor(ox - r); px <= Math.ceil(ox + r); px++) if ((px - ox) ** 2 + (py - oy) ** 2 < r * r) mark(px + 0.5, py + 0.5)
-    }
-  }
-  for (const m of text.matchAll(/<polygon collision="true"[^>]*>([\s\S]*?)<\/polygon>/g)) {
-    const pts = [...m[1].matchAll(/<point>(-?[\d.]+) (-?[\d.]+)<\/point>/g)].map((p) => [Number(p[1]), Number(p[2])])
-    const xs = pts.map((p) => p[0])
-    const ys = pts.map((p) => p[1])
-    for (let py = Math.min(...ys); py < Math.max(...ys); py++) {
-      for (let px = Math.min(...xs); px < Math.max(...xs); px++) {
-        // even-odd test of the pixel's centre
-        let inside = false
-        for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-          const [xi, yi] = pts[i]
-          const [xj, yj] = pts[j]
-          if (yi > py + 0.5 !== yj > py + 0.5 && px + 0.5 < ((xj - xi) * (py + 0.5 - yi)) / (yj - yi) + xi) inside = !inside
-        }
-        if (inside) mark(px + 0.5, py + 0.5)
-      }
-    }
-  }
-  return cells
-}
-
 describe.skipIf(!existsSync(`${ASSETS}/doodads`))('scatter: the table against the install', () => {
   const read = (path: string) => readFileSync(`${ASSETS}/${path}`, 'utf8')
 

@@ -17,6 +17,7 @@ import type { BossSelection } from '../config/parameters'
 import type { BossId } from '../boss/bosses'
 import { DEFAULT_WORLD_HUB } from './hub'
 import type { WorldHub } from './hub'
+import { biomeById } from './biomes'
 import type { FloorMystery, FloorTimer, MysteryMonster } from '../config/parameters'
 
 /** The most worlds a campaign may carry. An allocation guard, not a design limit. */
@@ -343,7 +344,8 @@ export function worldActorEstimate(def: Partial<WorldDef>): number {
 
 /**
  * Doodads a world at its LARGEST size is likely to emit: the coast's pieces
- * (about 5 a tile of the mean side, measured, padded to 6) plus the props
+ * (about 5 a tile of the mean side, measured, padded to 6; 8 with a canyon's
+ * roof) plus the props
  * (about 0.014 a tile of area at scatter 100, padded to 0.0165). A deliberate
  * overestimate: it only drives a warning against the stock maximum.
  */
@@ -352,7 +354,10 @@ export function worldDoodadEstimate(def: Partial<WorldDef>): number {
   const w = size.width[1]
   const h = size.height[1]
   const share = Math.max(0, Math.min(100, worldScatter(def))) / 100
-  return Math.round((6 * (w + h)) / 2 + 0.0165 * w * h * share)
+  // a wall-set canyon: its pieces are about 5 a tile of the mean side and its
+  // merged roof about 3 more (measured at 128 and 512, padded)
+  const perSide = biomeById(worldBiomeId(def))?.edge === 'wall' ? 8 : 6
+  return Math.round((perSide * (w + h)) / 2 + 0.0165 * w * h * share)
 }
 
 /** Buttons plus bosses: how many sites the world needs. */

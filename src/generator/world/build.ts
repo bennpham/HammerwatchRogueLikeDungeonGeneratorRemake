@@ -41,7 +41,8 @@ import type { Gateway } from '../campaign'
 import { overhangRows } from '../map/reachability'
 import type { LevelPreview } from '../index'
 import { BIOME_DEFS, biomeById } from './biomes'
-import { coastCloses, coastPieces, placeCoast, syncWalls, wallTilesOf, wrapSafe } from './coast'
+import { coastCloses, coastPieces, placeCoast, solidCoastCloses, syncWalls, wallTilesOf, wrapSafe } from './coast'
+import { placeRoof, roofSquares } from './roof'
 import { buildTilemap, emitWorld } from './emit'
 import { WorldGrid } from './grid'
 import type { Tile } from './grid'
@@ -161,7 +162,11 @@ export function buildWorld(
     const tiles = wallTilesOf(width, height)
     syncWalls(tiles, island.land)
     const pieces = coastPieces(tiles, width, height, island.land)
-    if (!coastCloses(width, height, island.land, pieces, arrival)) {
+    const closed =
+      biome.edge === 'wall'
+        ? solidCoastCloses(width, height, island.land, pieces, arrival, rows)
+        : coastCloses(width, height, island.land, pieces, arrival)
+    if (!closed) {
       tally.coast++
       continue
     }
@@ -243,6 +248,8 @@ export function buildWorld(
     // --- the coast LAST: nothing references a wall piece, so its ids come after
     // every object's
     placeCoast(ctx, pieces, biome.theme)
+    // a wall set's canyon: the rock roofed out to the map edge, after the coast
+    if (biome.edge === 'wall') placeRoof(ctx, roofSquares(width, height, island.land), biome.theme)
 
     const xml = emitWorld(ctx, biome, tilemap)
     return { xml, preview: previewOf(ctx, grid, hub, levelNumber, biome.id, objectives, lurking), attempts: attempt, droppedClumps }

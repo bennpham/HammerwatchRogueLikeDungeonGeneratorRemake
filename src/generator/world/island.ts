@@ -40,11 +40,24 @@ export interface IslandRules {
   gapRows: number
   /** fewest water columns between land left and right */
   gapCols: number
+  /** fewest land rows in a vertical run: a lettered theme buries two under the rock above, and three must remain to stand on */
+  landRows: number
+  /** fewest land columns in a horizontal run (a neck) */
+  landCols: number
+  /**
+   * Prove the finished mask holds every minimum above, and fail it if not. A
+   * pass that only undoes itself (a thin run cleared, then a coverage fix
+   * filling the same tile) reads as "nothing changed" and would otherwise leave
+   * the violation in. Off for theme h, whose islands predate the proof.
+   */
+  strict: boolean
 }
 
 /** Theme h (flat faces) and the lettered themes (two buried rows). */
 export function islandRulesFor(overhangRows: number): IslandRules {
-  return overhangRows === 0 ? { gapRows: 2, gapCols: 2 } : { gapRows: 3, gapCols: 2 }
+  return overhangRows === 0
+    ? { gapRows: 2, gapCols: 2, landRows: MIN_LAND_RUN, landCols: MIN_LAND_RUN, strict: false }
+    : { gapRows: 3, gapCols: 2, landRows: overhangRows + 3, landCols: MIN_LAND_RUN, strict: true }
 }
 
 export const MAX_PASSES = 24
@@ -81,9 +94,38 @@ export function buildIsland(
   const tiles = wallTilesOf(width, height)
   for (let pass = 0; pass < MAX_PASSES; pass++) {
     const changed = clean(mask, margin, rules, tiles)
-    if (!changed) return landCount(mask) > 0 ? mask : null
+    if (!changed) return landCount(mask) > 0 && (!rules.strict || holds(mask, margin, rules, tiles)) ? mask : null
   }
   return null
+}
+
+/** Whether the mask keeps the margin, every run and gap minimum, and has a piece for every band tile. */
+function holds(mask: IslandMask, margin: number, rules: IslandRules, tiles: ReturnType<typeof wallTilesOf>): boolean {
+  const { width, height, land } = mask
+  const at = (x: number, y: number) => x >= 0 && y >= 0 && x < width && y < height && land[y * width + x] === 1
+  const runsOk = (n: number, isLand: (i: number) => boolean, landMin: number, gapMin: number): boolean => {
+    let i = 0
+    let seenLand = false
+    while (i < n) {
+      const here = isLand(i)
+      let j = i
+      while (j < n && isLand(j) === here) j++
+      if (here && j - i < landMin) return false
+      if (!here && seenLand && j < n && j - i < gapMin) return false
+      if (here) seenLand = true
+      i = j
+    }
+    return true
+  }
+  for (let x = 0; x < width; x++) if (!runsOk(height, (i) => at(x, i), rules.landRows, rules.gapRows)) return false
+  for (let y = 0; y < height; y++) if (!runsOk(width, (i) => at(i, y), rules.landCols, rules.gapCols)) return false
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if ((x < margin || y < margin || x >= width - margin || y >= height - margin) && at(x, y)) return false
+    }
+  }
+  syncWalls(tiles, land)
+  return unmatchedBand(tiles, width, height, land).length === 0
 }
 
 function landCount(mask: IslandMask): number {
@@ -111,8 +153,8 @@ function clean(mask: IslandMask, margin: number, rules: IslandRules, tiles: Retu
   for (let x = 0; x < width; x++) fillGaps(height, (i) => at(x, i), (i) => (land[i * width + x] = 1), rules.gapRows)
   for (let y = 0; y < height; y++) fillGaps(width, (i) => at(i, y), (i) => (land[y * width + i] = 1), rules.gapCols)
   // thin land
-  for (let x = 0; x < width; x++) clearThin(height, (i) => at(x, i), (i) => (land[i * width + x] = 0), MIN_LAND_RUN)
-  for (let y = 0; y < height; y++) clearThin(width, (i) => at(i, y), (i) => (land[y * width + i] = 0), MIN_LAND_RUN)
+  for (let x = 0; x < width; x++) clearThin(height, (i) => at(x, i), (i) => (land[i * width + x] = 0), rules.landRows)
+  for (let y = 0; y < height; y++) clearThin(width, (i) => at(i, y), (i) => (land[y * width + i] = 0), rules.landCols)
 
   // land that meets other land only at a corner: join it by filling the water
   // cell above the diagonal pair's first corner (a fixed choice, so the pass is

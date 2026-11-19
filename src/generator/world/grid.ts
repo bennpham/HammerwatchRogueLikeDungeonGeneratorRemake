@@ -58,9 +58,22 @@ export class WorldGrid {
     if (this.inside(x, y)) this.flags[y * this.width + x] &= ~flag
   }
 
-  /** Land the party can stand on: not cliff, not under a solid prop. */
+  /**
+   * A land cell under the overhang of the rock above it: a lettered theme's
+   * wall art is three tiles tall, so the `overhangRows` cells below a rock tile
+   * are dead space (`map/reachability.ts`). Rows above the map count as open,
+   * as `blockedGrid` does. Always false on a flat theme.
+   */
+  buried(x: number, y: number): boolean {
+    for (let d = 1; d <= this.overhangRows; d++) {
+      if (this.inside(x, y - d) && !this.has(x, y - d, WorldGrid.LAND)) return true
+    }
+    return false
+  }
+
+  /** Land the party can stand on: not cliff, not under a solid prop, not buried by the wall art above. */
   walkable(x: number, y: number): boolean {
-    return this.has(x, y, WorldGrid.LAND) && !this.has(x, y, WorldGrid.CLIFF | WorldGrid.SOLID)
+    return this.has(x, y, WorldGrid.LAND) && !this.has(x, y, WorldGrid.CLIFF | WorldGrid.SOLID) && !this.buried(x, y)
   }
 
   /** Walkable and free of everything placed so far: where a new prop may go. */
@@ -79,7 +92,7 @@ export class WorldGrid {
     for (let s = 1; s <= steps; s++) {
       const x = Math.round(a.x + ((b.x - a.x) * s) / steps)
       const y = Math.round(a.y + ((b.y - a.y) * s) / steps)
-      if (this.has(x, y, WorldGrid.CLIFF) || !this.has(x, y, WorldGrid.LAND)) return false
+      if (this.has(x, y, WorldGrid.CLIFF) || !this.has(x, y, WorldGrid.LAND) || this.buried(x, y)) return false
     }
     return true
   }
@@ -108,12 +121,8 @@ export class WorldGrid {
     const blocked = new Uint8Array(this.width * this.height)
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
-        let dead = !this.walkable(x, y)
-        // the overhang: rows under a CLIFF cell are buried by its art
-        for (let d = 1; d <= this.overhangRows && !dead; d++) {
-          if (this.has(x, y - d, WorldGrid.CLIFF)) dead = true
-        }
-        blocked[y * this.width + x] = dead ? 1 : 0
+        // the overhang is part of `walkable`: placement and the flood agree
+        blocked[y * this.width + x] = this.walkable(x, y) ? 0 : 1
       }
     }
     return floodFill(blocked, this.width, this.height, from)

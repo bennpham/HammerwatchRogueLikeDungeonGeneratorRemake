@@ -7,7 +7,8 @@
  * the map on every side so the sea does not stop dead at the edge.
  *
  * Per block, lowest drawn layer first (the order each tileset's own `level`
- * attribute decides, not this one): the water base everywhere; the biome's
+ * attribute decides, not this one): the water base everywhere (not under a
+ * wall-set canyon, whose rock is void, and whose empty blocks are skipped); the biome's
  * ground on land that is not a trail; tufts in noise patches over it; and the
  * trail tileset on trail tiles INSTEAD of the ground, since `g_path` draws
  * below `h_default`. A layer a block does not use is not emitted. Every
@@ -80,6 +81,10 @@ export function buildTilemap(biome: BiomeDef, grid: WorldGrid, scatter: Rand): X
         if (grid.has(tx, ty, WorldGrid.TRAIL)) {
           trail[i] = variant(biome.trail.tiles)
           usedTrail = true
+          if (biome.baseUnderTrail === true) {
+            ground[i] = variant(biome.base.tiles)
+            usedGround = true
+          }
           continue
         }
         ground[i] = variant(biome.base.tiles)
@@ -93,7 +98,9 @@ export function buildTilemap(biome: BiomeDef, grid: WorldGrid, scatter: Rand): X
       }
 
       const datasets = new XMLArray('datasets')
-      datasets.addData(water)
+      // a wall-set canyon has no sea: the rock is void under its roof, as in a dungeon
+      if (biome.edge === 'fence') datasets.addData(water)
+      else if (!usedGround && !usedTrail && !usedTufts.some(Boolean)) continue
       if (usedGround) datasets.addData(layer(biome.base, ground))
       biome.overlays.forEach((ref, k) => {
         if (usedTufts[k]) datasets.addData(layer(ref, tufts[k]))
