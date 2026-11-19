@@ -78,6 +78,15 @@ export class GenerationContext {
    */
   readonly mysteryRand: Rand
 
+  /**
+   * The seventh stream (`seed + 6`): the world slots. Three `nextInt(2147483647)`
+   * draws per world, in list order, seed that world's private `layout`,
+   * `scatter` and `encounters` streams and nothing else, so a world is
+   * independent of every floor, arena and of the other worlds' internals.
+   * Construction draws nothing.
+   */
+  readonly worldRand: Rand
+
   currentLevel = 0
   idCounter = 0
   lastLockType = 0
@@ -158,6 +167,7 @@ export class GenerationContext {
     this.trapRand = new Rand(seed + 3)
     this.floorBossRand = new Rand(seed + 4)
     this.mysteryRand = new Rand(seed + 5)
+    this.worldRand = new Rand(seed + 6)
   }
 
   /** Equivalent of the Clear() calls between levels in HammerwatchGen.main */

@@ -434,15 +434,24 @@ function validateLevelOrder(p: DungeonParameters, errors: ValidationIssue[]): vo
 
   const fightCount = p.boss?.enabled === true ? (p.boss.fights?.length ?? 0) : 0
   const lobbyCount = p.lobbies?.length ?? 0
-  const limit = (kind: string): number => (kind === 'floor' ? p.levels : kind === 'boss' ? fightCount : lobbyCount)
+  // no params.world yet, so no world slot exists to name
+  const worldCount = 0
+  const limit = (kind: string): number =>
+    kind === 'floor' ? p.levels : kind === 'boss' ? fightCount : kind === 'world' ? worldCount : lobbyCount
   const name = (slot: CampaignSlot): string =>
-    slot.kind === 'floor' ? `floor ${slot.index + 1}` : slot.kind === 'boss' ? `boss fight ${slot.index + 1}` : `lobby ${slot.index + 1}`
+    slot.kind === 'floor'
+      ? `floor ${slot.index + 1}`
+      : slot.kind === 'boss'
+        ? `boss fight ${slot.index + 1}`
+        : slot.kind === 'world'
+          ? `world ${slot.index + 1}`
+          : `lobby ${slot.index + 1}`
 
   const seen = new Set<string>()
   const last = new Map<string, number>()
   for (const slot of order) {
-    if (slot === null || typeof slot !== 'object' || (slot.kind !== 'floor' && slot.kind !== 'boss' && slot.kind !== 'lobby')) {
-      errors.push({ field: 'levelOrder', message: 'The floor order contains an entry that is neither a floor, a boss fight nor a lobby.' })
+    if (slot === null || typeof slot !== 'object' || (slot.kind !== 'floor' && slot.kind !== 'boss' && slot.kind !== 'lobby' && slot.kind !== 'world')) {
+      errors.push({ field: 'levelOrder', message: 'The floor order contains an entry that is neither a floor, a boss fight, a lobby nor a world.' })
       continue
     }
     if (!Number.isInteger(slot.index) || slot.index < 0 || slot.index >= limit(slot.kind)) {
@@ -474,7 +483,8 @@ function validateLevelOrder(p: DungeonParameters, errors: ValidationIssue[]): vo
   const named = [
     ...Array.from({ length: Math.max(0, lobbyCount) }, (_, index) => ({ kind: 'lobby' as const, index })),
     ...Array.from({ length: Math.max(0, p.levels) }, (_, index) => ({ kind: 'floor' as const, index })),
-    ...Array.from({ length: Math.max(0, fightCount) }, (_, index) => ({ kind: 'boss' as const, index }))
+    ...Array.from({ length: Math.max(0, fightCount) }, (_, index) => ({ kind: 'boss' as const, index })),
+    ...Array.from({ length: Math.max(0, worldCount) }, (_, index) => ({ kind: 'world' as const, index }))
   ]
   for (const slot of named) {
     if (!seen.has(`${slot.kind}:${slot.index}`)) {

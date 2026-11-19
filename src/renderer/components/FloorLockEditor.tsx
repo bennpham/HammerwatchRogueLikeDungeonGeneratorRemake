@@ -21,7 +21,7 @@ export function FloorLockEditor({ params, issues, onChange }: FloorLockEditorPro
   const count = Math.max(params.levels, 0) || 0
 
   const order = campaignOrder(
-    { levels: count, fights: bossFights(params.boss).length, lobbies: (params.lobbies ?? []).length },
+    { levels: count, fights: bossFights(params.boss).length, lobbies: (params.lobbies ?? []).length, worlds: 0 },
     params.levelOrder
   )
   const leadsTo = new Map<number, string>()

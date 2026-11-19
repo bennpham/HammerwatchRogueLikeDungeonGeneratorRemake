@@ -30,7 +30,7 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    All I/O lives in `src/main/**`.
 2. **Determinism.** Same params + same seed ⇒ byte-identical output. Never
    introduce `Math.random()`, `Date.now()`, or `Object` iteration order
-   dependence into the generator. **Six** streams, never mixed: layout
+   dependence into the generator. **Seven** streams, never mixed: layout
    randomness draws from `ctx.rand`, cosmetic (floor tiles, overlay and mixed
    palettes) from `ctx.cosmeticRand`, everything in the boss arena from
    `ctx.bossRand`, the per-floor wall traps from `ctx.trapRand` (`seed + 3`) —
@@ -45,7 +45,7 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    a mystery payload), one `iRand` per enhanced button for its own pool entry,
    then one per spewer its traps place — strictly after every ordinary plate
    draw above, so arming the enhancement never moves this floor's own plates,
-   only a later floor's mysteryRand draws. Mixing them shifts the streams after and every
+   only a later floor's mysteryRand draws. The seventh, `ctx.worldRand` (`seed + 6`), serves the world slots: three `nextInt(2147483647)` draws per world in list order seed its private `layout`, `scatter` and `encounters` streams, and nothing else. Mixing them shifts the streams after and every
    existing seed changes. A path with nothing to draw must return *before*
    touching a stream.
 3. **No unbounded loops.** Every retry loop in the port is bounded
@@ -233,8 +233,10 @@ Subagents are defined in `.claude/agents/` — see "Agent roster" below.
    (`campaign.ts`) decides where each level leads, what `levels.xml` lists and
    in what order, and which slot carries the victory orb — via `ctx.gateway`,
    which `map/level.ts`, `map/room.ts`, `objects/objectSet.ts` and
-   `boss/arena.ts` read. A slot is a floor, a boss fight or a lobby; a fight is
-   entered at its ARENA, and a lobby may never be the last slot because it
+   `boss/arena.ts` read. A slot is a floor, a boss fight, a lobby or a world; a fight is
+   entered at its ARENA, a world at `world{i}` by the `exit` kind (it may be
+   last, and then carries the orb; a missing world is appended at the end, like
+   a lobby), and a lobby may never be the last slot because it
    carries no orb. `gatewayAfter` yields four kinds — stairs to a floor, the
    red portal to an arena, the blue teleport to a lobby, the orb at the end.
    The three non-stairs kinds share one room-selection branch and one three-id,

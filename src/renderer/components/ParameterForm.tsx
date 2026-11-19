@@ -120,7 +120,8 @@ export function ParameterForm({ params, issues, onChange }: ParameterFormProps) 
         const counts: CampaignCounts = {
           levels,
           fights: params.boss?.enabled === true ? (params.boss.fights?.length ?? 0) : 0,
-          lobbies: params.lobbies.length
+          lobbies: params.lobbies.length,
+          worlds: 0
         }
         const repaired = normalizeOrder(params.levelOrder, counts)
         if (isDefaultOrder(repaired, counts)) delete next.levelOrder

@@ -249,7 +249,7 @@ reference/hammerwatch-tweak-stats.md
 2. **Determinism.** `(params, seed)` ⇒ byte-identical files. Forbidden inside
    the generator: `Math.random()`, `Date`, `crypto`, iteration over an object
    whose key order isn't fixed, `Array.sort` without a total comparator.
-3. **Six RNG streams, never mixed.** (The sixth, `ctx.mysteryRand`
+3. **Seven RNG streams, never mixed.** (The seventh, `ctx.worldRand` (seed + 6), serves the world slots: three `nextInt(2147483647)` draws per world in list order seed its private `layout`, `scatter` and `encounters` streams, nothing else. The sixth, `ctx.mysteryRand`
    (seed + 5), drives the per-floor mystery buttons — see *Mystery buttons*
    below; it follows the trap stream's post-acceptance rules exactly.) `ctx.rand` (seed) drives layout and
    population — the stream that must match the Java original.
@@ -324,8 +324,10 @@ reference/hammerwatch-tweak-stats.md
    (`campaign.ts`) decides where each level leads, what `levels.xml` lists and
    in what order, and which slot carries the victory orb — through
    `ctx.gateway`, which `map/level.ts`, `map/room.ts`, `objects/objectSet.ts`
-   and `boss/arena.ts` read. A slot is a floor, a boss fight or a lobby; a
-   fight is entered at its **arena**, and a lobby may never be the last slot
+   and `boss/arena.ts` read. A slot is a floor, a boss fight, a lobby or a world; a
+   fight is entered at its **arena**, a world at `world{i}` by the `exit` kind
+   (it may be last and then carries the orb; a missing world is appended at
+   the end), and a lobby may never be the last slot
    because it has no orb. `gatewayAfter` yields four kinds — `exit` (stairs to
    a floor), `portal` (red, to an arena), `lobbyPortal` (blue, to a lobby) and
    `orb`. The three non-stairs kinds share one room-selection branch in

@@ -49,7 +49,8 @@ export function LobbyForm({ params, issues, onChange }: LobbyFormProps) {
       const counts: CampaignCounts = {
         levels: params.levels,
         fights: params.boss?.enabled === true ? (params.boss.fights?.length ?? 0) : 0,
-        lobbies: nextLobbies.length
+        lobbies: nextLobbies.length,
+        worlds: 0
       }
       const repaired = normalizeOrder(params.levelOrder, counts)
       if (isDefaultOrder(repaired, counts)) delete next.levelOrder

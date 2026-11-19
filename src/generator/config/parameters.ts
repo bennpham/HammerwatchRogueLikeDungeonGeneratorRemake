@@ -8,7 +8,7 @@ import type { UpgradeCounts } from '../levelTemplate/surgery'
 // the key QuickSetup's checkbox writes. tweak/ imports nothing from config/,
 // so this direction adds no cycle
 import { removeKey } from '../tweak/chains'
-import type { ArenaMode, CampaignSlot } from '../campaign'
+import type { ArenaMode, CampaignCounts, CampaignSlot } from '../campaign'
 import { ARENA_MODES, campaignOrder, gatewayAfter } from '../campaign'
 // Type-only: boss/bosses.ts imports BOSS_IDS/MOBILE_BOSS_IDS FROM this file at
 // runtime, so a runtime import back here would cycle. `import type` is erased
@@ -621,11 +621,7 @@ export function mysteryStarterPool(): MysteryButton[] {
  * CURRENT order: rearranging the campaign afterwards moves no lock.
  */
 export function gatewayLockedFloors(params: DungeonParameters): FloorLock[] {
-  const counts = {
-    levels: params.levels,
-    fights: bossFights(params.boss).length,
-    lobbies: (params.lobbies ?? []).length
-  }
+  const counts = campaignCounts(params)
   const order = campaignOrder(counts, params.levelOrder)
   const locks = Array.from({ length: params.levels }, () => defaultFloorLock())
   order.forEach((slot, position) => {
@@ -1704,6 +1700,23 @@ export function defaultBossFight(): BossFight {
  * the list and carry no fights at all, and a boss that is switched off builds
  * nothing whatever the list holds.
  */
+/**
+ * The counts a campaign's order is repaired and validated against, read off a
+ * parameter object. The one place a `CampaignCounts` is built from params, so
+ * a new slot kind changes this function and not eight call sites. `over` lets
+ * a caller that holds a not-yet-stored list (a form mid-edit) override a count.
+ * There is no `params.world` yet, so worlds is 0.
+ */
+export function campaignCounts(params: DungeonParameters, over: Partial<CampaignCounts> = {}): CampaignCounts {
+  return {
+    levels: params.levels,
+    fights: bossFights(params.boss).length,
+    lobbies: (params.lobbies ?? []).length,
+    worlds: 0,
+    ...over
+  }
+}
+
 export function bossFights(boss: BossOptions | undefined): BossFight[] {
   if (boss === undefined || !boss.enabled) return []
   return boss.fights ?? []

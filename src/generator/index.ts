@@ -1,6 +1,6 @@
 import { GenerationContext } from './core/context'
 import { Level } from './map/level'
-import { DungeonParameters, defaultParameters, bossFights, arenaMode, defaultSurvivalOptions, floorBoss, floorBossCount, floorLockButtons, floorLockDisguised } from './config/parameters'
+import { DungeonParameters, defaultParameters, bossFights, campaignCounts, arenaMode, defaultSurvivalOptions, floorBoss, floorBossCount, floorLockButtons, floorLockDisguised } from './config/parameters'
 import { validateParameters, ValidationResult } from './config/validation'
 import { emitTweakFiles } from './tweak/overrides'
 import { DEFAULT_LOBBY_PRESET_ID, buildLobby, lobbyPresetById } from './lobby'
@@ -400,7 +400,7 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
   // teleport targets, and what order levels.xml lists.
   const fights = bossFights(params.boss)
   const lobbies = params.lobbies ?? []
-  const order = campaignOrder({ levels: params.levels, fights: fights.length, lobbies: lobbies.length }, params.levelOrder)
+  const order = campaignOrder(campaignCounts(params, { fights: fights.length, lobbies: lobbies.length }), params.levelOrder)
   // Each level's file is named by its place in that order (01_lobby1.xml,
   // 02_floor1_boss.xml, …) — only the file, never the level id it is listed as.
   const filePath = campaignFilePaths(
@@ -591,6 +591,9 @@ export function generateDungeon(params: DungeonParameters, seed?: number): Dunge
       floorLabel += 1
       const preview = arenaPreviews.get(slot.index)
       if (preview !== undefined) previews.push({ ...preview, label: label(slot) })
+    } else if (slot.kind === 'world') {
+      // unreachable until a world can be configured; never fall through to lobby
+      throw new Error('internal error: world slots are not built yet')
     } else {
       // A lobby contributes no preview — it has no generated geometry, and
       // LobbyDiagram in the form is its stand-in.

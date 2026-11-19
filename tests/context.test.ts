@@ -105,3 +105,28 @@ describe('GenerationContext — trapRand isolation', () => {
     expect(b).toEqual(a)
   })
 })
+
+describe('GenerationContext — worldRand (seed + 6)', () => {
+  const streams = (c: GenerationContext) => [c.rand, c.cosmeticRand, c.bossRand, c.trapRand, c.floorBossRand, c.mysteryRand]
+  const take = (r: { iRand(a: number, b: number): number }) => Array.from({ length: 20 }, () => r.iRand(0, 1_000_000))
+
+  it('is seeded at seed + 6, i.e. the same sequence as a context seeded 6 higher\'s base stream', () => {
+    expect(take(new GenerationContext(defaultParameters(), 100).worldRand)).toEqual(
+      take(new GenerationContext(defaultParameters(), 106).rand)
+    )
+  })
+
+  it('is independent of the other six streams', () => {
+    const base = take(new GenerationContext(defaultParameters(), 42).worldRand)
+    const ctx = new GenerationContext(defaultParameters(), 42)
+    for (const s of streams(ctx)) take(s)
+    expect(take(ctx.worldRand)).toEqual(base)
+  })
+
+  it('draining worldRand moves none of the others', () => {
+    const fresh = new GenerationContext(defaultParameters(), 42)
+    const drained = new GenerationContext(defaultParameters(), 42)
+    take(drained.worldRand)
+    streams(fresh).forEach((s, i) => expect(take(streams(drained)[i])).toEqual(take(s)))
+  })
+})

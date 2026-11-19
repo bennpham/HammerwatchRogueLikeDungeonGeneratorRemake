@@ -28,7 +28,7 @@ interface FloorOrderEditorProps {
  */
 export function FloorOrderEditor({ params, issues, onChange }: FloorOrderEditorProps) {
   const fightCount = params.boss?.enabled === true ? (params.boss.fights?.length ?? 0) : 0
-  const counts: CampaignCounts = { levels: params.levels, fights: fightCount, lobbies: params.lobbies.length }
+  const counts: CampaignCounts = { levels: params.levels, fights: fightCount, lobbies: params.lobbies.length, worlds: 0 }
   const order = campaignOrder(counts, params.levelOrder)
   // Arena chips read AB1/AS2 — the prefix is that arena's mode, the number its
   // position in the fight list. See campaign.ts's slotLabel. A floor with a
