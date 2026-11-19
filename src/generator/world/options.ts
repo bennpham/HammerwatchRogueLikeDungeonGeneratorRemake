@@ -405,8 +405,10 @@ export function worldDoodadEstimate(def: Partial<WorldDef>): number {
   // a plateau's rim: about one 2-tile ledge piece per 2 tiles of its perimeter, plus plugs and
   // stairways (measured, padded); only the plateaus that can fit, and none on a flat island
   const terrain = worldTerrain(def)
-  const raised = biomeById(worldBiomeId(def))?.terrain === 'plateau' ? Math.min(terrain.plateaus, worldPlateauCapacity(def)) : 0
-  const rims = raised * (2 * terrain.maxSize + 8)
+  const kind = biomeById(worldBiomeId(def))?.terrain
+  const raised = kind !== undefined ? Math.min(terrain.plateaus, worldPlateauCapacity(def)) : 0
+  // a mesa's rock edge takes a coast piece on every tile of its perimeter, and a little roof
+  const rims = raised * (kind === 'mesa' ? 4 * terrain.maxSize + 12 : 2 * terrain.maxSize + 8)
   return Math.round((perSide * (w + h)) / 2 + 0.0165 * w * h * share + rims)
 }
 

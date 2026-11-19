@@ -2222,4 +2222,17 @@ describe('world terrain validation', () => {
     }
     for (const biome of ['oasis', 'drygrass']) expect(warnings({ biome, plateaus: 2, plateauStairs: 3 }), biome).not.toContain('world.worlds.0.plateauStairs')
   })
+
+  it('holds the mesa biomes to the same bounds and says "mesas" in the capacity warning', () => {
+    for (const biome of ['desert', 'frozen']) {
+      expect(errors({ biome, plateaus: 17 }), biome).toContain('world.worlds.0.plateaus')
+      expect(errors({ biome, plateaus: 3, plateauMinSize: 20, plateauMaxSize: 12 }), biome).toContain('world.worlds.0.plateauMinSize')
+      expect(errors({ biome, plateaus: 3, plateauMaxSize: 43 }), biome).toContain('world.worlds.0.plateauMaxSize')
+      expect(errors({ biome, plateaus: 3, plateauMinSize: 10, plateauMaxSize: 16 }), biome).toEqual([])
+      const fits = worldPlateauCapacity({ ...defaultWorld(), ...roomy, biome, plateauMaxSize: 20 })
+      const over = check({ biome, plateaus: fits + 1, plateauMinSize: 12, plateauMaxSize: 20 })
+      expect(over.errors).toEqual([])
+      expect(over.warnings.find((w) => w.field === 'world.worlds.0.plateaus')!.message, biome).toContain('mesas')
+    }
+  })
 })

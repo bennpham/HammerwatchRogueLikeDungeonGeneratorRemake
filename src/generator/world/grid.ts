@@ -40,6 +40,8 @@ export class WorldGrid {
    * and the low cells it lands on. Allocated by the first stairway.
    */
   private stairs: Int32Array | null = null
+  /** The cells of a mesa's rock (`mesa.ts`): not land, but ground drawn under a fence coast's cliffs. Allocated by the first. */
+  private mesas: Uint8Array | null = null
   /** Any `HIGH` cell at all: a flat island keeps the plain flood. */
   private raised = false
 
@@ -69,6 +71,18 @@ export class WorldGrid {
       this.flags[y * this.width + x] |= flag
       if ((flag & WorldGrid.HIGH) !== 0) this.raised = true
     }
+  }
+
+  /** Mark (x, y) as a mesa's rock. */
+  setMesa(x: number, y: number): void {
+    if (!this.inside(x, y)) return
+    if (this.mesas === null) this.mesas = new Uint8Array(this.width * this.height)
+    this.mesas[y * this.width + x] = 1
+  }
+
+  /** Whether (x, y) is a mesa's rock. */
+  isMesa(x: number, y: number): boolean {
+    return this.mesas !== null && this.inside(x, y) && this.mesas[y * this.width + x] === 1
   }
 
   /** Put cell (x, y) in stairway `id` (a positive number). */

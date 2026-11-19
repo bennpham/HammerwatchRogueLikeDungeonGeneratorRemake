@@ -56,6 +56,7 @@ import { buildObjectives } from './objectives'
 import type { WorldObjectives } from './objectives'
 import { carveTrails } from './paths'
 import { placePlateaus } from './plateau'
+import { placeMesas } from './mesa'
 import type { PlateauResult } from './plateau'
 import { Doodad } from '../objects/doodad'
 import { placeSites, SITE_RADIUS } from './place'
@@ -150,7 +151,8 @@ export function buildWorld(
       tally.island++
       continue
     }
-    const grid = gridOf(island, rows)
+    let grid = gridOf(island, rows)
+    const terrain = worldTerrain(def)
     const hub = { x: Math.trunc(width / 2), y: Math.trunc(height / 2) }
     const arrival = { x: hub.x, y: hub.y + ARRIVAL_DY }
     const orb = { x: hub.x + ORB_AT.x, y: hub.y + ORB_AT.y }
@@ -160,6 +162,19 @@ export function buildWorld(
     if (!grid.discAll(hub, keepOpen, (x, y) => grid.walkable(x, y))) {
       tally.start++
       continue
+    }
+
+    // --- mesas (desert, frozen): blocks of rock raised INSIDE the island, in the
+    // coast's own mask, so the matcher fences them and the closure proof below
+    // covers them. Their own stream, seeded by ONE layout draw taken only when
+    // the world asks for them; the grid is rebuilt from the carved mask.
+    let mesas: ReturnType<typeof placeMesas> | null = null
+    if (biome.terrain === 'mesa' && terrain.plateaus > 0) {
+      mesas = placeMesas(new Rand(layout.nextInt(2147483647)), island, terrain, rows, hub, keepOpen)
+      if (mesas.placed > 0) {
+        grid = gridOf(island, rows)
+        for (const i of mesas.cells) grid.setMesa(i % width, Math.trunc(i / width))
+      }
     }
 
     // the coast, before any object exists: a rejected island costs no ids
@@ -187,7 +202,6 @@ export function buildWorld(
     // when the world asks for plateaus, so a flat world draws exactly what it did
     // before. Raised after the start is reserved and before anything is proved,
     // so the flood, the sites and the corridors all see the stairways.
-    const terrain = worldTerrain(def)
     let raised: PlateauResult | null = null
     if (biome.terrain === 'plateau' && terrain.plateaus > 0) {
       raised = placePlateaus(new Rand(layout.nextInt(2147483647)), grid, terrain, rows, hub, keepOpen)
@@ -290,11 +304,11 @@ export function buildWorld(
     if (biome.edge === 'wall') placeRoof(ctx, roofSquares(width, height, island.land), biome.theme)
 
     const xml = emitWorld(ctx, biome, tilemap)
-    const placedTerrain = { placed: raised?.placed ?? 0, requested: raised?.requested ?? 0 }
+    const placedTerrain = { placed: raised?.placed ?? mesas?.placed ?? 0, requested: raised?.requested ?? mesas?.requested ?? 0 }
     const preview = previewOf(ctx, grid, hub, levelNumber, biome.id, objectives, lurking)
     // a plateau that never fit is said so (audit A6); absent on every level that asked for none
     if (placedTerrain.placed < placedTerrain.requested) {
-      preview.notes = [`${placedTerrain.placed} of ${placedTerrain.requested} plateaus fit`]
+      preview.notes = [`${placedTerrain.placed} of ${placedTerrain.requested} ${biome.terrain === 'mesa' ? 'mesas' : 'plateaus'} fit`]
     }
     return { xml, preview, attempts: attempt, droppedClumps, grid, terrain: placedTerrain }
   }

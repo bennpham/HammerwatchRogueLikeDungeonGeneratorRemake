@@ -80,7 +80,14 @@ export function buildTilemap(biome: BiomeDef, grid: WorldGrid, scatter: Rand): X
       for (let i = 0; i < WORLD_BLOCK * WORLD_BLOCK; i++) {
         const tx = bx * WORLD_BLOCK - 10 + (i % WORLD_BLOCK)
         const ty = by * WORLD_BLOCK - 10 + Math.trunc(i / WORLD_BLOCK)
-        if (!grid.has(tx, ty, WorldGrid.LAND)) continue
+        if (!grid.has(tx, ty, WorldGrid.LAND)) {
+          // a mesa's top under a fence coast is ground, not the sea its rock would otherwise show
+          if (biome.edge === 'fence' && grid.isMesa(tx, ty)) {
+            ground[i] = variant(biome.base.tiles)
+            usedGround = true
+          }
+          continue
+        }
         // the ground this cell stands on: the raised ground on a plateau, the base elsewhere
         const top = biome.highGround !== undefined && grid.has(tx, ty, WorldGrid.HIGH)
         const under = top ? biome.highGround! : biome.base
