@@ -125,6 +125,12 @@ export interface WorldDef {
    */
   checkpoints?: boolean
   /**
+   * Place the biome's landmarks (pyramid, altars, shrines, battlefields...).
+   * They draw from the layout stream, so **absent means off** (a world without
+   * them is byte-identical to before); read through `worldLandmarks`.
+   */
+  landmarks?: boolean
+  /**
    * Bosses to kill. **Absent means 1**; read it through `worldBossCount`,
    * which also honours the lineup. 0 with no buttons is a free-roam world.
    */
@@ -261,6 +267,7 @@ export function worldHub(def: Partial<WorldDef>): WorldHub {
 }
 
 export const worldCheckpoints = (def: Partial<WorldDef>): boolean => def.checkpoints === true
+export const worldLandmarks = (def: Partial<WorldDef>): boolean => def.landmarks === true
 
 export function worldButtons(def: Partial<WorldDef>): number {
   return num(def.buttons, DEFAULT_WORLD_BUTTONS)

@@ -25,6 +25,7 @@ import { BIOME_DEFS, LIT_CAP, biomeById, footprintOf } from '../src/generator/wo
 import type { BiomeDef } from '../src/generator/world/biomes'
 import { WorldGrid } from '../src/generator/world/grid'
 import { buildIsland, islandRulesFor } from '../src/generator/world/island'
+import { LANDMARK_DEFS, LANDMARK_PROPS, landmarkById, landmarkCopies, pieceCells, planLandmarks } from '../src/generator/world/landmarks'
 import { WORLD_DOODAD_WARN, defaultWorld, worldDoodadEstimate } from '../src/generator/world/options'
 import type { WorldDef } from '../src/generator/world/options'
 import { ROOF_SIZES, mergeRoof, roofEligible, roofPath, roofSquares } from '../src/generator/world/roof'
@@ -531,6 +532,231 @@ describe.skipIf(!existsSync(`${ASSETS}/doodads`))('biomes against the install', 
     for (const e of b.cover) {
       expect(existsSync(`${ASSETS}/${e.path}`), e.path).toBe(true)
       expect(touchedCells(read(e.path)).size, e.path).toBe(0)
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// lighting and landmarks
+// ---------------------------------------------------------------------------
+
+function lightingOf(xml: string): Record<string, number[]> {
+  const light = xml.slice(xml.indexOf('<dictionary name="lighting">'))
+  const out: Record<string, number[]> = {}
+  for (const name of ['ambient-color', 'shadow-color', 'add-color']) {
+    const at = light.indexOf(`<dictionary name="${name}">`)
+    if (at < 0) continue
+    const block = light.slice(at, light.indexOf('</dictionary>', at))
+    out[name] = [...block.matchAll(/<int name="[rgba]">(\d+)<\/int>/g)].map((m) => Number(m[1]))
+  }
+  return out
+}
+
+describe('biome lighting', () => {
+  it('keeps the Temple hub light on the desert and tints the rest, with the generator shadow', () => {
+    const want: Record<string, Record<string, number[]>> = {
+      desert: { 'ambient-color': [254, 243, 204, 255], 'shadow-color': [150, 150, 150, 255], 'add-color': [39, 28, 5, 255] },
+      oasis: { 'ambient-color': [240, 250, 225, 255], 'shadow-color': [128, 128, 128, 128] },
+      drygrass: { 'ambient-color': [245, 240, 225, 255], 'shadow-color': [128, 128, 128, 128] },
+      frozen: { 'ambient-color': [220, 232, 255, 255], 'shadow-color': [128, 128, 128, 128] }
+    }
+    for (const id of IDS) expect(lightingOf(worldFile(generate(withWorlds([open(id, 64)]), 3), 0)), id).toEqual(want[id])
+  })
+
+  it('stays near full-bright: every channel of a tinted ambient is at least 200', () => {
+    for (const b of BIOME_DEFS) for (const c of ['r', 'g', 'b'] as const) expect(b.lighting.ambient[c], `${b.id} ${c}`).toBeGreaterThanOrEqual(200)
+  })
+})
+
+describe('landmarks: the switch', () => {
+  it('is off by default: absent and false are the world as it was, on moves only that world', () => {
+    for (const id of IDS) {
+      const base = generate(withWorlds([open(id, 128)]), 9)
+      const off = generate(withWorlds([open(id, 128, { landmarks: false })]), 9)
+      const on = generate(withWorlds([open(id, 128, { landmarks: true })]), 9)
+      expect(worldFile(off, 0), id).toBe(worldFile(base, 0))
+      expect(worldFile(on, 0), id).not.toBe(worldFile(base, 0))
+      for (const f of on.files) if (!isWorldPath(f.path)) expect(f.content, f.path).toBe(base.files.find((x) => x.path === f.path)!.content)
+    }
+  })
+
+  it('round-trips through parameters.txt, written only when on', () => {
+    const on = withWorlds([open('oasis', 64, { landmarks: true })])
+    const text = serializeParametersTxt(on)
+    expect(text).toContain('world0Landmarks=1')
+    expect(parseParametersTxt(text, small()).params.world?.worlds[0].landmarks).toBe(true)
+    expect(serializeParametersTxt(withWorlds([open('oasis', 64)]))).not.toMatch(/Landmarks/)
+    expect(parseParametersTxt('world0Landmarks=maybe', on).unknownKeys.join()).toContain('world0Landmarks')
+  })
+
+  it('rejects a non-boolean and warns when the island is small', () => {
+    const bad = validateParameters(withWorlds([open('oasis', 128, { landmarks: 1 as unknown as boolean })]))
+    expect(bad.errors.some((e) => e.field === 'world.worlds.0.landmarks')).toBe(true)
+    const small64 = validateParameters(withWorlds([open('oasis', 64, { landmarks: true })]))
+    expect(small64.errors).toEqual([])
+    expect(small64.warnings.some((w) => w.field === 'world.worlds.0.landmarks')).toBe(true)
+    const roomy = validateParameters(withWorlds([open('oasis', 128, { landmarks: true })]))
+    expect(roomy.warnings.some((w) => w.field === 'world.worlds.0.landmarks')).toBe(false)
+    expect(validateParameters(withWorlds([open('oasis', 64)])).warnings.some((w) => w.field === 'world.worlds.0.landmarks')).toBe(false)
+  })
+})
+
+describe('landmarks: the table', () => {
+  it('names a known landmark for every biome, and every landmark for some biome', () => {
+    const named = new Set(BIOME_DEFS.flatMap((b) => b.landmarks))
+    for (const id of named) expect(landmarkById(id), id).toBeDefined()
+    expect(new Set(LANDMARK_DEFS.map((l) => l.id))).toEqual(named)
+    expect(biomeById('desert')!.landmarks).toEqual(['pyramid', 'sunAltar', 'boneField', 'rockRing'])
+    expect(biomeById('oasis')!.landmarks).toEqual(['jadeShrine', 'crystalGrove'])
+    expect(biomeById('drygrass')!.landmarks).toEqual(['battlefield', 'bloodAltar', 'crossroads'])
+    expect(biomeById('frozen')!.landmarks).toEqual(['frostSpire', 'frozenAltar', 'crystalField'])
+  })
+
+  it('keeps every piece and every collider inside its footprint, over many draws', () => {
+    for (const def of LANDMARK_DEFS) {
+      const f = def.footprint
+      for (let seed = 1; seed <= 40; seed++) {
+        const pieces = def.build(new Rand(seed))
+        expect(pieces.length, def.id).toBeGreaterThan(0)
+        for (const p of pieces) {
+          for (const [x, y] of [[p.dx, p.dy], ...pieceCells(p)]) {
+            expect(x >= f.x0 && x <= f.x1 && y >= f.y0 && y <= f.y1, `${def.id} ${p.prop.path} ${x},${y}`).toBe(true)
+          }
+        }
+      }
+    }
+  })
+
+  it('draws only for the scattered landmarks, and the pyramid is its 12x12 solid with a shadow', () => {
+    for (const def of LANDMARK_DEFS) {
+      const before = new Rand(5).nextInt(1 << 30)
+      const again = new Rand(5)
+      def.build(again)
+      const drew = again.nextInt(1 << 30) !== before
+      expect(drew, def.id).toBe(['boneField', 'rockRing', 'crystalGrove', 'battlefield', 'crystalField'].includes(def.id))
+    }
+    const pyramid = landmarkById('pyramid')!.build(new Rand(1))
+    expect(pyramid.map((p) => p.prop.path)).toEqual(['doodads/theme_h/h_pyramid_shadow.xml', 'doodads/theme_h/h_pyramid.xml'])
+    expect(pieceCells(pyramid[1])).toHaveLength(144)
+  })
+
+  it('puts a biome\'s landmarks in its own art: no theme h outside the desert, no other biome\'s wall set', () => {
+    for (const b of BIOME_DEFS) {
+      for (const id of b.landmarks) {
+        for (let seed = 1; seed <= 10; seed++) {
+          for (const p of landmarkById(id)!.build(new Rand(seed))) {
+            const dir = /^doodads\/theme_([a-z0-9]+)\//.exec(p.prop.path)
+            if (dir === null || dir[1] === 'g') continue
+            expect(dir[1], `${b.id} ${id} ${p.prop.path}`).toBe(b.theme)
+          }
+        }
+      }
+    }
+  })
+})
+
+describe('landmarks: placement', () => {
+  const flat = (w: number, h: number): WorldGrid => {
+    const g = new WorldGrid(w, h, 0)
+    for (let y = 3; y < h - 3; y++) for (let x = 3; x < w - 3; x++) g.set(x, y, WorldGrid.LAND)
+    return g
+  }
+
+  it('refuses every reserved tile, keep-out disc and corridor, and marks its colliders solid', () => {
+    const g = flat(120, 120)
+    const hub = { x: 60, y: 60 }
+    g.markDisc(hub, 6, WorldGrid.RESERVED)
+    for (let x = 3; x < 117; x++) g.set(x, 90, WorldGrid.PATH)
+    const before = g.flags.slice()
+    const { plans } = planLandmarks(new Rand(3), g, biomeById('desert')!, 10000, { x: 60, y: 63 }, [hub], [{ x: 60, y: 60, r: 8 }])
+    expect(plans.length).toBeGreaterThan(0)
+    for (const plan of plans) {
+      for (const t of plan.footprint) {
+        expect((before[t.y * 120 + t.x] & (WorldGrid.RESERVED | WorldGrid.PATH | WorldGrid.SOLID)) === 0, `${plan.id} ${t.x},${t.y}`).toBe(true)
+        expect((t.x - 60) ** 2 + (t.y - 60) ** 2 > 64).toBe(true)
+        expect(g.has(t.x, t.y, WorldGrid.RESERVED)).toBe(true)
+      }
+      for (const s of plan.solid) expect(g.has(s.x, s.y, WorldGrid.SOLID), plan.id).toBe(true)
+    }
+    // the plans do not overlap one another
+    const seen = new Set<string>()
+    for (const plan of plans) {
+      for (const t of plan.footprint) {
+        expect(seen.has(`${t.x},${t.y}`)).toBe(false)
+        seen.add(`${t.x},${t.y}`)
+      }
+    }
+  })
+
+  it('takes a landmark back when a tile it must keep reachable is not', () => {
+    const g = flat(120, 120)
+    // a tile on land the flood can never reach: no landmark can be proved
+    const walled = { x: 20, y: 20 }
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (dx !== 0 || dy !== 0) g.set(walled.x + dx, walled.y + dy, WorldGrid.SOLID)
+    const before = g.flags.slice()
+    const { plans } = planLandmarks(new Rand(4), g, biomeById('desert')!, 10000, { x: 60, y: 63 }, [walled], [])
+    expect(plans).toEqual([])
+    expect(g.flags).toEqual(before)
+  })
+
+  it('stays under the lit-prop cap with the scatter\'s count carried in', () => {
+    const g = flat(220, 220)
+    const { plans, lit } = planLandmarks(new Rand(8), g, biomeById('frozen')!, 40000, { x: 110, y: 113 }, [], [], LIT_CAP - 5)
+    expect(lit).toBeLessThanOrEqual(LIT_CAP)
+    const used = plans.flatMap((p) => p.pieces).filter((p) => p.prop.lit === true).length
+    expect(used + LIT_CAP - 5).toBe(lit)
+  })
+
+  for (const id of IDS) {
+    it(`${id}: every objective stays reachable with the landmarks down, over 12 seeds at 160`, () => {
+      let placed = 0
+      for (let seed = 1; seed <= 12; seed++) {
+        const def = open(id, 160, { landmarks: true, buttons: 3, trails: true, packs: 4, scatter: 80 })
+        const { ctx, out } = built(def, seed)
+        const { mapWidth: w, mapHeight: h, walls, world } = out.preview
+        const seen = new Uint8Array(w * h)
+        const stack = [(world!.hub.y + 3) * w + world!.hub.x]
+        seen[stack[0]] = 1
+        while (stack.length > 0) {
+          const i = stack.pop()!
+          for (const j of [i + 1, i - 1, i + w, i - w]) if (j >= 0 && j < w * h && seen[j] !== 1 && walls[j] === '0') (seen[j] = 1), stack.push(j)
+        }
+        for (const s of world!.sites.filter((t) => t.kind === 'button')) expect(seen[s.y * w + s.x], `seed ${seed} ${s.x},${s.y}`).toBe(1)
+        expect(seen[world!.hub.y * w + world!.hub.x]).toBe(1)
+        const own = new Set(biomeById(id)!.landmarks.flatMap((l) => landmarkById(l)!.build(new Rand(1)).map((p) => p.prop.path)))
+        const raws = ctx.doodads.map((d) => (d as unknown as { rawPath?: string }).rawPath).filter((p): p is string => p !== undefined)
+        if (raws.some((p) => own.has(p) && /altar|pyramid|crystal\.xml|rock\.xml|signpost|spike|special_pillar|flower|corpse/.test(p))) placed++
+      }
+      // a landmark may be left out (the island is full), but not on most seeds
+      expect(placed).toBeGreaterThan(6)
+    }, 120000)
+  }
+
+  it('gives a big island extra copies, and the pyramid exactly one', () => {
+    expect(landmarkCopies(landmarkById('pyramid')!, 200000)).toBe(1)
+    expect(landmarkCopies(landmarkById('sunAltar')!, 200000)).toBe(4)
+    expect(landmarkCopies(landmarkById('sunAltar')!, 100)).toBe(1)
+    const { ctx } = built(open('desert', 384, { landmarks: true }), 5)
+    const paths = ctx.doodads.map((d) => (d as unknown as { rawPath?: string }).rawPath)
+    expect(paths.filter((p) => p === 'doodads/theme_h/h_pyramid.xml').length).toBeLessThanOrEqual(1)
+    expect(paths.filter((p) => p === 'doodads/generic/deco_altar_stone_sun.xml').length).toBeGreaterThan(1)
+  }, 120000)
+
+  it('is deterministic', () => {
+    const def = open('oasis', 160, { landmarks: true, buttons: 3 })
+    expect(worldFile(generate(withWorlds([def]), 4), 0)).toBe(worldFile(generate(withWorlds([def]), 4), 0))
+  })
+})
+
+describe.skipIf(!existsSync(`${ASSETS}/doodads`))('landmarks against the install', () => {
+  it('every landmark prop exists and its cells cover exactly what its collider touches', () => {
+    for (const [key, prop] of Object.entries(LANDMARK_PROPS)) {
+      expect(existsSync(`${ASSETS}/${prop.path}`), prop.path).toBe(true)
+      const touched = touchedCells(readFileSync(`${ASSETS}/${prop.path}`, 'utf8'), prop.at)
+      const have = new Set(prop.cells.map(([dx, dy]) => `${dx},${dy}`))
+      for (const cell of touched) expect(have.has(cell), `${key} touches ${cell}`).toBe(true)
+      // a declared collider must be one the unit really has
+      expect(touched.size > 0, `${key} declares ${prop.cells.length} cells`).toBe(prop.cells.length > 0)
     }
   })
 })

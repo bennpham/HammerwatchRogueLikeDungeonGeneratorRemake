@@ -11,8 +11,8 @@
  * `config/themes.ts` rule), since `data-t` indexes only those.
  */
 
-import { DEFAULT_LIGHTING } from '../xml/levelSections'
 import type { LevelLighting } from '../xml/levelSections'
+import type { LandmarkId } from './landmarks'
 
 /** A tileset a biome paints, and how many variants `data-t` may pick from. */
 export interface TilesetRef {
@@ -81,6 +81,8 @@ export interface BiomeDef {
    * painted with no ground under it. Absent means false.
    */
   baseUnderTrail?: boolean
+  /** the set pieces `world<i>Landmarks` places, in placement order */
+  landmarks: readonly LandmarkId[]
   /** advisory: the one-click monster pool (floor pool keys); the user's own pool always wins */
   monsters: readonly string[]
   /** advisory: `MOBILE_BOSS_IDS` that suit the biome */
@@ -145,6 +147,7 @@ const DESERT: BiomeDef = {
     add: { r: 39, g: 28, b: 5, a: 255 },
     shadowLength: 1
   },
+  landmarks: ['pyramid', 'sunAltar', 'boneField', 'rockRing'],
   monsters: ['mummy_desert', 'mummy_ranged', 'lich_desert', 'guard_desert', 'guard_desert_range', 'tick2'],
   bosses: ['boss_anubis', 'boss_worm']
 }
@@ -164,7 +167,11 @@ const BLOCKS: ScatterEntry[] = [
   { path: 'doodads/generic/deco_block_v3.xml', weight: 1, solid: 1, cells: blockCells(2) }
 ]
 
-/** Full-bright with a slight tint (D10, untested in game): the generator's own shadow, so shadows-off and shadows-on both read. */
+/**
+ * Full-bright with a slight tint, the generator's own shadow so shadows-off and
+ * shadows-on both read. UNTESTED in game (D10): oasis a warm green-yellow, dry
+ * grass a warm neutral, frozen cool. Desert keeps the Temple hub's values.
+ */
 function tinted(r: number, g: number, b: number): LevelLighting {
   return { ambient: { r, g, b, a: 255 }, shadow: { r: 128, g: 128, b: 128, a: 128 } }
 }
@@ -206,7 +213,8 @@ const OASIS: BiomeDef = {
     ...CRYSTAL_SMALL
   ],
   clumpDensity: 1,
-  lighting: DEFAULT_LIGHTING,
+  lighting: tinted(240, 250, 225),
+  landmarks: ['jadeShrine', 'crystalGrove'],
   monsters: ['tick1', 'maggot', 'bat1', 'bat2', 'slime', 'spider', 'tower_flower1_small', 'tower_flower2'],
   bosses: ['boss_worm', 'boss_knight'],
   note: 'A clearing ringed by rock, not an island in a sea: brown earth with green tufts, no palms or water.'
@@ -252,7 +260,8 @@ const DRYGRASS: BiomeDef = {
     { path: 'doodads/special/marker_grave_g.xml', weight: 2, solid: 0 }
   ],
   clumpDensity: 1,
-  lighting: DEFAULT_LIGHTING,
+  lighting: tinted(245, 240, 225),
+  landmarks: ['battlefield', 'bloodAltar', 'crossroads'],
   monsters: ['skeleton1', 'skeleton2', 'archer1', 'archer2', 'bat1'],
   bosses: ['boss_knight', 'boss_lich'],
   note: 'A clearing ringed by rock, not an island in a sea: brown grass among the dead of a lost battle. The barest biome.'
@@ -296,7 +305,8 @@ const FROZEN: BiomeDef = {
     ...CRYSTAL_SMALL
   ],
   clumpDensity: 1,
-  lighting: DEFAULT_LIGHTING,
+  lighting: tinted(220, 232, 255),
+  landmarks: ['frostSpire', 'frozenAltar', 'crystalField'],
   monsters: ['wisp1', 'wisp2', 'eye', 'skeleton2', 'lich#0', 'krilith_mb_skeleton'],
   bosses: ['boss_krilith', 'boss_lich'],
   note: 'A clearing ringed by rock, not an island in a sea: teal rock round slate ground with ice patches. A frozen cave, not a snowfield.'

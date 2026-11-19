@@ -61,6 +61,7 @@ import type { BossFight, BossOptions, FloorTimer, MysteryButton } from './parame
 import type { CampaignSlot } from '../campaign'
 import { getTheme } from './themes'
 import { BIOME_IDS } from '../world/biomes'
+import { LANDMARK_MIN_SIZE } from '../world/landmarks'
 import { WORLD_HUBS } from '../world/hub'
 import {
   DEFAULT_WORLD_BUTTONS,
@@ -571,6 +572,14 @@ function validateWorldObjectives(
   }
   if (def.checkpoints !== undefined && typeof def.checkpoints !== 'boolean') {
     errors.push({ field: at('checkpoints'), message: 'Checkpoints must be on or off.' })
+  }
+  if (def.landmarks !== undefined && typeof def.landmarks !== 'boolean') {
+    errors.push({ field: at('landmarks'), message: 'Landmarks must be on or off.' })
+  } else if (def.landmarks === true && Math.min(def.minWidth, def.minHeight) < LANDMARK_MIN_SIZE) {
+    warnings.push({
+      field: at('landmarks'),
+      message: `${subject}: landmarks need room (islands smaller than ${LANDMARK_MIN_SIZE} tiles a side keep fewer of them, and a pyramid may not fit at all).`
+    })
   }
   if (def.bossSelection !== undefined && !(BOSS_SELECTIONS as readonly string[]).includes(def.bossSelection)) {
     errors.push({ field: at('bossSelection'), message: `Boss selection must be one of: ${BOSS_SELECTIONS.join(', ')}.` })

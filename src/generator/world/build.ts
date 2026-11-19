@@ -56,9 +56,10 @@ import { buildObjectives } from './objectives'
 import type { WorldObjectives } from './objectives'
 import { carveTrails } from './paths'
 import { placeSites, SITE_RADIUS } from './place'
-import { commitProps, dropClumps, planProps } from './scatter'
+import { commitProps, dropClumps, landCount, planProps } from './scatter'
+import { commitLandmarks, planLandmarks } from './landmarks'
 import { BARE_HUB_RADIUS, commitCamp, hubRadius, planCamp } from './hub'
-import { ORB_AT, worldBiomeId, worldCheckpoints, worldCoast, worldDisguised, worldHub, worldMusic, worldObjectiveCount, worldSafeRadius, worldScatter, worldSize, worldTimer, worldTrails, worldWaterMargin } from './options'
+import { ORB_AT, worldBiomeId, worldCheckpoints, worldCoast, worldDisguised, worldHub, worldLandmarks, worldMusic, worldObjectiveCount, worldSafeRadius, worldScatter, worldSize, worldTimer, worldTrails, worldWaterMargin } from './options'
 import type { WorldDef } from './options'
 
 /** Fresh islands tried before the world gives up. */
@@ -207,6 +208,22 @@ export function buildWorld(
       sites = placed
     }
 
+    // --- the landmarks, from the layout stream, after the sites: each footprint
+    // refuses everything reserved and the island is re-proved with its colliders
+    // down. Off (the default) returns before a draw.
+    let landmarks: ReturnType<typeof planLandmarks> = { plans: [], lit: 0 }
+    if (worldLandmarks(def)) {
+      landmarks = planLandmarks(
+        layout,
+        grid,
+        biome,
+        landCount(grid),
+        arrival,
+        [target, ...sites],
+        [{ x: hub.x, y: hub.y, r: keepOpen + 1 }, ...sites.map((t) => ({ x: t.x, y: t.y, r: SITE_RADIUS + 1 }))]
+      )
+    }
+
     // --- objects: nothing below can fail the island
     ctx.clearLevel()
 
@@ -215,6 +232,7 @@ export function buildWorld(
     // --- what lurks: after the objectives, before anything grows. A world with
     // every encounter off returns before touching its stream.
     commitCamp(ctx, hub, camp)
+    commitLandmarks(ctx, landmarks.plans)
 
     const lurking = buildEncounters(ctx, encounterRand, grid, def, hub, sites, objectives.plates, reached, biome.theme)
 
@@ -231,7 +249,7 @@ export function buildWorld(
     if (density > 0) {
       grid.markDisc(hub, keepOpen, WorldGrid.RESERVED)
       for (const site of sites) grid.markDisc(site, SITE_RADIUS, WorldGrid.RESERVED)
-      let plan = planProps(scatter, grid, biome, density)
+      let plan = planProps(scatter, grid, biome, density, landmarks.lit)
       const after = grid.reach(arrival)
       if (![target, ...sites].every((t) => after[t.y * width + t.x] === 1)) {
         droppedClumps = plan.filter((p) => p.marks.length > 0).length

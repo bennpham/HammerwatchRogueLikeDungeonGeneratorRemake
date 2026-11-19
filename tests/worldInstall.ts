@@ -6,11 +6,15 @@
 export const INSTALL = process.env.HAMMERWATCH_DIR ?? 'D:/Program Files (x86)/Steam/steamapps/common/Hammerwatch'
 export const ASSETS = `${INSTALL}/editor/assetsExtract`
 
-/** Tile offsets from a prop's own tile that its collider touches, sampled to a pixel. */
-export function touchedCells(xml: string): Set<string> {
+/**
+ * Tile offsets from a prop's own tile that its collider touches, sampled to a
+ * pixel. `at` is where the prop stands in its tile: 0.5 the centre (every
+ * scatter prop), 0 the corner (the pyramid).
+ */
+export function touchedCells(xml: string, at = 0.5): Set<string> {
   const text = xml.replace(/<!--[\s\S]*?-->/g, '')
   const cells = new Set<string>()
-  const mark = (px: number, py: number) => cells.add(`${Math.floor((px + 8) / 16)},${Math.floor((py + 8) / 16)}`)
+  const mark = (px: number, py: number) => cells.add(`${Math.floor((px + at * 16) / 16)},${Math.floor((py + at * 16) / 16)}`)
   for (const m of text.matchAll(/<circle\s+offset="(-?[\d.]+) (-?[\d.]+)"\s+radius="([\d.]+)"/g)) {
     const [ox, oy, r] = [Number(m[1]), Number(m[2]), Number(m[3])]
     for (let py = Math.floor(oy - r); py <= Math.ceil(oy + r); py++) {

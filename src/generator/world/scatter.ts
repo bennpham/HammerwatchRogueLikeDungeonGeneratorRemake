@@ -17,7 +17,8 @@
  * footprint. Cover only needs a free tile and marks nothing (audit C5): it is
  * walk-through, so it blocks no route and must not make the flood think it does.
  *
- * `density` is 0..100. 0 returns before any draw.
+ * `density` is 0..100. 0 returns before any draw. `litUsed` is the lit props a
+ * landmark already carries, so the world's total stays under `LIT_CAP`.
  */
 
 import type { GenerationContext } from '../core/context'
@@ -59,7 +60,7 @@ function open(grid: WorldGrid, x: number, y: number): boolean {
  * Plans the island's props and marks the clumps' footprints `SOLID`. Returns
  * the plan in placement order; nothing is created.
  */
-export function planProps(rand: Rand, grid: WorldGrid, biome: BiomeDef, density: number): PropPlan[] {
+export function planProps(rand: Rand, grid: WorldGrid, biome: BiomeDef, density: number, litUsed = 0): PropPlan[] {
   const share = Math.max(0, Math.min(100, density)) / 100
   const plans: PropPlan[] = []
   if (share === 0) return plans
@@ -80,7 +81,7 @@ export function planProps(rand: Rand, grid: WorldGrid, biome: BiomeDef, density:
     })
 
   // lit props (`deco_crystal*`) each cost a light: a world carries at most LIT_CAP
-  let lit = 0
+  let lit = litUsed
 
   const clumps = Math.round((land * share * biome.clumpDensity) / TILES_PER_CLUMP)
   for (let c = 0; c < clumps && biome.clumps.length > 0; c++) {
