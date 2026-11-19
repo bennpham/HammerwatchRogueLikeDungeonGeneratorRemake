@@ -30,3 +30,21 @@ describe('Doodad.needSync', () => {
     expect(d.needSync).toBe(false)
   })
 })
+
+describe('Doodad.prop', () => {
+  it('emits the raw asset path verbatim at the exact position, no offset', () => {
+    const ctx = newContext()
+    const d = Doodad.prop(ctx, 3.5, 4.25, 'doodads/generic/tree.xml')
+    const xml = d.getXML()
+    expect(xml).toContain('<string name="type">doodads/generic/tree.xml</string>')
+    expect(xml).toContain('<float name="x">3.500000</float>')
+    expect(xml).toContain('<float name="y">4.250000</float>')
+    expect(ctx.doodads).toContain(d)
+  })
+
+  it('leaves a typed doodad on its themed path', () => {
+    const d = Doodad.create(newContext(), 0, 0, 'Torch', 'a')
+    expect(d.rawPath).toBeUndefined()
+    expect(d.getXML()).toContain('doodads/generic/lamp_torch.xml')
+  })
+})

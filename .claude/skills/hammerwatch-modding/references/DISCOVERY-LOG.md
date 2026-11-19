@@ -5246,3 +5246,14 @@ the owner's 2026-11-18 call:
    with a slight tint.
 **Impact:** none of the above is `[VERIFIED]`. A failed boot row supersedes the
 matching item here with a `[REFUTED]` entry and its fallback from the plans.
+
+## 2026-11-19 - HideObject node shape [UNVERIFIED]
+
+Read from the install (`editor/campaign2/prefabs/desert_teleport_boss.xml`,
+nodes 153426-153430), not booted. `type` `HideObject`; `parameters` is a
+dictionary of `int state` (1 hides, 0 shows) and `dictionary element` holding
+`int-arr static`, which may list several **doodad** ids (the stock node 153426
+hides six). Same polarity and wrapper as `ToggleElement`. Stock saves it
+`trigger-times 1`. `NodeHideObject` (objects/nodes.ts) matches field for field.
+`Checkpoint` appears in no campaign2 level; the existing `NodeCheckpoint`
+stays as verified from the base campaign.

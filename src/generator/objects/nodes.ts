@@ -85,6 +85,40 @@ export class NodeToggleImmortality extends ScriptNode {
 }
 
 /**
+ * Hides (`state` 1) or shows (`state` 0) objects by id, the same polarity as
+ * ToggleElement/ToggleImmortality. `element` lists **doodad** ids and may hold
+ * several. [UNVERIFIED] shape read from the stock
+ * campaign2/prefabs/desert_teleport_boss.xml, not booted; see DISCOVERY-LOG.
+ */
+export class NodeHideObject extends ScriptNode {
+  state = 1 // 1 = hide
+  element: number[] = []
+
+  constructor(ctx: GenerationContext, x: number, y: number) {
+    super(ctx, x, y, 'HideObject')
+  }
+
+  /** Replaces the target list with one id. */
+  setTarget(id: number): void {
+    this.element = [id]
+  }
+
+  addTarget(id: number): void {
+    this.element.push(id)
+  }
+
+  protected getParametersDict(): XMLDictionary {
+    const d = new XMLDictionary('parameters')
+    d.addData(new XMLInt('state', this.state))
+    const eDict = new XMLDictionary('element')
+    // an empty <int-arr> crashes LevelPacker.exe, so no targets omits it
+    if (this.element.length > 0) eDict.addData(new XMLIntArray('static', this.element))
+    d.addData(eDict)
+    return d
+  }
+}
+
+/**
  * Switches a doodad to one of the named states its asset declares.
  *
  * `object` holds a **doodad** id, not a script-node id — hence `setTarget(d)`
