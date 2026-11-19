@@ -57,7 +57,7 @@ import { mysteryLootById } from '../objects/mysteryLoot'
 import { mysteryCapacity } from '../mystery/placement'
 import { MUSIC_DEFAULT, MUSIC_TRACKS, isKnownMusicId } from '../music/tracks'
 import type { BossTrapDirection, TrapDirection } from './parameters'
-import type { BossFight, BossOptions } from './parameters'
+import type { BossFight, BossOptions, MysteryButton } from './parameters'
 import type { CampaignSlot } from '../campaign'
 import { getTheme } from './themes'
 import { BIOME_IDS } from '../world/biomes'
@@ -79,6 +79,8 @@ import {
   WORLD_COAST_MAX,
   WORLD_COAST_MIN,
   WORLD_GROUP_WARN,
+  WORLD_LOOT_MAX,
+  WORLD_MYSTERY_MAX,
   WORLD_MAX_COUNT,
   WORLD_PACKS_MAX,
   WORLD_PACK_SIZE_MAX,
@@ -98,6 +100,7 @@ import {
   worldAmbushes,
   worldButtonAmbush,
   worldList,
+  worldLoot,
   worldMaxSafeRadius,
   worldMonsters,
   worldPackSize,
@@ -533,6 +536,7 @@ function validateWorlds(p: DungeonParameters, errors: ValidationIssue[], warning
     }
     validateWorldObjectives(def, i, at, whole, minW && minH && marginOk, errors, warnings)
     validateWorldEncounters(def, i, at, whole, errors, warnings)
+    validateWorldMystery(def, i, at, whole, p.mysteryButtons ?? [], errors)
   })
 }
 
@@ -672,6 +676,7 @@ function validateWorldEncounters(
   const ambushesOk = whole('ambushes', worldAmbushes(def), 0, WORLD_AMBUSHES_MAX, 'The ambush count')
   const ambushSizeOk = whole('ambushSize', worldAmbushSize(def), WORLD_AMBUSH_SIZE_MIN, WORLD_AMBUSH_SIZE_MAX, 'The ambush size')
   whole('buttonAmbush', worldButtonAmbush(def), 0, 100, 'The button ambush chance')
+  whole('loot', worldLoot(def), 0, WORLD_LOOT_MAX, 'The loot count')
   const scatterOk = whole('scatter', worldScatter(def), WORLD_SCATTER_MIN, WORLD_SCATTER_MAX, 'The scatter')
 
   // A7: a list a hand-built object lacks is reported and read as empty
@@ -755,6 +760,76 @@ function validateWorldEncounters(
   }
   if (ambushesOk && ambushSizeOk && worldAmbushSize(def) > WORLD_GROUP_WARN) {
     warnings.push({ field: at('ambushSize'), message: `${subject}: ambushes of more than ${WORLD_GROUP_WARN} at once may lag.` })
+  }
+}
+
+/**
+ * The mystery rules of one world: its plates and its disguise draw from the
+ * campaign's `mysteryButtons` pool, by 0-based index (the form and the file
+ * number them from 1). A world has no walls to put a trap on and no room to
+ * wait it out, so the floors' rule applies at full strength: a pool button the
+ * world can fire that carries traps must switch them off (`trapSeconds` > 0), or
+ * the island is a permanent crossfire. A monster row that resolves to a
+ * spawner tier is refused as it is in the packs.
+ */
+function validateWorldMystery(
+  def: WorldDef,
+  index: number,
+  at: (field: string) => string,
+  whole: (field: string, value: number, min: number, max: number, what: string) => boolean,
+  buttons: readonly MysteryButton[],
+  errors: ValidationIssue[]
+): void {
+  const subject = `World ${index + 1}`
+  const mystery: unknown = def.mystery
+  if (def.disguise !== undefined && typeof def.disguise !== 'boolean') {
+    errors.push({ field: at('disguise'), message: `${subject}: the disguise must be on or off.` })
+  }
+  let poolOk = true
+  let pool: number[] = []
+  if (mystery !== undefined) {
+    const m = mystery as { count?: unknown; pool?: unknown }
+    if (m === null || typeof m !== 'object' || !Array.isArray(m.pool)) {
+      errors.push({ field: at('mystery'), message: `${subject}: the mystery plates are missing their pool.` })
+      poolOk = false
+    } else {
+      whole('mystery', m.count as number, 0, WORLD_MYSTERY_MAX, 'The mystery plate count')
+      const dangling = (m.pool as unknown[]).filter((n) => !Number.isInteger(n) || (n as number) < 0 || (n as number) >= buttons.length)
+      if (dangling.length > 0) {
+        poolOk = false
+        errors.push({
+          field: at('mystery'),
+          message: `${subject} draws from mystery button(s) ${dangling.map((n) => Number(n) + 1).join(', ')}, which the campaign's pool does not have.`
+        })
+      } else if (Number(m.count) > 0 && m.pool.length === 0) {
+        poolOk = false
+        errors.push({ field: at('mystery'), message: `${subject} places ${m.count} mystery plates but has none picked from the pool: tick at least one.` })
+      } else {
+        pool = m.pool as number[]
+      }
+    }
+  }
+  if (def.disguise === true && poolOk && pool.length === 0) {
+    errors.push({
+      field: at('disguise'),
+      message: `${subject}: disguising the buttons needs a mystery pool to fire from. Pick at least one mystery button, or turn the disguise off.`
+    })
+  }
+  // only a button the world can fire is held to the rules below
+  const used = [...new Set(pool)].map((n) => ({ n, button: buttons[n] }))
+  for (const { n, button } of used) {
+    const label = `${subject}'s mystery button ${n + 1}${button.name ? ` ("${button.name}")` : ''}`
+    if (button.traps.length > 0 && !((button.trapSeconds ?? 0) > 0)) {
+      errors.push({
+        field: at('mystery'),
+        message: `${label} sets traps that never switch off. Give it a switch-off time (trapSeconds above 0), or leave it out of this world.`
+      })
+    }
+    for (const row of button.monsters) {
+      if (isKnownMonsterKey(row.monster) && isSpawnerPath(resolveActorPath(row.monster))) {
+        errors.push({ field: at('mystery'), message: `${label} spawns "${row.monster}", a spawner, which places nothing that fights.` })
+      }
+    }
   }
 }
 

@@ -59,6 +59,7 @@ import {
 } from '../objects/nodes'
 import { ScriptNode } from '../objects/scriptNode'
 import { SEAL_ANNOUNCE_MS, SEAL_ANNOUNCE_TYPE, SEAL_BUTTON_STATE, SEAL_SOUND, buildButtonCountdown } from '../map/buttonSeal'
+import { MYSTERY_BUTTON_STATE } from '../mystery/rig'
 import { WorldGrid } from './grid'
 import type { Tile } from './grid'
 import { bossSiteIndexes } from './place'
@@ -120,7 +121,8 @@ export function buildObjectives(
   hub: Tile,
   arrival: Tile,
   gateway: Gateway,
-  sites: readonly Tile[]
+  sites: readonly Tile[],
+  disguised = false
 ): WorldObjectives {
   const freeRoam = sites.length === 0
 
@@ -202,10 +204,14 @@ export function buildObjectives(
 
   const buttons = sites.filter((_, i) => !bossIndexes.includes(i))
   const plates: WorldObjectives['plates'] = []
-  const art = doodadOffset('BossDoorButton', theme)
+  // a disguised button wears the mystery plate's art and end state, the same
+  // zero-draw swap a locked floor's disguise makes (`map/buttonSeal.ts`)
+  const plateType = disguised ? 'TriggerButton' : 'BossDoorButton'
+  const plateState = disguised ? MYSTERY_BUTTON_STATE : SEAL_BUTTON_STATE
+  const art = doodadOffset(plateType, theme)
   for (const at of buttons) {
     // `need-sync` because a script changes its state, as the lock buttons'
-    const plate = Doodad.create(ctx, at.x, at.y, 'BossDoorButton', theme)
+    const plate = Doodad.create(ctx, at.x, at.y, plateType, theme)
     plate.needSync = true
     ctx.reachTargets.push({ x: at.x, y: at.y })
     grid.markDisc(at, 1, WorldGrid.RESERVED)
@@ -217,7 +223,7 @@ export function buildObjectives(
     trigger.triggerTimes = 1
     trigger.connectToShape(shape)
     trigger.connectTo(new NodePlaySound(ctx, nodeX, nodeY, SEAL_SOUND))
-    const press = new NodeChangeDoodadState(ctx, nodeX, nodeY, SEAL_BUTTON_STATE)
+    const press = new NodeChangeDoodadState(ctx, nodeX, nodeY, plateState)
     press.setTarget(plate)
     trigger.connectTo(press)
     triggers.push(trigger)

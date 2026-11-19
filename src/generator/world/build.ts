@@ -54,7 +54,7 @@ import type { WorldObjectives } from './objectives'
 import { carveTrails } from './paths'
 import { placeSites, SITE_RADIUS } from './place'
 import { commitProps, dropClumps, planProps } from './scatter'
-import { ORB_AT, worldBiomeId, worldCoast, worldObjectiveCount, worldSafeRadius, worldScatter, worldSize, worldTrails, worldWaterMargin } from './options'
+import { ORB_AT, worldBiomeId, worldCoast, worldDisguised, worldObjectiveCount, worldSafeRadius, worldScatter, worldSize, worldTrails, worldWaterMargin } from './options'
 import type { WorldDef } from './options'
 
 /** Fresh islands tried before the world gives up. */
@@ -196,11 +196,11 @@ export function buildWorld(
     // --- objects: nothing below can fail the island
     ctx.clearLevel()
 
-    const objectives = buildObjectives(ctx, layout, grid, def, biome.theme, hub, arrival, gateway, sites)
+    const objectives = buildObjectives(ctx, layout, grid, def, biome.theme, hub, arrival, gateway, sites, worldDisguised(def, ctx.params.mysteryButtons?.length ?? 0))
 
     // --- what lurks: after the objectives, before anything grows. A world with
     // every encounter off returns before touching its stream.
-    const lurking = buildEncounters(ctx, encounterRand, grid, def, hub, sites, objectives.plates, reached)
+    const lurking = buildEncounters(ctx, encounterRand, grid, def, hub, sites, objectives.plates, reached, biome.theme)
 
     // --- the tilemap, before any prop is planned: it reads only the island's own
     // flags, so the props' density can never move a tile
@@ -313,7 +313,9 @@ function previewOf(
         ...objectives.buttons.map((t) => ({ x: t.x, y: t.y, kind: 'button' })),
         ...objectives.bosses.map((t) => ({ x: t.x, y: t.y, kind: 'boss' })),
         ...lurking.packs.map((t) => ({ x: t.x, y: t.y, kind: 'pack' })),
-        ...lurking.ambushes.map((t) => ({ x: t.x, y: t.y, kind: 'ambush' }))
+        ...lurking.ambushes.map((t) => ({ x: t.x, y: t.y, kind: 'ambush' })),
+        ...lurking.mystery.map((t) => ({ x: t.x, y: t.y, kind: 'mystery' })),
+        ...lurking.loot.map((t) => ({ x: t.x, y: t.y, kind: 'loot' }))
       ]
     }
   }

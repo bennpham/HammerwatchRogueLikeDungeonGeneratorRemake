@@ -15,7 +15,7 @@
 import { MOBILE_BOSS_IDS, bossSelection, lineupTotal } from '../config/parameters'
 import type { BossSelection } from '../config/parameters'
 import type { BossId } from '../boss/bosses'
-import type { MysteryMonster } from '../config/parameters'
+import type { FloorMystery, MysteryMonster } from '../config/parameters'
 
 /** The most worlds a campaign may carry. An allocation guard, not a design limit. */
 export const WORLD_MAX_COUNT = 20
@@ -83,6 +83,10 @@ export const DEFAULT_WORLD_PACK_SIZE = 6
 export const DEFAULT_WORLD_AMBUSHES = 6
 export const DEFAULT_WORLD_AMBUSH_SIZE = 6
 export const DEFAULT_WORLD_BUTTON_AMBUSH = 50
+/** Coin caches, and mystery plates: rescaled from AE's 40 for the 512 cap, as the encounters above. */
+export const WORLD_LOOT_MAX = 120
+export const WORLD_MYSTERY_MAX = 120
+export const DEFAULT_WORLD_LOOT = 8
 /** Props: 0 bare .. 100 crowded, a share of the most the island carries. */
 export const WORLD_SCATTER_MIN = 0
 export const WORLD_SCATTER_MAX = 100
@@ -147,6 +151,19 @@ export interface WorldDef {
   buttonAmbush: number
   /** how thickly props grow, 0..100 */
   scatter: number
+  /** coin caches: 3 to 6 `Treasure` items each */
+  loot: number
+  /**
+   * Mystery plates, the floors' own shape: `count` plates, each one of the
+   * campaign's `mysteryButtons` picked from `pool` (0-based indices into it,
+   * repeated to weight). Absent: none.
+   */
+  mystery?: FloorMystery
+  /**
+   * The real floor buttons are drawn as mystery plates, and each fires a pool
+   * entry too. Needs a pool.
+   */
+  disguise?: boolean
 }
 
 /** One ambush recipe: how often it is picked, and the monsters it springs. */
@@ -180,7 +197,8 @@ export function defaultWorld(): WorldDef {
     ambushes: DEFAULT_WORLD_AMBUSHES,
     ambushSize: DEFAULT_WORLD_AMBUSH_SIZE,
     buttonAmbush: DEFAULT_WORLD_BUTTON_AMBUSH,
-    scatter: DEFAULT_WORLD_SCATTER
+    scatter: DEFAULT_WORLD_SCATTER,
+    loot: DEFAULT_WORLD_LOOT
   }
 }
 
@@ -256,6 +274,29 @@ export const worldAmbushes = (def: Partial<WorldDef>): number => num(def.ambushe
 export const worldAmbushSize = (def: Partial<WorldDef>): number => num(def.ambushSize, DEFAULT_WORLD_AMBUSH_SIZE)
 export const worldButtonAmbush = (def: Partial<WorldDef>): number => num(def.buttonAmbush, DEFAULT_WORLD_BUTTON_AMBUSH)
 export const worldScatter = (def: Partial<WorldDef>): number => num(def.scatter, DEFAULT_WORLD_SCATTER)
+export const worldLoot = (def: Partial<WorldDef>): number => num(def.loot, DEFAULT_WORLD_LOOT)
+
+/**
+ * The pool indices a world may draw a mystery button from: those that name a
+ * real button (`defCount` is how many the campaign has), as `floorMystery`
+ * filters a floor's. Empty when the world has no `mystery` at all.
+ */
+export function worldMysteryPool(def: Partial<WorldDef>, defCount: number): number[] {
+  const m = def.mystery
+  if (m === undefined || m === null || !Array.isArray(m.pool)) return []
+  return m.pool.filter((i) => Number.isInteger(i) && i >= 0 && i < defCount)
+}
+
+/** How many mystery plates the world asks for (0 when it has no usable pool). */
+export function worldMysteryCount(def: Partial<WorldDef>, defCount: number): number {
+  const count = def.mystery?.count
+  return typeof count === 'number' && count > 0 && worldMysteryPool(def, defCount).length > 0 ? Math.floor(count) : 0
+}
+
+/** Whether the real buttons are disguised: asked for, and a pool to fire from. */
+export function worldDisguised(def: Partial<WorldDef>, defCount: number): boolean {
+  return def.disguise === true && worldMysteryPool(def, defCount).length > 0
+}
 
 /** The ambush types as stated; a missing or non-list field reads as none. */
 export function worldAmbushTypes(def: Partial<WorldDef>): WorldAmbushType[] {

@@ -30,6 +30,7 @@ import { noUpgrades, oneOfEachUpgrade } from '../src/generator/levelTemplate/sur
 import type { CampaignSlot } from '../src/generator/campaign'
 import { WORLD_BUTTONS_MAX, WORLD_MAX_COUNT, WORLD_SIZE_MAX, WORLD_SIZE_MIN, WORLD_SIZE_WARN, defaultWorld, worldSiteCapacityOf } from '../src/generator/world/options'
 import type { WorldDef } from '../src/generator/world/options'
+import type { MysteryButton } from '../src/generator/config/parameters'
 
 const fieldsOf = (issues: Array<{ field: string }>) => issues.map((i) => i.field)
 
@@ -2003,5 +2004,67 @@ describe('world scatter validation', () => {
     // a bare island that large, and the default one, stay quiet
     expect(warningsOf({ ...big, scatter: 0 })).not.toContain('world.worlds.0.scatter')
     expect(warningsOf({})).not.toContain('world.worlds.0.scatter')
+  })
+})
+
+describe('world mystery validation', () => {
+  const poolOf = (): MysteryButton[] => [
+    { name: 'Nothing', loot: [], monsters: [], traps: [] },
+    { name: 'Crossfire', loot: [], monsters: [], traps: [{ projectile: 'shooter_arrow', direction: 'down', spread: 0, spawnRateMs: 500, count: 2 }], trapSeconds: 10 },
+    { name: 'Endless fire', loot: [], monsters: [], traps: [{ projectile: 'shooter_arrow', direction: 'down', spread: 0, spawnRateMs: 500, count: 2 }] },
+    { name: 'Nest', loot: [], monsters: [{ monster: 'mummy_desert#0', count: 2 }], traps: [] }
+  ]
+  const withWorld = (w: Partial<WorldDef>, pool: MysteryButton[] | undefined = poolOf()) => {
+    const p = plainParameters()
+    if (pool !== undefined) p.mysteryButtons = pool
+    p.world = { enabled: true, worlds: [{ ...defaultWorld(), ...w }] }
+    return p
+  }
+  const errorsOf = (w: Partial<WorldDef>, pool?: MysteryButton[]) => fieldsOf(validateParameters(withWorld(w, pool)).errors)
+
+  it('holds loot to 0-120 and the plate count to 0-120', () => {
+    for (const ok of [0, 1, 120]) expect(errorsOf({ loot: ok })).not.toContain('world.worlds.0.loot')
+    for (const bad of [-1, 121, 2.5]) expect(errorsOf({ loot: bad })).toContain('world.worlds.0.loot')
+    for (const ok of [0, 1, 120]) expect(errorsOf({ mystery: { count: ok, pool: [0] } })).not.toContain('world.worlds.0.mystery')
+    for (const bad of [-1, 121, 1.5]) expect(errorsOf({ mystery: { count: bad, pool: [0] } })).toContain('world.worlds.0.mystery')
+  })
+
+  it('rejects a pool index past the campaign pool', () => {
+    expect(errorsOf({ mystery: { count: 2, pool: [0, 4] } })).toContain('world.worlds.0.mystery')
+    expect(errorsOf({ mystery: { count: 2, pool: [-1] } })).toContain('world.worlds.0.mystery')
+    expect(errorsOf({ mystery: { count: 2, pool: [0, 1] } })).not.toContain('world.worlds.0.mystery')
+    // no pool at all in the campaign: every index dangles
+    expect(errorsOf({ mystery: { count: 2, pool: [0] } }, [])).toContain('world.worlds.0.mystery')
+  })
+
+  it('rejects plates asked for with an empty pool', () => {
+    expect(errorsOf({ mystery: { count: 3, pool: [] } })).toContain('world.worlds.0.mystery')
+    expect(errorsOf({ mystery: { count: 0, pool: [] } })).not.toContain('world.worlds.0.mystery')
+    expect(errorsOf({ mystery: { count: 3 } as never })).toContain('world.worlds.0.mystery')
+  })
+
+  it('rejects a disguise with no pool to fire from', () => {
+    expect(errorsOf({ disguise: true })).toContain('world.worlds.0.disguise')
+    expect(errorsOf({ disguise: true, mystery: { count: 0, pool: [] } })).toContain('world.worlds.0.disguise')
+    expect(errorsOf({ disguise: true, mystery: { count: 0, pool: [0] } })).not.toContain('world.worlds.0.disguise')
+    expect(errorsOf({ disguise: false })).not.toContain('world.worlds.0.disguise')
+    expect(errorsOf({ disguise: 'yes' as never })).toContain('world.worlds.0.disguise')
+  })
+
+  it('requires a pool button with traps to switch them off (trapSeconds above 0), only for buttons the world uses', () => {
+    expect(errorsOf({ mystery: { count: 2, pool: [1] } })).not.toContain('world.worlds.0.mystery')
+    expect(errorsOf({ mystery: { count: 2, pool: [0, 2] } })).toContain('world.worlds.0.mystery')
+    // the disguise fires the same pool, so it is held to the same rule
+    expect(errorsOf({ disguise: true, mystery: { count: 0, pool: [2] } })).toContain('world.worlds.0.mystery')
+    // a button the world does not draw from may carry endless traps
+    expect(errorsOf({ mystery: { count: 2, pool: [0, 1] } })).not.toContain('world.worlds.0.mystery')
+    const zero = poolOf()
+    zero[1].trapSeconds = 0
+    expect(errorsOf({ mystery: { count: 2, pool: [1] } }, zero)).toContain('world.worlds.0.mystery')
+  })
+
+  it('refuses a pool monster that is a spawner', () => {
+    expect(errorsOf({ mystery: { count: 2, pool: [3] } })).toContain('world.worlds.0.mystery')
+    expect(errorsOf({ mystery: { count: 2, pool: [0] } })).not.toContain('world.worlds.0.mystery')
   })
 })

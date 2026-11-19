@@ -2006,6 +2006,7 @@ describe('world keys', () => {
       'world0AmbushSize=6',
       'world0ButtonAmbush=50',
       'world0Scatter=50',
+      'world0Loot=8',
       'world1Biome=desert',
       'world1Width=128,128',
       'world1Height=128,128',
@@ -2021,7 +2022,8 @@ describe('world keys', () => {
       'world1Ambushes=6',
       'world1AmbushSize=6',
       'world1ButtonAmbush=50',
-      'world1Scatter=50'
+      'world1Scatter=50',
+      'world1Loot=8'
     ])
     const back = parseParametersTxt(text, plainParameters())
     expect(back.params.world).toEqual(p.world)
@@ -2132,6 +2134,42 @@ describe('world keys', () => {
       { weight: 1, monsters: [] },
       { weight: 2, monsters: [{ monster: 'mummy_desert', count: 2 }] }
     ])
+  })
+
+  it('round-trips loot, mystery plates and the disguise, the pool numbered from 1', () => {
+    const p = plainParameters()
+    p.world = {
+      enabled: true,
+      worlds: [
+        { ...defaultWorld(), loot: 33, mystery: { count: 7, pool: [0, 2, 2] }, disguise: true },
+        { ...defaultWorld(), mystery: { count: 0, pool: [] } },
+        defaultWorld()
+      ]
+    }
+    const text = serialize(p)
+    const lines = worldLines(text)
+    expect(lines).toContain('world0Loot=33')
+    expect(lines).toContain('world0Mystery=7|1,3,3')
+    expect(lines).toContain('world0Disguise=1')
+    expect(lines).toContain('world1Mystery=0|')
+    // a world that never set them writes neither line
+    expect(lines.some((l) => l.startsWith('world2Mystery') || l.startsWith('world2Disguise'))).toBe(false)
+    const back = parseParametersTxt(text, plainParameters())
+    expect(back.unknownKeys).toEqual([])
+    expect(back.params.world).toEqual(p.world)
+  })
+
+  it('reports a bad loot, mystery or disguise value and keeps the rest', () => {
+    const { params, unknownKeys } = parseParametersTxt(
+      ['world=1', 'worlds=1', 'world0Loot=few', 'world0Mystery=lots|1', 'world0Disguise=maybe'].join(String.fromCharCode(10)) + String.fromCharCode(10),
+      plainParameters()
+    )
+    expect(unknownKeys).toEqual(['world0Loot value "few"', 'world0Mystery value "lots|1"', 'world0Disguise value "maybe"'])
+    expect(params.world!.worlds[0].loot).toBe(8)
+    expect(params.world!.worlds[0].mystery).toBeUndefined()
+    const pool = parseParametersTxt(['world=1', 'worlds=1', 'world0Mystery=3|1,0,x,2'].join(String.fromCharCode(10)) + String.fromCharCode(10), plainParameters())
+    expect(pool.unknownKeys).toEqual(['world0Mystery button "0"', 'world0Mystery button "x"'])
+    expect(pool.params.world!.worlds[0].mystery).toEqual({ count: 3, pool: [0, 1] })
   })
 
   it('reports a bad objective value or boss id and keeps the rest of the line', () => {

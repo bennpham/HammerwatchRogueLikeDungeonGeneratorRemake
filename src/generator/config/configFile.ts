@@ -81,6 +81,7 @@ import {
   worldBossPool,
   worldButtonAmbush,
   worldButtons,
+  worldLoot,
   worldMonsters,
   worldPackSize,
   worldPacks,
@@ -378,7 +379,7 @@ function parseMonsterCountRows(key: string, value: string, unknownKeys: string[]
 }
 
 /** The world suffixes (lowercased) that carry one whole number each, besides the island and objective ones. */
-const WORLD_ENCOUNTER_INTS: ReadonlySet<string> = new Set(['packs', 'packsize', 'ambushes', 'ambushsize', 'buttonambush', 'scatter'])
+const WORLD_ENCOUNTER_INTS: ReadonlySet<string> = new Set(['packs', 'packsize', 'ambushes', 'ambushsize', 'buttonambush', 'scatter', 'loot'])
 
 /**
  * One world ambush type, `<weight>|<monster>:<count>,<monster>:<count>`. A bad
@@ -1624,6 +1625,7 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
         else if (suffix === 'ambushes') world.ambushes = one[0]
         else if (suffix === 'ambushsize') world.ambushSize = one[0]
         else if (suffix === 'scatter') world.scatter = one[0]
+        else if (suffix === 'loot') world.loot = one[0]
         else world.buttonAmbush = one[0]
         continue
       }
@@ -1635,6 +1637,35 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
           else result.unknownKeys.push(`${key} monster "${k}"`)
         }
         worldAt(index, key).monsters = pool
+        continue
+      }
+      if (suffix === 'mystery') {
+        // Mystery=<count>|<pool>: the pool is 1-based, as the form numbers the
+        // campaign's mystery buttons. A bad count drops the line; a bad pool
+        // token is reported and skipped.
+        const bar = value.indexOf('|')
+        const countText = (bar === -1 ? value : value.slice(0, bar)).trim()
+        if (!/^\d+$/.test(countText)) {
+          result.unknownKeys.push(`${key} value "${value}"`)
+          continue
+        }
+        const pool: number[] = []
+        for (const token of (bar === -1 ? '' : value.slice(bar + 1)).split(',')) {
+          const t = token.trim()
+          if (t === '') continue
+          if (/^\d+$/.test(t) && parseInt(t, 10) >= 1) pool.push(parseInt(t, 10) - 1)
+          else result.unknownKeys.push(`${key} button "${t}"`)
+        }
+        worldAt(index, key).mystery = { count: parseInt(countText, 10), pool }
+        continue
+      }
+      if (suffix === 'disguise') {
+        const text = value.trim().toLowerCase()
+        if (text !== '0' && text !== '1' && text !== 'true' && text !== 'false') {
+          result.unknownKeys.push(`${key} value "${value}"`)
+          continue
+        }
+        worldAt(index, key).disguise = text === '1' || text === 'true'
         continue
       }
       const ambushMatch = suffix.match(/^ambushtype(\d+)$/)
@@ -2597,6 +2628,11 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
       lines.push(`world${i}AmbushSize=${worldAmbushSize(def)}`)
       lines.push(`world${i}ButtonAmbush=${worldButtonAmbush(def)}`)
       lines.push(`world${i}Scatter=${worldScatter(def)}`)
+      lines.push(`world${i}Loot=${worldLoot(def)}`)
+      if (def.mystery !== undefined && Array.isArray(def.mystery.pool)) {
+        lines.push(`world${i}Mystery=${def.mystery.count}|${def.mystery.pool.map((n) => n + 1).join(',')}`)
+      }
+      if (def.disguise === true) lines.push(`world${i}Disguise=1`)
       worldAmbushTypes(def).forEach((type, t) => {
         const rows = Array.isArray(type.monsters) ? type.monsters : []
         lines.push(`world${i}AmbushType${t + 1}=${type.weight}|${rows.map((m) => `${m.monster}:${m.count}`).join(',')}`)

@@ -24,6 +24,7 @@ import { bossSiteIndexes, placeSites } from '../src/generator/world/place'
 import { MAX_BOSS_COUNT, MOBILE_BOSS_IDS } from '../src/generator/config/parameters'
 import { BOSS_DEFS } from '../src/generator/boss/bosses'
 import type { WorldDef } from '../src/generator/world/options'
+import type { MysteryButton } from '../src/generator/config/parameters'
 import { BIOME_DEFS, biomeById, footprintOf } from '../src/generator/world/biomes'
 import { dropClumps, planProps } from '../src/generator/world/scatter'
 import { arenaXml, floorXml, isArenaPath, isWorldPath } from './levelFiles'
@@ -38,6 +39,7 @@ const sized = (size: number, extra: Partial<WorldDef> = {}): WorldDef => ({
   ambushes: 0,
   buttonAmbush: 0,
   scatter: 0,
+  loot: 0,
   minWidth: size,
   maxWidth: size,
   minHeight: size,
@@ -1038,7 +1040,7 @@ describe('encounters: what changes and what does not', () => {
       for (const seed of [3, 7]) {
         for (const gw of [{ kind: 'orb' }, { kind: 'exit', target: '0' }, { kind: 'portal', target: 'boss0' }] as const) {
           for (const trails of [false, true]) {
-            const def = { ...lively(size, { trails }), bossCount: 2, packs: 0, ambushes: 0, buttonAmbush: 0, scatter: 0 }
+            const def = { ...lively(size, { trails }), bossCount: 2, packs: 0, ambushes: 0, buttonAmbush: 0, scatter: 0, loot: 0 }
             const ctx = new GenerationContext(plainParameters(), seed)
             const r = buildWorld(ctx, def, 0, gw)
             if ('failed' in r) throw new Error('failed')
@@ -1052,7 +1054,7 @@ describe('encounters: what changes and what does not', () => {
 
   it('draws from the encounters stream only: the sites, bosses and island do not move', () => {
     for (const seed of [2, 5, 9]) {
-      const off = built(lively(128, { packs: 0, ambushes: 0, buttonAmbush: 0, scatter: 0 }), seed, { kind: 'exit', target: '0' }).out.preview.world!
+      const off = built(lively(128, { packs: 0, ambushes: 0, buttonAmbush: 0, scatter: 0, loot: 0 }), seed, { kind: 'exit', target: '0' }).out.preview.world!
       const on = built(lively(128, { scatter: 0 }), seed, { kind: 'exit', target: '0' }).out.preview.world!
       const fixed = (w: typeof on) => w.sites.filter((s) => s.kind === 'button' || s.kind === 'boss')
       expect(fixed(on)).toEqual(fixed(off))
@@ -1276,7 +1278,7 @@ describe('scatter: where props may stand', () => {
         expect([1, 4], `${p.rawPath} at ${x},${y} on code ${code}`).toContain(code)
         expect(Math.hypot(x - hub.x, y - hub.y), 'centre').toBeGreaterThan(5)
         for (const s of sites) {
-          const r = s.kind === 'pack' ? 3 : s.kind === 'ambush' ? 0 : 4
+          const r = s.kind === 'pack' ? 3 : s.kind === 'loot' || s.kind === 'mystery' ? 2 : s.kind === 'ambush' ? 0 : 4
           expect(Math.hypot(x - s.x, y - s.y), `${s.kind} at ${s.x},${s.y}`).toBeGreaterThan(r)
         }
       }
@@ -1444,6 +1446,247 @@ describe.skipIf(!existsSync(`${ASSETS}/doodads`))('scatter: the table against th
     for (const e of DESERT_TABLE.cover) {
       expect(existsSync(`${ASSETS}/${e.path}`), e.path).toBe(true)
       expect(touchedCells(read(e.path)).size, e.path).toBe(0)
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// pass 3: loot, mystery plates and the disguise
+// ---------------------------------------------------------------------------
+
+/** A pool with one of everything a plate can fire: text only, loot, monsters, timed traps. */
+const POOL: MysteryButton[] = [
+  { name: 'Nothing', text: 'Nothing...', loot: [], monsters: [], traps: [] },
+  { name: 'Hoard', text: 'Coins', loot: [{ item: 'valuable_5', count: 3 }], monsters: [], traps: [] },
+  { name: 'Guards', text: 'Guards!', loot: [], monsters: [{ monster: 'mummy_desert', count: 4 }], traps: [] },
+  {
+    name: 'Crossfire',
+    text: 'Run',
+    loot: [{ item: 'valuable_2', count: 2 }],
+    monsters: [],
+    traps: [
+      { projectile: 'shooter_arrow', direction: 'down', spread: 0, spawnRateMs: 500, count: 2 },
+      { projectile: 'shooter_arrow', direction: 'left', spread: 0, spawnRateMs: 500, count: 2 }
+    ],
+    trapSeconds: 10
+  }
+]
+
+function poolParams(): DungeonParameters {
+  const p = small()
+  p.mysteryButtons = POOL.map((b) => ({ ...b }))
+  return p
+}
+
+/** `built`, with the campaign's mystery pool in place. */
+function builtWithPool(def: WorldDef, seed: number, gateway: Parameters<typeof buildWorld>[3] = { kind: 'exit', target: '0' }) {
+  const ctx = new GenerationContext(poolParams(), seed)
+  const out = buildWorld(ctx, def, 0, gateway)
+  if ('failed' in out) throw new Error(`world failed: ${out.failed} ${JSON.stringify(out.tally)}`)
+  return { ctx, out }
+}
+
+const plated = (extra: Partial<WorldDef> = {}): WorldDef =>
+  lively(128, { packs: 0, ambushes: 0, buttonAmbush: 0, mystery: { count: 6, pool: [0, 1, 2, 3] }, ...extra })
+
+describe('loot caches', () => {
+  it('lays 3 to 6 Treasure items a cache on reached ground, each with an index of its own', () => {
+    for (const seed of [1, 2, 3, 4]) {
+      const { ctx, out } = built(lively(128, { packs: 0, ambushes: 0, buttonAmbush: 0, loot: 12 }), seed, { kind: 'exit', target: '0' })
+      const seen = reachableFrom(out)
+      const w = out.preview.mapWidth
+      const caches = out.preview.world!.sites.filter((s) => s.kind === 'loot')
+      expect(caches.length).toBeGreaterThan(4)
+      expect(ctx.items.length).toBeGreaterThan(caches.length)
+      expect(ctx.items.length).toBeLessThanOrEqual(caches.length * 6)
+      for (const item of ctx.items) {
+        expect(item.type).toBe('Treasure')
+        expect(Number.isInteger(item.index) && item.index >= 0 && item.index < 9).toBe(true)
+        const x = Math.floor(item.x)
+        const y = Math.floor(item.y)
+        expect(seen[y * w + x], `item at ${x},${y}`).toBe(1)
+        expect(caches.some((c) => Math.abs(c.x - x) <= 1 && Math.abs(c.y - y) <= 1), `item at ${x},${y} has a cache`).toBe(true)
+      }
+    }
+  })
+
+  it("draws every item's index from the encounters stream, never a floor's ctx.rand", () => {
+    const fresh = new GenerationContext(small(), 3)
+    const probe = new GenerationContext(small(), 3)
+    buildWorld(probe, lively(96, { loot: 20, mystery: { count: 3, pool: [0] } }), 0, { kind: 'orb' })
+    expect(probe.items.length).toBeGreaterThan(0)
+    expect(probe.rand.nextInt(1 << 30)).toBe(fresh.rand.nextInt(1 << 30))
+  })
+
+  it('keeps caches 10 tiles apart and off every site, and draws nothing at loot 0', () => {
+    const { out } = built(lively(160, { loot: 30 }), 5, { kind: 'exit', target: '0' })
+    const { sites } = out.preview.world!
+    const caches = sites.filter((s) => s.kind === 'loot')
+    for (const c of caches) {
+      for (const o of sites.filter((s) => s !== c && s.kind !== 'ambush')) expect(Math.hypot(c.x - o.x, c.y - o.y), `${o.kind}`).toBeGreaterThanOrEqual(10 - 1e-9)
+    }
+    expect(built(lively(96, { loot: 0 }), 5, { kind: 'exit', target: '0' }).ctx.items).toHaveLength(0)
+  })
+
+  it('does not move when the scatter density does', () => {
+    const items = (scatter: number) => built(lively(128, { scatter }), 4, { kind: 'exit', target: '0' }).ctx.items.map((i) => [i.id, i.x, i.y, i.index])
+    expect(items(100)).toEqual(items(0))
+  })
+})
+
+describe('mystery plates', () => {
+  it('lays a TriggerButton plate with its shape, one-shot trigger, cue and press, on reached ground', () => {
+    const { ctx, out } = builtWithPool(plated(), 3)
+    const plates = ctx.doodads.filter((d) => d.type === 'TriggerButton')
+    const spots = out.preview.world!.sites.filter((s) => s.kind === 'mystery')
+    expect(plates.length).toBeGreaterThan(0)
+    expect(plates).toHaveLength(spots.length)
+    const seen = reachableFrom(out)
+    const w = out.preview.mapWidth
+    for (const s of spots) expect(seen[s.y * w + s.x]).toBe(1)
+    for (const plate of plates) expect(plate.needSync).toBe(true)
+    const triggers = nodesOf(ctx, 'AreaTrigger').filter((n) => n.connections.some((c) => c.type === 'ChangeDoodadState' && c.getXML().includes('>pressed<')))
+    expect(triggers).toHaveLength(plates.length)
+    for (const t of triggers) {
+      expect(t.triggerTimes).toBe(1)
+      expect(t.connections.some((c) => c.type === 'PlaySound')).toBe(true)
+    }
+    // the real buttons keep their own art
+    expect(ctx.doodads.filter((d) => d.type === 'BossDoorButton')).toHaveLength(3)
+  })
+
+  it('keeps plates 10 tiles from each other and from every site', () => {
+    const { out } = builtWithPool(plated({ mystery: { count: 30, pool: [0, 1] } }), 6)
+    const { sites } = out.preview.world!
+    for (const p of sites.filter((s) => s.kind === 'mystery')) {
+      for (const o of sites.filter((s) => s !== p && (s.kind === 'mystery' || s.kind === 'button' || s.kind === 'boss'))) {
+        expect(Math.hypot(p.x - o.x, p.y - o.y)).toBeGreaterThanOrEqual(10 - 1e-9)
+      }
+    }
+  })
+
+  it('fires loot, monsters and timed traps, and switches every spewer off again', () => {
+    const { ctx } = builtWithPool(plated({ mystery: { count: 12, pool: [1, 2, 3] } }), 4)
+    const spewers = nodesOf(ctx, 'ProjectileSpewer')
+    expect(spewers.length).toBeGreaterThan(0)
+    for (const s of spewers) expect(s.enabled).toBe(false)
+    // one switch-on and one delayed switch-off per spewer
+    const toggles = nodesOf(ctx, 'ToggleElement')
+    const spewerIds = new Set(spewers.map((s) => s.id))
+    const onOff = (state: number) =>
+      toggles.filter((t) => t.getXML().includes(`<int name="state">${state}</int>`) && [...spewerIds].some((id) => t.getXML().includes(`>${id}<`)))
+    expect(onOff(0)).toHaveLength(spewers.length)
+    expect(onOff(1)).toHaveLength(spewers.length)
+    expect(nodesOf(ctx, 'SpawnObject').length).toBeGreaterThan(0)
+    expect(nodesOf(ctx, 'AnnounceText').length).toBeGreaterThan(0)
+  })
+
+  it('keeps every payload tile and every line of fire clear of a solid prop (A5)', () => {
+    let spewers = 0
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const { ctx, out } = builtWithPool(plated({ scatter: 100, mystery: { count: 10, pool: [1, 2, 3] } }), seed)
+      const { map } = out.preview.world!
+      const w = out.preview.mapWidth
+      const solid = (x: number, y: number) => map.charCodeAt(y * w + x) - 48 === 4
+      const step: Record<number, [number, number]> = { 0: [0, -1], 1: [0, 1], 2: [-1, 0], 3: [1, 0] }
+      for (const s of nodesOf(ctx, 'ProjectileSpewer')) {
+        spewers++
+        const [dx, dy] = step[(s as unknown as { direction: number }).direction]
+        const sx = Math.floor(s.x)
+        const sy = Math.floor(s.y)
+        for (let k = 0; k <= 10; k++) expect(solid(sx + dx * k, sy + dy * k), `spewer ${sx},${sy} k ${k}`).toBe(false)
+      }
+      const plateSpawns = (nodesOf(ctx, 'SpawnObject') as unknown as Array<{ x: number; y: number }>).filter((n) => n !== undefined)
+      for (const n of plateSpawns) expect(solid(Math.floor(n.x), Math.floor(n.y)), `spawn ${n.x},${n.y}`).toBe(false)
+    }
+    expect(spewers).toBeGreaterThan(10)
+  })
+
+  it('stands the spewers on open ground in a line across the plate, on its own ground', () => {
+    const { ctx, out } = builtWithPool(plated({ mystery: { count: 8, pool: [3] } }), 2)
+    const grid = gridOfPreview(out.preview.world!.map, out.preview.mapWidth, out.preview.mapHeight)
+    const plates = out.preview.world!.sites.filter((s) => s.kind === 'mystery')
+    for (const s of nodesOf(ctx, 'ProjectileSpewer')) {
+      const x = Math.floor(s.x)
+      const y = Math.floor(s.y)
+      // the plate it belongs to is the nearest one, within the line's reach
+      const plate = [...plates].sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0]
+      expect(plate).toBeDefined()
+      expect(Math.hypot(plate.x - x, plate.y - y)).toBeLessThanOrEqual(Math.hypot(5, 5) + 1e-9)
+      expect(grid.has(x, y, WorldGrid.CLIFF)).toBe(false)
+      expect(grid.sameGround(plate!, { x, y })).toBe(true)
+    }
+  })
+
+  it('places no plate with an empty pool, and nothing moves for a pool the plates do not use', () => {
+    expect(builtWithPool(plated({ mystery: { count: 5, pool: [] } }), 3).out.preview.world!.sites.filter((s) => s.kind === 'mystery')).toHaveLength(0)
+    expect(builtWithPool(plated({ mystery: undefined }), 3).out.preview.world!.sites.filter((s) => s.kind === 'mystery')).toHaveLength(0)
+    // an index past the pool names nothing: dropped, never a throw
+    const stale = builtWithPool(plated({ mystery: { count: 4, pool: [9] } }), 3)
+    expect(stale.out.preview.world!.sites.filter((s) => s.kind === 'mystery')).toHaveLength(0)
+  })
+
+  it('moves no site, pack or monster: plates draw after every one of them', () => {
+    for (const seed of [2, 5]) {
+      const base = builtWithPool(plated({ packs: 20 }), seed)
+      const bare = builtWithPool(lively(128, { buttonAmbush: 0, ambushes: 0, packs: 20 }), seed)
+      const kinds = (r: typeof base, ks: string[]) => r.out.preview.world!.sites.filter((s) => ks.includes(s.kind))
+      expect(kinds(base, ['button', 'boss', 'pack'])).toEqual(kinds(bare, ['button', 'boss', 'pack']))
+      expect(base.ctx.monsters.slice(0, bare.ctx.monsters.length).map((m) => [m.x, m.y])).toEqual(bare.ctx.monsters.map((m) => [m.x, m.y]))
+    }
+  })
+
+  it('spawns no spawner from a pool of monsters', () => {
+    const { ctx } = builtWithPool(plated({ mystery: { count: 12, pool: [2] } }), 3)
+    const spawns = (nodesOf(ctx, 'SpawnObject') as unknown as Array<{ actorPath: string }>).map((n) => n.actorPath)
+    expect(spawns.length).toBeGreaterThan(0)
+    for (const path of spawns) expect(path.startsWith('actors/spawners/')).toBe(false)
+  })
+})
+
+describe('the disguise', () => {
+  it('draws the real buttons as mystery plates and fires a pool entry from each', () => {
+    const def = lively(128, { packs: 0, ambushes: 0, buttonAmbush: 0, bossCount: 0, buttons: 4, disguise: true, mystery: { count: 0, pool: [1, 2] } })
+    const { ctx } = builtWithPool(def, 3)
+    expect(ctx.doodads.filter((d) => d.type === 'BossDoorButton')).toHaveLength(0)
+    const plates = ctx.doodads.filter((d) => d.type === 'TriggerButton')
+    expect(plates).toHaveLength(4)
+    for (const plate of plates) expect(plate.needSync).toBe(true)
+    expect(nodesOf(ctx, 'ChangeDoodadState').filter((n) => n.getXML().includes('>pressed<'))).toHaveLength(4)
+    expect(nodesOf(ctx, 'ChangeDoodadState').filter((n) => n.getXML().includes('>activate<'))).toHaveLength(0)
+    // each button still counts down, and now also fires a payload
+    const buttons = nodesOf(ctx, 'AreaTrigger').filter((n) => n.connections.some((c) => c.type === 'ChangeVariable'))
+    expect(buttons).toHaveLength(4)
+    for (const t of buttons) expect(t.connections.some((c) => c.type === 'AnnounceText' || c.type === 'SpawnObject')).toBe(true)
+  })
+
+  it('is a lossless art swap: the sites, bosses and island do not move', () => {
+    for (const seed of [2, 4]) {
+      const off = builtWithPool(lively(128, { packs: 0, ambushes: 0, buttonAmbush: 0, scatter: 0, mystery: { count: 0, pool: [1, 2] } }), seed)
+      const on = builtWithPool(lively(128, { packs: 0, ambushes: 0, buttonAmbush: 0, scatter: 0, disguise: true, mystery: { count: 0, pool: [1, 2] } }), seed)
+      const fixed = (r: typeof on) => r.out.preview.world!.sites.filter((s) => s.kind === 'button' || s.kind === 'boss')
+      expect(fixed(on)).toEqual(fixed(off))
+      expect(on.out.preview.world!.map).toBe(off.out.preview.world!.map)
+    }
+  })
+
+  it('does nothing without a pool to fire from', () => {
+    const { ctx } = builtWithPool(lively(96, { disguise: true, packs: 0, ambushes: 0, buttonAmbush: 0 }), 3)
+    expect(ctx.doodads.filter((d) => d.type === 'BossDoorButton')).toHaveLength(3)
+  })
+})
+
+describe('loot and mystery bounds', () => {
+  it('at the maximum loot and plates, and none, on six seeds each, generation never fails', () => {
+    for (const extra of [
+      { loot: 0, mystery: undefined },
+      { loot: 120, mystery: { count: 120, pool: [0, 1, 2, 3] }, disguise: true }
+    ] as Array<Partial<WorldDef>>) {
+      for (const seed of [1, 2, 3, 4, 5, 6]) {
+        const ctx = new GenerationContext(poolParams(), seed)
+        const r = buildWorld(ctx, lively(96, { scatter: 100, ...extra }), 0, { kind: 'exit', target: '0' })
+        expect('failed' in r, `${JSON.stringify(extra)} seed ${seed}`).toBe(false)
+      }
     }
   })
 })

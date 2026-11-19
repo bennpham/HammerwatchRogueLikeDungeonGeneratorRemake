@@ -5352,3 +5352,24 @@ props add up to about 4,000 at scatter 100 (6,100-6,700 doodads with every
 encounter at its maximum), under the stock maximum of 7,383 (`level_9`).
 **Impact:** W2 and W4 (walk the island; load time and frame rate at the cap)
 decide whether the prop mix and count read well.
+
+## 2026-11-19 - world loot caches and mystery plates [EMITTED]
+
+**Tag:** [EMITTED] (not booted; BOOT-CHECKLIST W10, W11)
+**Context:** world mode pass 3 (`src/generator/world/encounters.ts`).
+**Loot:** `items/valuable_1..9` (`ItemType.Treasure`) in caches of 3 to 6, an
+explicit `index` per item so no stream but the world's is read.
+**Plates** are the floors' own rig (`mystery/rig.ts`, [VERIFIED] on floors,
+owner playtest 2026-09-26): `trigger_button_floor` doodad (`need-sync`) -> 1x1
+`RectangleShape` -> one-shot `AreaTrigger` -> `PlaySound button_hatch` +
+`ChangeDoodadState pressed`, then the payload. New here is only the ground:
+there is no room wall, so `ProjectileSpewer`s (disabled until the press, with a
+delayed `ToggleElement` off when `trapSeconds` is set) stand on open ground 5
+tiles from the plate in a line across it. Whether a spewer on open sand fires
+and looks right is open (W11). A world refuses a pool button whose traps have
+no switch-off time, since an island has no room to wait one out.
+**Disguise:** the island's real buttons use `trigger_button_floor` /
+`pressed` instead of `boss_door_button` / `activate`, as a locked floor's
+disguise does ([VERIFIED] on floors), and each also fires a pool entry.
+**Impact:** W10 (coins lie in caches) and W11 (plates fire once, spewers switch
+off, disguised buttons count) decide whether any of it holds.
