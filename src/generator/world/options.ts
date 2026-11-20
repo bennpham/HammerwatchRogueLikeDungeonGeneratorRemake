@@ -59,6 +59,14 @@ export const DEFAULT_WORLD_SAFE_RADIUS = 16
  * little less allows for a ragged coast.
  */
 const LAND_REACH = 0.85
+/**
+ * How much of the square-packed site count `placeSites` really fits (audit A1).
+ * Measured on 6 seeds at 128, 256 and 512 with the default safe radius: the
+ * largest count that generated on every seed was 1.00, 0.96 and 0.96 of the old
+ * estimate, and the estimate itself failed on 4 of 6 seeds at 256 and 512.
+ * 0.92 keeps a margin below the measured limit.
+ */
+export const SITE_PACKING = 0.92
 
 /**
  * Encounter bounds. AE's caps (packs 120, ambushes 40) were sized for a 240
@@ -439,7 +447,8 @@ export function worldSiteCapacity(
   // a plateau (or mesa) takes its own area, and a site's disc cannot straddle its rim (audit A2)
   const taken = raised * Math.min(raisedSize * raisedSize, 8 * WORLD_SITE_RADIUS * raisedSize)
   const land = Math.PI * (a * b - r * r) - taken
-  return Math.max(0, Math.floor(Math.min(rough, Math.max(0, land)) / square) - 1)
+  // placeSites drops sites at random, so squares never tile the land perfectly
+  return Math.max(0, Math.floor((Math.min(rough, Math.max(0, land)) / square) * SITE_PACKING) - 1)
 }
 
 /**
