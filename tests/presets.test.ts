@@ -102,7 +102,14 @@ describe('campaign presets', () => {
     it('is its own group, after Claude Generated, alphabetical, every preset with an island', () => {
       const groups = PRESET_GROUPS.map((g) => g.id)
       expect(groups.indexOf('claudeWorld')).toBe(groups.indexOf('claude') + 1)
-      expect(OPEN.length).toBeGreaterThan(0)
+      expect(OPEN.map((p) => p.id)).toEqual([
+        'world-archipelago',
+        'world-breakout',
+        'world-manhunt',
+        'world-storm-front',
+        'world-surface-and-depths',
+        'world-lost-entrance'
+      ])
       const labels = OPEN.map((p) => p.label)
       expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)))
       for (const preset of OPEN) {
@@ -181,6 +188,19 @@ describe('campaign presets', () => {
       // only the last island carries the orb: an orb world is the one with a hidden item
       const worldFiles = result.files.filter((f) => isWorldPath(f.path))
       expect(worldFiles.map((f) => f.content.includes('GameEnd'))).toEqual([false, false, false, true])
+    })
+
+    it('Storm Front: three islands on shrinking timers, trails on, then a survival arena', () => {
+      const params = campaignPresetById('world-storm-front')!.build()
+      const worlds = worldList(params)
+      expect(worlds.map((w) => w.timer!.seconds)).toEqual([300, 240, 180])
+      expect(worlds.every((w) => w.timer!.damage === 1 && w.timer!.freqMs === 500 && w.timer!.countdown)).toBe(true)
+      expect(worlds.every((w) => w.trails === true && w.buttons === 3)).toBe(true)
+      expect(arenaMode(params.boss.fights[0])).toBe('survival')
+      expect(params.boss.fights[0].survival!.seconds).toBe(120)
+      expect(labelsOf('world-storm-front')).toEqual(['L1', 'W1', 'W2', 'W3', 'B1'])
+      // worlds sort last in the default order, so this order has to be stored
+      expect(params.levelOrder).toBeDefined()
     })
 
     it('Surface and Depths: island and floor in turn three times, the only town before a two-boss finale', () => {

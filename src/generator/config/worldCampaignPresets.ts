@@ -1,12 +1,12 @@
 import { MOBILE_BOSS_IDS, SHOOTER_ARROW_TRAPS, defaultParameters, escapeFloorTimer, withGatewayLocks } from './parameters'
 import type { DungeonParameters, FloorTimer } from './parameters'
-import { escapeFloorTraps } from './claudePresets'
+import { clockArena, escapeFloorTraps } from './claudePresets'
 import type { WorldDef } from '../world/options'
 import type { BossId } from '../boss/bosses'
 import { MONSTER_THEMES } from '../world/monsterThemes'
 import { desertWaves } from './familyWaves'
 import { deepLoot, midLoot, mysteryKit, shallowLoot } from './presetMystery'
-import { B, F, L, W, bossFight, buttonLocks, campaign, island, lobby, tierAndDeathWaves } from './presetHelpers'
+import { B, F, L, W, bossFight, buttonLocks, campaign, island, lobby, survivalWaveRow, tierAndDeathWaves } from './presetHelpers'
 // Type-only: presets.ts imports WORLD_CAMPAIGN_PRESETS from this file at
 // runtime, so a runtime import of CampaignPreset back would cycle.
 import type { CampaignPreset } from './presets'
@@ -107,6 +107,43 @@ function archipelago(): DungeonParameters {
         monsters: [...FROST_MONSTERS],
         music: 'act3'
       })
+    ]
+  }
+  return withGatewayLocks(params)
+}
+
+// --- 6. Storm Front ------------------------------------------------------------
+
+function stormFront(): DungeonParameters {
+  const params = campaign(0, {
+    ...noFloors(theme('castle_act1')),
+    // one town, three islands back to back, then the clock arena. Worlds sort
+    // last in the default order (L1, AS1, W1, W2, W3), so this order is stored.
+    lobbies: [lobby('house')],
+    levelOrder: [L(0), W(0), W(1), W(2), B(0)],
+    boss: {
+      enabled: true,
+      fights: [
+        clockArena([
+          survivalWaveRow('bat2#2', 16, 0, 1000),
+          survivalWaveRow('tick1#2', 12, 0, 800),
+          survivalWaveRow('skeleton2', 12, 30, 1200),
+          survivalWaveRow('archer2', 6, 30),
+          survivalWaveRow('mb_skeleton', 2, 45, 3000),
+          survivalWaveRow('lich', 6, 60),
+          survivalWaveRow('skeleton2', 12, 75, 2000),
+          survivalWaveRow('mb_eye', 1, 90)
+        ])
+      ]
+    }
+  })
+  // each timer shorter than the one before; the hazard stays soft (1 damage), the clock is the pressure
+  params.world = {
+    enabled: true,
+    worlds: [
+      isle(128, { biome: 'desert', buttons: 3, bossCount: 0, trails: true, monsters: theme('temple'), timer: storm(300), music: 'desert_village' }),
+      isle(128, { biome: 'drygrass', buttons: 3, bossCount: 0, trails: true, monsters: theme('castle_act2'), timer: storm(240), music: 'act2' }),
+      isle(128, { biome: 'frozen', buttons: 3, bossCount: 0, trails: true, monsters: theme('castle_act3'), timer: storm(180), music: 'act3' })
     ]
   }
   return withGatewayLocks(params)
@@ -298,6 +335,14 @@ export const WORLD_CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
       'Hunt fugitive bosses across three islands with no buttons and no trails: the knight, Krilith, then Anubis and the worm together, and finally their ringleader, the lich, in a temple arena — about 50 minutes.',
     group: 'claudeWorld',
     build: manhunt
+  },
+  {
+    id: 'world-storm-front',
+    label: 'Storm Front',
+    description:
+      'Outrun the storm: three small islands on shrinking timers (5, 4 and 3 minutes), trails showing the way, then two minutes in a survival arena — about 30 minutes.',
+    group: 'claudeWorld',
+    build: stormFront
   },
   {
     id: 'world-surface-and-depths',

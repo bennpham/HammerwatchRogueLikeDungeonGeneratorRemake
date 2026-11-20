@@ -203,6 +203,12 @@ When hosting a generated campaign in Hammerwatch 1.41:
    every header button, including how parameters.txt and playersettings.txt
    differ.
    A classic preset's floor count leaves out its escape floor, the extra floor played after the boss on a 90-second clock.
+   **Campaign Mode** holds the Castle and Desert Campaigns, played in acts (three floors, a town, a boss).
+   **Claude Generated Open World** puts islands in the campaign order, each preset using them differently:
+   The Lost Entrance (find the dungeon among disguised plates, about 45 minutes), Breakout (escape the dungeon, then
+   an island on a storm, about 35), Manhunt (hunt fugitive bosses across three islands, about 50), Archipelago
+   (island hopping, no dungeon, about 60), Surface and Depths (islands alternating with dungeons, about 75) and
+   Storm Front (outrun the storm across three islands, about 30). Every island is 192 tiles or smaller.
 3. **Tweak parameters** in the left panel, across five tabs — **Lobby** (the
    shop rooms and their presets), **Dungeon** (floors, rooms, monsters),
    **Boss** (the arena, its waves and its spawn modes), **Floor order** (how
