@@ -183,6 +183,24 @@ describe('campaign presets', () => {
       expect(worldFiles.map((f) => f.content.includes('GameEnd'))).toEqual([false, false, false, true])
     })
 
+    it('Surface and Depths: island and floor in turn three times, the only town before a two-boss finale', () => {
+      const params = campaignPresetById('world-surface-and-depths')!.build()
+      expect(labelsOf('world-surface-and-depths')).toEqual(['W1', '1', 'W2', '2', 'W3', '3', 'L1', 'B1'])
+      expect(params.lobbies).toHaveLength(1)
+      expect(params.boss.fights[0].arena.bossCount).toBe(2)
+      // the monsters match on both sides of each portal
+      const worlds = worldList(params)
+      worlds.forEach((w, i) => expect(w.monsters, `island ${i + 1}`).toEqual(params.levelMonsters[i]))
+      expect(worlds.map((w) => w.biome)).toEqual(['desert', 'frozen', 'oasis'])
+      expect(params.themes).toEqual(['i_mixed', 'f_mixed', 'e_mixed'])
+      for (const w of worlds) {
+        expect(w.buttons).toBe(3)
+        expect(worldBossCount(w)).toBe(0)
+      }
+      const result = generateDungeon(params, 4242)
+      expect(result.ok, result.ok ? '' : result.errors.join(' ')).toBe(true)
+    })
+
     it('The Lost Entrance: a camp island of disguised buttons among plates, then the temple floors and an Anubis fight', () => {
       const params = campaignPresetById('world-lost-entrance')!.build()
       expect(labelsOf('world-lost-entrance')).toEqual(['L1', 'W1', '1', '2', '3', 'L2', 'B1'])

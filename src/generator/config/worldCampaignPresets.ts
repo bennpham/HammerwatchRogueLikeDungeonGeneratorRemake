@@ -1,12 +1,12 @@
-import { defaultParameters, escapeFloorTimer, withGatewayLocks } from './parameters'
+import { MOBILE_BOSS_IDS, SHOOTER_ARROW_TRAPS, defaultParameters, escapeFloorTimer, withGatewayLocks } from './parameters'
 import type { DungeonParameters, FloorTimer } from './parameters'
 import { escapeFloorTraps } from './claudePresets'
 import type { WorldDef } from '../world/options'
 import type { BossId } from '../boss/bosses'
 import { MONSTER_THEMES } from '../world/monsterThemes'
 import { desertWaves } from './familyWaves'
-import { mysteryKit, shallowLoot } from './presetMystery'
-import { B, F, L, W, bossFight, buttonLocks, campaign, island, lobby } from './presetHelpers'
+import { deepLoot, midLoot, mysteryKit, shallowLoot } from './presetMystery'
+import { B, F, L, W, bossFight, buttonLocks, campaign, island, lobby, tierAndDeathWaves } from './presetHelpers'
 // Type-only: presets.ts imports WORLD_CAMPAIGN_PRESETS from this file at
 // runtime, so a runtime import of CampaignPreset back would cycle.
 import type { CampaignPreset } from './presets'
@@ -110,6 +110,55 @@ function archipelago(): DungeonParameters {
     ]
   }
   return withGatewayLocks(params)
+}
+
+// --- 5. Surface and Depths -----------------------------------------------------
+
+function surfaceAndDepths(): DungeonParameters {
+  const kit = mysteryKit()
+  // the same monsters on both sides of each portal
+  const depths = [theme('temple'), [...FROST_MONSTERS], theme('castle_act3')]
+  const params = campaign(3, {
+    themes: ['i_mixed', 'f_mixed', 'e_mixed'],
+    levelMonsters: depths.map((pool) => [...pool]),
+    floorMusic: ['desert_temple', 'act3', 'act4'],
+    // one button a floor
+    levelLock: buttonLocks([1, 1, 1]),
+    // the only town, before the finale
+    lobbies: [lobby('house', { startingGold: 20000, music: 'boss_1' })],
+    levelOrder: [W(0), F(0), W(1), F(1), W(2), F(2), L(0), B(0)],
+    mysteryButtons: kit.buttons,
+    boss: {
+      enabled: true,
+      fights: [
+        bossFight({
+          theme: 'g_mixed',
+          bossPool: [...MOBILE_BOSS_IDS],
+          bossCount: 2,
+          // several bosses cannot be told apart by the engine, so the table has two tiers (no 75/50/25%)
+          waves: tierAndDeathWaves([['skeleton1', 15]], [['lich', 4]], SHOOTER_ARROW_TRAPS),
+          music: 'boss_final'
+        })
+      ]
+    }
+  })
+  // four plates a surface, a rung deeper each time; none sells a life
+  const plates = [
+    kit.pick(4, shallowLoot(), [['Gold beetles', 2], ['Spider nest', 2], ['Arrow storm', 2]]),
+    kit.pick(4, midLoot(), [['Wisps', 2], ['Skeleton squad', 2], ['Frost wall', 2], ['Arrow storm', 1]]),
+    kit.pick(4, deepLoot(['Damage upgrade II']), [['Eye cluster', 2], ['Wisps', 2], ['Fireball ring', 2], ['Purple drift', 1]])
+  ]
+  const surface = (depth: number, overrides: Partial<WorldDef>): WorldDef =>
+    isle(160, { buttons: 3, bossCount: 0, mystery: plates[depth], monsters: [...depths[depth]], ...overrides })
+  params.world = {
+    enabled: true,
+    worlds: [
+      surface(0, { biome: 'desert', music: 'desert_village' }),
+      surface(1, { biome: 'frozen', music: 'act3' }),
+      surface(2, { biome: 'oasis', music: 'act4' })
+    ]
+  }
+  return params
 }
 
 // --- 3. Manhunt ----------------------------------------------------------------
@@ -249,6 +298,14 @@ export const WORLD_CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
       'Hunt fugitive bosses across three islands with no buttons and no trails: the knight, Krilith, then Anubis and the worm together, and finally their ringleader, the lich, in a temple arena — about 50 minutes.',
     group: 'claudeWorld',
     build: manhunt
+  },
+  {
+    id: 'world-surface-and-depths',
+    label: 'Surface and Depths',
+    description:
+      'Each island hides the way into a dungeon below it, and each floor climbs out onto the next island: desert to temple, frozen to ice, oasis to caves, then the only town and a two-boss finale — about 75 minutes.',
+    group: 'claudeWorld',
+    build: surfaceAndDepths
   },
   {
     id: 'world-lost-entrance',
