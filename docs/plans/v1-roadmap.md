@@ -170,7 +170,7 @@ Every milestone ends on the gate `npm run typecheck && npm test`. Play checks ar
 
 ### M10. Release hardening
 
-**Status:** partly done. The install-gated packer test (`tests/packerPresets.test.ts`) is built; the doc sweep landed in the commit after it. The 1.0.0 bump and the play checks remain open.
+**Status:** partly done. The install-gated packer test (`tests/packerPresets.test.ts`) is built, and the release docs sweep is done. The 1.0.0 bump and the play checks remain open.
 
 - **Goal:** 1.0.
 - **Work:** sweep `CLAUDE.md`, the four skills, `README.md` and `CHANGELOG.md` for drift. Add the packer test: a hand-run script, or an install-gated test skipped when the install is absent, that exports every preset, runs `LevelPacker.exe` through `src/main/packer.ts`'s logic and checks a `.hwm` comes out. Fix the stale counts found on the way (below). Bump `package.json` to 1.0.0.

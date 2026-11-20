@@ -82,7 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Six Claude presets use three monster types on every floor.** Boss Rush, Pandemonium, Double or Nothing, Shell Game, The Long Haul and Frozen Descent had one or two types per floor, so a floor felt like the same fight in every room. Each floor now mixes three that fit its act; Frozen Descent stays on frost monsters. Beat the Clock, Trap Gauntlet and Bonus Gauntlet are unchanged.
 - **The Castle and Bonus Gauntlet descriptions name the escape floor.** Their floor counts (7 and 5) leave it out, and the descriptions now say so.
 
-- **Themes e, f and g sit under the Temple of the Sun in the theme dropdown.** Their art belongs to the desert, so they now share the Desert group with h and i instead of Castle. A label change only: no seed or preset moved.
+- **Themes e, f and g sit under the Temple of the Sun in the theme dropdown.** Their art belongs to the desert, so they now share the Temple of the Sun group with h and i instead of Castle. A label change only: no seed or preset moved.
 
 ### Removed
 

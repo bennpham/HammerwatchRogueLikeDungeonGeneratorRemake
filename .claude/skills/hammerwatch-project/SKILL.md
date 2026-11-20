@@ -265,7 +265,7 @@ src/
 │                         OutputPanel, fields},
 │                         styles/app.css
 └── shared/ipc.ts         types shared across the bridge
-tests/                    vitest, 39 suites / 1548 tests: rand, context,
+tests/                    vitest, 56 suites / about 2650 tests (2026-11-20): rand, context,
                           music, bossCheckpoints,
                           configFile, validation, generation, reachability,
                           sealIntegrity, themes (+ a
