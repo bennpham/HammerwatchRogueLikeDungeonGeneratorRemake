@@ -149,6 +149,21 @@ describe('campaign presets', () => {
       expect(floorXml(result, last)).toContain('GameEnd')
     })
 
+    it('Manhunt: islands with no buttons and fixed fugitives, then the ringleader', () => {
+      const params = campaignPresetById('world-manhunt')!.build()
+      const worlds = worldList(params)
+      expect(labelsOf('world-manhunt')).toEqual(['L1', 'W1', 'W2', 'L2', 'W3', 'B1'])
+      expect(worlds.map((w) => w.buttons)).toEqual([0, 0, 0])
+      expect(worlds.map((w) => w.bossLineup)).toEqual([{ boss_knight: 1 }, { boss_krilith: 1 }, { boss_anubis: 1, boss_worm: 1 }])
+      expect(worlds.map((w) => worldBossCount(w))).toEqual([1, 1, 2])
+      expect(worlds.every((w) => w.trails === false && w.landmarks === true)).toBe(true)
+      // the packs thicken and the rings grow
+      expect(worlds.map((w) => w.packs)).toEqual([20, 30, 40])
+      expect(worlds.map((w) => w.ambushSize)).toEqual([4, 6, 8])
+      expect(params.levels).toBe(0)
+      expect(params.boss.fights[0].arena.bossPool).toEqual(['boss_lich'])
+    })
+
     it('The Lost Entrance: a camp island of disguised buttons among plates, then the temple floors and an Anubis fight', () => {
       const params = campaignPresetById('world-lost-entrance')!.build()
       expect(labelsOf('world-lost-entrance')).toEqual(['L1', 'W1', '1', '2', '3', 'L2', 'B1'])

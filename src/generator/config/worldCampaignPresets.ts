@@ -2,6 +2,7 @@ import { defaultParameters, escapeFloorTimer, withGatewayLocks } from './paramet
 import type { DungeonParameters, FloorTimer } from './parameters'
 import { escapeFloorTraps } from './claudePresets'
 import type { WorldDef } from '../world/options'
+import type { BossId } from '../boss/bosses'
 import { MONSTER_THEMES } from '../world/monsterThemes'
 import { desertWaves } from './familyWaves'
 import { mysteryKit, shallowLoot } from './presetMystery'
@@ -54,6 +55,55 @@ function storm(seconds: number): FloorTimer {
 
 /** Heavy ambushes: sixteen tripwires of ten monsters, and every button springs one. */
 const HEAVY_AMBUSH = { ambushes: 16, ambushSize: 10, buttonAmbush: 100 } as const
+
+/**
+ * A campaign with no floors keeps one placeholder theme and pool, as the
+ * Colosseum does: `parameters.txt` always writes `themes=` and the first
+ * pool, so this is the shape that reads back unchanged.
+ */
+function noFloors(monsters: string[]): Pick<DungeonParameters, 'themes' | 'levelMonsters'> {
+  return { themes: ['a_mixed'], levelMonsters: [monsters] }
+}
+
+/** An island whose only objective is the named bosses, each waiting at its own site. */
+function quarry(lineup: Partial<Record<BossId, number>>): Partial<WorldDef> {
+  const count = Object.values(lineup).reduce((sum, n) => sum + n, 0)
+  return { buttons: 0, bossCount: count, bossSelection: 'lineup', bossLineup: lineup }
+}
+
+// --- 3. Manhunt ----------------------------------------------------------------
+
+function manhunt(): DungeonParameters {
+  const params = campaign(0, {
+    ...noFloors(theme('castle_act1')),
+    lobbies: [lobby('house'), lobby('house', { startingGold: 20000, music: 'boss_1' })],
+    levelOrder: [L(0), W(0), W(1), L(1), W(2), B(0)],
+    boss: {
+      enabled: true,
+      // the ringleader, in a temple arena of his own
+      fights: [bossFight({ theme: 'i_mixed', bossPool: ['boss_lich'], music: 'boss_final' })]
+    }
+  })
+  // every fugitive waits at its site; the packs thicken and the rings grow island by island
+  params.world = {
+    enabled: true,
+    worlds: [
+      isle(144, { biome: 'drygrass', ...quarry({ boss_knight: 1 }), landmarks: true, packs: 20, ambushSize: 4, monsters: theme('castle_act2'), music: 'act2' }),
+      isle(160, { biome: 'frozen', ...quarry({ boss_krilith: 1 }), landmarks: true, packs: 30, ambushSize: 6, monsters: theme('castle_act3'), music: 'act3' }),
+      isle(192, {
+        biome: 'desert',
+        ...quarry({ boss_anubis: 1, boss_worm: 1 }),
+        landmarks: true,
+        packs: 40,
+        ambushSize: 8,
+        monsters: theme('temple'),
+        music: 'desert_temple'
+      })
+    ]
+  }
+  // no floors: the lock defaults a campaign inherits from the stock one are cleared
+  return withGatewayLocks(params)
+}
 
 // --- 2. Breakout ---------------------------------------------------------------
 
@@ -142,6 +192,14 @@ export const WORLD_CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
       'Escape the dungeon, then the island: two floors with nothing bought, an ambush-heavy dry-grass island on a ten-minute storm, then the escape floor — about 35 minutes.',
     group: 'claudeWorld',
     build: breakout
+  },
+  {
+    id: 'world-manhunt',
+    label: 'Manhunt',
+    description:
+      'Hunt fugitive bosses across three islands with no buttons and no trails: the knight, Krilith, then Anubis and the worm together, and finally their ringleader, the lich, in a temple arena — about 50 minutes.',
+    group: 'claudeWorld',
+    build: manhunt
   },
   {
     id: 'world-lost-entrance',
