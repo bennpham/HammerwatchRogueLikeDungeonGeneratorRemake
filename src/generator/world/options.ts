@@ -498,7 +498,9 @@ export function worldSiteCapacityOf(w: Partial<WorldDef>): number {
   const size = worldSize(w)
   const terrain = worldTerrain(w)
   const raised = Math.min(terrain.plateaus, worldPlateauCapacity(w))
-  return worldSiteCapacity(size.width[0], size.height[0], worldWaterMargin(w), worldSafeRadius(w), raised, terrain.maxSize)
+  // the camp keeps its own disc open, so below a radius of 7 it, not the safe radius, is what no site may use (audit A6)
+  const clear = Math.max(worldSafeRadius(w), hubRadius(worldHub(w)))
+  return worldSiteCapacity(size.width[0], size.height[0], worldWaterMargin(w), clear, raised, terrain.maxSize)
 }
 
 /** A world's terrain with every absent field at its default: 0 plateaus is a flat island. */

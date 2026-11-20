@@ -10,7 +10,7 @@ import { mysteryKit, shallowLoot } from '../src/generator/config/presetMystery'
 import { worldPresetPool } from '../src/generator/world/presets'
 import { validateParameters } from '../src/generator/config/validation'
 import type { MysteryButton } from '../src/generator/config/parameters'
-import { defaultWorld, worldActorEstimate, worldDoodadEstimate, worldSiteCapacityOf } from '../src/generator/world/options'
+import { defaultWorld, worldActorEstimate, worldDoodadEstimate, worldSiteCapacity, worldSiteCapacityOf } from '../src/generator/world/options'
 import type { WorldDef } from '../src/generator/world/options'
 import { plainParameters } from './params'
 
@@ -113,6 +113,25 @@ describe('A4: large ambush types and plate swarms are warned about and counted',
     expect(worldDoodadEstimate({ ...base, landmarks: true })).toBeGreaterThanOrEqual(plain + 97)
     expect(worldDoodadEstimate({ ...base, hub: 'camp' })).toBeGreaterThanOrEqual(plain + 7)
     expect(worldDoodadEstimate({ ...base, mystery: { count: 12, pool: [0] } })).toBe(plain + 12)
+  })
+})
+
+describe('A6: capacity counts the camp disc', () => {
+  // The land disc only binds below the "half the area" ceiling at wide radii, so at radius 6 the
+  // camp's 7 never moves a whole number of sites today; this pins the wiring, not a difference.
+  it('a camp at safe radius 6 holds no more sites than the bare start and is sized by the camp disc', () => {
+    for (let size = 64; size <= 512; size += 8) {
+      for (const margin of [4, 6, 10, 16]) {
+        const bare = worldSiteCapacityOf(island(size, 1, { safeRadius: 6, waterMargin: margin }))
+        const camp = worldSiteCapacityOf(island(size, 1, { safeRadius: 6, waterMargin: margin, hub: 'camp' }))
+        expect(camp).toBeLessThanOrEqual(bare)
+        expect(camp).toBe(worldSiteCapacity(size, size, margin, 7))
+      }
+    }
+  })
+
+  it('a wider safe radius already covers the camp: the two starts agree', () => {
+    expect(worldSiteCapacityOf(island(128, 1, { safeRadius: 16, hub: 'camp' }))).toBe(worldSiteCapacityOf(island(128, 1, { safeRadius: 16 })))
   })
 })
 
