@@ -46,7 +46,7 @@ import {
 import { mysteryKit } from '../src/generator/config/presetMystery'
 import { COLOSSEUM_PARAMETERS_TXT } from '../src/generator/config/colosseumPreset'
 import { projectileById } from '../src/generator/objects/projectileTypes'
-import { floorPath, floorXml, isArenaPath, isFloorPath } from './levelFiles'
+import { floorPath, floorXml, isArenaPath, isFloorPath, isWorldPath } from './levelFiles'
 
 const CLASSIC_PRESETS = CAMPAIGN_PRESETS.filter((p) => p.group === 'classic')
 
@@ -162,6 +162,25 @@ describe('campaign presets', () => {
       expect(worlds.map((w) => w.ambushSize)).toEqual([4, 6, 8])
       expect(params.levels).toBe(0)
       expect(params.boss.fights[0].arena.bossPool).toEqual(['boss_lich'])
+    })
+
+    it('Archipelago: each biome once, objectives climbing, the last island ending the run, no floors', () => {
+      const params = campaignPresetById('world-archipelago')!.build()
+      const worlds = worldList(params)
+      expect(params.levels).toBe(0)
+      expect(labelsOf('world-archipelago')).toEqual(['L1', 'W1', 'W2', 'L2', 'W3', 'W4'])
+      expect(worlds.map((w) => w.biome).sort()).toEqual(['desert', 'drygrass', 'frozen', 'oasis'])
+      expect(worlds.map((w) => w.buttons)).toEqual([2, 3, 3, 4])
+      expect(worlds.map((w) => worldBossCount(w))).toEqual([0, 0, 1, 2])
+      // the mesas are the frozen island's alone
+      expect(worlds.map((w) => w.plateaus ?? 0)).toEqual([0, 0, 0, 3])
+      expect(params.boss.enabled).toBe(false)
+      const result = generateDungeon(params, 4242)
+      expect(result.ok, result.ok ? '' : result.errors.join(' ')).toBe(true)
+      if (!result.ok) return
+      // only the last island carries the orb: an orb world is the one with a hidden item
+      const worldFiles = result.files.filter((f) => isWorldPath(f.path))
+      expect(worldFiles.map((f) => f.content.includes('GameEnd'))).toEqual([false, false, false, true])
     })
 
     it('The Lost Entrance: a camp island of disguised buttons among plates, then the temple floors and an Anubis fight', () => {

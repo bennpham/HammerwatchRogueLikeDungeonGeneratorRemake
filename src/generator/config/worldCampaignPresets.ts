@@ -71,6 +71,47 @@ function quarry(lineup: Partial<Record<BossId, number>>): Partial<WorldDef> {
   return { buttons: 0, bossCount: count, bossSelection: 'lineup', bossLineup: lineup }
 }
 
+/** The frozen island's roster: the stock monsters that read as cold, wisps and the undead. */
+const FROST_MONSTERS = ['wisp1', 'wisp2', 'skeleton2', 'archer2', 'lich#3']
+
+// --- 4. Archipelago ------------------------------------------------------------
+
+function archipelago(): DungeonParameters {
+  const params = campaign(0, {
+    ...noFloors(theme('castle_act1')),
+    lobbies: [lobby('house'), lobby('house', { startingGold: 15000, music: 'act2' })],
+    levelOrder: [L(0), W(0), W(1), L(1), W(2), W(3)],
+    // no arena: the last island's orb ends the run
+    boss: { ...defaultParameters().boss, enabled: false }
+  })
+  params.world = {
+    enabled: true,
+    worlds: [
+      isle(128, { biome: 'desert', buttons: 2, bossCount: 0, monsters: theme('temple'), music: 'desert_village' }),
+      isle(128, { biome: 'oasis', buttons: 3, bossCount: 0, monsters: theme('castle_act1'), music: 'act1' }),
+      isle(144, {
+        biome: 'drygrass',
+        buttons: 3,
+        bossCount: 1,
+        monsters: [...new Set([...theme('castle_act1'), ...theme('castle_act2')])],
+        music: 'act2'
+      }),
+      // the last island: its orb ends the run, and its rock mesas are the one terrain used
+      isle(144, {
+        biome: 'frozen',
+        buttons: 4,
+        bossCount: 2,
+        plateaus: 3,
+        plateauMinSize: 10,
+        plateauMaxSize: 14,
+        monsters: [...FROST_MONSTERS],
+        music: 'act3'
+      })
+    ]
+  }
+  return withGatewayLocks(params)
+}
+
 // --- 3. Manhunt ----------------------------------------------------------------
 
 function manhunt(): DungeonParameters {
@@ -185,6 +226,14 @@ function lostEntrance(): DungeonParameters {
 
 /** The Claude Generated Open World group, alphabetical by label as the Claude group is. */
 export const WORLD_CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
+  {
+    id: 'world-archipelago',
+    label: 'Archipelago',
+    description:
+      'Island hopping and no dungeon at all: one island of each biome, each with its own monsters and more to do than the last (the last has rock mesas and two bosses), and a town halfway — about 60 minutes.',
+    group: 'claudeWorld',
+    build: archipelago
+  },
   {
     id: 'world-breakout',
     label: 'Breakout',
