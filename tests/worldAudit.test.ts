@@ -5,6 +5,8 @@
 import { describe, expect, it } from 'vitest'
 import { GenerationContext } from '../src/generator/core/context'
 import { buildWorld } from '../src/generator/world/build'
+import { mysteryKit, shallowLoot } from '../src/generator/config/presetMystery'
+import { worldPresetPool } from '../src/generator/world/presets'
 import { defaultWorld, worldSiteCapacityOf } from '../src/generator/world/options'
 import type { WorldDef } from '../src/generator/world/options'
 import { plainParameters } from './params'
@@ -37,6 +39,30 @@ describe('A2: the last world hides its orb only once', () => {
     expect(hide.triggerTimes).toBe(1)
     expect(show.triggerTimes).toBe(-1)
   })
+})
+
+describe('A3: encounters stand on ground reached after the landmarks', () => {
+  it('every pack, tripwire, plate and cache of a landmark island can be walked to from the arrival', () => {
+    const kit = mysteryKit()
+    for (const biome of ['desert', 'oasis', 'drygrass', 'frozen']) {
+      for (let seed = 1; seed <= 6; seed++) {
+        const p = twoFloors()
+        p.mysteryButtons = worldPresetPool()
+        const def = {
+          ...island(96, 2, { biome, bossCount: 1, landmarks: true, safeRadius: 10 }),
+          packs: 30,
+          ambushes: 6,
+          loot: 10,
+          mystery: kit.pick(6, shallowLoot(), [['Gold beetles', 2]])
+        }
+        const built = buildWorld(new GenerationContext(p, seed), def, 0, { kind: 'orb' })
+        if ('failed' in built) continue
+        const { hub, sites } = built.preview.world!
+        const reach = built.grid.reach({ x: hub.x, y: hub.y + 3 })
+        for (const s of sites) expect(reach[s.y * built.grid.width + s.x], `${biome} seed ${seed} ${s.kind}`).toBe(1)
+      }
+    }
+  }, 120000)
 })
 
 function twoFloors() {

@@ -141,7 +141,7 @@ export function buildEncounters(
   if (worldAmbushes(def) > 0 && canAmbush(def)) {
     for (let y = 0; y < grid.height; y++) {
       for (let x = 0; x < grid.width; x++) {
-        if (grid.standable(x, y) && grid.has(x, y, WorldGrid.PATH)) path.push({ x, y })
+        if (grid.standable(x, y) && grid.has(x, y, WorldGrid.PATH) && reachedAt({ x, y })) path.push({ x, y })
       }
     }
   }

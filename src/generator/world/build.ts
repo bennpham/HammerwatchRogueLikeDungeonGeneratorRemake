@@ -265,7 +265,9 @@ export function buildWorld(
     commitCamp(ctx, hub, camp)
     commitLandmarks(ctx, landmarks.plans)
 
-    const lurking = buildEncounters(ctx, encounterRand, grid, def, hub, sites, objectives.plates, reached, biome.theme)
+    // the flood is taken again: a landmark's colliders can seal a pocket the first one
+    // counted as open, and a pack, plate or cache must never wait in one (audit A3)
+    const lurking = buildEncounters(ctx, encounterRand, grid, def, hub, sites, objectives.plates, grid.reach(arrival), biome.theme)
 
     // --- the tilemap, before any prop is planned: it reads only the island's own
     // flags, so the props' density can never move a tile
@@ -282,7 +284,9 @@ export function buildWorld(
       for (const site of sites) grid.markDisc(site, SITE_RADIUS, WorldGrid.RESERVED)
       let plan = planProps(scatter, grid, biome, density, landmarks.lit)
       const after = grid.reach(arrival)
-      if (![target, ...sites].every((t) => after[t.y * width + t.x] === 1)) {
+      // the way out, every site and everything the encounters placed (audit A3)
+      const needed = [target, ...sites, ...lurking.packs, ...lurking.ambushes, ...lurking.mystery, ...lurking.loot]
+      if (!needed.every((t) => after[t.y * width + t.x] === 1)) {
         droppedClumps = plan.filter((p) => p.marks.length > 0).length
         plan = dropClumps(grid, plan)
       }
