@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { GenerationContext } from '../src/generator/core/context'
+import { Rand } from '../src/generator/core/rand'
 import { buildWorld } from '../src/generator/world/build'
 import { mysteryKit, shallowLoot } from '../src/generator/config/presetMystery'
 import { worldPresetPool } from '../src/generator/world/presets'
@@ -115,6 +116,52 @@ describe('A4: large ambush types and plate swarms are warned about and counted',
   })
 })
 
+describe('A5: every validated world generates, whatever the bounds are together', () => {
+  const pick = <T,>(rand: Rand, list: readonly T[]): T => list[rand.iRand(0, list.length)]
+
+  it('the widest safe radius leaves a ring the sites crowd: 256 tiles, radius 40, at capacity', () => {
+    const def = island(256, 1, { safeRadius: 40 })
+    const capacity = worldSiteCapacityOf(def)
+    for (let seed = 1; seed <= 6; seed++) {
+      const built = buildWorld(new GenerationContext(twoFloors(), seed), { ...def, buttons: capacity }, 0, { kind: 'orb' })
+      expect('failed' in built ? `seed ${seed} failed at ${built.failed}` : 'ok').toBe('ok')
+    }
+  }, 300000)
+
+  it.each([1, 2, 3, 4, 5, 6])('seed %i: twenty random bound sets, objectives up to the warning-free capacity', (seed) => {
+    const rand = new Rand(seed * 7919)
+    let tested = 0
+    for (let n = 0; n < 20; n++) {
+      const biome = pick(rand, ['desert', 'oasis', 'drygrass', 'frozen'])
+      const size = pick(rand, [64, 96, 128, 192, 256])
+      const margin = pick(rand, [4, 6, 10, 16])
+      const safeRadius = pick(rand, [6, 10, 16, 24, 40])
+      const hub = pick(rand, ['bare', 'camp'] as const)
+      let def: WorldDef = {
+        ...island(size, 0, { biome, coast: pick(rand, [0, 25, 50, 75, 100]), waterMargin: margin, safeRadius, hub }),
+        bossCount: 0
+      }
+      const plateaus = rand.iRand(0, 3)
+      if (plateaus > 0) def = { ...def, plateaus, plateauMinSize: 8, plateauMaxSize: 10 }
+      // up to one short of exactly full, which only warns; split into buttons and bosses
+      const capacity = worldSiteCapacityOf(def)
+      const objectives = capacity < 2 ? 0 : rand.nextFloat() < 0.5 ? capacity - 1 : rand.iRand(1, capacity)
+      const bosses = rand.iRand(0, Math.min(objectives, 3) + 1)
+      def = { ...def, buttons: objectives - bosses, bossCount: bosses, landmarks: pick(rand, [true, false]) }
+      const params = twoFloors()
+      params.world = { enabled: true, worlds: [def] }
+      const verdict = validateParameters(params)
+      if (verdict.errors.length > 0) continue
+      const label = JSON.stringify({ seed, n, biome, size, margin, safeRadius, hub, plateaus, objectives, bosses })
+      const built = buildWorld(new GenerationContext(twoFloors(), seed + n), def, 0, { kind: 'orb' })
+      expect('failed' in built ? `${label} failed at ${built.failed}` : 'ok').toBe('ok')
+      tested++
+    }
+    // the sweep must not pass by skipping everything
+    expect(tested).toBeGreaterThanOrEqual(8)
+  }, 300000)
+})
+
 function twoFloors() {
   const p = plainParameters()
   p.levels = 2
@@ -125,7 +172,7 @@ describe('A1: site capacity follows what placeSites really packs', () => {
   // measured limits (6 seeds, default safe radius): the old estimate was 15 / 73 / 311
   // and failed on 4 of 6 seeds at 256 and 512; the new one is below the measured limit
   it('reports the measured capacity at 128, 256 and 512', () => {
-    expect([128, 256, 512].map((size) => worldSiteCapacityOf(island(size, 1)))).toEqual([14, 67, 286])
+    expect([128, 256, 512].map((size) => worldSiteCapacityOf(island(size, 1)))).toEqual([13, 62, 264])
   })
 
   it.each([

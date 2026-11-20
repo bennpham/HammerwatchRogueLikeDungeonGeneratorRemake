@@ -61,12 +61,15 @@ export const DEFAULT_WORLD_SAFE_RADIUS = 16
 const LAND_REACH = 0.85
 /**
  * How much of the square-packed site count `placeSites` really fits (audit A1).
- * Measured on 6 seeds at 128, 256 and 512 with the default safe radius: the
- * largest count that generated on every seed was 1.00, 0.96 and 0.96 of the old
- * estimate, and the estimate itself failed on 4 of 6 seeds at 256 and 512.
- * 0.92 keeps a margin below the measured limit.
+ * Measured on 6 seeds with the default safe radius, the largest count that
+ * generated on every seed was 1.00, 0.96 and 0.96 of the square-packed estimate
+ * at 128, 256 and 512 (the estimate itself failed on 4 of 6 seeds at 256 and
+ * 512). The joint sweep (audit A5) found the worst case at the widest safe
+ * radius: 256 tiles, radius 40, where the limit is 0.88 of the estimate, since
+ * the sites crowd the ring between the safe disc and the shore. 0.85 sits
+ * below every measured limit.
  */
-export const SITE_PACKING = 0.92
+export const SITE_PACKING = 0.85
 
 /**
  * Encounter bounds. AE's caps (packs 120, ambushes 40) were sized for a 240

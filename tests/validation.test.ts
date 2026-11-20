@@ -1755,7 +1755,7 @@ describe('world validation', () => {
 
   describe('objectives', () => {
     // a roomy island so the site capacity never interferes with a bound under test
-    const roomy = { minWidth: 256, maxWidth: 256, minHeight: 256, maxHeight: 256 }
+    const roomy = { minWidth: 384, maxWidth: 384, minHeight: 384, maxHeight: 384 }
     const warningsOf = (p: ReturnType<typeof plainParameters>) => fieldsOf(validateParameters(p).warnings)
 
     it('rejects a button count that is not a whole number from 0 to the bound', () => {
