@@ -104,14 +104,24 @@ export function multiBossTierSource(allDied: ScriptNode): TierSource {
  * `(x, y)` is a cosmetic origin for the editor markers only, like every other
  * rig in this repo — nothing about the wiring is positional.
  */
+/**
+ * One boss's own death, as a script node: an `ObjectEventTrigger(Destroyed)`
+ * watching its actor, one-shot. The unit `buildAllBossesDied` counts, and
+ * what a world feeds its objective countdown. Draws no RNG.
+ */
+export function bossDiedTrigger(ctx: GenerationContext, actor: { id: number }, x: number, y: number): NodeObjectEventTrigger {
+  const trigger = new NodeObjectEventTrigger(ctx, x, y)
+  trigger.event = 'Destroyed'
+  trigger.connectObject(actor)
+  trigger.triggerTimes = 1
+  return trigger
+}
+
 export function buildAllBossesDied(ctx: GenerationContext, actors: ReadonlyArray<{ id: number }>, x: number, y: number): ScriptNode {
   const remaining = new NodeVariable(ctx, x, y, actors.length)
   const onTrue: ScriptNode[] = []
   const checks = actors.map((actor, i) => {
-    const trigger = new NodeObjectEventTrigger(ctx, x, y + 1 + i)
-    trigger.event = 'Destroyed'
-    trigger.connectObject(actor)
-    trigger.triggerTimes = 1
+    const trigger = bossDiedTrigger(ctx, actor, x, y + 1 + i)
     const change = new NodeChangeVariable(ctx, x + 1, y + 1 + i, remaining, CHANGE_VAR_SUB, 1)
     const check = new NodeCheckVariable(ctx, x + 2, y + 1 + i, remaining, 0, onTrue)
     trigger.connectTo(change)

@@ -5217,3 +5217,257 @@ slot). The questions it leaves for a play session are in
 **Impact:** the world plan drops `collision_small` as a fence, builds the
 coast from the theme's own wall pieces, and treats any level above 240 tiles
 as untested until played.
+
+### 2026-11-18 — World mode built ahead of pass 0: the defaults chosen without play answers
+**Tag:** [UNVERIFIED]
+**Context:** the owner asked for World mode, its terrain and the 1.0
+presets to be built before the in-game discovery (`docs/discovery/world-mode.md`,
+D1–D10) is played. Every world fact the generator now relies on is therefore
+emitted, not booted, until its `docs/BOOT-CHECKLIST.md` row (W1–W20) is
+confirmed.
+**Evidence:** none from play. The choices, each the plan's recommendation or
+the owner's 2026-11-18 call:
+1. D1/D2: the coast is the existing wall matcher run with water as wall mass —
+   theme h fences for desert, a theme e/f canyon (band of 3 or more, greedy
+   `color_theme_<t>_*` roof, no water) for oasis, dry grass and frozen. Every
+   island must pass a flood over the theme's collision model or is re-rolled.
+2. D3: no invisible blocker is emitted.
+3. D5: the size cap is 512 tiles (warning above 240, the stock maximum). Above
+   240 nothing stock has been seen to load.
+4. D6: the exit is the stock `desert_teleport_boss` rig — `ChangeDoodadState`
+   `closed` on `LevelLoaded`, a `LevelExitArea` saved disabled, opened at zero
+   by `ChangeDoodadState` `open` plus `ToggleElement` state 0.
+5. D7: a last-slot world hides its orb with `HideObject` state 1 on
+   `LevelLoaded` and shows it with state 0 at zero. Stock aims `HideObject`
+   only at doodads; an item target is unproven.
+6. D9: plateaus use `e_ledge_*` with `e_stairs_*` on every side, copied from
+   `level_cave_1`'s instances; frozen and desert raise mesas instead.
+7. D10: desert uses the Temple hub's lighting; the other biomes are full-bright
+   with a slight tint.
+**Impact:** none of the above is `[VERIFIED]`. A failed boot row supersedes the
+matching item here with a `[REFUTED]` entry and its fallback from the plans.
+
+## 2026-11-19 - HideObject node shape [UNVERIFIED]
+
+Read from the install (`editor/campaign2/prefabs/desert_teleport_boss.xml`,
+nodes 153426-153430), not booted. `type` `HideObject`; `parameters` is a
+dictionary of `int state` (1 hides, 0 shows) and `dictionary element` holding
+`int-arr static`, which may list several **doodad** ids (the stock node 153426
+hides six). Same polarity and wrapper as `ToggleElement`. Stock saves it
+`trigger-times 1`. `NodeHideObject` (objects/nodes.ts) matches field for field.
+`Checkpoint` appears in no campaign2 level; the existing `NodeCheckpoint`
+stays as verified from the base campaign.
+
+## 2026-11-19 - the theme h sea coast, built by the wall matcher [EMITTED]
+
+**Tag:** [EMITTED] (not booted; BOOT-CHECKLIST W1-W4)
+**Context:** world mode pass 1 (`src/generator/world/`). An island is a
+`Tile[]` in which water is WALL and land is floor, and every water tile with
+land in its 3x3 is scanned with `searchPatterns` exactly as `boss/arena.ts`
+scans its band; the pieces resolve through theme h's `doodadOverrides`
+(`h_h_8_dn`, `h_v_8_l/r`, `h_h_8_up` at yOffset -1, the corners, the caps).
+**Evidence:** read from the generator, not the game.
+- Every wall pattern needs an open cell, and only rows y-1..y+1 matter, so deep
+  sea matches nothing and (theme h has `omitCover`) emits nothing. A 512x512
+  island carries about 2,600 doodads, the whole coast.
+- The only band tile the matcher cannot place is a one-tile pond; the island's
+  lake fill removes those, so the matcher-coverage pass found nothing to repair
+  on any sampled seed.
+- The closure proof (`coastCloses`: flood the arrival over `sealCheck.ts`'s
+  FENCE edge model, reject anything reached that is more than one tile from
+  land or on the border) passed on 100% of 100+ islands at 64, 128 and 512
+  with the theme-h cleaning rules (water gaps >= 2 rows and columns, land runs
+  >= 3, no diagonal-only land contact, margin >= 4). Dropping every third piece
+  makes it fail, so it is not vacuous.
+- The level's light is the Temple hub's (ambient 254 243 204, shadow 150 150 150
+  255, add 39 28 5 255, shadow length 1), but written in this generator's
+  r/g/b/a dictionary dialect (`add-color` as a dictionary, `shadow-length` as a
+  float); stock writes int-arr. Whether the game reads `add-color` in the
+  dictionary form is untested.
+- Ground is painted on land only, so a band tile stood on shows water beneath.
+**Impact:** unproven in play: that the ring reads as a coast, holds at convex
+and concave corners, and how band tiles and `h_h_8_up` corners look (W2, W3).
+Size cost unmeasured in game (W4): a 512 world is about 13 MB of XML. If W2 fails,
+the plan's fallback is a theme e oasis ring (a `BiomeDef.theme` change).
+
+## 2026-11-19 - the world's closed portal, disabled exit and hidden orb [EMITTED]
+
+**Tag:** [EMITTED] (not booted; BOOT-CHECKLIST W5-W8)
+**Context:** world mode pass 2 (`src/generator/world/objectives.ts`). A world
+with buttons or bosses keeps its way out shut until a shared countdown hits
+zero.
+**Portal rig** (the stock `campaign2/prefabs/desert_teleport_boss.xml`'s, read
+from the install): the portal doodad (`exit_teleport_boss.xml` red, or
+`exit_teleport.xml` blue; both have `open`/`closed` states, default `open`) is
+`need-sync`; a `GlobalEventTrigger("LevelLoaded")` fans out to
+`ChangeDoodadState(portal, "closed")`. The prefab's `LevelExitArea` ships
+`enabled = False` (stock ships 61 disabled ones). At zero: `ChangeDoodadState
+(portal, "open")`, `ToggleElement(state 0)` on the exit (state 0 enables, the
+repo's usual polarity), an `AnnounceText`, and `PlaySound
+sound/misc.xml:info_teleport_activate` (the cue the Temple's own teleporter
+plays).
+**Buttons** are the lock buttons' rig (`BossDoorButton` driven to `activate`,
+[VERIFIED] on floors). **Bosses** are `ObjectEventTrigger(Destroyed,
+trigger-times 1)` per actor feeding the same `buildButtonCountdown` as the
+buttons ([VERIFIED] shape on floors), never `GlobalEventTrigger("Boss Died")`.
+**Hidden orb** (world last): `LevelLoaded` -> `HideObject(state 1, orb item)`,
+at zero `HideObject(state 0)`. Stock only ever aims `HideObject` at doodads,
+never an item, so whether it hides a pickup, and whether a hidden orb can be
+picked up, is unproven. Fallback in the plan: no orb, a disabled `AreaTrigger`
+-> `GameEnd` on the portal shape.
+**Impact:** nothing here is played. W5 (portal), W6 (countdown), W7 (orb) and
+W8 (several bosses, far-apart boss bars) decide whether any of it holds.
+
+## 2026-11-19 - world ambush rings and roaming packs [EMITTED]
+
+**Tag:** [EMITTED] (not booted; BOOT-CHECKLIST W9, W10)
+**Context:** world mode pass 3 (`src/generator/world/encounters.ts`).
+**Tripwire:** a `RectangleShape` 4x4 on a corridor tile, then a one-shot
+`AreaTrigger` (trigger-times 1), then `PlaySound sound/misc.xml:info_puzzle_fail`
+(a stock cue, read from the install's `sound/misc.xml`; AE's `puzzle_fail`)
+plus one `SpawnObject` (trigger-times 1) per ring point at radius 5. A button's
+ring hangs on the button's own trigger beside its `PlaySound` and its countdown
+decrement. Whether a spawned monster attacks at once is open (discovery D8).
+**Packs** are placed actors, no spawner tier and no trigger: they sleep until a
+player is within an actor's update range ([UNVERIFIED] on a 512-tile island).
+**Impact:** W9 (a tripwire springs one ring, once; buttons at 100% do too) and
+W10 (packs wait round the island) decide whether any of it holds.
+
+## 2026-11-19 - world scatter props and their colliders [EMITTED]
+
+**Tag:** [EMITTED] for the placement; the colliders are [R] (read from the install)
+**Context:** world mode pass 3 (`src/generator/world/scatter.ts`, the one raw-path
+table in `world/biomes.ts`). Props are `Doodad.prop` raw paths, no theme token.
+**Colliders read from `editor/assetsExtract/doodads`:** `theme_h/h_deco_rock`
+circle r 18 px at offset (-1, 0); `generic/deco_block`, `_v2` polygon x 0..24,
+y -24..16 px; `_v3` x -2..26; `theme_g/g_deco_ground_brick` circle r 8 at
+offset (0, -2), shoot-through. Everything else in the desert table
+(`g_deco_ground_stone*`, `g_deco_ground_brick_v2`/`_v3`, `g_deco_pillar_cut_*`,
+`generic/deco_block_v2_dst`, `deco_corpse_bone*`, `deco_corpse_skull*`) declares
+no collider. The terrain plan listed `brick_v2` and `_v3` as clumps; they are
+cover. `tests/world.test.ts` re-reads every prop's unit file when an install is
+present and checks the table's footprint covers each tile the collider touches.
+**Size:** a measured 512 world carries about 2,500-2,900 coast doodads, and
+props add up to about 4,000 at scatter 100 (6,100-6,700 doodads with every
+encounter at its maximum), under the stock maximum of 7,383 (`level_9`).
+**Impact:** W2 and W4 (walk the island; load time and frame rate at the cap)
+decide whether the prop mix and count read well.
+
+## 2026-11-19 - world loot caches and mystery plates [EMITTED]
+
+**Tag:** [EMITTED] (not booted; BOOT-CHECKLIST W10, W11)
+**Context:** world mode pass 3 (`src/generator/world/encounters.ts`).
+**Loot:** `items/valuable_1..9` (`ItemType.Treasure`) in caches of 3 to 6, an
+explicit `index` per item so no stream but the world's is read.
+**Plates** are the floors' own rig (`mystery/rig.ts`, [VERIFIED] on floors,
+owner playtest 2026-09-26): `trigger_button_floor` doodad (`need-sync`) -> 1x1
+`RectangleShape` -> one-shot `AreaTrigger` -> `PlaySound button_hatch` +
+`ChangeDoodadState pressed`, then the payload. New here is only the ground:
+there is no room wall, so `ProjectileSpewer`s (disabled until the press, with a
+delayed `ToggleElement` off when `trapSeconds` is set) stand on open ground 5
+tiles from the plate in a line across it. Whether a spewer on open sand fires
+and looks right is open (W11). A world refuses a pool button whose traps have
+no switch-off time, since an island has no room to wait one out.
+**Disguise:** the island's real buttons use `trigger_button_floor` /
+`pressed` instead of `boss_door_button` / `activate`, as a locked floor's
+disguise does ([VERIFIED] on floors), and each also fires a pool entry.
+**Impact:** W10 (coins lie in caches) and W11 (plates fire once, spewers switch
+off, disguised buttons count) decide whether any of it holds.
+
+## 2026-11-19 - world timer and music [EMITTED]
+
+**Tag:** [EMITTED] (not booted; BOOT-CHECKLIST W12)
+**Context:** world mode pass 3. A world's timer is the floors' timer rig
+(`timer/hazard.ts`, [VERIFIED] on floors) over the whole island: a players-only
+`RectangleShape` the size of the map, a `DangerArea` shipped disabled, and a
+`GlobalEventTrigger("LevelLoaded")` that announces each second and switches
+the field on at `seconds * 1000` (`ToggleElement` state 0 enables). A world's
+music is the floors' `GlobalEventTrigger("LevelLoaded")` -> `PlayMusic` rig
+with a `sound/music*.xml:<cue>` track from `music/tracks.ts`.
+**Open:** whether a damage field the size of a 512-tile island, mostly open
+water, costs anything per frame, and whether the countdown reads over a map
+that large. W12 decides.
+
+## 2026-11-19 - world camp props [EMITTED]
+
+**Tag:** [EMITTED] for the placement; the colliders are [R] (read from the install, not played)
+**Context:** world mode pass 4 (`src/generator/world/hub.ts`, terrain plan 1.3 "Camp"). HW1 has no tents or fires, so the camp is the Temple's vendor stall: `doodads/generic/deco_vendor_cart`, `deco_vendor_basket`, `deco_vendor_carpet_1`, `deco_vendor_carpet_2`, `deco_signpost` and `lamp_torch` (twice), placed with `Doodad.prop`.
+**Colliders read from `editor/assetsExtract/doodads/generic`:** cart: polygon x -6..6, y -10..0 px (its tile and the one above); basket: circle r 8 at the origin (its tile); signpost: circle r 4 offset (1, 0) (its tile); both carpets (layer -5) and the torch (a light and a glow, no `<collision>`) have none. `tests/world.test.ts` re-reads every unit file when an install is present and checks the footprint covers each tile the collider touches.
+**Open:** W13 (BOOT-CHECKLIST): whether the stall reads as a camp, whether the carpets draw under the cart and basket (layer -5 against the props' default), and whether the torches light the portal.
+
+## 2026-11-19 - world objective checkpoints [EMITTED]
+
+**Tag:** [EMITTED] (not booted; BOOT-CHECKLIST W14)
+**Context:** world mode pass 4 (`world/objectives.ts`). The same `Checkpoint` script node the arena's save-game milestone uses (`boss/checkpoints.ts`, its `parameters` a bare `<bool>` true = save [VERIFIED] 2026-09-05), wired to the objectives' own triggers instead of a `Boss ...` event: one node at the arrival, connected from every button's one-shot `AreaTrigger` and every boss's `ObjectEventTrigger(Destroyed)`.
+**Assumption:** the respawn point is the `Checkpoint` node's own position, as the arena's `respawnAt` and `RespawnPlayers` are, so the node stands on the `LevelStart` tile. Whether a save written mid-island keeps the countdown variable's progress (the objectives done so far) when the level reloads is open: the stock `Checkpoint` was only exercised in boss arenas. W14 decides.
+
+## 2026-11-19 - the Desert Campaign's opening island [EMITTED]
+
+**Tag:** [EMITTED] (not booted; BOOT-CHECKLIST W1, W5 and the Campaign Mode rows)
+**Context:** `config/campaignModePresets.ts`. A world slot between the first town and the first floor: the town's portal leads to `world0` (a lobby exit, unchanged mechanism), and the island's blue `LobbyPortal` (next slot is a floor, so not the red boss portal) leads on to level 0. `desert_village` is the track the bazaar already plays (`music/tracks.ts`, from `sound/music_desert.xml`). Only `campaign-desert`'s outputs gain the island's level and a `levels.xml` entry; no other level file changes (tested).
+
+## 2026-11-19 - world oasis: the canyon edge and its roof [EMITTED]
+
+**Tag:** [EMITTED] for everything emitted; the colliders and sizes are [R] (read from the install, not played). Played check: BOOT-CHECKLIST W15.
+**Context:** world mode terrain M5a, commit 39 (`world/roof.ts`, `world/coast.ts` `solidCoastCloses`). A theme e (or f) island is a clearing inside rock, not an island in a sea: the matcher runs with every non-land tile as wall, the tilemap carries no water dataset (rock is void under its roof, as in a dungeon), and the rock is roofed from the matcher's own `Cover` rule (rock whose right, lower and lower-right tiles are rock) out to the map edge. The north of the land starts the roof at the band's second tile, so the wall face stays visible.
+**Roof squares:** `doodads/special/color_theme_<t>_{16,24,32,48,64,128,256}.xml` exist for e and f ([R]), `defaultlayer="90"`, origin 0 0, one flat colour from the same texture frame, so squares may overlap invisibly. The art is `scale="16"`, so 16 px is ONE tile and 256 px is 16. 24 px is 1.5 tiles and cannot tile a grid: not used. A square covering tiles x0..x0+s-1 is emitted at (x0 + 0.5, y0 + 0.5) with `Doodad.prop`, the half tile being `Cover`'s own offset. A flat 6-tile band covered by a partition needed 4+2+1 tile squares; letting the cover overlap took a 512-tile oasis from about 5,000 roof squares to about 1,460 (6,500 doodads in all, under the 7,000 warning).
+**Colliders [R]:** every theme e wall piece the matcher can emit has a solid polygon spanning the tile's full width (x 0..16 px). The anchor-32 pieces (`h_8`, `x_t_dn`, `v_cap_dn`, `h_cap_l/r`, `crn_*_dn`) cover y -24..16 px from the position, the anchor-16 pieces (`v_8`, `x_x`, `x_t_up/l/r`, `v_cap_up`, `crn_*_up`) y -8..16, so a piece buries one or two land rows below its tile. The world buries two (`overhangRows`), which is conservative for the second kind.
+**Island:** a solid theme needs land runs of at least five rows (two buried, three to stand on) and three columns, water gaps of three rows and two columns. A cleaning pass that undid itself (clear a thin run, then a coverage fix filling the same tile) read as "no change" and left a four-row run in the mask; `IslandRules.strict` re-checks the converged mask for the lettered themes and re-rolls it instead.
+**Props:** `e_special_pillar` is the same polygon as `deco_block` (dx 0..1, dy -1..1); `deco_crystal` is a circle r 13 and its offset leaves (-1,-1) clear, inside the table's 3x3; `e_deco_vgt*`, `marker_flower_range*`, `deco_crystal_small*` and the `g_deco_ground_stone*` have no collider. `f_path` has FIVE top-level sprites (the others have two): its `tiles` is 5.
+**Open:** W15. Whether the roof edge and the void under the first band tile read as rock, whether the party can see past the map edge (the roof stops at the map edge; the tilemap blocks beyond it are empty), and the doodad cost of 6,500 on a 512 island.
+
+## 2026-11-19 - world dry grass: ground and props [EMITTED]
+
+**Tag:** [EMITTED] for the placement; the tilesets and colliders are [R]. Played check: BOOT-CHECKLIST W15.
+**Context:** terrain M5a, commit 40. Same edge as the oasis (theme e canyon, see the entry above). Ground `e_default` (100), patches `e_default_dark` (101) and `grass_brown` (1001), trail `g_path` (132, drawn above the ground, so the ground stays under it).
+**Read from the install:** `deco_corpse*`, `deco_corpse_skull*`, `deco_corpse_bone*`, `deco_corpse_weapon_{sword,shield,bow}`, `special/marker_grave` and `marker_grave_g` declare no collider (cover). `theme_h/h_deco_rock` is ochre on brown earth and stays out, as does every theme h piece. The 64x64 grave decals are 4 tiles wide and may overhang an unreached tile at the edge of the cover rule; harmless, they are decals.
+
+## 2026-11-19 - world frozen: ground, trail and props [EMITTED]
+
+**Tag:** [EMITTED] for the placement; the tilesets, levels and colliders are [R]. Played check: BOOT-CHECKLIST W15.
+**Context:** terrain M5a, commit 41. Theme f walls on the oasis's canyon edge. Ground `f_default` (120), patches `f_fine` (121), `f_frozen` (123) and `grass_frozen` (1003), trail `f_path` (122). The trail draws ABOVE the ground and BELOW `f_frozen`, so the ground stays under it and no patch is ever written on a trail tile (the emitter's rule for every biome).
+**Read from the install:** `f_path` has five top-level sprites (the rest have two). `deco_spike_frost` is a circle r 5 at the origin: its own tile. `f_special_pillar` is the full-tile polygon of `e_special_pillar`. `f_deco_vgt*`, `deco_crystal_small*` and `g_deco_ground_stone*` have no collider; `deco_crystal` and `deco_crystal_small*` carry a light, hence the 60-prop cap. `trap_frost_field` is left out of the scatter: it defaults to `active` and is Krilith's floor art. `tower_static_frost` is not pooled.
+
+## 2026-11-19 - world biome lighting and landmarks [EMITTED]
+
+**Tag:** [EMITTED] for the lighting and the placement; the assets and colliders are [R]. Not booted: BOOT-CHECKLIST W15 (lighting with shadows on and off, landmarks).
+**Lighting (D10, untested):** desert keeps the Temple hub's ambient 254/243/204, add 39/28/5, shadow 150/150/150/255, shadow length 1. Oasis, dry grass and frozen emit the generator's usual r/g/b/a dictionaries with ambient 240/250/225, 245/240/225 and 220/232/255 and the default shadow 128/128/128/128, and NO `add-color` or `shadow-length` keys (a floor's lighting, tinted). They carry no placed lights beyond what a doodad brings (torches, crystals); a room lit for shadows-off is too dark with shadows on (2026-08-16), so none is dark.
+**Landmark colliders read from the install:** `theme_h/h_pyramid` is a 192x192 px polygon from its position (12x12 tiles, 144 cells when the prop stands on a tile CORNER); `h_pyramid_shadow` (layer -1, 215 px, origin 0 23) has none. `deco_altar_stone_sun`, `deco_altar_jade`, `deco_altar_stone_blood` and `deco_altar_stone` (all frames of `deco_altar.png`, layers -10 and -9) have none. `deco_signpost` is a circle r 4 offset (1, 0): its tile. `deco_spike_frost` a circle r 5: its tile. The terrain doc listed the pyramid as 12x12 and the install agrees only when the prop stands on a corner; centred on a tile (as every scatter prop is) it spills onto a 13th row and column.
+**Placement:** a landmark is a handful of props round an anchor tile with a rectangular footprint nothing else takes; the colliders are marked solid and the island re-proved with them down, so a landmark can be refused but never trap anyone. A crossroads stands beside a corridor junction (a corridor cell with an arm of corridor three tiles out in at least three directions). Whether the pyramid's shadow looks right on grass or ice (it is desert art) is not a question here: the landmark lists name the desert pyramid for the desert alone.
+**Open:** W15. Whether the altars read as altars on their biomes' ground, and whether 2 lit torches per altar plus crystals cost frame time on a 512 island with four copies.
+
+## 2026-11-19 - world plateaus: the ledge and stairs rim [EMITTED]
+
+**Tag:** [EMITTED] for everything emitted; the unit files, colliders and the stock stairway instances are [R] (read from the install, not played). Played check: BOOT-CHECKLIST W16, W17, W18.
+**Context:** world mode terrain M5b, commit 44 (`world/plateau.ts`). A plateau is a terrace drawn by `doodads/theme_e/e_ledge_*` (layer -10) and climbed by `e_stairs_*` (layer -20, no collider). HW1 has no elevation, so the rim is its pieces' thin `shoot-through` colliders, which still stop walkers.
+**Collider of each piece [R], in tiles, measured from the doodad's POSITION (not its sprite origin, 2026-10-19):**
+
+| Piece (plain / `v2` kerb) | Sprite origin | Collider from pos |
+| --- | --- | --- |
+| `e_ledge_up` / `e_ledge_v2_up` | 0 0 | x 0..2, y 0..1 |
+| `_up_v3` (1 tile) | 0 0 | x 0..1, y 0..1 |
+| `_dn` | 0 8 px | x 0..2, y 0..0.5 |
+| `_dn_v2` (1 tile) | 0 8 px | x 0..1, y 0..0.5 |
+| `_l` | 0 32 px | x 0..0.5, y -2..0 |
+| `_r` | 8 32 px | x 0..0.5, y -2..0 |
+| `_l_v2`, `_r_v2` (1 tile) | | x 0..0.5, y -1..0 |
+| `e_ledge_crn` | 0 0 | x 0..0.5, y 0..0.5 |
+| `e_stairs_up`, `_v2_up`, `_dn`, `_v2_dn`, `_l`, `_r`, `_v2_r` | | none |
+
+The `v2` kerbs collide exactly like their plain twins; `e_ledge_crn` has no `v2`; `e_stairs_l` has no `v2`.
+**How a rim is laid (a high cell is the tile [x, x+1] x [y, y+1]; every collider sits INSIDE the high cell it edges):** a south edge takes `up` at (x, y), so the whole rim row is blocked and the face art hangs over the two low rows under it (the `FACE` rows); a north edge `dn` at (x, y), the top half of the row; a west edge `l` at (x, y+2) per two rows (or `l_v2` at (x, y+1)), the left half of the column; an east edge `r` at (x+0.5, y+2). Runs are cut into 2-tile pieces and one 1-tile remainder. A concave corner (three of the four cells round a lattice point high) takes one `e_ledge_crn` in the diagonal cell's corner at the point, touching both strips. The plateau is proved closed on a quarter-tile flood over these colliders (`tests/plateauProbe.ts`, the importers' model).
+**How each stairway is built, copied from `campaign2/levels/level_cave_1.xml`:**
+- South, from the stock (-129, 4.5): `e_stairs_v2_up` stands at the centre of a 2-tile gap between two `e_ledge_up` at (-132, 4.5) and (-128, 4.5), at the same y as the run. Here: `e_stairs_up`/`_v2_up` at (gap x + 1, rim y).
+- Recessed north, from (-131, -10) under an `e_ledge_dn` run at y -11.5: the run has a 2-tile gap, the stairs stand 1.5 tiles south of it, and `e_ledge_r_v2` at (-132.5, -10) and `e_ledge_l_v2` at (-130, -10) flank it, the cheeks at the gap's edges. Here: `e_stairs_dn`/`_v2_dn` at (gap x + 1, rim y + 1.5), cheeks at (gap x - 0.5, rim y + 1.5) and (gap x + 2, rim y + 1.5).
+- Vertical: stock `e_stairs_v2_r` at (-80, 35) between `e_ledge_r` at (-80, 34) and (-80, 36). **Those two ledges are contiguous (each collider is 2 tiles tall) and script-toggled (ids 111515 and 111547 are targets of the level's toggle nodes), so the stock vertical instance is a gate, not a plain run with a gap.** The geometry is derived from the south case instead: the flight shares its x with the run's pieces (`e_stairs_l` at (x, gap y + 1), `e_stairs_r`/`_v2_r` at (x + 0.5, gap y + 1)) in a 2-tile gap.
+**What a stairway needs:** a rim cell either side of its gap (so ledge pieces flank the flight), and the interior behind it to climb into (a cell with all eight neighbours high). A stairway's cells carry no trail (audit D4), prop or spawn, and the low landing and the high rows behind are kept clear.
+**Ground:** `BiomeDef.highGround` is painted INSTEAD of the base on high cells: `e_fine` (110) on oasis, `e_default_dark` (101) on dry grass. Both are also one of the biome's own tuft tilesets, so the emitter merges them into that dataset (a block carries one dataset per tileset).
+**Open:** W16 whether the party walks only through the gaps and monsters use the stairs; W17 corners, plugs and shots; W18 whether the kerb and stairs read as terraces, whether the south face rows can be stood on (they are walkable in the model), the raised ground's look, and the north lip's half-tile straddle over the low row.
+
+## 2026-11-19 - world mesas on desert and frozen [EMITTED]
+
+**Tag:** [EMITTED] for everything emitted; the pieces are the coast's own, already [R]. Played check: BOOT-CHECKLIST W19.
+**Context:** world mode terrain M5b, commit 45 (`world/mesa.ts`). Theme h ships no ledge or stairs set, and the owner chose mesas over borrowed stairs for frozen (`f_ledge_*` exist, `f_stairs_*` do not). A mesa is the coast run inward: a block of rock mass is carved into the land mask BEFORE `searchPatterns` runs, so the existing wall pieces ring it from the surrounding ground and the existing closure proof (`coastCloses` for the h fence model, `solidCoastCloses` for e and f) covers it. Both proofs flood from the arrival and fail on any reached tile that is rock without a piece or, for the fence model, further than one tile from land, so a leak through a mesa wall fails the island exactly as a leak through the shore does.
+**Rules:** each mesa's rim keeps `PLATEAU_GAP` (4) plus the wall art's overhang rows (2 on a wall set) of open land round it, which is the coast's own minimum for land runs between rock (3 on theme h, 5 on e and f) with margin; its mask is grown by `buildIsland` so every run through it is at least 3, above the rock-gap minimums (2 rows h, 3 rows e/f; 2 columns); and it is dropped if the matcher finds no piece for a rock tile it newly exposes. Mesas are drawn from a stream seeded by one layout draw, taken only when mesas are asked for.
+**Look [EMITTED]:** under a wall set the mesa interior is void under the canyon's roof squares (as every rock tile of the canyon). Under theme h the sea dataset covers every block, so the mesa's cells are painted `h_default` sand on top of it, not left as water; the cliff pieces stand on the rock tiles at its edge. Whether the h cliffs read as a mesa and not a sunken pit from this side is open.
+**Open:** W19 (walk a whole mesa ring on each biome, look for leaks, confirm nothing spawns inside).

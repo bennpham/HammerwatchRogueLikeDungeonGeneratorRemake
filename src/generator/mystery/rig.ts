@@ -49,6 +49,7 @@
  */
 
 import type { GenerationContext } from '../core/context'
+import type { Rand } from '../core/rand'
 import type { Level } from '../map/level'
 import type { ScriptNode } from '../objects/scriptNode'
 import type { DungeonParameters, MysteryButton, TrapDirection } from '../config/parameters'
@@ -111,6 +112,16 @@ const LOOT_GAP = 2
 const MONSTER_GAP = 3
 
 /**
+ * The tiles a payload actually used: loot and monster spawns, and each placed
+ * spewer with the way it fires. A floor ignores them; a world reserves them so
+ * its scatter grows nothing on a spawn or across a line of fire.
+ */
+export interface PayloadSpots {
+  spawns: Slot[]
+  spewers: Array<{ slot: Slot; direction: TrapDirection }>
+}
+
+/**
  * The part of a mystery button's rig that is the SAME whether it fires from a
  * fresh plate or from an already-wired lock button: the announcement, the
  * loot and monster spawns, and the disabled-spewer traps with their optional
@@ -121,7 +132,7 @@ const MONSTER_GAP = 3
  * contract — the caller decides what counts as "a plate" for spawn avoidance
  * (see `buildMysteryButtonRig`'s Phase C/D comment on lock tiles).
  */
-function emitPayload(
+export function emitPayload(
   ctx: GenerationContext,
   trigger: ScriptNode,
   tile: Slot,
@@ -130,8 +141,10 @@ function emitPayload(
   plateTiles: readonly Slot[],
   interiorOf: (roomIndex: number) => Slot[],
   wallPoolOf: (roomIndex: number, direction: TrapDirection) => Slot[],
-  textType: number
-): void {
+  textType: number,
+  rand: Rand = ctx.mysteryRand
+): PayloadSpots {
+  const used: PayloadSpots = { spawns: [], spewers: [] }
   const text = def.text?.trim() ?? ''
   if (text !== '') {
     const announce = new NodeAnnounceText(ctx, trigger.x, trigger.y)
@@ -150,6 +163,7 @@ function emitPayload(
     return item === undefined || !(row.count >= 1) ? [] : Array.from({ length: row.count }, () => item.path)
   })
   spawnTiles(room, tile, plateTiles, LOOT_GAP, loot.length).forEach((at, i) => {
+    used.spawns.push(at)
     const spawn = new NodeSpawnObject(ctx, at.x + TILE_CENTRE, at.y + TILE_CENTRE, loot[i])
     spawn.triggerTimes = 1
     trigger.connectTo(spawn)
@@ -161,6 +175,7 @@ function emitPayload(
       : Array.from({ length: row.count }, () => resolveActorPath(row.monster))
   )
   spawnTiles(room, tile, plateTiles, MONSTER_GAP, monsters.length).forEach((at, i) => {
+    used.spawns.push(at)
     const spawn = new NodeSpawnObject(ctx, at.x + TILE_CENTRE, at.y + TILE_CENTRE, monsters[i])
     spawn.triggerTimes = 1
     trigger.connectTo(spawn)
@@ -176,7 +191,8 @@ function emitPayload(
       // Wall full: stop this row. No draw, so the stream stays tied to the
       // spewers actually placed.
       if (pool.length === 0) break
-      const slot = takeSlot(ctx.mysteryRand, pool)
+      const slot = takeSlot(rand, pool)
+      used.spewers.push({ slot, direction: row.direction })
       const spewer = new NodeProjectileSpewer(
         ctx,
         slot.x + TILE_CENTRE,
@@ -207,6 +223,7 @@ function emitPayload(
       trigger.connectTo(off, seconds * 1000)
     }
   }
+  return used
 }
 
 /**

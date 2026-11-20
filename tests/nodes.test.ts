@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { GenerationContext } from '../src/generator/core/context'
 import { defaultParameters } from '../src/generator/config/parameters'
 import { Doodad } from '../src/generator/objects/doodad'
-import { NodeDestroyObject } from '../src/generator/objects/nodes'
+import { NodeDestroyObject, NodeHideObject } from '../src/generator/objects/nodes'
 import { badIntArray } from './xmlHelpers'
 
 function newContext(): GenerationContext {
@@ -84,5 +84,27 @@ describe('ScriptNode connection delays', () => {
     // connections
     expect(xml).toContain('<int-arr name="connection-delays">0 1000 0</int-arr>')
     expect(xml).toContain(`<int-arr name="connections">${b.id} ${c.id} ${d.id}</int-arr>`)
+  })
+})
+
+describe('NodeHideObject', () => {
+  it('emits the stock shape: state then element.static, type HideObject', () => {
+    const node = new NodeHideObject(newContext(), 0, 0)
+    node.setTarget(7)
+    const xml = node.getXML()
+    expect(xml).toContain('<string name="type">HideObject</string>')
+    expect(xml).toContain('<int name="state">1</int>')
+    expect(xml).toContain('<int-arr name="static">7</int-arr>')
+  })
+
+  it('state 0 shows, several targets keep order, and no target omits the array', () => {
+    const node = new NodeHideObject(newContext(), 0, 0)
+    expect(badIntArray(node.getXML())).toBeNull()
+    expect(node.getXML()).not.toContain('<int-arr')
+    node.state = 0
+    node.addTarget(3)
+    node.addTarget(1)
+    expect(node.getXML()).toContain('<int name="state">0</int>')
+    expect(node.getXML()).toContain('<int-arr name="static">3 1</int-arr>')
   })
 })

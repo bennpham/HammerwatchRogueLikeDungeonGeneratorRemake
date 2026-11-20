@@ -18,7 +18,7 @@ special rooms, rasterizes a wall grid, pattern-matches wall doodads, and
 serializes itself into Hammerwatch's XML dialect — and returns an array of
 `{path, content}` files (`info.xml`, `levels.xml`, one `levels/<NN>_<name>.xml`
 per campaign slot — `floorK`, `floorK_boss`, `arena_bossK`, `arena_survivalK`,
-`lobbyK`, 1-based and prefixed with the slot's play-order position, see
+`lobbyK`, `worldK`, 1-based and prefixed with the slot's play-order position, see
 `campaignFilePaths` in `campaign.ts` — and `tweak/*.xml`
 for whichever optional layers are on) plus per-floor preview geometry. Electron's main process does everything else:
 writes those files into `<Hammerwatch>/editor/<name>/`, runs
@@ -41,6 +41,12 @@ src/
 │   │   ├── presetMystery.ts mysteryKit — the presets' mystery pools, picked
 │   │   │                 by button NAME with weights; loot-tier pick lists
 │   │   ├── claudePresets.ts CLAUDE_PRESETS — the 10 "Claude Generated" presets
+│   ├── campaignModePresets.ts the Campaign Mode group: Castle Campaign and
+│   │                 Desert Campaign (acts of floors, a town, a boss;
+│   │                 the Desert one opens on a world slot)
+│   ├── worldCampaignPresets.ts the Claude Generated Open World group: six
+│   │                 presets that put islands in the play order
+│   ├── presetHelpers.ts, familyWaves.ts helpers the preset files share
 │   │   ├── themes.ts     THEME_DEFS — tileset path, tile count, doodad token
 │   │   ├── configFile.ts parameters.txt parse/serialize (original format)
 │   │   ├── playerSettingsFile.ts playersettings.txt — the Player tab's
@@ -166,6 +172,40 @@ src/
 │   │   ├── placement.ts plate tiles (reachable, plate rooms, clear of items,
 │   │   │                 lock plates and boss tiles), spawn rings, capacity
 │   │   └── rig.ts       buildMysteryButtonRig() — the fixed draw order
+│   ├── world/           WORLD slots — an open island of one biome. Draws only
+│   │   │                 from ctx.worldRand (3 values per world)
+│   │   ├── options.ts   WorldDef/WorldOptions, worldList(), the bounds
+│   │   │                 (WORLD_SIZE 64..512, warn above 240, WORLD_MAX_COUNT 20)
+│   │   │                 and ORB_AT; read fields through the accessors
+│   │   ├── biomes.ts    BiomeDef — desert, oasis, drygrass, frozen: ground,
+│   │   │                 coast theme, props (the one raw-path table), lighting
+│   │   ├── noise.ts     value noise (island shape, tuft patches)
+│   │   ├── grid.ts      WorldGrid flags LAND CLIFF TRAIL SOLID RESERVED PATH
+│   │   │                 (plus HIGH/FACE for plateaus) and the flood fills
+│   │   ├── island.ts    the land mask: noise + falloff, theme-keyed cleaning
+│   │   │                 (MAX_PASSES 24), the matcher-coverage pass
+│   │   ├── coast.ts     the wall matcher run with water as wall, and
+│   │   │                 coastCloses / solidCoastCloses — the closure proofs
+│   │   ├── roof.ts      the canyon's roof squares for the wall-set biomes
+│   │   ├── plateau.ts   raised plateaus with stairways (oasis, dry grass)
+│   │   ├── mesa.ts      mesas: rock blocks carved into the mask (desert, frozen)
+│   │   ├── place.ts     objective sites round the arrival (SITE_RADIUS, 20-tile
+│   │   │                 spacing) and bossSiteIndexes = floor(i*n/b)
+│   │   ├── paths.ts     corridors to every site (Dijkstra, early exit)
+│   │   ├── hub.ts       the start: bare, or a camp of the Temple's vendor props
+│   │   ├── objectives.ts the arrival, closed portal + disabled exit, buttons,
+│   │   │                 per-boss Destroyed triggers, ONE countdown, hidden orb
+│   │   ├── encounters.ts roaming packs, ambush tripwires, loot, mystery plates
+│   │   ├── scatter.ts   rocks, blocks and ground cover (planProps / commitProps)
+│   │   ├── landmarks.ts per-biome set pieces (world<i>Landmarks, default off)
+│   │   ├── monsterThemes.ts, presets.ts  data for the World tab: one-click
+│   │   │                 monster pools and four whole-island presets; nothing
+│   │   │                 in generation reads them
+│   │   ├── build.ts     buildWorld: MAX_WORLD_ATTEMPTS 20, WORLD_STEPS tally
+│   │   │                 (island start coast reach sites trails), objects,
+│   │   │                 coast LAST; boss picks draw from the layout stream,
+│   │   │                 after every placement draw
+│   │   └── emit.ts      the tilemap (water, ground, tufts, trail) + sections
 │   ├── survival/        the SURVIVAL arena's rig — everything boss/'s tier
 │   │   │                 rigs do, re-keyed from boss health to elapsed time.
 │   │   │                 Exists because the engine fires the `Boss ...` events
@@ -200,13 +240,21 @@ src/
 │   │   └── xml.ts        the tweak XML dialect (separate from xml/)
 │   └── index.ts          generateDungeon() + all public types
 ├── main/                 index.ts (window), ipc.ts (handlers + last-result
-│                         cache), packer.ts (write/pack/install), settings.ts
+│                         cache), packer.ts (write/pack/install), settings.ts,
+│                         generateWorker.ts (generateDungeon in a worker thread;
+│                         dungeon:cancel terminates it — the Generate button
+│                         becomes Cancel while one runs)
 ├── preload/              contextBridge → window.api
-├── renderer/             App.tsx (Lobby|Dungeon|Boss|Floor order|Player and
+├── renderer/             App.tsx (Lobby|Dungeon|Boss|World|Floor order|Player and
 │                         Preview|Loadout tabs), components/{ParameterForm,
 │                         PlayerForm, QuickSetup, LobbyForm, BossForm,
-│                         FloorOrderEditor,
-│                         LevelPreview, LoadoutSheet, MonsterPoolsEditor,
+│                         WorldForm (the World tab: one island per sub-tab,
+│                         edits through set()/setWorld() and repairs levelOrder
+│                         with campaignCounts()), FloorOrderEditor,
+│                         LevelPreview (draws a world's map, sites and notes),
+│                         MonsterPoolPicker (one floor-style pool, shared by
+│                         MonsterPoolsEditor and the World tab),
+│                         LoadoutSheet, MonsterPoolsEditor,
 │                         PoolGroup, PoolTextField, MonsterFilterBar,
 │                         MonsterMaxTable, FloorTimerEditor, FloorBuffEditor,
                          FloorTrapEditor,
@@ -217,7 +265,7 @@ src/
 │                         OutputPanel, fields},
 │                         styles/app.css
 └── shared/ipc.ts         types shared across the bridge
-tests/                    vitest, 39 suites / 1548 tests: rand, context,
+tests/                    vitest, 56 suites / about 2650 tests (2026-11-20): rand, context,
                           music, bossCheckpoints,
                           configFile, validation, generation, reachability,
                           sealIntegrity, themes (+ a
@@ -229,7 +277,10 @@ tests/                    vitest, 39 suites / 1548 tests: rand, context,
                           campaignOrder, rearrange, floorTimer, floorBuffs,
                           floorTraps,
                           bossGeometry, bossSpawnPoints, bosses, anchors,
-                          arenaPattern, packer, tweak, tweakChains, tweakBulk.
+                          arenaPattern, packer, tweak, tweakChains, tweakBulk, plus the world suites
+                          (world, worldAudit, worldBiomes, worldMesa, worldTerrain),
+                          fingerprint (every stock preset on two seeds) and
+                          packerPresets (opt-in, real LevelPacker).
                           Helpers (not suites): params.ts — plainParameters(),
                           the default-order, NO-LOBBY base every suite that
                           mutates `levels`, the fight count or the lobby list
@@ -249,7 +300,7 @@ reference/hammerwatch-tweak-stats.md
 2. **Determinism.** `(params, seed)` ⇒ byte-identical files. Forbidden inside
    the generator: `Math.random()`, `Date`, `crypto`, iteration over an object
    whose key order isn't fixed, `Array.sort` without a total comparator.
-3. **Six RNG streams, never mixed.** (The sixth, `ctx.mysteryRand`
+3. **Seven RNG streams, never mixed.** (The seventh, `ctx.worldRand` (seed + 6), serves the world slots: three `nextInt(2147483647)` draws per world in list order seed its private `layout`, `scatter` and `encounters` streams, nothing else. The sixth, `ctx.mysteryRand`
    (seed + 5), drives the per-floor mystery buttons — see *Mystery buttons*
    below; it follows the trap stream's post-acceptance rules exactly.) `ctx.rand` (seed) drives layout and
    population — the stream that must match the Java original.
@@ -277,7 +328,11 @@ reference/hammerwatch-tweak-stats.md
 6. **`parameters.txt` stays compatible.** Keys are matched case-insensitively
    (`configFile.ts` lowercases). Unrecognized keys go into `unknownKeys` and
    are surfaced to the user — never thrown.
-7. **IPC payloads stay small.** Generated file contents live in `lastResult`
+7. **IPC payloads stay small.** `dungeon:generate` runs `generateDungeon` in a
+   worker thread (`src/main/generateWorker.ts`, started per press by
+   `generateInWorker` in `ipc.ts`); `dungeon:cancel` terminates it and the
+   generate call resolves with the `GENERATION_CANCELLED` error, which the
+   renderer shows as a neutral toast and keeps the previous result. Generated file contents live in `lastResult`
    in `src/main/ipc.ts` and are *stripped* from the renderer response; the
    renderer only ever receives previews. Don't send megabytes of XML over the
    bridge.
@@ -320,8 +375,10 @@ reference/hammerwatch-tweak-stats.md
    (`campaign.ts`) decides where each level leads, what `levels.xml` lists and
    in what order, and which slot carries the victory orb — through
    `ctx.gateway`, which `map/level.ts`, `map/room.ts`, `objects/objectSet.ts`
-   and `boss/arena.ts` read. A slot is a floor, a boss fight or a lobby; a
-   fight is entered at its **arena**, and a lobby may never be the last slot
+   and `boss/arena.ts` read. A slot is a floor, a boss fight, a lobby or a world; a
+   fight is entered at its **arena**, a world at `world{i}` by the `exit` kind
+   (it may be last and then carries the orb; a missing world is appended at
+   the end), and a lobby may never be the last slot
    because it has no orb. `gatewayAfter` yields four kinds — `exit` (stairs to
    a floor), `portal` (red, to an arena), `lobbyPortal` (blue, to a lobby) and
    `orb`. The three non-stairs kinds share one room-selection branch in
@@ -341,6 +398,22 @@ reference/hammerwatch-tweak-stats.md
    room only inside that band is sealed in game while looking open in the
    tilemap. The fix for a sealed floor is the existing re-roll — never loosen
    the check, and never model fewer than `OVERHANG_ROWS` rows.
+11. **A world the party can leave the island from is invalid.** `world/` builds
+   an open island (`world/island.ts`, `coast.ts`, `build.ts`, `emit.ts`) and is
+   valid only when its coast CLOSES under the theme's collision model —
+   `coastCloses` floods from the arrival over `map/sealCheck.ts`'s fence model
+   of the emitted theme h pieces and rejects the island if anything reached is
+   more than one tile from land or on the map border — and, once objectives
+   exist, every objective site is reachable from the arrival. Every loop is
+   bounded: `MAX_WORLD_ATTEMPTS = 20` islands per world (size is drawn INSIDE
+   that loop), `MAX_PASSES = 24` mask-cleaning passes, capped placement tries.
+   A failed world reports `Could not generate world N: <advice>` with the tally
+   of failed tries by step. Never relax the proof to make an island pass; add a
+   mask rule or let it re-roll. Exactly three `ctx.worldRand` draws per world
+   (seeding `layout`, `scatter`, `encounters`) whatever happens, and every
+   coast piece gets its id after every object. A campaign without a world —
+   `params.world` absent, or `enabled: false` — and its `parameters.txt` export
+   are byte-identical to before the feature (`tests/fingerprint.test.ts`).
 
 ## Parameters (the app's whole surface)
 
@@ -376,6 +449,8 @@ reference/hammerwatch-tweak-stats.md
 | `lobbies[i].upgrades` | every kind 0 | free upgrade pickups on that lobby's floor, one count per `UPGRADE_KINDS` entry (`damage`, `defense`, `health`, `mana`, then the four `*2` tiers). Whole number 0…`UPGRADE_COUNT_MAX` (10000) each; **0 emits no item array**. One authored slot per kind **per preset**, so a count above one *stacks* on that slot rather than needing the room's layout to grow. `lobby<i>Upgrades` in `parameters.txt`. See *Free upgrades* below |
 | `boss` | **on** | the finale: `{enabled, fights}`, **one** appended level per fight — the arena. A shop before a fight is an ordinary lobby slot now, not part of the fight. See the sub-table below and *Boss finale* |
 | `levelOrder` | the shipped order (**not** absent): `L1,1,…,7,L2,B1,8` | the campaign's play order, one `CampaignSlot` per lobby, per floor and per boss **fight**. Absent = every lobby, then every floor, then every fight; with `lobbies: []` that is the pre-feature shape and the only value guaranteed byte-identical. All three sequences stay ascending; only the interleaving is free, and a **lobby may never be last** (it carries no victory orb). `levelOrder=L1,1,2,B1,3` in `parameters.txt`, written only when it differs from the default. See *Campaign order* |
+| `world` | absent | World mode: `{enabled, worlds: WorldDef[]}`, one island per world, at most `WORLD_MAX_COUNT` (20). Read through `worldList()` and the `world*` accessors in `world/options.ts`, never off the raw field. Absent or `enabled: false` builds nothing and exports nothing. `world=0|1`, `worlds=<n>` in `parameters.txt` |
+| `world<i>…` (0-based) | per-field defaults | `Biome` (desert, oasis, drygrass, frozen), `Hub` (bare, camp), `Width`/`Height` (`min,max`, 64..512), `Coast` (0..100), `WaterMargin` (4..16), `Buttons`, `Bosses`, `BossPool`, `BossSelection`, `BossLineup`, `SafeRadius` (6..40), `Trails`, `Checkpoints`, `Landmarks`, `Plateaus`, `PlateauMin`, `PlateauMax`, `PlateauStairs`, `Monsters`, `Packs`, `PackSize`, `Ambushes`, `AmbushSize`, `ButtonAmbush`, `AmbushType<n>`, `Scatter`, `Loot`, `Mystery=<count>:<pool>`, `Disguise`, `Timer`, `Music`. A key past `WORLD_MAX_COUNT` or with a bad value lands in `unknownKeys`. A world is slot `W<n>` (1-based) in `levelOrder`, file `worldK`, level id `world<i>`; a world missing from `levelOrder` is appended last. The World tab edits it; see `validateWorlds` in `validation.ts` for every rule |
 
 `BossOptions` (`config/parameters.ts`) is `{enabled, fights: BossFight[]}`, and a
 `BossFight` is `{mode?, arena: BossArenaOptions, survival?}` — an arena and nothing else since
@@ -409,7 +484,7 @@ enabled, **no upper bound** (mirrors `levels`), written as `bossFights` in
 
 ### Campaign presets
 
-**Four groups.** Every `CampaignPreset` carries a `group`. Presets load only
+**Six groups.** Every `CampaignPreset` carries a `group`. Presets load only
 from the header's **Load preset…** button, which opens `PresetGuide`'s dialog
 (issue #77 removed the quick dropdown: one misclick there replaced a parameter
 set before it was exported). The dialog renders one native `<details>` per
@@ -497,7 +572,16 @@ minions, because a boss actor does NOT catch a monsters-only buff field
 players and never saves mid-fight (both checkpoints `'never'`). Both survival arenas count down every
 second (`countdown: 'seconds'`), because `milestones` read as no goal at all.
 Their filler rows use the toughest regulars (`skeleton3`, `archer3`,
-`bat2#2`, `lich#2`), since an upgraded party clears the easy ones instantly. The header text lives only in
+`bat2#2`, `lich#2`), since an upgraded party clears the easy ones instantly. `campaign` ("Campaign Mode", `config/campaignModePresets.ts`) holds **Castle Campaign** and
+**Desert Campaign**, played in acts (floors, a town, a boss); the Desert one opens
+`L1, W1, 1, 2, 3, L2, AB1, …` on a world slot. `claudeWorld` ("Claude Generated
+Open World", `config/worldCampaignPresets.ts`) holds six presets that put islands
+in the play order: The Lost Entrance, Breakout, Manhunt, Archipelago, Surface and
+Depths and Storm Front. A preset that puts a world before the end stores its
+`levelOrder` explicitly, since worlds sort last by default. Worlds draw only from
+`ctx.worldRand`, so no preset's floors, arenas or towns move. `tests/fingerprint.test.ts`
+hashes every stock preset and `tests/packerPresets.test.ts` packs them all (opt-in).
+The header text lives only in
 `PRESET_GROUPS`. The escape-floor / shared-arena-size tests in
 `tests/presets.test.ts` apply to the `classic` group only. Every preset in every
 group must validate, generate, stay deterministic and round-trip through
@@ -1155,7 +1239,7 @@ Rearranging is a linking change; generating in a different sequence would move
 every seed.
 
 `slotLabel`/`parseSlotLabel` are the whole vocabulary: `3` for a floor, `B2`
-for a fight, `L2` for a lobby, all 1-based because a person reads them, and
+for a fight (`AB`/`AS` for an arena), `L2` for a lobby, `W1` for a world, all 1-based because a person reads them, and
 those are exactly the tokens `levelOrder=` carries in `parameters.txt`.
 
 **A lobby may never be the campaign's last slot** — it has no victory orb, so a
@@ -1795,6 +1879,11 @@ Optional chat that turns a description into `parameters.txt` lines. Boundaries:
   connectivity, spawn points, wave rig, floor patterns), and the tweak layer
   (baseline integrity, whole-file emission, no-change-no-file, loadout
   ceilings, and the bulk knobs' stat-group coverage and derive round-trip).
+- **Preset fingerprints.** `tests/fingerprint.test.ts` hashes every stock
+  preset (plus `defaultParameters()`) on seeds 1 and 4242 against
+  `tests/fixtures/preset-fingerprints.json`. A failure means a stock output
+  moved. Re-baseline only on purpose (`UPDATE_FINGERPRINTS=1 npm test`) and
+  name the re-baseline in that commit; a bug fix must never need it.
 - **An optional level's on/off switch must not move the dungeon.** The suites
   assert it directly: emptying `lobbies`, flipping `boss` or changing any tweak
   leaves every `levels/level*.xml` byte-identical for a seed. Moving a lobby
@@ -1805,6 +1894,8 @@ Optional chat that turns a description into `parameters.txt` lines. Boundaries:
   seed users have saved. If a fix requires it, say so explicitly in the PR
   body — do not slip it in.
 - **Gate:** `npm run typecheck && npm test` must pass before handing work back.
+- **Real-packer check (opt-in):** `tests/packerPresets.test.ts` packs every preset through `installCampaign` against a real install. PowerShell: `$env:HW_PACKER_TEST='1'; npx vitest run tests/packerPresets.test.ts` (install from `HAMMERWATCH_PATH`, default the Steam path). Skipped otherwise; cleans up after itself.
+- **Dev scripts** (`scripts/dev/*.ts`, run through `scripts/run-ts.mjs`, which bundles with esbuild into the OS temp dir): `node scripts/run-ts.mjs scripts/dev/measure-gold.ts 3` prints, per campaign preset, the coins and diamonds placed on its floors (seeds 1000.., a lower bound: chests, breakables, drops and plate loot are not counted) beside the lobbies' starting gold. Report only; it changes no preset.
 - **Don't add dependencies** without a stated reason; the runtime deps are
   exactly `react`, `react-dom`, `jszip`.
 

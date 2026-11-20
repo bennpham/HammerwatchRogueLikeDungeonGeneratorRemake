@@ -340,7 +340,7 @@ function desertOutdoor(): ThemeDef {
   return {
     id: 'h',
     label: 'h',
-    group: 'Desert',
+    group: 'Temple of the Sun',
     tilemap: 'tilemaps/h_default.xml',
     // h_default.xml declares 2 floor sprites; its other 12 <sprite> tags live
     // inside <borders> and are picked by the engine, not by `data-t`
@@ -381,11 +381,11 @@ const BASE_THEME_DEFS: readonly ThemeDef[] = [
   classic('b', 4, 'Classic dungeon'),
   classic('c', 4, 'Classic dungeon'),
   classic('d', 8, 'Classic dungeon'),
-  classic('e', 2, 'Castle'),
-  classic('f', 2, 'Castle'),
-  classic('g', 2, 'Castle'),
+  classic('e', 2, 'Temple of the Sun'),
+  classic('f', 2, 'Temple of the Sun'),
+  classic('g', 2, 'Temple of the Sun'),
   desertOutdoor(),
-  classic('i', 8, 'Desert'),
+  classic('i', 8, 'Temple of the Sun'),
   bonus(1, 2, 'a'),
   bonus(2, 1, 'a'),
   bonus(3, 1, 'a'),

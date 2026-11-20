@@ -17,6 +17,7 @@ export type NodeTypeName =
   | 'TimerTrigger'
   | 'DestroyObject'
   | 'ToggleImmortality'
+  | 'HideObject'
   | 'DangerArea'
   | 'PlaySound'
   | 'PlayMusic'

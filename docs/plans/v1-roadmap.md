@@ -1,6 +1,6 @@
 # Roadmap to 1.0
 
-Date: 2026-11-15, updated 2026-11-18 for AE PRs #18 and #19. Status: plan, nothing in it is built. Current version: **0.9.5** (`package.json`), with an `[Unreleased]` section in `CHANGELOG.md` that holds the House lobby as the default room, the Classic presets moved into their own hubs, the Temple of the Sun bazaar, Castle Hammerwatch bridge and Shaftlocke Peak sky shop lobbies, and the BETA lobbies removed.
+Date: 2026-11-15, updated 2026-11-18 for AE PRs #18 and #19. Status: M1 to M9 and M10's packer test are built on branch `v1-roadmap-build` (2026-11-20); every in-game play check (M0, D1 to D10, and `docs/BOOT-CHECKLIST.md`) is still open, and there is no version bump (0.9.5 stays, everything under `[Unreleased]`). Current version: **0.9.5** (`package.json`), with an `[Unreleased]` section in `CHANGELOG.md` that holds the House lobby as the default room, the Classic presets moved into their own hubs, the Temple of the Sun bazaar, Castle Hammerwatch bridge and Shaftlocke Peak sky shop lobbies, and the BETA lobbies removed.
 
 This is the order of work between now and 1.0. It ports World mode from the Anniversary Edition fork (AE PRs #15 and #16) to the original Hammerwatch ("HW1"), and it scopes this repo's versions of the four documents that AE's PR #17 added. AE then built all four in PR #18 and moved the world's victory orb in PR #19 (both merged 2026-11-17). "What AE PRs #18 and #19 settled" below lists what carries over. This repo's four documents are still not written. They come in later PRs, and two of them depend on the world existing.
 
@@ -64,6 +64,8 @@ Every milestone ends on the gate `npm run typecheck && npm test`. Play checks ar
 
 ### M0. In-game discovery
 
+**Status:** open. The D1 to D10 answers await play; nothing here has been booted.
+
 - **Goal:** answer the questions that decide how World mode is built, before any generator code.
 - **Specified in:** `docs/discovery/world-mode.md` (world-mode.md pass 0).
 - **Inputs:** the HW1 install (read-only), hand-built or script-built test levels, and the 2026-11-15 asset survey in DISCOVERY-LOG. The questions that decide design: whether theme h's edge-fence pieces seal a free-form coast; which invisible blocker works (`actors/boss_krilith/collision_skeleton_1_mb.xml`, or ledge pieces hidden by `HideObject` on `LevelLoaded`); the largest level HW1 loads and runs smoothly (stock tops out at 240×240 in `campaign/levels/level_11.xml`); monster and doodad counts against frame rate; whether `HideObject` can reveal an orb; which portal doodad toggles (`generic/exit_teleport_boss` has `open`/`closed`, `generic/exit_teleport_boss_desert` has no states); whether theme e and f walls seal an organic outline; ledge and stairs passability in themes e, g and i.
@@ -72,6 +74,8 @@ Every milestone ends on the gate `npm run typecheck && npm test`. Play checks ar
 - **Done:** every question has a recorded answer or an explicit "unknown, design around it". The world size cap and the coast approach are fixed.
 
 ### M1. World plumbing, island and coast
+
+**Status:** built on `v1-roadmap-build` (2026-11-20); not played.
 
 - **Goal:** a `world` slot kind (`W{n}`), a seventh stream `ctx.worldRand` at `seed + 6`, the island mask, the coast and an empty playable island with arrival and exit.
 - **Specified in:** `docs/plans/world-mode.md` passes 1 (and the plumbing parts of 2 if that plan splits them).
@@ -82,6 +86,8 @@ Every milestone ends on the gate `npm run typecheck && npm test`. Play checks ar
 
 ### M2. Objectives
 
+**Status:** built on `v1-roadmap-build` (2026-11-20); not played.
+
 - **Goal:** buttons and bosses round the island, one countdown, the portal opens at zero; on the last slot a hidden orb is revealed instead.
 - **Specified in:** `docs/plans/world-mode.md` pass 2.
 - **Inputs:** M1; M0's portal and `HideObject` answers. Reuses the verified countdown: `buildButtonCountdown` (`map/buttonSeal.ts`, exported and generalised) fed by each button and by one `ObjectEventTrigger(Destroyed)` per boss, the trigger `buildAllBossesDied` builds. Bosses come from `MOBILE_BOSS_IDS`. Needs a `NodeHideObject` class.
@@ -90,6 +96,8 @@ Every milestone ends on the gate `npm run typecheck && npm test`. Play checks ar
 - **Done:** a world with 1–N buttons and 0–N mobile bosses is finishable on every tested seed.
 
 ### M3. Encounters, loot and mystery plates
+
+**Status:** built on `v1-roadmap-build` (2026-11-20); not played.
 
 - **Goal:** roaming packs, ambush tripwires, coin caches, optional mystery plates, optional timer and music.
 - **Specified in:** `docs/plans/world-mode.md` pass 3.
@@ -100,6 +108,8 @@ Every milestone ends on the gate `npm run typecheck && npm test`. Play checks ar
 
 ### M4. UI and AI assistant prompt
 
+**Status:** built on `v1-roadmap-build` (2026-11-20); not played.
+
 - **Goal:** a World tab, the world chip in the Floor order editor, the island preview, and the AI preset assistant taught the slot.
 - **Specified in:** `docs/plans/world-mode.md`, section "UI". Passes 1–3 each add their own section of the World tab as they land; M4 finishes the tab, the preview marks and the assistant prompt.
 - **Inputs:** M1–M3's parameter shape. Touches `App.tsx`, `FloorOrderEditor.tsx`, `FloorLockEditor.tsx`, `LevelPreview.tsx`, `styles/app.css`, `src/shared/llm/prompt.ts`, `src/main/ipc.ts`.
@@ -108,6 +118,8 @@ Every milestone ends on the gate `npm run typecheck && npm test`. Play checks ar
 - **Done:** generation no longer freezes the window. AE built this in PR #18 (C1): a `worker_threads` worker per Generate press, and a Cancel button (see "What AE PRs #18 and #19 settled"). It is not world-specific, so it should be ported **before** M1, in 0.9.6. M4 then only checks that it holds at the world size cap. The port is the `app-shell-implementer`'s. Gate: `npm run build`, then generate, cancel halfway and generate again in the built app. AE has checked Cancel only on the built bundle outside Electron, so this repo's play check is the first one done in the app window.
 
 ### M5. Terrain: biomes, then plateaus
+
+**Status:** built on `v1-roadmap-build` (2026-11-20): oasis, dry grass and frozen, plateaus on oasis and dry grass, mesas on desert and frozen; not played.
 
 - **Goal:** four HW1 biomes, then raised plateaus climbed by stairs.
 - **Specified in:** `docs/plans/world-mode-terrain.md`.
@@ -118,6 +130,8 @@ Every milestone ends on the gate `npm run typecheck && npm test`. Play checks ar
 
 ### M6. World-mode audit
 
+**Status:** built on `v1-roadmap-build` (2026-11-20): `docs/plans/world-mode-audit.md` written and its A items fixed.
+
 - **Goal:** read the built `src/generator/world/` and write `docs/plans/world-mode-audit.md`, then fix its A items.
 - **Inputs:** M1–M5 merged. Scope below.
 - **Who:** the orchestrator writes the audit; `generator-implementer` fixes; `crash-triage` reproduces any failure the property test finds.
@@ -125,6 +139,8 @@ Every milestone ends on the gate `npm run typecheck && npm test`. Play checks ar
 - **Done:** exit criterion 5.
 
 ### M7. Preset balance audit
+
+**Status:** built on `v1-roadmap-build` (2026-11-20): `docs/plans/preset-balance-audit.md` written and the accepted fixes landed.
 
 - **Goal:** `docs/plans/preset-balance-audit.md` over this repo's 15 presets, then the fixes the owner accepts.
 - **Inputs:** none from the world. Can start now. AE's audit, the owner's answers to it and AE's fixes (PR #18) are the template. See the M7 scope below.
@@ -134,6 +150,8 @@ Every milestone ends on the gate `npm run typecheck && npm test`. Play checks ar
 
 ### M8. Campaign Mode presets
 
+**Status:** built on `v1-roadmap-build` (2026-11-20): Castle Campaign and Desert Campaign; not played.
+
 - **Goal:** a new preset group with a 4-act Castle campaign and a 3-act Desert campaign, each town selling one more skill tier.
 - **Inputs:** M7's floor-gold numbers for the town gold (the presets can be drafted before them). No world needed. AE built its three Campaign Mode presets in PR #18. Its `campaign-mode.md` Status section settles the open questions (see the M8 scope).
 - **Who:** orchestrator writes `docs/plans/campaign-mode.md`; `generator-implementer` builds `src/generator/config/campaignModePresets.ts`, `presetHelpers.ts` and `familyWaves.ts`.
@@ -142,6 +160,8 @@ Every milestone ends on the gate `npm run typecheck && npm test`. Play checks ar
 
 ### M9. Open-world presets
 
+**Status:** built on `v1-roadmap-build` (2026-11-20): all six presets; not played.
+
 - **Goal:** a "Claude Generated Open World" preset group.
 - **Inputs:** M1–M6 played; M8's shared helper module; the three loader fixes under "Latent bugs" (Archipelago and Storm Front have no floors, and Archipelago has no arena).
 - **Who:** orchestrator writes `docs/plans/open-world-presets.md` after the world is played; `generator-implementer` builds the presets in `src/generator/config/worldCampaignPresets.ts`, as AE did.
@@ -149,6 +169,8 @@ Every milestone ends on the gate `npm run typecheck && npm test`. Play checks ar
 - **Done:** exit criterion 7.
 
 ### M10. Release hardening
+
+**Status:** partly done. The install-gated packer test (`tests/packerPresets.test.ts`) is built, and the release docs sweep is done. The 1.0.0 bump and the play checks remain open.
 
 - **Goal:** 1.0.
 - **Work:** sweep `CLAUDE.md`, the four skills, `README.md` and `CHANGELOG.md` for drift. Add the packer test: a hand-run script, or an install-gated test skipped when the install is absent, that exports every preset, runs `LevelPacker.exe` through `src/main/packer.ts`'s logic and checks a `.hwm` comes out. Fix the stale counts found on the way (below). Bump `package.json` to 1.0.0.

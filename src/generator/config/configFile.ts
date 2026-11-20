@@ -18,6 +18,7 @@ import {
   defaultFloorLockMystery,
   MYSTERY_PARSE_LIMIT,
   gatewayLockedFloors,
+  campaignCounts,
   defaultLobby,
   defaultParameters,
   isScatterMode,
@@ -63,12 +64,36 @@ import type {
   DungeonBoss,
   BossSelection,
   FloorMystery,
+  FloorTimer,
   FloorLockMystery,
   MysteryButton,
   MysteryMonster
 } from './parameters'
-import { MONSTER_FAMILIES, MONSTER_TYPES, isKnownMonsterKey } from '../objects/monsterTypes'
+import { MONSTER_FAMILIES, MONSTER_TYPES, isKnownFloorPoolKey, isKnownMonsterKey } from '../objects/monsterTypes'
 import { buffById } from '../objects/buffTypes'
+import { BIOME_IDS } from '../world/biomes'
+import {
+  WORLD_AMBUSH_TYPES_MAX,
+  WORLD_MAX_COUNT,
+  defaultWorld,
+  worldAmbushSize,
+  worldAmbushTypes,
+  worldAmbushes,
+  worldBossPool,
+  worldButtonAmbush,
+  worldButtons,
+  worldCheckpoints,
+  worldLandmarks,
+  worldHub,
+  worldLoot,
+  worldMonsters,
+  worldPackSize,
+  worldPacks,
+  worldSafeRadius,
+  worldScatter,
+  worldTrails
+} from '../world/options'
+import type { WorldAmbushType, WorldDef, WorldOptions } from '../world/options'
 import { pickupById } from '../objects/pickupTypes'
 import { mysteryLootById } from '../objects/mysteryLoot'
 import { projectileById } from '../objects/projectileTypes'
@@ -355,6 +380,63 @@ function parseMonsterCountRows(key: string, value: string, unknownKeys: string[]
     rows.push({ monster, count })
   }
   return rows
+}
+
+/**
+ * One `enabled|seconds|damage|freqMs|countdown` timer value into `timer`, the
+ * floors' `timerN` and a world's `Timer` alike. Per-field NaN guards, house
+ * style: a malformed segment is reported and only that field keeps its value.
+ */
+function parseTimerFields(key: string, value: string, timer: FloorTimer, unknownKeys: string[]): void {
+  const fields = value.split('|').map((f) => f.trim())
+  timer.enabled = fields[0] === '1'
+  const numeric: Array<[number, string, (n: number) => void]> = [
+    [1, 'seconds', (n) => (timer.seconds = n)],
+    [2, 'damage', (n) => (timer.damage = n)],
+    [3, 'freqMs', (n) => (timer.freqMs = n)]
+  ]
+  for (const [index, name, assign] of numeric) {
+    if (fields[index] === undefined || fields[index] === '') continue
+    const n = parseInt(fields[index], 10)
+    if (Number.isNaN(n)) unknownKeys.push(`${key} ${name} "${fields[index]}"`)
+    else assign(n)
+  }
+  if (fields[4] !== undefined && fields[4] !== '') timer.countdown = fields[4] === '1'
+}
+
+/** The world suffixes (lowercased) that carry one whole number each, besides the island and objective ones. */
+const WORLD_ENCOUNTER_INTS: ReadonlySet<string> = new Set(['packs', 'packsize', 'ambushes', 'ambushsize', 'buttonambush', 'scatter', 'loot'])
+
+/**
+ * One world ambush type, `<weight>|<monster>:<count>,<monster>:<count>`. A bad
+ * weight makes the whole line unusable (reported, null); an unknown monster or
+ * a bad count drops just that row, as a mystery button's rows do.
+ */
+function parseAmbushType(key: string, value: string, unknownKeys: string[]): WorldAmbushType | null {
+  const bar = value.indexOf('|')
+  const weightText = (bar === -1 ? value : value.slice(0, bar)).trim()
+  if (!/^\d+$/.test(weightText)) {
+    unknownKeys.push(`${key} weight "${weightText}"`)
+    return null
+  }
+  const monsters: MysteryMonster[] = []
+  for (const segment of (bar === -1 ? '' : value.slice(bar + 1)).split(',')) {
+    const trimmed = segment.trim()
+    if (trimmed === '') continue
+    const colon = trimmed.indexOf(':')
+    const monster = (colon === -1 ? trimmed : trimmed.slice(0, colon)).trim().toLowerCase()
+    const countText = colon === -1 ? '1' : trimmed.slice(colon + 1).trim()
+    if (!isKnownMonsterKey(monster)) {
+      unknownKeys.push(`${key} monster "${monster}"`)
+      continue
+    }
+    if (!/^\d+$/.test(countText)) {
+      unknownKeys.push(`${key} count "${countText}"`)
+      continue
+    }
+    monsters.push({ monster, count: parseInt(countText, 10) })
+  }
+  return { weight: parseInt(weightText, 10), monsters }
 }
 
 /** A pool entry nothing has been set on yet — what `mysteryButton<i>…` keys grow the pool with. */
@@ -1342,6 +1424,25 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     return pool[index]
   }
 
+  // World bookkeeping, the lobby shape again: `world<i>` keys carry an index
+  // and the count (`worlds=`) may come before or after them. Unlike a lobby
+  // the list is CAPPED here, in the loader: `worlds=` above WORLD_MAX_COUNT
+  // and any `world<i>` with i at or past it are reported and never grow the
+  // list, so a stray index cannot allocate thousands of worlds.
+  /** the keys that named each world index, so an index past `worlds` can be reported */
+  const worldKeys = new Map<number, string[]>()
+  /** the `worlds=` count, or null when the file never declared one */
+  let declaredWorldCount: number | null = null
+  const worldOptions = (): WorldOptions => params.world ?? (params.world = { enabled: false, worlds: [] })
+  const worldAt = (index: number, key: string): WorldDef => {
+    const list = worldOptions().worlds
+    while (list.length <= index) list.push(defaultWorld())
+    const named = worldKeys.get(index)
+    if (named === undefined) worldKeys.set(index, [key])
+    else named.push(key)
+    return list[index]
+  }
+
   const lobbyAt = (index: number, key: string): LobbyOptions => {
     while (params.lobbies.length <= index) params.lobbies.push(defaultLobby(DEFAULT_LOBBY_PRESET_ID))
     const named = lobbyKeys.get(index)
@@ -1412,7 +1513,7 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       continue
     }
     if (keyLower === 'themes') {
-      params.themes = value.split(',').map((t) => t.trim())
+      params.themes = value === '' ? [] : value.split(',').map((t) => t.trim())
       continue
     }
     if (keyLower === 'lobbysaves') {
@@ -1481,6 +1582,219 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       }
 
       // an unrecognized lobby<i> suffix
+      result.unknownKeys.push(key)
+      continue
+    }
+
+    // `world=0|1` and `worlds=<n>` are matched BEFORE the indexed dispatcher
+    // below, as `lobbies` is before `lobby<i>…`: `worlds` has no digit and
+    // would otherwise fall to the catch-all.
+    if (keyLower === 'world') {
+      worldOptions().enabled = value === '1'
+      continue
+    }
+    if (keyLower === 'worlds') {
+      const n = parseInt(value, 10)
+      if (!/^\d+$/.test(value) || n > WORLD_MAX_COUNT) result.unknownKeys.push(`${key} value "${value}"`)
+      else declaredWorldCount = n
+      continue
+    }
+    const worldMatch = keyLower.match(/^world(\d+)(.+)$/)
+    if (worldMatch) {
+      const index = parseInt(worldMatch[1], 10)
+      const suffix = worldMatch[2]
+      if (!Number.isSafeInteger(index) || index >= WORLD_MAX_COUNT) {
+        result.unknownKeys.push(key)
+        continue
+      }
+      const ints = (raw: string, n: number): number[] | null => {
+        const parts = raw.split(',').map((t) => t.trim())
+        return parts.length === n && parts.every((t) => /^\d+$/.test(t)) ? parts.map((t) => parseInt(t, 10)) : null
+      }
+      // Validate before touching the list, so a bad value never grows it.
+      if (suffix === 'biome') {
+        if (!BIOME_IDS.includes(value)) result.unknownKeys.push(`${key} value "${value}"`)
+        else worldAt(index, key).biome = value
+        continue
+      }
+      if (suffix === 'hub') {
+        const kind = value.trim().toLowerCase()
+        if (kind !== 'bare' && kind !== 'camp') result.unknownKeys.push(`${key} value "${value}"`)
+        else worldAt(index, key).hub = kind
+        continue
+      }
+      if (suffix === 'width' || suffix === 'height') {
+        const pair = ints(value, 2)
+        if (pair === null) {
+          result.unknownKeys.push(`${key} value "${value}"`)
+          continue
+        }
+        const world = worldAt(index, key)
+        if (suffix === 'width') [world.minWidth, world.maxWidth] = pair
+        else [world.minHeight, world.maxHeight] = pair
+        continue
+      }
+      if (suffix === 'coast' || suffix === 'watermargin') {
+        const one = ints(value, 1)
+        if (one === null) {
+          result.unknownKeys.push(`${key} value "${value}"`)
+          continue
+        }
+        const world = worldAt(index, key)
+        if (suffix === 'coast') world.coast = one[0]
+        else world.waterMargin = one[0]
+        continue
+      }
+      if (WORLD_ENCOUNTER_INTS.has(suffix)) {
+        const one = ints(value, 1)
+        if (one === null) {
+          result.unknownKeys.push(`${key} value "${value}"`)
+          continue
+        }
+        const world = worldAt(index, key)
+        if (suffix === 'packs') world.packs = one[0]
+        else if (suffix === 'packsize') world.packSize = one[0]
+        else if (suffix === 'ambushes') world.ambushes = one[0]
+        else if (suffix === 'ambushsize') world.ambushSize = one[0]
+        else if (suffix === 'scatter') world.scatter = one[0]
+        else if (suffix === 'loot') world.loot = one[0]
+        else world.buttonAmbush = one[0]
+        continue
+      }
+      if (suffix === 'monsters') {
+        // a pool key a floor accepts; anything else is reported and dropped
+        const pool: string[] = []
+        for (const k of value.split(',').map((t) => t.trim()).filter((t) => t !== '')) {
+          if (isKnownFloorPoolKey(k)) pool.push(k)
+          else result.unknownKeys.push(`${key} monster "${k}"`)
+        }
+        worldAt(index, key).monsters = pool
+        continue
+      }
+      if (suffix === 'mystery') {
+        // Mystery=<count>:<pool index>,… — the floors' own `mysteryFloorN`
+        // grammar (`parsePoolLine`): 0-based indices into mysteryButtons,
+        // repeated to weight. A bad count drops the line; a bad pool token is
+        // reported and skipped.
+        const parsed = parsePoolLine(key, value, result.unknownKeys)
+        if (parsed !== null) worldAt(index, key).mystery = parsed
+        continue
+      }
+      if (suffix === 'timer') {
+        const timer = defaultFloorTimer()
+        parseTimerFields(key, value, timer, result.unknownKeys)
+        worldAt(index, key).timer = timer
+        continue
+      }
+      if (suffix === 'music') {
+        if (isKnownMusicId(value)) worldAt(index, key).music = value
+        else result.unknownKeys.push(`${key} value "${value}"`)
+        continue
+      }
+      if (suffix === 'disguise') {
+        const text = value.trim().toLowerCase()
+        if (text !== '0' && text !== '1' && text !== 'true' && text !== 'false') {
+          result.unknownKeys.push(`${key} value "${value}"`)
+          continue
+        }
+        worldAt(index, key).disguise = text === '1' || text === 'true'
+        continue
+      }
+      const ambushMatch = suffix.match(/^ambushtype(\d+)$/)
+      if (ambushMatch) {
+        // AmbushType<k>=<weight>|<monster>:<count>,<monster>:<count>, k from 1.
+        // Both an out-of-range k and a malformed line are reported, and never
+        // grow the list.
+        const slot = parseInt(ambushMatch[1], 10) - 1
+        const parsed = parseAmbushType(key, value, result.unknownKeys)
+        if (slot < 0 || slot >= WORLD_AMBUSH_TYPES_MAX || parsed === null) {
+          if (parsed !== null) result.unknownKeys.push(`${key} value "${value}"`)
+          continue
+        }
+        const world = worldAt(index, key)
+        const types = world.ambushTypes ?? (world.ambushTypes = [])
+        while (types.length <= slot) types.push({ weight: 1, monsters: [] })
+        types[slot] = parsed
+        continue
+      }
+      if (suffix === 'buttons' || suffix === 'bosses' || suffix === 'saferadius') {
+        const one = ints(value, 1)
+        if (one === null) {
+          result.unknownKeys.push(`${key} value "${value}"`)
+          continue
+        }
+        const world = worldAt(index, key)
+        if (suffix === 'buttons') world.buttons = one[0]
+        else if (suffix === 'bosses') world.bossCount = one[0]
+        else world.safeRadius = one[0]
+        continue
+      }
+      if (suffix === 'trails') {
+        const text = value.trim().toLowerCase()
+        if (text !== '0' && text !== '1' && text !== 'true' && text !== 'false') {
+          result.unknownKeys.push(`${key} value "${value}"`)
+          continue
+        }
+        worldAt(index, key).trails = text === '1' || text === 'true'
+        continue
+      }
+      if (suffix === 'checkpoints') {
+        const text = value.trim().toLowerCase()
+        if (text !== '0' && text !== '1' && text !== 'true' && text !== 'false') {
+          result.unknownKeys.push(`${key} value "${value}"`)
+          continue
+        }
+        worldAt(index, key).checkpoints = text === '1' || text === 'true'
+        continue
+      }
+      if (suffix === 'plateaus' || suffix === 'plateaumin' || suffix === 'plateaumax' || suffix === 'plateaustairs') {
+        // terrain: whole numbers, kept as stated (a flat world writes none of them)
+        const one = ints(value, 1)
+        if (one === null) {
+          result.unknownKeys.push(`${key} value "${value}"`)
+          continue
+        }
+        const world = worldAt(index, key)
+        if (suffix === 'plateaus') world.plateaus = one[0]
+        else if (suffix === 'plateaumin') world.plateauMinSize = one[0]
+        else if (suffix === 'plateaumax') world.plateauMaxSize = one[0]
+        else world.plateauStairs = one[0]
+        continue
+      }
+      if (suffix === 'landmarks') {
+        const text = value.trim().toLowerCase()
+        if (text !== '0' && text !== '1' && text !== 'true' && text !== 'false') {
+          result.unknownKeys.push(`${key} value "${value}"`)
+          continue
+        }
+        worldAt(index, key).landmarks = text === '1' || text === 'true'
+        continue
+      }
+      if (suffix === 'bosspool') {
+        // any real boss id parses, as a floor's pool does; validation holds the
+        // pool to the mobile ones
+        const pool: string[] = []
+        for (const id of value.split(',').map((t) => t.trim()).filter((t) => t !== '')) {
+          if (!BOSS_IDS.includes(id as (typeof BOSS_IDS)[number])) result.unknownKeys.push(`${key} boss "${id}"`)
+          else pool.push(id)
+        }
+        worldAt(index, key).bossPool = pool
+        continue
+      }
+      if (suffix === 'bossselection') {
+        const text = value.trim().toLowerCase()
+        if (!(BOSS_SELECTIONS as readonly string[]).includes(text)) {
+          result.unknownKeys.push(`${key} value "${value}"`)
+          continue
+        }
+        worldAt(index, key).bossSelection = text as BossSelection
+        continue
+      }
+      if (suffix === 'bosslineup') {
+        worldAt(index, key).bossLineup = parseLineupLine(key, value, result.unknownKeys)
+        continue
+      }
+      // an unrecognised world<i> suffix
       result.unknownKeys.push(key)
       continue
     }
@@ -1676,22 +1990,7 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
       const levelIndex = parseInt(timerMatch[1], 10)
       const timers = params.levelTimers ?? (params.levelTimers = [])
       while (timers.length <= levelIndex) timers.push(defaultFloorTimer())
-      const timer = timers[levelIndex]
-      const fields = value.split('|').map((f) => f.trim())
-
-      timer.enabled = fields[0] === '1'
-      const numeric: Array<[number, string, (n: number) => void]> = [
-        [1, 'seconds', (n) => (timer.seconds = n)],
-        [2, 'damage', (n) => (timer.damage = n)],
-        [3, 'freqMs', (n) => (timer.freqMs = n)]
-      ]
-      for (const [index, name, assign] of numeric) {
-        if (fields[index] === undefined || fields[index] === '') continue
-        const n = parseInt(fields[index], 10)
-        if (Number.isNaN(n)) result.unknownKeys.push(`${key} ${name} "${fields[index]}"`)
-        else assign(n)
-      }
-      if (fields[4] !== undefined && fields[4] !== '') timer.countdown = fields[4] === '1'
+      parseTimerFields(key, value, timers[levelIndex], result.unknownKeys)
 
       highestTimerIndex = Math.max(highestTimerIndex, levelIndex)
       continue
@@ -1764,6 +2063,11 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   // while `levels` stays short, then silently appended if the user raises it.
   if (highestPoolIndex >= 0) {
     params.levelMonsters.length = highestPoolIndex + 1
+  } else if (params.levelMonsters.length > params.levels) {
+    // No pool line at all: the base's pools are not this file's, so keep only
+    // as many as there are floors. A campaign of islands/arenas alone (levels=0)
+    // must not inherit the castle's eight.
+    params.levelMonsters.length = params.levels
   }
 
   // Only floors carrying a buff get a `buffN=` line, so the same padding rule
@@ -1919,6 +2223,25 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
     }
   }
 
+  // How many worlds the campaign ends up with: an explicit `worlds=` wins,
+  // otherwise the list grown by whatever `world<i>` keys the file named. Keys
+  // past the declared count are reported, as the lobbies' are.
+  if (params.world !== undefined) {
+    const list = params.world.worlds
+    if (declaredWorldCount !== null) {
+      while (list.length < declaredWorldCount) list.push(defaultWorld())
+      if (list.length > declaredWorldCount) {
+        for (let i = declaredWorldCount; i < list.length; i++) {
+          for (const named of worldKeys.get(i) ?? []) result.unknownKeys.push(named)
+        }
+        list.length = declaredWorldCount
+      }
+    }
+  } else if (declaredWorldCount !== null) {
+    const world = worldOptions()
+    while (world.worlds.length < declaredWorldCount) world.worlds.push(defaultWorld())
+  }
+
   // The order is only meaningful next to the campaign it describes, and
   // `levels`, `bossFights` and `lobbies` may all be parsed after it, so it is
   // repaired here rather than inline. An order that turns out to be the
@@ -1926,7 +2249,7 @@ export function parseParametersTxt(content: string, base?: DungeonParameters): P
   // byte-identical output, and a file saying "1,2,3,B1" should not behave
   // differently from one that says nothing.
   if (params.levelOrder !== undefined) {
-    const counts = { levels: params.levels, fights: params.boss.fights?.length ?? 0, lobbies: params.lobbies.length }
+    const counts = campaignCounts(params)
     const repaired = normalizeOrder(params.levelOrder, counts)
     params.levelOrder = isDefaultOrder(repaired, counts) ? undefined : repaired
     if (params.levelOrder === undefined) delete params.levelOrder
@@ -2325,6 +2648,61 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
     writeMusicLine(lines, `lobby${i}Music`, lobby.music, base.lobbies[i]?.music)
   })
 
+  // World lines only when the campaign carries `world` at all, disabled or
+  // not, so a disabled list round-trips and a campaign without worlds writes
+  // not one new byte. (`levelOrder` below counts the enabled worlds.)
+  if (params.world !== undefined) {
+    const list = Array.isArray(params.world.worlds) ? params.world.worlds : []
+    lines.push(`world=${params.world.enabled ? 1 : 0}`)
+    lines.push(`worlds=${list.length}`)
+    list.forEach((def, i) => {
+      lines.push(`world${i}Biome=${def.biome}`)
+      lines.push(`world${i}Width=${def.minWidth},${def.maxWidth}`)
+      lines.push(`world${i}Height=${def.minHeight},${def.maxHeight}`)
+      lines.push(`world${i}Coast=${def.coast}`)
+      lines.push(`world${i}WaterMargin=${def.waterMargin}`)
+      // the start, only when it is not the bare default
+      if (worldHub(def) !== 'bare') lines.push(`world${i}Hub=${worldHub(def)}`)
+      // objectives. `Bosses` only when stated (absent means one), the
+      // selection and lineup only when they differ, as a floor's do.
+      lines.push(`world${i}Buttons=${worldButtons(def)}`)
+      if (def.bossCount !== undefined) lines.push(`world${i}Bosses=${def.bossCount}`)
+      lines.push(`world${i}BossPool=${worldBossPool(def).join(',')}`)
+      if (bossSelection(def) === 'lineup') lines.push(`world${i}BossSelection=lineup`)
+      if (lineupLine(def.bossLineup) !== '') lines.push(`world${i}BossLineup=${lineupLine(def.bossLineup)}`)
+      lines.push(`world${i}SafeRadius=${worldSafeRadius(def)}`)
+      lines.push(`world${i}Trails=${worldTrails(def) ? 1 : 0}`)
+      if (worldCheckpoints(def)) lines.push(`world${i}Checkpoints=1`)
+      if (worldLandmarks(def)) lines.push(`world${i}Landmarks=1`)
+      // terrain, each only when stated: a flat world writes not one new line
+      if (def.plateaus !== undefined) lines.push(`world${i}Plateaus=${def.plateaus}`)
+      if (def.plateauMinSize !== undefined) lines.push(`world${i}PlateauMin=${def.plateauMinSize}`)
+      if (def.plateauMaxSize !== undefined) lines.push(`world${i}PlateauMax=${def.plateauMaxSize}`)
+      if (def.plateauStairs !== undefined) lines.push(`world${i}PlateauStairs=${def.plateauStairs}`)
+      lines.push(`world${i}Monsters=${worldMonsters(def).join(',')}`)
+      lines.push(`world${i}Packs=${worldPacks(def)}`)
+      lines.push(`world${i}PackSize=${worldPackSize(def)}`)
+      lines.push(`world${i}Ambushes=${worldAmbushes(def)}`)
+      lines.push(`world${i}AmbushSize=${worldAmbushSize(def)}`)
+      lines.push(`world${i}ButtonAmbush=${worldButtonAmbush(def)}`)
+      lines.push(`world${i}Scatter=${worldScatter(def)}`)
+      lines.push(`world${i}Loot=${worldLoot(def)}`)
+      if (def.mystery !== undefined && Array.isArray(def.mystery.pool)) {
+        lines.push(`world${i}Mystery=${def.mystery.count}:${def.mystery.pool.join(',')}`)
+      }
+      if (def.disguise === true) lines.push(`world${i}Disguise=1`)
+      if (def.timer !== undefined) {
+        const t = def.timer
+        lines.push(`world${i}Timer=${t.enabled ? 1 : 0}|${t.seconds}|${t.damage}|${t.freqMs}|${t.countdown ? 1 : 0}`)
+      }
+      if (def.music !== undefined) lines.push(`world${i}Music=${def.music}`)
+      worldAmbushTypes(def).forEach((type, t) => {
+        const rows = Array.isArray(type.monsters) ? type.monsters : []
+        lines.push(`world${i}AmbushType${t + 1}=${type.weight}|${rows.map((m) => `${m.monster}:${m.count}`).join(',')}`)
+      })
+    })
+  }
+
   // Add boss params after the lobby params.
   //
   // Every per-fight key carries its fight index (`boss0Theme`, `boss1Wave3`), so
@@ -2347,7 +2725,7 @@ export function serializeParametersTxt(params: DungeonParameters, path?: string,
   // pre-alpha) still needs an explicit line — omitting it would have
   // `parseParametersTxt` repair the base's shipped order against this
   // campaign's own counts instead, which is not the same thing.
-  const counts = { levels: params.levels, fights: fights.length, lobbies: lobbies.length }
+  const counts = campaignCounts(params, { fights: params.boss.enabled ? fights.length : 0, lobbies: lobbies.length })
   const order = campaignOrder(counts, params.levelOrder)
   const isRearranged = !isDefaultOrder(order, counts)
   const absentOrder =

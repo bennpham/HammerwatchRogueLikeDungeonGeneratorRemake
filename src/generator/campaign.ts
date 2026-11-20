@@ -27,6 +27,11 @@ export function lobbyId(i: number): string {
   return `lobby${i}`
 }
 
+/** World `i` — an overworld level the campaign can carry (world mode). */
+export function worldId(i: number): string {
+  return `world${i}`
+}
+
 /**
  * How one dungeon floor (or boss arena) leaves the campaign — three visually
  * distinct ways out, plus the end of the run.
@@ -62,6 +67,7 @@ export type CampaignSlot =
   | { kind: 'floor'; index: number }
   | { kind: 'boss'; index: number }
   | { kind: 'lobby'; index: number }
+  | { kind: 'world'; index: number }
 
 /**
  * The way out of the slot at `position`, given the whole order.
@@ -90,6 +96,7 @@ export interface CampaignCounts {
   levels: number
   fights: number
   lobbies: number
+  worlds: number
 }
 
 /**
@@ -108,7 +115,7 @@ export function campaignOrder(counts: CampaignCounts, stored?: CampaignSlot[]): 
 }
 
 /**
- * Lobbies, then every floor, then every fight — what the campaign was before
+ * Lobbies, then every floor, every fight, then every world — what the campaign was before
  * fights and floors were reorderable, plus lobbies leading the whole thing
  * when there are any. With `lobbies: 0` this is exactly that pre-feature
  * shape, which is the byte-identity contract `campaign.ts` exists to protect.
@@ -117,7 +124,9 @@ export function defaultOrder(counts: CampaignCounts): CampaignSlot[] {
   return [
     ...Array.from({ length: Math.max(0, counts.lobbies) }, (_, index) => ({ kind: 'lobby' as const, index })),
     ...Array.from({ length: Math.max(0, counts.levels) }, (_, index) => ({ kind: 'floor' as const, index })),
-    ...Array.from({ length: Math.max(0, counts.fights) }, (_, index) => ({ kind: 'boss' as const, index }))
+    ...Array.from({ length: Math.max(0, counts.fights) }, (_, index) => ({ kind: 'boss' as const, index })),
+    // worlds last, like every missing slot a stored order leaves out (owner's call)
+    ...Array.from({ length: Math.max(0, counts.worlds) }, (_, index) => ({ kind: 'world' as const, index }))
   ]
 }
 
@@ -141,13 +150,19 @@ export function defaultOrder(counts: CampaignCounts): CampaignSlot[] {
  */
 export function normalizeOrder(order: CampaignSlot[], counts: CampaignCounts): CampaignSlot[] {
   const limit = (kind: CampaignSlot['kind']): number =>
-    kind === 'floor' ? Math.max(0, counts.levels) : kind === 'boss' ? Math.max(0, counts.fights) : Math.max(0, counts.lobbies)
+    kind === 'floor'
+      ? Math.max(0, counts.levels)
+      : kind === 'boss'
+        ? Math.max(0, counts.fights)
+        : kind === 'world'
+          ? Math.max(0, counts.worlds)
+          : Math.max(0, counts.lobbies)
 
   const seen = new Set<string>()
   const kept: CampaignSlot[] = []
   for (const slot of order) {
     if (slot === null || typeof slot !== 'object') continue
-    if (slot.kind !== 'floor' && slot.kind !== 'boss' && slot.kind !== 'lobby') continue
+    if (slot.kind !== 'floor' && slot.kind !== 'boss' && slot.kind !== 'lobby' && slot.kind !== 'world') continue
     if (!Number.isInteger(slot.index) || slot.index < 0 || slot.index >= limit(slot.kind)) continue
     const key = slotKey(slot)
     if (seen.has(key)) continue
@@ -167,12 +182,14 @@ export function normalizeOrder(order: CampaignSlot[], counts: CampaignCounts): C
   const sorted = new Map<CampaignSlot['kind'], number[]>([
     ['lobby', kept.filter((s) => s.kind === 'lobby').map((s) => s.index).sort((a, b) => a - b)],
     ['floor', kept.filter((s) => s.kind === 'floor').map((s) => s.index).sort((a, b) => a - b)],
-    ['boss', kept.filter((s) => s.kind === 'boss').map((s) => s.index).sort((a, b) => a - b)]
+    ['boss', kept.filter((s) => s.kind === 'boss').map((s) => s.index).sort((a, b) => a - b)],
+    ['world', kept.filter((s) => s.kind === 'world').map((s) => s.index).sort((a, b) => a - b)]
   ])
   const next = new Map<CampaignSlot['kind'], number>([
     ['lobby', 0],
     ['floor', 0],
-    ['boss', 0]
+    ['boss', 0],
+    ['world', 0]
   ])
   return kept.map((slot) => {
     const cursor = next.get(slot.kind)!
@@ -201,6 +218,7 @@ function slotKey(slot: CampaignSlot): string {
 export function slotEntryId(slot: CampaignSlot): string {
   if (slot.kind === 'floor') return String(slot.index)
   if (slot.kind === 'boss') return bossArenaId(slot.index)
+  if (slot.kind === 'world') return worldId(slot.index)
   return lobbyId(slot.index)
 }
 
@@ -244,6 +262,7 @@ export function slotLabel(slot: CampaignSlot, mode?: ArenaMode): string {
     const prefix = mode === undefined ? 'B' : mode === 'survival' ? 'AS' : 'AB'
     return `${prefix}${slot.index + 1}`
   }
+  if (slot.kind === 'world') return `W${slot.index + 1}`
   return `L${slot.index + 1}`
 }
 
@@ -277,6 +296,11 @@ export function parseSlotLabel(token: string): CampaignSlot | null {
     const index = parseInt(boss[1], 10) - 1
     return index >= 0 ? { kind: 'boss', index } : null
   }
+  const world = /^[Ww](\d+)$/.exec(trimmed)
+  if (world !== null) {
+    const index = parseInt(world[1], 10) - 1
+    return index >= 0 ? { kind: 'world', index } : null
+  }
   const lobby = /^[Ll](\d+)$/.exec(trimmed)
   if (lobby !== null) {
     const index = parseInt(lobby[1], 10) - 1
@@ -296,6 +320,7 @@ export function parseSlotLabel(token: string): CampaignSlot | null {
 export function slotFileName(slot: CampaignSlot, mode?: ArenaMode, bossFloor = false): string {
   if (slot.kind === 'floor') return `floor${slot.index + 1}${bossFloor ? '_boss' : ''}`
   if (slot.kind === 'boss') return `arena_${mode === 'survival' ? 'survival' : 'boss'}${slot.index + 1}`
+  if (slot.kind === 'world') return `world${slot.index + 1}`
   return `lobby${slot.index + 1}`
 }
 

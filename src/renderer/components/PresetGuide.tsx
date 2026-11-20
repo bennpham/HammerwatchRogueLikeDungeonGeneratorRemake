@@ -18,14 +18,27 @@ interface PresetRowProps {
   description: string
   disabled?: boolean
   onLoad: () => void
+  /** a caution shown under the description, for a preset that undoes other presets' balance */
+  caution?: string
 }
 
-function PresetRow({ label, description, disabled, onLoad }: PresetRowProps) {
+/**
+ * Balance audit C8: the Hammerwatch 2 level 50 bodies outlast every preset's
+ * timers and hazards, so loading it under a campaign preset flattens that
+ * preset's difficulty. Said where the preset is listed, not buried in its text.
+ */
+const PLAYER_PRESET_CAUTIONS: Record<string, string> = {
+  'hw2-level-50':
+    'Heads up: this outlasts every timer and flattens every campaign preset. Their clocks, traps and hazards are tuned for the stock characters, so they stop being a threat.'
+}
+
+function PresetRow({ label, description, disabled, onLoad, caution }: PresetRowProps) {
   return (
     <div className="preset-guide-row">
       <div>
         <dt>{label}</dt>
         <dd>{description}</dd>
+        {caution !== undefined && <dd className="preset-guide-caution">{caution}</dd>}
       </div>
       <button type="button" disabled={disabled} onClick={onLoad}>
         Load
@@ -107,8 +120,8 @@ export function PresetGuide({ onLoad, onLoadPlayer, disabled }: PresetGuideProps
           {tab === 'campaign' ? (
             <>
               <p className="preset-guide-note">
-                Loading a campaign preset replaces everything on the Lobby, Dungeon, Arena, Floor order and
-                Player tabs.
+                Loading a campaign preset replaces everything on the Lobby, Dungeon, Arena, World, Floor order
+                and Player tabs.
               </p>
               {PRESET_GROUPS.map((group) => {
                 const presets = CAMPAIGN_PRESETS.filter((preset) => preset.group === group.id)
@@ -161,6 +174,7 @@ export function PresetGuide({ onLoad, onLoadPlayer, disabled }: PresetGuideProps
                             key={preset.id}
                             label={preset.label}
                             description={preset.description}
+                            caution={PLAYER_PRESET_CAUTIONS[preset.id]}
                             disabled={disabled}
                             onLoad={() => {
                               onLoadPlayer(preset.id)

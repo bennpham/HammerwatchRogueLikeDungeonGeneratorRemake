@@ -16,7 +16,10 @@ import { oneOfEachUpgrade } from '../levelTemplate/surgery'
 import type { BossTrap, BossWave, DungeonParameters, FloorTrap } from './parameters'
 import { MUSIC_DEFAULT } from '../music/tracks'
 import { CLAUDE_PRESETS } from './claudePresets'
+import { desertWaves } from './familyWaves'
 import { COLOSSEUM_PRESETS } from './colosseumPreset'
+import { CAMPAIGN_MODE_PRESETS } from './campaignModePresets'
+import { WORLD_CAMPAIGN_PRESETS } from './worldCampaignPresets'
 import { deepLoot, escapePicks, midLoot, mysteryButton, mysteryKit, shallowLoot } from './presetMystery'
 import type { MysteryPicks } from './presetMystery'
 
@@ -26,13 +29,15 @@ import type { MysteryPicks } from './presetMystery'
  * campaign style first). `label` is the only user-visible text; the id is what
  * a preset's `group` field carries and is never shown.
  */
-export type PresetGroupId = 'preAlpha' | 'classic' | 'colosseum' | 'claude'
+export type PresetGroupId = 'preAlpha' | 'classic' | 'campaign' | 'colosseum' | 'claude' | 'claudeWorld'
 
 export const PRESET_GROUPS: readonly { id: PresetGroupId; label: string }[] = [
   { id: 'preAlpha', label: 'Pre-Alpha' },
   { id: 'classic', label: 'Classic' },
+  { id: 'campaign', label: 'Campaign Mode' },
   { id: 'colosseum', label: 'Colosseum' },
-  { id: 'claude', label: 'Claude Generated' }
+  { id: 'claude', label: 'Claude Generated' },
+  { id: 'claudeWorld', label: 'Claude Generated Open World' }
 ]
 
 /**
@@ -83,91 +88,6 @@ function escapeTimers(levels: number): ReturnType<typeof defaultFloorTimer>[] {
   return [
     ...Array.from({ length: Math.max(0, levels - 1) }, () => defaultFloorTimer()),
     escapeFloorTimer()
-  ]
-}
-
-/**
- * Desert's wave tiers. Guards alone at 100%, mummies from 75% on, and the
- * fire pillars/floaters held back until the boss is dead. Every entry is
- * scattered — nothing here leaves a blocking wreck, so nothing has to stay on
- * the anchors. The boss-death tier is the send-off: kamikazes, fire and all
- * three desert liches at once — see BOSS_DEATH_WAVE in parameters.ts.
- */
-function desertWaves(): BossWave[] {
-  const drops = stockWavePickups()
-  return [
-    scatterWave(
-      [
-        ['guard_desert', 120],
-        ['guard_desert_range', 60]
-      ],
-      [],
-      4000
-    ),
-    scatterWave(
-      [
-        ['guard_desert', 60],
-        ['guard_desert_range', 30],
-        ['mummy_desert', 80],
-        ['mummy_desert#2', 120],
-        ['mummy_ranged', 60],
-        ['mummy_desert#0', 4],
-        ['mummy_ranged#0', 2]
-      ],
-      [],
-      3000
-    ),
-    scatterWave(
-      [
-        ['mummy_desert', 120],
-        ['mummy_desert#2', 60],
-        ['mummy_desert#3', 40],
-        ['mummy_ranged', 40],
-        ['mummy_ranged#2', 60],
-        ['mummy_desert#0', 8],
-        ['mummy_ranged#0', 4],
-        ['spider', 13],
-        ['mb_mummy', 4]
-      ],
-      [],
-      2000,
-      [],
-      drops.half
-    ),
-    scatterWave(
-      [
-        ['special_beheaded_kamikaze', 4],
-        ['mummy_desert#3', 80],
-        ['mummy_ranged#2', 60],
-        ['spider', 60],
-        ['mb_mummy', 8],
-        ['lich_desert#0', 4],
-        ['lich_desert#2', 24]
-      ],
-      [],
-      1000,
-      [],
-      drops.quarter,
-      SHOOTER_ARROW_TRAPS
-    ),
-    // boss death — the fire pillars and floaters wait for the kill, see
-    // BOSS_DEATH_WAVE, and the whole send-off is bloodlusted, see bossDeathBuffs()
-    scatterWave(
-      [
-        ['special_beheaded_kamikaze', 40],
-        ['pillar_fire', 30],
-        ['floater_fire', 60],
-        ['spider', 30],
-        ['lich_desert', 6],
-        ['lich_desert#0', 6],
-        ['lich_desert#2', 6]
-      ],
-      [],
-      1000,
-      bossDeathBuffs(),
-      drops.death,
-      SHOOTER_ARROW_TRAPS
-    )
   ]
 }
 
@@ -449,7 +369,7 @@ const CLASSIC_PRESETS: readonly CampaignPreset[] = [
     id: 'castle',
     label: 'Castle (default)',
     description:
-      '7 floors through the mixed castle themes — four act floors, then three boss rushes, with two mystery buttons hidden on every floor.',
+      '7 floors through the mixed castle themes — four act floors, then three boss rushes, with two mystery buttons hidden on every floor — and, after the boss, a 90-second escape floor.',
     group: 'classic',
     // Both shops are the Castle Hammerwatch bridge, the campaign's own opening
     // level; the stock default keeps the House. The bridge plays its own act1
@@ -611,7 +531,7 @@ const CLASSIC_PRESETS: readonly CampaignPreset[] = [
     id: 'bonus',
     label: 'Bonus Gauntlet',
     description:
-      '5 floors of the bonus tilesets, escalating from bonus mobs to a mixed boss floor, with two mystery buttons hidden on every floor.',
+      '5 floors of the bonus tilesets, escalating from bonus mobs to a mixed boss floor, with two mystery buttons hidden on every floor — and, after the boss, a 90-second escape floor.',
     group: 'classic',
     build: () => withGatewayLocks({
       ...defaultParameters(),
@@ -810,8 +730,10 @@ const PRE_ALPHA_PRESETS: readonly CampaignPreset[] = [
  */
 export const CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
   ...CLASSIC_PRESETS,
+  ...CAMPAIGN_MODE_PRESETS,
   ...COLOSSEUM_PRESETS,
   ...CLAUDE_PRESETS,
+  ...WORLD_CAMPAIGN_PRESETS,
   ...PRE_ALPHA_PRESETS
 ]
 

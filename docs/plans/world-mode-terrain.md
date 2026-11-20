@@ -1,6 +1,12 @@
 # World mode, terrain: four HW1 biomes and raised plateaus
 
-Date: 2026-11-15, updated 2026-11-18 for AE PR #18, which fixed AE's world audit items A3, A4, A6, B3, D3, D4 and D6 in the code this plan ports. Status: plan, nothing built. Roadmap milestone M5 (`docs/plans/v1-roadmap.md`): M5a biomes, then M5b plateaus.
+Date: 2026-11-15, updated 2026-11-18 for AE PR #18, which fixed AE's world audit items A3, A4, A6, B3, D3, D4 and D6 in the code this plan ports. Status: M5a and M5b are built on branch `v1-roadmap-build` (2026-11-20), nothing played (see Built, below). Roadmap milestone M5 (`docs/plans/v1-roadmap.md`): M5a biomes, then M5b plateaus.
+
+**Built (M5a):** commit 39, oasis with the canyon edge (`world/roof.ts`, `solidCoastCloses`, `WorldGrid.buried`, `IslandRules.landRows`/`strict`); commit 40, dry grass (data only, on the same edge); commit 41, frozen (theme f); commit 42, per-biome lighting and landmarks (`world/landmarks.ts`, key `world<i>Landmarks`, default off so existing worlds stay byte-identical); commit 43, the install check of every clump, cover, landmark and camp path. M5a is complete. **Built (M5b):** commit 44, raised plateaus on oasis and dry grass (`world/plateau.ts`, the `HIGH` and `FACE` flags and the edge-aware flood in `world/grid.ts`, `BiomeDef.highGround` and `terrain`). **Built (M5b, mesas):** commit 45, desert and frozen read the plateau fields as mesas (`world/mesa.ts`, `WorldGrid.setMesa`): interior blocks of rock mass carved into the coast's own mask before the matcher runs, no top, no stairs. Nothing here has been played.
+
+**Owner decisions that override this doc (2026-11-19):** (1) **stairways on every side** (open decision 4): south `e_stairs_up`/`_v2_up` in a gap of an `_up` run, recessed north `e_stairs_dn` 1.5 tiles south of a `_dn` run with `e_ledge_r_v2`/`e_ledge_l_v2` cheeks, and vertical `e_stairs_l`/`_r`/`_v2_r` in a gap of a vertical run, dealt out south first; (2) **frozen raises mesas, not plateaus** (open decision 3), like desert: no `f_ledge_*`, no borrowed stairs, no `highGround` for frozen; (3) **plateau bounds scale with the island** (open decision 6): `plateauMinSize` and `plateauMaxSize` run 8 to a third of the smaller island side, `plateaus` 0 to the smallest island's area over 1,024, plus the capacity warning; (4) a short placement is a per-level note, `LevelPreview.notes` (open decision 7). `plateauStairs` (1 to 4) counts stairways per plateau and is unread on a mesa biome (a warning).
+
+**Built geometry (5.5, as derived from the install):** every ledge collider sits inside the high cell it edges, so the grid is conservative: a high cell with any non-high neighbour among its eight is `CLIFF`, and a step between a plateau and the low ground is open only along one stairway. South `up` collides the whole rim row (the face art then hangs over the two low rows below, `FACE`), north `dn` its top half, west `l` its left half, east `r` its right half. The DISCOVERY-LOG entry of the same date has the piece table.
 
 ## Scope
 
@@ -50,7 +56,7 @@ Pass 1 owns this biome. Terrain adds scatter, landmarks, camp and mesas.
 |---|---|---|---|
 | Clump | `doodads/theme_h/h_deco_rock.xml` | circle r 18 | 36×38 sprite; the hub places 45 |
 | Clump | `doodads/generic/deco_block.xml`, `deco_block_v2.xml`, `deco_block_v3.xml` | polygon, x…x+1.5, y−1.5…y+1 [V] | stone blocks |
-| Clump | `doodads/theme_g/g_deco_ground_brick{,_v2,_v3}.xml` | circle r 8, shoot-through | loose brick |
+| Clump | `doodads/theme_g/g_deco_ground_brick.xml` | circle r 8 at offset (0, −2), shoot-through | loose brick (`_v2` and `_v3` have no collider in the install: cover) |
 | Cover | `doodads/theme_g/g_deco_ground_stone{,_v2,_v3,_v4}.xml` | none | pebbles |
 | Cover | `doodads/theme_g/g_deco_pillar_cut_{small,medium,large}.xml` | none | broken column stubs, 30 px tall |
 | Cover | `doodads/generic/deco_block_v2_dst.xml` | none | rubble |

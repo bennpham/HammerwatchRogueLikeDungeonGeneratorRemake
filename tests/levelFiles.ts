@@ -9,7 +9,7 @@
  */
 import type { DungeonResult } from '../src/generator'
 
-const LEVEL_FILE = /^levels\/\d+_(floor|arena_boss|arena_survival|lobby)(\d+)(?:_boss)?\.xml$/
+const LEVEL_FILE = /^levels\/\d+_(floor|arena_boss|arena_survival|lobby|world)(\d+)(?:_boss)?\.xml$/
 
 function parse(path: string): { kind: string; index: number } | null {
   const m = LEVEL_FILE.exec(path)
@@ -55,3 +55,9 @@ export const arenaXml = (r: DungeonResult, index: number): string =>
 
 export const lobbyXml = (r: DungeonResult, index: number): string =>
   contentOf(r, (p) => isLobbyPath(p, index), `lobby ${index}`)
+
+/** World `index` (0-based); any world when `index` is omitted. */
+export function isWorldPath(path: string, index?: number): boolean {
+  const p = parse(path)
+  return p !== null && p.kind === 'world' && (index === undefined || p.index === index)
+}

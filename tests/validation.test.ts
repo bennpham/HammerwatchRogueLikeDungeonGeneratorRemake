@@ -28,6 +28,10 @@ import { plainParameters } from './params'
 import { samplePool } from './mysterySample'
 import { noUpgrades, oneOfEachUpgrade } from '../src/generator/levelTemplate/surgery'
 import type { CampaignSlot } from '../src/generator/campaign'
+import { WORLD_BUTTONS_MAX, WORLD_MAX_COUNT, WORLD_SIZE_MAX, WORLD_SIZE_MIN, WORLD_SIZE_WARN, defaultWorld, worldPlateauCapacity, worldSiteCapacityOf } from '../src/generator/world/options'
+import type { WorldDef } from '../src/generator/world/options'
+import type { FloorTimer, MysteryButton } from '../src/generator/config/parameters'
+import { MAX_TIMER_DAMAGE, MAX_TIMER_FREQ_MS, MAX_TIMER_SECONDS, MIN_TIMER_FREQ_MS, TIMER_COUNTDOWN_NODE_WARN } from '../src/generator/config/parameters'
 
 const fieldsOf = (issues: Array<{ field: string }>) => issues.map((i) => i.field)
 
@@ -1663,5 +1667,572 @@ describe('enhanced lock button validation', () => {
     const p = armed()
     p.levelLockMystery!.push({ count: 1, pool: [0] })
     expect(fieldsOf(validateParameters(p).warnings)).toContain('levelLockMystery')
+  })
+})
+
+describe('world validation', () => {
+  const withWorld = (worlds: Array<Partial<WorldDef>>, enabled = true) => {
+    const p = plainParameters()
+    p.world = { enabled, worlds: worlds.map((w) => ({ ...defaultWorld(), ...w })) }
+    return p
+  }
+  const errorsOf = (p: ReturnType<typeof plainParameters>) => fieldsOf(validateParameters(p).errors)
+
+  it('accepts a default world, and no world at all', () => {
+    const ok = validateParameters(withWorld([{}]))
+    expect(ok.errors).toEqual([])
+    expect(ok.warnings.filter((w) => w.field.startsWith('world'))).toEqual([])
+    expect(validateParameters(plainParameters()).errors).toEqual([])
+  })
+
+  it('rejects worlds switched on with none in the list, but not a disabled empty list', () => {
+    expect(errorsOf(withWorld([]))).toContain('world.worlds')
+    expect(validateParameters(withWorld([], false)).errors).toEqual([])
+  })
+
+  it('rejects more worlds than the cap', () => {
+    const p = withWorld(Array.from({ length: WORLD_MAX_COUNT + 1 }, () => ({})))
+    expect(errorsOf(p)).toContain('world.worlds')
+    expect(errorsOf(withWorld(Array.from({ length: WORLD_MAX_COUNT }, () => ({}))))).not.toContain('world.worlds')
+  })
+
+  it('rejects a checkpoints value that is not on or off, and warns when there is no objective to save on', () => {
+    expect(errorsOf(withWorld([{ checkpoints: 'yes' as never }]))).toContain('world.worlds.0.checkpoints')
+    expect(errorsOf(withWorld([{ checkpoints: true }]))).not.toContain('world.worlds.0.checkpoints')
+    expect(errorsOf(withWorld([{}]))).not.toContain('world.worlds.0.checkpoints')
+    const idle = validateParameters(withWorld([{ checkpoints: true, buttons: 0, bossCount: 0 }]))
+    expect(fieldsOf(idle.warnings)).toContain('world.worlds.0.checkpoints')
+    expect(fieldsOf(validateParameters(withWorld([{ checkpoints: true }])).warnings)).not.toContain('world.worlds.0.checkpoints')
+  })
+
+  it('rejects an unknown hub, and accepts bare, camp and none', () => {
+    expect(errorsOf(withWorld([{ hub: 'village' as never }]))).toContain('world.worlds.0.hub')
+    expect(errorsOf(withWorld([{ hub: 'camp' }]))).not.toContain('world.worlds.0.hub')
+    expect(errorsOf(withWorld([{ hub: 'bare' }]))).not.toContain('world.worlds.0.hub')
+    expect(errorsOf(withWorld([{}]))).not.toContain('world.worlds.0.hub')
+  })
+
+  it('rejects an unknown biome', () => {
+    expect(errorsOf(withWorld([{ biome: 'swamp' }]))).toContain('world.worlds.0.biome')
+  })
+
+  it('rejects every bound that is not a whole number in range', () => {
+    const cases: Array<[Partial<WorldDef>, string]> = [
+      [{ minWidth: WORLD_SIZE_MIN - 1 }, 'minWidth'],
+      [{ maxWidth: WORLD_SIZE_MAX + 1 }, 'maxWidth'],
+      [{ minHeight: 63.5 }, 'minHeight'],
+      [{ maxHeight: Number.NaN }, 'maxHeight'],
+      [{ coast: -1 }, 'coast'],
+      [{ coast: 101 }, 'coast'],
+      [{ coast: 50.5 }, 'coast'],
+      [{ waterMargin: 3 }, 'waterMargin'],
+      [{ waterMargin: 17 }, 'waterMargin']
+    ]
+    for (const [override, field] of cases) {
+      expect(errorsOf(withWorld([{}, override]))).toContain(`world.worlds.1.${field}`)
+    }
+    // and the bounds themselves are fine
+    const edge = withWorld([
+      { minWidth: WORLD_SIZE_MIN, maxWidth: WORLD_SIZE_MAX, minHeight: WORLD_SIZE_MIN, maxHeight: WORLD_SIZE_MAX, coast: 0, waterMargin: 4, buttons: 0, bossCount: 0 }
+    ])
+    expect(validateParameters(edge).errors).toEqual([])
+    expect(validateParameters(withWorld([{ coast: 100, waterMargin: 16 }])).errors).toEqual([])
+  })
+
+  it('rejects a minimum above its maximum', () => {
+    expect(errorsOf(withWorld([{ minWidth: 200, maxWidth: 100 }]))).toContain('world.worlds.0.minWidth')
+    expect(errorsOf(withWorld([{ minHeight: 200, maxHeight: 100 }]))).toContain('world.worlds.0.minHeight')
+  })
+
+  it('warns, without blocking, above the largest stock level', () => {
+    const big = validateParameters(withWorld([{ maxWidth: WORLD_SIZE_WARN + 1, minWidth: WORLD_SIZE_WARN + 1 }]))
+    expect(big.errors).toEqual([])
+    expect(fieldsOf(big.warnings)).toContain('world.worlds.0.maxWidth')
+    const tall = validateParameters(withWorld([{ maxHeight: 512 }]))
+    expect(fieldsOf(tall.warnings)).toContain('world.worlds.0.maxHeight')
+    expect(fieldsOf(validateParameters(withWorld([{ maxWidth: WORLD_SIZE_WARN }])).warnings)).not.toContain('world.worlds.0.maxWidth')
+  })
+
+  describe('objectives', () => {
+    // a roomy island so the site capacity never interferes with a bound under test
+    const roomy = { minWidth: 384, maxWidth: 384, minHeight: 384, maxHeight: 384 }
+    const warningsOf = (p: ReturnType<typeof plainParameters>) => fieldsOf(validateParameters(p).warnings)
+
+    it('rejects a button count that is not a whole number from 0 to the bound', () => {
+      for (const buttons of [-1, 1.5, WORLD_BUTTONS_MAX + 1, Number.NaN]) {
+        expect(errorsOf(withWorld([{ ...roomy, buttons }]))).toContain('world.worlds.0.buttons')
+      }
+      for (const buttons of [0, 1, WORLD_BUTTONS_MAX]) {
+        expect(errorsOf(withWorld([{ ...roomy, buttons, bossCount: 0 }]))).not.toContain('world.worlds.0.buttons')
+      }
+    })
+
+    it('rejects a safe radius outside 6..40', () => {
+      for (const safeRadius of [5, 41, 10.5]) {
+        expect(errorsOf(withWorld([{ ...roomy, safeRadius }]))).toContain('world.worlds.0.safeRadius')
+      }
+      expect(errorsOf(withWorld([{ ...roomy, safeRadius: 6 }]))).not.toContain('world.worlds.0.safeRadius')
+      expect(errorsOf(withWorld([{ ...roomy, safeRadius: 40 }]))).not.toContain('world.worlds.0.safeRadius')
+    })
+
+    it('A1: a safe radius larger than the island leaves land for names the largest allowed', () => {
+      const p = withWorld([{ minWidth: 64, maxWidth: 64, minHeight: 64, maxHeight: 64, waterMargin: 6, safeRadius: 30, buttons: 1, bossCount: 0 }])
+      const issue = validateParameters(p).errors.find((e) => e.field === 'world.worlds.0.safeRadius')!
+      expect(issue.message).toContain('at most 17')
+      // the largest allowed is allowed, and no objectives means nothing to place
+      expect(errorsOf(withWorld([{ minWidth: 64, maxWidth: 64, minHeight: 64, maxHeight: 64, safeRadius: 17, buttons: 1, bossCount: 0 }]))).not.toContain('world.worlds.0.safeRadius')
+      expect(errorsOf(withWorld([{ minWidth: 64, maxWidth: 64, minHeight: 64, maxHeight: 64, safeRadius: 30, buttons: 0, bossCount: 0 }]))).not.toContain('world.worlds.0.safeRadius')
+    })
+
+    it('A2: more objectives than the island holds is an error, exactly full is a warning', () => {
+      const small = { minWidth: 128, maxWidth: 128, minHeight: 128, maxHeight: 128, bossCount: 0, safeRadius: 16 }
+      const capacity = worldSiteCapacityOf({ ...defaultWorld(), ...small })
+      expect(capacity).toBeGreaterThan(1)
+      expect(errorsOf(withWorld([{ ...small, buttons: capacity + 1 }]))).toContain('world.worlds.0.buttons')
+      const full = validateParameters(withWorld([{ ...small, buttons: capacity }]))
+      expect(fieldsOf(full.errors)).not.toContain('world.worlds.0.buttons')
+      expect(fieldsOf(full.warnings)).toContain('world.worlds.0.buttons')
+      const roomyOk = validateParameters(withWorld([{ ...small, buttons: capacity - 1 }]))
+      expect(fieldsOf(roomyOk.warnings)).not.toContain('world.worlds.0.buttons')
+      // bosses count against the same capacity
+      expect(errorsOf(withWorld([{ ...small, buttons: capacity, bossCount: 1 }]))).toContain('world.worlds.0.buttons')
+    })
+
+    it('rejects a boss count that is not a whole number from 0 to MAX_BOSS_COUNT, and has no lower cap', () => {
+      for (const bossCount of [-1, 2.5, MAX_BOSS_COUNT + 1]) {
+        expect(errorsOf(withWorld([{ ...roomy, buttons: 0, bossCount }]))).toContain('world.worlds.0.bossCount')
+      }
+      // the plan's 0-8 is gone: 9 and 20 are fine
+      for (const bossCount of [0, 1, 9, 20]) {
+        expect(errorsOf(withWorld([{ ...roomy, buttons: 0, bossCount }]))).not.toContain('world.worlds.0.bossCount')
+      }
+    })
+
+    it('warns, without blocking, above BOSS_COUNT_WARN bosses, in either mode', () => {
+      const random = validateParameters(withWorld([{ ...roomy, buttons: 0, bossCount: BOSS_COUNT_WARN + 1 }]))
+      expect(random.errors).toEqual([])
+      expect(fieldsOf(random.warnings)).toContain('world.worlds.0.bossCount')
+      const atWarn = validateParameters(withWorld([{ ...roomy, buttons: 0, bossCount: BOSS_COUNT_WARN }]))
+      expect(fieldsOf(atWarn.warnings)).not.toContain('world.worlds.0.bossCount')
+      const lineup = validateParameters(
+        withWorld([{ ...roomy, buttons: 0, bossSelection: 'lineup', bossLineup: { boss_lich: BOSS_COUNT_WARN + 1 } }])
+      )
+      expect(lineup.errors).toEqual([])
+      expect(fieldsOf(lineup.warnings)).toContain('world.worlds.0.bossLineup')
+    })
+
+    it('rejects an empty pool in random mode, but not with no bosses or in lineup mode', () => {
+      expect(errorsOf(withWorld([{ ...roomy, buttons: 0, bossCount: 1, bossPool: [] }]))).toContain('world.worlds.0.bossPool')
+      expect(errorsOf(withWorld([{ ...roomy, buttons: 0, bossCount: 0, bossPool: [] }]))).not.toContain('world.worlds.0.bossPool')
+      expect(
+        errorsOf(withWorld([{ ...roomy, buttons: 0, bossSelection: 'lineup', bossLineup: { boss_lich: 1 }, bossPool: [] }]))
+      ).not.toContain('world.worlds.0.bossPool')
+    })
+
+    it('rejects a boss that cannot move, in the pool and in the lineup', () => {
+      const pool = validateParameters(withWorld([{ ...roomy, buttons: 0, bossCount: 1, bossPool: ['boss_lich', 'boss_dragon'] }]))
+      expect(fieldsOf(pool.errors)).toContain('world.worlds.0.bossPool')
+      expect(pool.errors.find((e) => e.field === 'world.worlds.0.bossPool')!.message).toContain('boss_dragon')
+      const lineup = validateParameters(withWorld([{ ...roomy, buttons: 0, bossSelection: 'lineup', bossLineup: { boss_queen: 1 } }]))
+      expect(fieldsOf(lineup.errors)).toContain('world.worlds.0.bossLineup')
+      // the pool is not read in lineup mode, so its stationary boss is not an error there
+      expect(
+        errorsOf(withWorld([{ ...roomy, buttons: 0, bossSelection: 'lineup', bossLineup: { boss_lich: 1 }, bossPool: ['boss_dragon'] }]))
+      ).not.toContain('world.worlds.0.bossPool')
+    })
+
+    it('rejects a lineup that totals above MAX_BOSS_COUNT and a bad lineup count', () => {
+      const big = withWorld([{ ...roomy, buttons: 0, bossSelection: 'lineup', bossLineup: { boss_lich: MAX_BOSS_COUNT + 1 } }])
+      expect(errorsOf(big)).toContain('world.worlds.0.bossLineup')
+      const bad = withWorld([{ ...roomy, buttons: 0, bossSelection: 'lineup', bossLineup: { boss_lich: -1 } }])
+      expect(errorsOf(bad)).toContain('world.worlds.0.bossLineup')
+      const fine = withWorld([{ ...roomy, buttons: 0, bossSelection: 'lineup', bossLineup: { boss_lich: 30, boss_worm: 20 } }])
+      expect(errorsOf(fine)).not.toContain('world.worlds.0.bossLineup')
+    })
+
+    it('rejects an unknown boss selection and a non-boolean trails', () => {
+      expect(errorsOf(withWorld([{ ...roomy, bossSelection: 'all' as never }]))).toContain('world.worlds.0.bossSelection')
+      expect(errorsOf(withWorld([{ ...roomy, trails: 1 as never }]))).toContain('world.worlds.0.trails')
+      expect(errorsOf(withWorld([{ ...roomy, trails: true }]))).not.toContain('world.worlds.0.trails')
+      expect(warningsOf(withWorld([{ ...roomy, trails: true }]))).not.toContain('world.worlds.0.trails')
+    })
+
+    it('reads a hand-built world missing every objective field as the defaults, never a throw', () => {
+      const p = plainParameters()
+      p.world = {
+        enabled: true,
+        worlds: [{ biome: 'desert', minWidth: 256, maxWidth: 256, minHeight: 256, maxHeight: 256, coast: 50, waterMargin: 6 } as WorldDef]
+      }
+      expect(validateParameters(p).errors).toEqual([])
+    })
+  })
+
+  it('reports a missing list or world as an error and never throws (A7)', () => {
+    const noList = plainParameters()
+    noList.world = { enabled: true } as never
+    expect(errorsOf(noList)).toContain('world.worlds')
+    const holed = plainParameters()
+    holed.world = { enabled: true, worlds: [null as never, defaultWorld()] }
+    expect(errorsOf(holed)).toContain('world.worlds.0')
+    const notAList = plainParameters()
+    notAList.world = { enabled: true, worlds: {} as never }
+    expect(() => validateParameters(notAList)).not.toThrow()
+    expect(errorsOf(notAList)).toContain('world.worlds')
+  })
+
+  it('lets a world stand in for the floors and the boss, but not nothing', () => {
+    const p = withWorld([{}])
+    p.levels = 0
+    p.themes = []
+    p.levelMonsters = []
+    p.boss = { ...p.boss, enabled: false }
+    expect(validateParameters(p).errors).toEqual([])
+    const none = plainParameters()
+    none.levels = 0
+    none.themes = []
+    none.levelMonsters = []
+    none.boss = { ...none.boss, enabled: false }
+    expect(errorsOf(none)).toContain('levels')
+  })
+
+  it('names world slots in the level order: counted, unique, and last is fine', () => {
+    const floors = plainParameters().levels
+    const asFloors = Array.from({ length: floors }, (_, index) => ({ kind: 'floor' as const, index }))
+    const messages = (p: ReturnType<typeof plainParameters>) => validateParameters(p).errors.map((e) => e.message).join(' ')
+
+    const ok = withWorld([{}, {}])
+    ok.levelOrder = [...asFloors, { kind: 'boss', index: 0 }, { kind: 'world', index: 0 }, { kind: 'world', index: 1 }]
+    expect(validateParameters(ok).errors).toEqual([])
+
+    const missing = withWorld([{}, {}])
+    missing.levelOrder = [...asFloors, { kind: 'boss', index: 0 }, { kind: 'world', index: 0 }]
+    expect(messages(missing)).toContain('never places world 2')
+
+    const dup = withWorld([{}])
+    dup.levelOrder = [...asFloors, { kind: 'boss', index: 0 }, { kind: 'world', index: 0 }, { kind: 'world', index: 0 }]
+    expect(messages(dup)).toContain('world 1 more than once')
+
+    const absent = withWorld([], false)
+    absent.levelOrder = [...asFloors, { kind: 'boss', index: 0 }, { kind: 'world', index: 0 }]
+    expect(messages(absent)).toContain('world 1, which this campaign does not have')
+  })
+})
+
+describe('world encounter validation', () => {
+  const withWorld = (w: Partial<WorldDef>) => {
+    const p = plainParameters()
+    p.world = { enabled: true, worlds: [{ ...defaultWorld(), ...w }] }
+    return p
+  }
+  const errorsOf = (w: Partial<WorldDef>) => fieldsOf(validateParameters(withWorld(w)).errors)
+  const warningsOf = (w: Partial<WorldDef>) => fieldsOf(validateParameters(withWorld(w)).warnings)
+  const type = (monsters: Array<{ monster: string; count: number }>, weight = 1) => ({ weight, monsters })
+
+  it('holds each count to its bounds: packs 0-400, size 1-30, ambushes 0-120, size 1-30, chance 0-100', () => {
+    for (const [field, lo, hi] of [
+      ['packs', 0, 400],
+      ['packSize', 1, 30],
+      ['ambushes', 0, 120],
+      ['ambushSize', 1, 30],
+      ['buttonAmbush', 0, 100]
+    ] as const) {
+      expect(errorsOf({ [field]: lo }), `${field} at ${lo}`).not.toContain(`world.worlds.0.${field}`)
+      expect(errorsOf({ [field]: hi }), `${field} at ${hi}`).not.toContain(`world.worlds.0.${field}`)
+      expect(errorsOf({ [field]: lo - 1 }), `${field} below`).toContain(`world.worlds.0.${field}`)
+      expect(errorsOf({ [field]: hi + 1 }), `${field} above`).toContain(`world.worlds.0.${field}`)
+      expect(errorsOf({ [field]: 1.5 }), `${field} fractional`).toContain(`world.worlds.0.${field}`)
+    }
+  })
+
+  it('needs a monster for packs and for pool ambushes, but not once ambush types stand in', () => {
+    expect(errorsOf({ monsters: [] })).toContain('world.worlds.0.monsters')
+    expect(errorsOf({ monsters: [], packs: 0, ambushes: 0, buttonAmbush: 0 })).not.toContain('world.worlds.0.monsters')
+    // ambushes only, and a type to pick from: the pool is not read
+    expect(errorsOf({ monsters: [], packs: 0, ambushTypes: [type([{ monster: 'mummy_desert', count: 2 }])] })).not.toContain('world.worlds.0.monsters')
+    // packs still need the pool whatever the types say
+    expect(errorsOf({ monsters: [], ambushTypes: [type([{ monster: 'mummy_desert', count: 2 }])] })).toContain('world.worlds.0.monsters')
+  })
+
+  it('rejects an unknown pool key, and reads a missing pool as an error rather than a throw (A7)', () => {
+    expect(errorsOf({ monsters: ['mummy_desert', 'ghost'] })).toContain('world.worlds.0.monsters')
+    expect(errorsOf({ monsters: ['mummy_desert#9'] })).toContain('world.worlds.0.monsters')
+    expect(errorsOf({ monsters: ['tower_banner', 'skeleton1#1', 'lich#2'] })).not.toContain('world.worlds.0.monsters')
+    expect(errorsOf({ monsters: 'mummy_desert' as never })).toContain('world.worlds.0.monsters')
+    expect(() => validateParameters(withWorld({ monsters: undefined as never, ambushTypes: 7 as never }))).not.toThrow()
+  })
+
+  it('refuses a spawner tier: a pinned #0 whose tier 0 is actors/spawners/', () => {
+    expect(errorsOf({ monsters: ['mummy_desert#0'] })).toContain('world.worlds.0.monsters')
+    expect(errorsOf({ monsters: ['bat1#0'] })).toContain('world.worlds.0.monsters')
+    // the bare id rolls from tier 1, and a pinned fighting tier is fine
+    expect(errorsOf({ monsters: ['mummy_desert', 'mummy_desert#1'] })).not.toContain('world.worlds.0.monsters')
+    // an ambush row too
+    const bad = type([{ monster: 'mummy_desert#0', count: 2 }])
+    expect(errorsOf({ ambushTypes: [bad] })).toContain('world.worlds.0.ambushTypes.0.monsters.0.monster')
+  })
+
+  it('holds ambush types to 10, a weight of 1-99 and 1-30 per row', () => {
+    const ok = type([{ monster: 'mummy_desert', count: 2 }])
+    expect(errorsOf({ ambushTypes: Array.from({ length: 10 }, () => ok) })).not.toContain('world.worlds.0.ambushTypes')
+    expect(errorsOf({ ambushTypes: Array.from({ length: 11 }, () => ok) })).toContain('world.worlds.0.ambushTypes')
+    expect(errorsOf({ ambushTypes: [{ ...ok, weight: 0 }] })).toContain('world.worlds.0.ambushTypes.0.weight')
+    expect(errorsOf({ ambushTypes: [{ ...ok, weight: 100 }] })).toContain('world.worlds.0.ambushTypes.0.weight')
+    expect(errorsOf({ ambushTypes: [{ ...ok, weight: 99 }] })).not.toContain('world.worlds.0.ambushTypes.0.weight')
+    expect(errorsOf({ ambushTypes: [type([{ monster: 'mummy_desert', count: 0 }])] })).toContain('world.worlds.0.ambushTypes.0.monsters.0.count')
+    expect(errorsOf({ ambushTypes: [type([{ monster: 'mummy_desert', count: 31 }])] })).toContain('world.worlds.0.ambushTypes.0.monsters.0.count')
+    expect(errorsOf({ ambushTypes: [type([{ monster: 'ghost', count: 1 }])] })).toContain('world.worlds.0.ambushTypes.0.monsters.0.monster')
+    expect(errorsOf({ ambushTypes: [type([])] })).toContain('world.worlds.0.ambushTypes.0.monsters')
+    expect(errorsOf({ ambushTypes: [{ weight: 1 } as never] })).toContain('world.worlds.0.ambushTypes.0.monsters')
+    const rows = Array.from({ length: 31 }, () => ({ monster: 'mummy_desert', count: 1 }))
+    expect(errorsOf({ ambushTypes: [type(rows)] })).toContain('world.worlds.0.ambushTypes.0.monsters')
+  })
+
+  it('warns, never errors, about the actor budget and crowded groups', () => {
+    // 400 packs of 30 is the maximum: legal, and loud
+    const big = { packs: 400, packSize: 30 }
+    expect(errorsOf(big)).not.toContain('world.worlds.0.packs')
+    expect(warningsOf(big)).toContain('world.worlds.0.packs')
+    expect(warningsOf(big)).toContain('world.worlds.0.packSize')
+    expect(warningsOf({ packs: 20, packSize: 6 })).not.toContain('world.worlds.0.packs')
+    expect(warningsOf({ packs: 80, packSize: 10 })).not.toContain('world.worlds.0.packs')
+    expect(warningsOf({ packs: 120, packSize: 10 })).toContain('world.worlds.0.packs')
+    expect(warningsOf({ ambushSize: 25 })).toContain('world.worlds.0.ambushSize')
+  })
+})
+
+describe('world scatter validation', () => {
+  const withWorld = (w: Partial<WorldDef>) => {
+    const p = plainParameters()
+    p.world = { enabled: true, worlds: [{ ...defaultWorld(), ...w }] }
+    return p
+  }
+  const errorsOf = (w: Partial<WorldDef>) => fieldsOf(validateParameters(withWorld(w)).errors)
+  const warningsOf = (w: Partial<WorldDef>) => fieldsOf(validateParameters(withWorld(w)).warnings)
+
+  it('holds the scatter to a whole number from 0 to 100', () => {
+    for (const ok of [0, 1, 50, 100]) expect(errorsOf({ scatter: ok })).not.toContain('world.worlds.0.scatter')
+    for (const bad of [-1, 101, 12.5]) expect(errorsOf({ scatter: bad })).toContain('world.worlds.0.scatter')
+  })
+
+  it('warns, never errors, when the scenery would pass the stock maximum', () => {
+    const big = { minWidth: 512, maxWidth: 512, minHeight: 512, maxHeight: 512 }
+    expect(warningsOf({ ...big, scatter: 100 })).toContain('world.worlds.0.scatter')
+    expect(errorsOf({ ...big, scatter: 100 })).not.toContain('world.worlds.0.scatter')
+    // a bare island that large, and the default one, stay quiet
+    expect(warningsOf({ ...big, scatter: 0 })).not.toContain('world.worlds.0.scatter')
+    expect(warningsOf({})).not.toContain('world.worlds.0.scatter')
+  })
+})
+
+describe('world mystery validation', () => {
+  const poolOf = (): MysteryButton[] => [
+    { name: 'Nothing', loot: [], monsters: [], traps: [] },
+    { name: 'Crossfire', loot: [], monsters: [], traps: [{ projectile: 'shooter_arrow', direction: 'down', spread: 0, spawnRateMs: 500, count: 2 }], trapSeconds: 10 },
+    { name: 'Endless fire', loot: [], monsters: [], traps: [{ projectile: 'shooter_arrow', direction: 'down', spread: 0, spawnRateMs: 500, count: 2 }] },
+    { name: 'Nest', loot: [], monsters: [{ monster: 'mummy_desert#0', count: 2 }], traps: [] }
+  ]
+  const withWorld = (w: Partial<WorldDef>, pool: MysteryButton[] | undefined = poolOf()) => {
+    const p = plainParameters()
+    if (pool !== undefined) p.mysteryButtons = pool
+    p.world = { enabled: true, worlds: [{ ...defaultWorld(), ...w }] }
+    return p
+  }
+  const errorsOf = (w: Partial<WorldDef>, pool?: MysteryButton[]) => fieldsOf(validateParameters(withWorld(w, pool)).errors)
+
+  it('holds loot to 0-120 and the plate count to 0-120', () => {
+    for (const ok of [0, 1, 120]) expect(errorsOf({ loot: ok })).not.toContain('world.worlds.0.loot')
+    for (const bad of [-1, 121, 2.5]) expect(errorsOf({ loot: bad })).toContain('world.worlds.0.loot')
+    for (const ok of [0, 1, 120]) expect(errorsOf({ mystery: { count: ok, pool: [0] } })).not.toContain('world.worlds.0.mystery')
+    for (const bad of [-1, 121, 1.5]) expect(errorsOf({ mystery: { count: bad, pool: [0] } })).toContain('world.worlds.0.mystery')
+  })
+
+  it('rejects a pool index past the campaign pool', () => {
+    expect(errorsOf({ mystery: { count: 2, pool: [0, 4] } })).toContain('world.worlds.0.mystery')
+    expect(errorsOf({ mystery: { count: 2, pool: [-1] } })).toContain('world.worlds.0.mystery')
+    expect(errorsOf({ mystery: { count: 2, pool: [0, 1] } })).not.toContain('world.worlds.0.mystery')
+    // no pool at all in the campaign: every index dangles
+    expect(errorsOf({ mystery: { count: 2, pool: [0] } }, [])).toContain('world.worlds.0.mystery')
+  })
+
+  it('rejects plates asked for with an empty pool', () => {
+    expect(errorsOf({ mystery: { count: 3, pool: [] } })).toContain('world.worlds.0.mystery')
+    expect(errorsOf({ mystery: { count: 0, pool: [] } })).not.toContain('world.worlds.0.mystery')
+    expect(errorsOf({ mystery: { count: 3 } as never })).toContain('world.worlds.0.mystery')
+  })
+
+  it('rejects a disguise with no pool to fire from', () => {
+    expect(errorsOf({ disguise: true })).toContain('world.worlds.0.disguise')
+    expect(errorsOf({ disguise: true, mystery: { count: 0, pool: [] } })).toContain('world.worlds.0.disguise')
+    expect(errorsOf({ disguise: true, mystery: { count: 0, pool: [0] } })).not.toContain('world.worlds.0.disguise')
+    expect(errorsOf({ disguise: false })).not.toContain('world.worlds.0.disguise')
+    expect(errorsOf({ disguise: 'yes' as never })).toContain('world.worlds.0.disguise')
+  })
+
+  it('requires a pool button with traps to switch them off (trapSeconds above 0), only for buttons the world uses', () => {
+    expect(errorsOf({ mystery: { count: 2, pool: [1] } })).not.toContain('world.worlds.0.mystery')
+    expect(errorsOf({ mystery: { count: 2, pool: [0, 2] } })).toContain('world.worlds.0.mystery')
+    // the disguise fires the same pool, so it is held to the same rule
+    expect(errorsOf({ disguise: true, mystery: { count: 0, pool: [2] } })).toContain('world.worlds.0.mystery')
+    // a button the world does not draw from may carry endless traps
+    expect(errorsOf({ mystery: { count: 2, pool: [0, 1] } })).not.toContain('world.worlds.0.mystery')
+    const zero = poolOf()
+    zero[1].trapSeconds = 0
+    expect(errorsOf({ mystery: { count: 2, pool: [1] } }, zero)).toContain('world.worlds.0.mystery')
+  })
+
+  it('refuses a pool monster that is a spawner', () => {
+    expect(errorsOf({ mystery: { count: 2, pool: [3] } })).toContain('world.worlds.0.mystery')
+    expect(errorsOf({ mystery: { count: 2, pool: [0] } })).not.toContain('world.worlds.0.mystery')
+  })
+})
+
+describe('world timer and music validation', () => {
+  const withWorld = (w: Partial<WorldDef>) => {
+    const p = plainParameters()
+    p.world = { enabled: true, worlds: [{ ...defaultWorld(), ...w }] }
+    return p
+  }
+  const result = (w: Partial<WorldDef>) => validateParameters(withWorld(w))
+  const timer = (extra: Partial<FloorTimer> = {}): FloorTimer => ({ enabled: true, seconds: 90, damage: 1, freqMs: 100, countdown: true, ...extra })
+
+  it("holds an enabled timer to the floors' bounds", () => {
+    expect(fieldsOf(result({ timer: timer() }).errors)).toEqual([])
+    for (const [bad, field] of [
+      [{ seconds: 0 }, 'seconds'],
+      [{ seconds: MAX_TIMER_SECONDS + 1 }, 'seconds'],
+      [{ seconds: 1.5 }, 'seconds'],
+      [{ freqMs: MIN_TIMER_FREQ_MS - 1 }, 'freqMs'],
+      [{ freqMs: MAX_TIMER_FREQ_MS + 1 }, 'freqMs'],
+      [{ damage: MAX_TIMER_DAMAGE + 1 }, 'damage'],
+      [{ damage: -MAX_TIMER_DAMAGE - 1 }, 'damage']
+    ] as Array<[Partial<FloorTimer>, string]>) {
+      expect(fieldsOf(result({ timer: timer(bad) }).errors), JSON.stringify(bad)).toContain(`world.worlds.0.timer.${field}`)
+    }
+    // the same value on a floor is the same error, from the same rule
+    const floor = plainParameters()
+    floor.levelTimers = floor.levelTimers!.map((t, i) => (i === 0 ? timer({ seconds: 0 }) : t))
+    expect(fieldsOf(validateParameters(floor).errors)).toContain('levelTimers.0.seconds')
+  })
+
+  it('skips a timer that is off, and refuses one with no settings', () => {
+    expect(fieldsOf(result({ timer: timer({ enabled: false, seconds: 0 }) }).errors)).toEqual([])
+    expect(fieldsOf(result({ timer: null as never }).errors)).toContain('world.worlds.0.timer')
+  })
+
+  it('warns about a 0-damage timer and a countdown that would emit hundreds of nodes', () => {
+    expect(fieldsOf(result({ timer: timer({ damage: 0 }) }).warnings)).toContain('world.worlds.0.timer.damage')
+    expect(fieldsOf(result({ timer: timer({ seconds: TIMER_COUNTDOWN_NODE_WARN + 1 }) }).warnings)).toContain('world.worlds.0.timer.countdown')
+    expect(fieldsOf(result({ timer: timer({ seconds: TIMER_COUNTDOWN_NODE_WARN + 1, countdown: false }) }).warnings)).not.toContain('world.worlds.0.timer.countdown')
+  })
+
+  it('rejects an unknown music track, and accepts the default and every listed one', () => {
+    expect(fieldsOf(result({ music: 'banjo' }).errors)).toContain('world.worlds.0.music')
+    expect(fieldsOf(result({ music: 'default' }).errors)).not.toContain('world.worlds.0.music')
+    expect(fieldsOf(result({ music: 'act1' }).errors)).not.toContain('world.worlds.0.music')
+    expect(fieldsOf(result({ music: undefined }).errors)).not.toContain('world.worlds.0.music')
+  })
+})
+
+describe('world terrain validation', () => {
+  /** A 128-tile free-roam island: a third of its side is 42, one plateau per 1,024 tiles is 16. */
+  const roomy = { minWidth: 128, maxWidth: 128, minHeight: 128, maxHeight: 128, buttons: 0, bossCount: 0 }
+  const check = (world: Partial<WorldDef>) => {
+    const p = plainParameters()
+    p.world = { enabled: true, worlds: [{ ...defaultWorld(), ...roomy, ...world }] }
+    return validateParameters(p)
+  }
+  const errors = (world: Partial<WorldDef>) => fieldsOf(check(world).errors)
+  const warnings = (world: Partial<WorldDef>) => fieldsOf(check(world).warnings)
+
+  it('accepts the Hills and Highlands shortcuts, and a world that states no terrain at all', () => {
+    for (const w of [
+      { plateaus: 3, plateauMinSize: 10, plateauMaxSize: 16, plateauStairs: 1, biome: 'oasis' },
+      { plateaus: 5, plateauMinSize: 12, plateauMaxSize: 20, plateauStairs: 2, biome: 'drygrass' },
+      {}
+    ] as Array<Partial<WorldDef>>) {
+      const r = check(w)
+      expect(r.errors, JSON.stringify(w)).toEqual([])
+      expect(fieldsOf(r.warnings).filter((f) => f.includes('plateau'))).toEqual([])
+    }
+  })
+
+  it('needs whole numbers, and bounds the plateau count by the island (one per 1,024 tiles)', () => {
+    expect(errors({ plateaus: 2.5 })).toContain('world.worlds.0.plateaus')
+    expect(errors({ plateaus: -1 })).toContain('world.worlds.0.plateaus')
+    expect(errors({ plateaus: 17 })).toContain('world.worlds.0.plateaus')
+    expect(errors({ plateaus: 16 })).not.toContain('world.worlds.0.plateaus')
+    expect(errors({ plateaus: 0 })).not.toContain('world.worlds.0.plateaus')
+    // the bound scales: a 64-tile island holds at most 4
+    const tiny = { minWidth: 64, maxWidth: 64, minHeight: 64, maxHeight: 64 }
+    expect(errors({ ...tiny, plateaus: 5 })).toContain('world.worlds.0.plateaus')
+    expect(errors({ ...tiny, plateaus: 4 })).not.toContain('world.worlds.0.plateaus')
+  })
+
+  it('needs whole plateau sizes of at least 8, and a stair count of 1 to 4', () => {
+    for (const [field, value] of [['plateauMinSize', 7], ['plateauMinSize', 9.5], ['plateauMaxSize', 7], ['plateauMaxSize', 12.5]] as const) {
+      expect(errors({ plateaus: 1, [field]: value }), `${field} ${value}`).toContain(`world.worlds.0.${field}`)
+    }
+    expect(errors({ plateaus: 1, plateauMinSize: 8, plateauMaxSize: 8 })).toEqual([])
+    for (const stairs of [0, 5, 1.5, -1]) expect(errors({ plateaus: 1, plateauStairs: stairs }), `stairs ${stairs}`).toContain('world.worlds.0.plateauStairs')
+    for (const stairs of [1, 2, 3, 4]) expect(errors({ plateaus: 1, plateauStairs: stairs })).not.toContain('world.worlds.0.plateauStairs')
+  })
+
+  it('rejects a smallest plateau above the largest', () => {
+    expect(errors({ plateaus: 2, plateauMinSize: 20, plateauMaxSize: 12 })).toContain('world.worlds.0.plateauMinSize')
+    expect(errors({ plateaus: 2, plateauMinSize: 12, plateauMaxSize: 12 })).not.toContain('world.worlds.0.plateauMinSize')
+    // the defaults count: a largest of 8 under the default smallest of 10
+    expect(errors({ plateaus: 2, plateauMaxSize: 8 })).toContain('world.worlds.0.plateauMinSize')
+  })
+
+  it('rejects a plateau above a third of the smaller island side, but only when some are raised', () => {
+    expect(errors({ plateaus: 1, plateauMinSize: 12, plateauMaxSize: 43 })).toContain('world.worlds.0.plateauMaxSize')
+    expect(errors({ plateaus: 1, plateauMinSize: 12, plateauMaxSize: 42 })).not.toContain('world.worlds.0.plateauMaxSize')
+    expect(errors({ plateaus: 0, plateauMinSize: 12, plateauMaxSize: 60 })).not.toContain('world.worlds.0.plateauMaxSize')
+    // it scales with the SMALLER side
+    expect(errors({ plateaus: 1, minHeight: 64, maxHeight: 64, plateauMaxSize: 22 })).toContain('world.worlds.0.plateauMaxSize')
+    expect(errors({ plateaus: 1, minHeight: 64, maxHeight: 64, plateauMaxSize: 21 })).not.toContain('world.worlds.0.plateauMaxSize')
+  })
+
+  it('warns when more plateaus are asked for than the island can hold, and only then', () => {
+    const fits = worldPlateauCapacity({ ...defaultWorld(), ...roomy, plateauMaxSize: 20 })
+    expect(fits).toBeGreaterThan(0)
+    expect(fits).toBeLessThan(16)
+    expect(warnings({ plateaus: fits, plateauMinSize: 12, plateauMaxSize: 20 })).not.toContain('world.worlds.0.plateaus')
+    const over = check({ plateaus: fits + 1, plateauMinSize: 12, plateauMaxSize: 20 })
+    expect(over.errors).toEqual([])
+    expect(fieldsOf(over.warnings)).toContain('world.worlds.0.plateaus')
+    expect(over.warnings.find((w) => w.field === 'world.worlds.0.plateaus')!.message).toContain(`about ${fits}`)
+    // objectives take land too (audit A2)
+    expect(worldPlateauCapacity({ ...defaultWorld(), ...roomy, plateauMaxSize: 20, buttons: 30, bossCount: 0 })).toBeLessThan(fits)
+  })
+
+  it('counts only the plateaus that fit in the objectives capacity (audit A2)', () => {
+    const base = { ...defaultWorld(), ...roomy, plateauMinSize: 12, plateauMaxSize: 20 }
+    const flat = worldSiteCapacityOf(base)
+    const fits = worldPlateauCapacity(base)
+    expect(worldSiteCapacityOf({ ...base, plateaus: fits })).toBeLessThanOrEqual(flat)
+    // asking for far more takes no more land than what fits
+    expect(worldSiteCapacityOf({ ...base, plateaus: fits + 50 })).toBe(worldSiteCapacityOf({ ...base, plateaus: fits }))
+  })
+
+  it('warns that stairs are unused on a mesa biome, and on no other', () => {
+    for (const biome of ['desert', 'frozen']) {
+      expect(warnings({ biome, plateaus: 2, plateauStairs: 3 }), biome).toContain('world.worlds.0.plateauStairs')
+      expect(warnings({ biome, plateaus: 2 }), biome).not.toContain('world.worlds.0.plateauStairs')
+    }
+    for (const biome of ['oasis', 'drygrass']) expect(warnings({ biome, plateaus: 2, plateauStairs: 3 }), biome).not.toContain('world.worlds.0.plateauStairs')
+  })
+
+  it('holds the mesa biomes to the same bounds and says "mesas" in the capacity warning', () => {
+    for (const biome of ['desert', 'frozen']) {
+      expect(errors({ biome, plateaus: 17 }), biome).toContain('world.worlds.0.plateaus')
+      expect(errors({ biome, plateaus: 3, plateauMinSize: 20, plateauMaxSize: 12 }), biome).toContain('world.worlds.0.plateauMinSize')
+      expect(errors({ biome, plateaus: 3, plateauMaxSize: 43 }), biome).toContain('world.worlds.0.plateauMaxSize')
+      expect(errors({ biome, plateaus: 3, plateauMinSize: 10, plateauMaxSize: 16 }), biome).toEqual([])
+      const fits = worldPlateauCapacity({ ...defaultWorld(), ...roomy, biome, plateauMaxSize: 20 })
+      const over = check({ biome, plateaus: fits + 1, plateauMinSize: 12, plateauMaxSize: 20 })
+      expect(over.errors).toEqual([])
+      expect(over.warnings.find((w) => w.field === 'world.worlds.0.plateaus')!.message, biome).toContain('mesas')
+    }
   })
 })

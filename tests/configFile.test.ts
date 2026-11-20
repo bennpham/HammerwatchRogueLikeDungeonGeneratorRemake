@@ -15,6 +15,8 @@ import {
   wavePickups
 } from '../src/generator/config/parameters'
 import { DEFAULT_LOBBY_PRESET_ID } from '../src/generator/lobby/presets'
+import { WORLD_MAX_COUNT, defaultWorld } from '../src/generator/world/options'
+import type { DungeonParameters } from '../src/generator/config/parameters'
 import {
   SHOP_PRICE_MAX,
   applyCostPolicy,
@@ -1677,20 +1679,21 @@ describe('parameters.txt — levelOrder (issue #43)', () => {
   // order genuinely IS the plain "every floor, then the (disabled) fight"
   // default shape — but OMITTING the line does not reconstruct that. The
   // base `parseParametersTxt(content)` (no base) overlays onto —
-  // `defaultParameters()` — ships the SHIPPED order (`L1,1..7,L2,B1,8`), and
-  // repairing THAT against a lobby-less, boss-off campaign's own counts drops
-  // the lobbies but keeps the escape floor played AFTER the fight, which is
-  // not the same as the naive default (every floor, then the fight) this
-  // campaign actually wants. An explicit `levelOrder=` line naming the true
-  // default is the only way to say so.
-  it('writes an explicit default order when the base\'s own shipped order would repair to something else', () => {
+  // `defaultParameters()` — ships the SHIPPED order (`L1,1..7,L2,B1,8`).
+  // Repairing THAT against a lobby-less, boss-off campaign's own counts drops
+  // the lobbies AND the fight (a disabled arena is no order slot), which
+  // leaves floors 1..8 in order: the plain default. So no `levelOrder=` line
+  // is needed, and none is written.
+  it('writes no order line when a boss-off, lobby-less campaign\'s shipped order repairs to the default', () => {
     const params = defaultParameters()
     params.boss.enabled = false
     params.lobbies = []
     params.levelOrder = undefined
 
     const text = serializeParametersTxt(params)
-    expect(text).toMatch(/^levelOrder=1,2,3,4,5,6,7,8,AB1$/m)
+    // A disabled arena is no order slot, so the order is the plain default and
+    // no line (and certainly no AB1) is written.
+    expect(text).not.toMatch(/^levelOrder=/m)
 
     const parsed = parseParametersTxt(text)
     expect(parsed.unknownKeys).toEqual([])
@@ -1920,5 +1923,407 @@ describe('trapN — per-floor wall traps', () => {
     expect(parsed.params.levelTraps?.[0]).toEqual([])
     expect(parsed.params.levelTraps?.[1]).toHaveLength(1)
     expect(parsed.params.levelTraps?.[3]).toEqual([])
+  })
+})
+
+describe('levelOrder with a disabled arena', () => {
+  it('counts a disabled boss arena as no order slots, on export and re-import', () => {
+    const params = defaultParameters()
+    params.boss.enabled = false
+    // fights stay on the object (flipping enabled is lossless) but are not slots
+    params.levelOrder = [
+      { kind: 'lobby', index: 0 },
+      ...Array.from({ length: 8 }, (_, i) => ({ kind: 'floor' as const, index: i })),
+      { kind: 'lobby', index: 1 }
+    ]
+    const text = serializeParametersTxt(params)
+    const orderLine = text.split(/\r?\n/).find((l) => l.startsWith('levelOrder='))
+    expect(orderLine ?? '').not.toContain('B1')
+
+    const back = parseParametersTxt(text, defaultParameters()).params
+    expect(back.boss.enabled).toBe(false)
+    expect(JSON.stringify(back.levelOrder ?? [])).not.toContain('boss')
+  })
+})
+
+describe('empty themes=', () => {
+  it('parses as no themes, not one empty theme id', () => {
+    const parsed = parseParametersTxt('levels=0\r\nthemes=')
+    expect(parsed.params.themes).toEqual([])
+  })
+})
+
+describe('floor pools when a file declares none', () => {
+  it('trims the base pools to the level count', () => {
+    const parsed = parseParametersTxt('levels=0')
+    expect(parsed.params.levelMonsters).toEqual([])
+
+    const three = parseParametersTxt('levels=3')
+    expect(three.params.levelMonsters).toHaveLength(3)
+  })
+
+  it('keeps a declared placeholder pool on a zero-floor campaign', () => {
+    const parsed = parseParametersTxt('levels=0\r\nthemes=a_mixed\r\nmonsters0=bat1')
+    expect(parsed.params.levelMonsters).toEqual([['bat1']])
+  })
+})
+
+describe('world keys', () => {
+  const serialize = (p: DungeonParameters) => serializeParametersTxt(p)
+  const worldLines = (text: string) => text.split(/\r?\n/).filter((l) => /^world/i.test(l))
+
+  it('writes no world line for a campaign without worlds, and none for the stock defaults', () => {
+    expect(worldLines(serialize(defaultParameters()))).toEqual([])
+    expect(worldLines(serialize(plainParameters()))).toEqual([])
+  })
+
+  it('round-trips every key of an enabled world list', () => {
+    const p = plainParameters()
+    p.world = {
+      enabled: true,
+      worlds: [
+        { ...defaultWorld(), biome: 'desert', minWidth: 64, maxWidth: 96, minHeight: 80, maxHeight: 128, coast: 12, waterMargin: 9 },
+        { ...defaultWorld(), coast: 100 }
+      ]
+    }
+    const text = serialize(p)
+    expect(worldLines(text)).toEqual([
+      'world=1',
+      'worlds=2',
+      'world0Biome=desert',
+      'world0Width=64,96',
+      'world0Height=80,128',
+      'world0Coast=12',
+      'world0WaterMargin=9',
+      'world0Buttons=3',
+      'world0BossPool=boss_anubis,boss_knight,boss_krilith,boss_lich,boss_worm',
+      'world0SafeRadius=16',
+      'world0Trails=0',
+      'world0Monsters=mummy_desert,mummy_ranged,lich_desert',
+      'world0Packs=20',
+      'world0PackSize=6',
+      'world0Ambushes=6',
+      'world0AmbushSize=6',
+      'world0ButtonAmbush=50',
+      'world0Scatter=50',
+      'world0Loot=8',
+      'world1Biome=desert',
+      'world1Width=128,128',
+      'world1Height=128,128',
+      'world1Coast=100',
+      'world1WaterMargin=6',
+      'world1Buttons=3',
+      'world1BossPool=boss_anubis,boss_knight,boss_krilith,boss_lich,boss_worm',
+      'world1SafeRadius=16',
+      'world1Trails=0',
+      'world1Monsters=mummy_desert,mummy_ranged,lich_desert',
+      'world1Packs=20',
+      'world1PackSize=6',
+      'world1Ambushes=6',
+      'world1AmbushSize=6',
+      'world1ButtonAmbush=50',
+      'world1Scatter=50',
+      'world1Loot=8'
+    ])
+    const back = parseParametersTxt(text, plainParameters())
+    expect(back.params.world).toEqual(p.world)
+    expect(back.unknownKeys).toEqual([])
+  })
+
+  it('round-trips checkpoints, writing the line only when on and reporting a bad value', () => {
+    const p = plainParameters()
+    p.world = { enabled: true, worlds: [{ ...defaultWorld(), checkpoints: true }, { ...defaultWorld(), checkpoints: false }, defaultWorld()] }
+    const text = serialize(p)
+    expect(worldLines(text).filter((l) => /Checkpoints/.test(l))).toEqual(['world0Checkpoints=1'])
+    const back = parseParametersTxt(text, plainParameters())
+    expect(back.params.world!.worlds.map((w) => w.checkpoints)).toEqual([true, undefined, undefined])
+    const bad = parseParametersTxt(['world=1', 'worlds=1', 'world0Checkpoints=maybe'].join('\n'), plainParameters())
+    expect(bad.unknownKeys).toContain('world0Checkpoints value "maybe"')
+  })
+
+  it('round-trips the hub, writing it only for a camp and reporting an unknown one', () => {
+    const p = plainParameters()
+    p.world = { enabled: true, worlds: [{ ...defaultWorld(), hub: 'camp' }, { ...defaultWorld(), hub: 'bare' }, defaultWorld()] }
+    const text = serialize(p)
+    expect(worldLines(text).filter((l) => /Hub/.test(l))).toEqual(['world0Hub=camp'])
+    const back = parseParametersTxt(text, plainParameters())
+    expect(back.params.world!.worlds.map((w) => w.hub)).toEqual(['camp', undefined, undefined])
+    const bad = parseParametersTxt(['world=1', 'worlds=1', 'world0Hub=village'].join('\n'), plainParameters())
+    expect(bad.unknownKeys).toContain('world0Hub value "village"')
+    expect(bad.params.world?.worlds[0]?.hub).toBeUndefined()
+  })
+
+  it('round-trips every objective key, writing a boss count and a lineup only when stated', () => {
+    const p = plainParameters()
+    p.world = {
+      enabled: true,
+      worlds: [
+        {
+          ...defaultWorld(),
+          buttons: 7,
+          bossCount: 4,
+          bossPool: ['boss_lich', 'boss_worm'],
+          bossSelection: 'lineup',
+          bossLineup: { boss_anubis: 2, boss_worm: 3 },
+          safeRadius: 22,
+          trails: true
+        },
+        { ...defaultWorld(), bossCount: 0, buttons: 0 }
+      ]
+    }
+    const text = serialize(p)
+    const lines = worldLines(text)
+    expect(lines).toContain('world0Buttons=7')
+    expect(lines).toContain('world0Bosses=4')
+    expect(lines).toContain('world0BossPool=boss_lich,boss_worm')
+    expect(lines).toContain('world0BossSelection=lineup')
+    expect(lines).toContain('world0BossLineup=boss_anubis:2,boss_worm:3')
+    expect(lines).toContain('world0SafeRadius=22')
+    expect(lines).toContain('world0Trails=1')
+    expect(lines).toContain('world1Bosses=0')
+    // a world that never stated a count, a selection or a lineup writes none
+    const plain = worldLines(serialize({ ...plainParameters(), world: { enabled: true, worlds: [defaultWorld()] } }))
+    expect(plain.some((l) => /Bosses=|BossSelection|BossLineup/.test(l))).toBe(false)
+    const back = parseParametersTxt(text, plainParameters())
+    expect(back.unknownKeys).toEqual([])
+    expect(back.params.world).toEqual(p.world)
+  })
+
+  it('round-trips every encounter key, ambush types included', () => {
+    const p = plainParameters()
+    p.world = {
+      enabled: true,
+      worlds: [
+        {
+          ...defaultWorld(),
+          monsters: ['mummy_desert', 'lich_desert#2'],
+          packs: 33,
+          packSize: 9,
+          ambushes: 12,
+          ambushSize: 4,
+          buttonAmbush: 80,
+          scatter: 75,
+          ambushTypes: [
+            { weight: 3, monsters: [{ monster: 'mummy_desert', count: 4 }] },
+            { weight: 1, monsters: [{ monster: 'lich_desert#2', count: 1 }, { monster: 'mummy_ranged', count: 2 }] }
+          ]
+        }
+      ]
+    }
+    const text = serialize(p)
+    const lines = worldLines(text)
+    expect(lines).toContain('world0Monsters=mummy_desert,lich_desert#2')
+    expect(lines).toContain('world0Packs=33')
+    expect(lines).toContain('world0Scatter=75')
+    expect(lines).toContain('world0AmbushType1=3|mummy_desert:4')
+    expect(lines).toContain('world0AmbushType2=1|lich_desert#2:1,mummy_ranged:2')
+    const back = parseParametersTxt(text, plainParameters())
+    expect(back.unknownKeys).toEqual([])
+    expect(back.params.world).toEqual(p.world)
+  })
+
+  it('reports a bad encounter value, pool key or ambush type and keeps the rest', () => {
+    const { params, unknownKeys } = parseParametersTxt(
+      [
+        'world=1',
+        'worlds=1',
+        'world0Packs=x',
+        'world0PackSize=-2',
+        'world0Scatter=lots',
+        'world0Monsters=mummy_desert,ghost',
+        'world0AmbushType1=heavy|mummy_desert:2',
+        'world0AmbushType2=2|mummy_desert:2,ghost:1,mummy_ranged:z',
+        'world0AmbushType11=1|mummy_desert:1',
+        'world0AmbushType0=1|mummy_desert:1'
+      ].join('\n') + '\n',
+      plainParameters()
+    )
+    expect(unknownKeys).toEqual([
+      'world0Packs value "x"',
+      'world0PackSize value "-2"',
+      'world0Scatter value "lots"',
+      'world0Monsters monster "ghost"',
+      'world0AmbushType1 weight "heavy"',
+      'world0AmbushType2 monster "ghost"',
+      'world0AmbushType2 count "z"',
+      'world0AmbushType11 value "1|mummy_desert:1"',
+      'world0AmbushType0 value "1|mummy_desert:1"'
+    ])
+    const world = params.world!.worlds[0]
+    expect(world.monsters).toEqual(['mummy_desert'])
+    expect(world.packs).toBe(20)
+    // type 1 was unusable, so slot 0 stays the empty filler and slot 1 holds the good row
+    expect(world.ambushTypes).toEqual([
+      { weight: 1, monsters: [] },
+      { weight: 2, monsters: [{ monster: 'mummy_desert', count: 2 }] }
+    ])
+  })
+
+  it('round-trips loot, mystery plates and the disguise, the pool numbered from 1', () => {
+    const p = plainParameters()
+    p.world = {
+      enabled: true,
+      worlds: [
+        { ...defaultWorld(), loot: 33, mystery: { count: 7, pool: [0, 2, 2] }, disguise: true },
+        { ...defaultWorld(), mystery: { count: 0, pool: [] } },
+        defaultWorld()
+      ]
+    }
+    const text = serialize(p)
+    const lines = worldLines(text)
+    expect(lines).toContain('world0Loot=33')
+    expect(lines).toContain('world0Mystery=7:0,2,2')
+    expect(lines).toContain('world0Disguise=1')
+    expect(lines).toContain('world1Mystery=0:')
+    // a world that never set them writes neither line
+    expect(lines.some((l) => l.startsWith('world2Mystery') || l.startsWith('world2Disguise'))).toBe(false)
+    const back = parseParametersTxt(text, plainParameters())
+    expect(back.unknownKeys).toEqual([])
+    expect(back.params.world).toEqual(p.world)
+  })
+
+  it('reports a bad loot, mystery or disguise value and keeps the rest', () => {
+    const { params, unknownKeys } = parseParametersTxt(
+      ['world=1', 'worlds=1', 'world0Loot=few', 'world0Mystery=lots:1', 'world0Disguise=maybe'].join(String.fromCharCode(10)) + String.fromCharCode(10),
+      plainParameters()
+    )
+    expect(unknownKeys).toEqual(['world0Loot value "few"', 'world0Mystery count "lots"', 'world0Disguise value "maybe"'])
+    expect(params.world!.worlds[0].loot).toBe(8)
+    expect(params.world!.worlds[0].mystery).toBeUndefined()
+    // the floors' own grammar: 0-based, a negative or non-numeric token dropped
+    const pool = parseParametersTxt(['world=1', 'worlds=1', 'world0Mystery=3:0,-1,x,1'].join(String.fromCharCode(10)) + String.fromCharCode(10), plainParameters())
+    expect(pool.unknownKeys).toEqual(['world0Mystery button "-1"', 'world0Mystery button "x"'])
+    expect(pool.params.world!.worlds[0].mystery).toEqual({ count: 3, pool: [0, 1] })
+  })
+
+  it('round-trips the timer and the music, writing them only when stated', () => {
+    const p = plainParameters()
+    p.world = {
+      enabled: true,
+      worlds: [
+        { ...defaultWorld(), timer: { enabled: true, seconds: 45, damage: -3, freqMs: 250, countdown: false }, music: 'desert_temple' },
+        { ...defaultWorld(), timer: { enabled: false, seconds: 180, damage: 1, freqMs: 1000, countdown: true } },
+        defaultWorld()
+      ]
+    }
+    const text = serialize(p)
+    const lines = worldLines(text)
+    expect(lines).toContain('world0Timer=1|45|-3|250|0')
+    expect(lines).toContain('world0Music=desert_temple')
+    expect(lines).toContain('world1Timer=0|180|1|1000|1')
+    expect(lines.some((l) => l.startsWith('world2Timer') || l.startsWith('world2Music'))).toBe(false)
+    const back = parseParametersTxt(text, plainParameters())
+    expect(back.unknownKeys).toEqual([])
+    expect(back.params.world).toEqual(p.world)
+  })
+
+  it('parses a world timer the way a floor timer is: a bad field is reported and keeps its default', () => {
+    const { params, unknownKeys } = parseParametersTxt(
+      ['world=1', 'worlds=1', 'world0Timer=1|x|7||0', 'world0Music=not_a_track'].join(String.fromCharCode(10)) + String.fromCharCode(10),
+      plainParameters()
+    )
+    expect(unknownKeys).toEqual(['world0Timer seconds "x"', 'world0Music value "not_a_track"'])
+    expect(params.world!.worlds[0].timer).toEqual({ enabled: true, seconds: 180, damage: 7, freqMs: 1000, countdown: false })
+    expect(params.world!.worlds[0].music).toBeUndefined()
+  })
+
+  it('reports a bad objective value or boss id and keeps the rest of the line', () => {
+    const { params, unknownKeys } = parseParametersTxt(
+      ['world=1', 'worlds=1', 'world0Buttons=x', 'world0Bosses=1.5', 'world0SafeRadius=-3', 'world0Trails=maybe', 'world0BossSelection=all', 'world0BossPool=boss_lich,ghost', 'world0BossLineup=boss_worm:2,ghost:1'].join('\n') + '\n',
+      plainParameters()
+    )
+    expect(unknownKeys).toEqual([
+      'world0Buttons value "x"',
+      'world0Bosses value "1.5"',
+      'world0SafeRadius value "-3"',
+      'world0Trails value "maybe"',
+      'world0BossSelection value "all"',
+      'world0BossPool boss "ghost"',
+      'world0BossLineup boss "ghost"'
+    ])
+    const world = params.world!.worlds[0]
+    expect(world.bossPool).toEqual(['boss_lich'])
+    expect(world.bossLineup).toEqual({ boss_worm: 2 })
+    expect(world.buttons).toBe(3)
+  })
+
+  it('round-trips a DISABLED world list, so switching worlds off loses nothing', () => {
+    const p = plainParameters()
+    p.world = { enabled: false, worlds: [{ ...defaultWorld(), minWidth: 70, maxWidth: 70 }] }
+    const back = parseParametersTxt(serialize(p), plainParameters())
+    expect(back.params.world).toEqual(p.world)
+  })
+
+  it('matches keys case-insensitively and fills unnamed fields with the defaults', () => {
+    const { params, unknownKeys } = parseParametersTxt('WORLD=1\nWORLDS=1\nWorld0COAST=33\n', plainParameters())
+    expect(unknownKeys).toEqual([])
+    expect(params.world).toEqual({ enabled: true, worlds: [{ ...defaultWorld(), coast: 33 }] })
+  })
+
+  it('grows the list from the keys alone, with the count absent', () => {
+    const { params } = parseParametersTxt('world=1\nworld2Coast=5\n', plainParameters())
+    expect(params.world!.worlds).toHaveLength(3)
+    expect(params.world!.worlds[2].coast).toBe(5)
+    expect(params.world!.worlds[0]).toEqual(defaultWorld())
+  })
+
+  it('reports an unknown suffix, an unknown biome and a bad value, and grows nothing for them', () => {
+    const { params, unknownKeys } = parseParametersTxt(
+      [
+        'world=1',
+        'worlds=1',
+        'world0Colour=red',
+        'world0Biome=swamp',
+        'world0Width=abc',
+        'world0Width=64',
+        'world0Height=64,x',
+        'world0Coast=-3',
+        'world0WaterMargin=1.5',
+        'world5Coast=oops'
+      ].join('\n'),
+      plainParameters()
+    )
+    expect(unknownKeys).toEqual([
+      'world0Colour',
+      'world0Biome value "swamp"',
+      'world0Width value "abc"',
+      'world0Width value "64"',
+      'world0Height value "64,x"',
+      'world0Coast value "-3"',
+      'world0WaterMargin value "1.5"',
+      'world5Coast value "oops"'
+    ])
+    expect(params.world!.worlds).toEqual([defaultWorld()])
+  })
+
+  it('caps the list in the loader: worlds= and world<i> at or above the cap are reported, never grown', () => {
+    const over = parseParametersTxt(`world=1\nworlds=${WORLD_MAX_COUNT + 1}\n`, plainParameters())
+    expect(over.unknownKeys).toEqual([`worlds value "${WORLD_MAX_COUNT + 1}"`])
+    expect(over.params.world!.worlds).toHaveLength(0)
+
+    const stray = parseParametersTxt(`world=1\nworld${WORLD_MAX_COUNT}Coast=5\nworld99999999Coast=5\n`, plainParameters())
+    expect(stray.unknownKeys).toEqual([`world${WORLD_MAX_COUNT}Coast`, 'world99999999Coast'])
+    expect(stray.params.world!.worlds).toHaveLength(0)
+
+    const atCap = parseParametersTxt(`world=1\nworlds=${WORLD_MAX_COUNT}\n`, plainParameters())
+    expect(atCap.params.world!.worlds).toHaveLength(WORLD_MAX_COUNT)
+    expect(atCap.unknownKeys).toEqual([])
+  })
+
+  it('drops keys past a declared count and reports them', () => {
+    const { params, unknownKeys } = parseParametersTxt('world=1\nworlds=1\nworld0Coast=1\nworld1Coast=2\n', plainParameters())
+    expect(params.world!.worlds).toHaveLength(1)
+    expect(unknownKeys).toEqual(['world1Coast'])
+  })
+
+  it('names a world in levelOrder and keeps the order repairable', () => {
+    const p = plainParameters()
+    p.world = { enabled: true, worlds: [defaultWorld()] }
+    // worlds go last in the default order, so the default stores no levelOrder line
+    expect(serialize(p)).not.toMatch(/^levelOrder=/m)
+    p.levelOrder = [{ kind: 'world', index: 0 }, ...Array.from({ length: p.levels }, (_, index) => ({ kind: 'floor' as const, index })), { kind: 'boss', index: 0 }]
+    const text = serialize(p)
+    expect(text).toMatch(/^levelOrder=W1,1,/m)
+    expect(parseParametersTxt(text, plainParameters()).params.levelOrder).toEqual(p.levelOrder)
   })
 })

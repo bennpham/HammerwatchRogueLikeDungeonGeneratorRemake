@@ -17,6 +17,7 @@ import {
   defaultBossFight,
   defaultSurvivalOptions,
   getTheme,
+  campaignCounts,
   isDefaultOrder,
   isMultiBoss,
   normalizeOrder,
@@ -93,11 +94,9 @@ export function BossForm({ params, issues, onChange }: BossFormProps) {
     const nextBoss = { ...boss, ...patch }
     const next: DungeonParameters = { ...params, boss: nextBoss }
     if (params.levelOrder !== undefined) {
-      const counts: CampaignCounts = {
-        levels: params.levels,
-        fights: nextBoss.enabled ? (nextBoss.fights?.length ?? 0) : 0,
-        lobbies: params.lobbies.length
-      }
+      const counts: CampaignCounts = campaignCounts(params, {
+        fights: nextBoss.enabled ? (nextBoss.fights?.length ?? 0) : 0
+      })
       const repaired = normalizeOrder(params.levelOrder, counts)
       if (isDefaultOrder(repaired, counts)) delete next.levelOrder
       else next.levelOrder = repaired

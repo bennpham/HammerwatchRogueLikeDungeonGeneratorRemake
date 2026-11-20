@@ -8,8 +8,10 @@ import type { UpgradeCounts } from '../levelTemplate/surgery'
 // the key QuickSetup's checkbox writes. tweak/ imports nothing from config/,
 // so this direction adds no cycle
 import { removeKey } from '../tweak/chains'
-import type { ArenaMode, CampaignSlot } from '../campaign'
+import type { ArenaMode, CampaignCounts, CampaignSlot } from '../campaign'
 import { ARENA_MODES, campaignOrder, gatewayAfter } from '../campaign'
+import { worldList } from '../world/options'
+import type { WorldOptions } from '../world/options'
 // Type-only: boss/bosses.ts imports BOSS_IDS/MOBILE_BOSS_IDS FROM this file at
 // runtime, so a runtime import back here would cycle. `import type` is erased
 // at compile time and carries no such risk — see BossArenaOptions.bossLineup.
@@ -206,9 +208,10 @@ export const MAX_TIMER_DAMAGE = 10_000
 /**
  * A countdown longer than this emits more than this many AnnounceText nodes on
  * that one floor, which bloats the level XML — warned about, not rejected.
- * Same threshold and same reasoning as BOSS_COUNTDOWN_NODE_WARN.
+ * 600 so the hunt floors (ten minutes, owner call) pass; the survival arena
+ * keeps its own, lower SURVIVAL_COUNTDOWN_NODE_WARN.
  */
-export const TIMER_COUNTDOWN_NODE_WARN = 200
+export const TIMER_COUNTDOWN_NODE_WARN = 600
 
 /** A fresh, disabled floor timer — the stock value for every floor. */
 export function defaultFloorTimer(): FloorTimer {
@@ -620,11 +623,7 @@ export function mysteryStarterPool(): MysteryButton[] {
  * CURRENT order: rearranging the campaign afterwards moves no lock.
  */
 export function gatewayLockedFloors(params: DungeonParameters): FloorLock[] {
-  const counts = {
-    levels: params.levels,
-    fights: bossFights(params.boss).length,
-    lobbies: (params.lobbies ?? []).length
-  }
+  const counts = campaignCounts(params)
   const order = campaignOrder(counts, params.levelOrder)
   const locks = Array.from({ length: params.levels }, () => defaultFloorLock())
   order.forEach((slot, position) => {
@@ -838,6 +837,14 @@ export interface DungeonParameters {
    * RNG stream, so every existing seed's dungeon is unchanged.
    */
   boss: BossOptions
+  /**
+   * World slots (`world/`): open islands built from terrain. Optional, and
+   * ABSENT in `defaultParameters()` and every preset: a campaign without worlds
+   * is byte-identical to the generator before the feature, and so is its
+   * parameters.txt export. Read the list through `worldList`, never off here.
+   * Draws only from `ctx.worldRand`, after every floor and arena.
+   */
+  world?: WorldOptions
 }
 
 /**
@@ -1117,10 +1124,10 @@ export const DEFAULT_SURVIVAL_INTERVAL_MS = 1500
 
 /**
  * Node budget past which a `seconds` countdown is worth warning about. Same
- * threshold and reasoning as TIMER_COUNTDOWN_NODE_WARN — one AnnounceText per
+ * reasoning as TIMER_COUNTDOWN_NODE_WARN but its own, lower threshold (200) — one AnnounceText per
  * second, all on one level.
  */
-export const SURVIVAL_COUNTDOWN_NODE_WARN = TIMER_COUNTDOWN_NODE_WARN
+export const SURVIVAL_COUNTDOWN_NODE_WARN = 200
 
 /**
  * An arena cleared by outlasting a clock instead of by killing something.
@@ -1703,6 +1710,23 @@ export function defaultBossFight(): BossFight {
  * the list and carry no fights at all, and a boss that is switched off builds
  * nothing whatever the list holds.
  */
+/**
+ * The counts a campaign's order is repaired and validated against, read off a
+ * parameter object. The one place a `CampaignCounts` is built from params, so
+ * a new slot kind changes this function and not eight call sites. `over` lets
+ * a caller that holds a not-yet-stored list (a form mid-edit) override a count.
+ * Worlds counts the ENABLED worlds (`worldList`), so a disabled list adds no slot.
+ */
+export function campaignCounts(params: DungeonParameters, over: Partial<CampaignCounts> = {}): CampaignCounts {
+  return {
+    levels: params.levels,
+    fights: bossFights(params.boss).length,
+    lobbies: (params.lobbies ?? []).length,
+    worlds: worldList(params).length,
+    ...over
+  }
+}
+
 export function bossFights(boss: BossOptions | undefined): BossFight[] {
   if (boss === undefined || !boss.enabled) return []
   return boss.fights ?? []
@@ -1920,7 +1944,7 @@ export const SHOOTER_ARROW_TRAPS: BossTrap[] = [
  * quantity. Totals were 152 / 137 / 117 / 38 / 15; issue #64 part 2 added the
  * knight's own bodyguards on top (4 / 4 / 4 / 1), giving 152 / 141 / 121 / 42 / 16.
  */
-function castleWaves(): BossWave[] {
+export function castleWaves(): BossWave[] {
   const drops = stockWavePickups()
   return [
     scatterWave(

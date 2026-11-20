@@ -69,7 +69,12 @@ export const DoodadType = {
   // never places it. Default resolves correctly for the classic lettered
   // themes (doodadToken === the theme id); theme h and the bonus themes
   // override it in themes.ts because their filenames don't fit this template.
-  Pillar: { path: 'doodads/theme_%s/%s_special_pillar.xml', xOffset: 0, yOffset: 0, themeSubs: 2 }
+  Pillar: { path: 'doodads/theme_%s/%s_special_pillar.xml', xOffset: 0, yOffset: 0, themeSubs: 2 },
+  // A doodad named by a raw asset path (`Doodad.rawPath`), for scenery whose
+  // path is data rather than a theme template (the world mode's props). The
+  // empty path is never emitted: getXML prefers rawPath. Zero offsets, so the
+  // caller states the exact position.
+  Prop: { path: '', xOffset: 0, yOffset: 0, themeSubs: 0 }
 } as const satisfies Record<string, DoodadTypeDef>
 
 export type DoodadTypeName = keyof typeof DoodadType
@@ -125,6 +130,8 @@ export class Doodad extends XMLObject {
    * caller that needs `true` sets `seal.needSync = true` after construction.
    */
   needSync = false
+  /** Verbatim asset path; set only by `Doodad.prop`, and wins over the type's. */
+  rawPath?: string
 
   constructor(
     ctx: GenerationContext,
@@ -143,11 +150,19 @@ export class Doodad extends XMLObject {
     return d
   }
 
+  /** A passable prop at an exact position, named by its asset path. */
+  static prop(ctx: GenerationContext, x: number, y: number, path: string): Doodad {
+    const d = new Doodad(ctx, x, y, 'Prop', '')
+    d.rawPath = path
+    ctx.doodads.push(d)
+    return d
+  }
+
   getXML(): string {
     const offset = doodadOffset(this.type, this.theme)
     const dict = new XMLDictionary('')
     dict.addData(new XMLInt('id', this.id))
-    dict.addData(new XMLString('type', doodadPath(this.type, this.theme)))
+    dict.addData(new XMLString('type', this.rawPath ?? doodadPath(this.type, this.theme)))
     dict.addData(new XMLFloat('x', this.x + offset.x))
     dict.addData(new XMLFloat('y', this.y + offset.y))
     dict.addData(new XMLBool('need-sync', this.needSync))

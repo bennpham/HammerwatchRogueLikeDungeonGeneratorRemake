@@ -64,7 +64,8 @@ import { ScriptNode } from '../objects/scriptNode'
 import { getTheme, THEME_DEFS } from '../config/themes'
 import type { ThemeDef } from '../config/themes'
 import { XMLArray, XMLDictionary, XMLInt, XMLIntArray, XMLString } from '../xml'
-import { dataAFromDataT, mixedDatasets, overlayDataset } from '../map/tilemapOverlay'
+import { levelSectionsXML } from '../xml/levelSections'
+import { dataAFromDataT, mixedDatasets, overlayDataset, waterDataset } from '../map/tilemapOverlay'
 import { patternVariant, pickArenaPattern } from './arenaPattern'
 import type { ArenaPattern } from './arenaPattern'
 import type { GenerationContext } from '../core/context'
@@ -843,27 +844,6 @@ function defaultIntArray(name: string): XMLIntArray {
 }
 
 /**
- * `tilemaps/water.xml` — a single animated `data-t` value 1 — is the lowest
- * tileset level in the game (level 1; the next lowest classic tileset is 10).
- * Stacked as a second dataset under every theme dataset, it is the base
- * layer the theme's own floor/wall tiles sit on top of; without it, the void
- * beyond the arena's own tile grid reads as flat, textureless block.
- * `data-t` is filled with 1 everywhere in this dataset — it is a background,
- * not a floor mask — so `data-a` is 255 everywhere too (never the 0/255 split
- * `dataAFromDataT` does for the theme dataset above it).
- */
-function waterDataset(): XMLDictionary {
-  const dict = new XMLDictionary('')
-  dict.addData(new XMLString('tileset', 'tilemaps/water.xml'))
-  dict.addData(new XMLIntArray('data-t', new Array<number>(TILEMAP_SIZE * TILEMAP_SIZE).fill(1)))
-  dict.addData(defaultIntArray('data-r'))
-  dict.addData(defaultIntArray('data-g'))
-  dict.addData(defaultIntArray('data-b'))
-  dict.addData(defaultIntArray('data-a'))
-  return dict
-}
-
-/**
  * Extra tile blocks emitted on every side beyond the arena's own grid, so the
  * water base layer reads as extending past the arena rather than stopping
  * dead at its edge. These blocks carry no theme floor (out of `tileArray`
@@ -960,54 +940,7 @@ function getArenaXML(
   const tilemapDict = new XMLDictionary('tilemap')
   tilemapDict.addData(tiledataArray)
 
-  const doodadsArray = new XMLArray('doodads')
-  for (const d of ctx.doodads) doodadsArray.addData(d)
-  const doodadsDict = new XMLDictionary('doodads')
-  doodadsDict.addData(doodadsArray)
-
-  const actorsArray = new XMLArray('actors')
-  for (const m of ctx.monsters) actorsArray.addData(m)
-  const actorsDict = new XMLDictionary('actors')
-  actorsDict.addData(actorsArray)
-
-  const nodesArray = new XMLArray('nodes')
-  for (const n of ctx.scriptNodes) nodesArray.addData(n)
-  const scriptingDict = new XMLDictionary('scripting')
-  scriptingDict.addData(nodesArray)
-
-  const itemsArray = new XMLArray('items')
-  for (const i of ctx.items) itemsArray.addData(i)
-  const itemsDict = new XMLDictionary('items')
-  itemsDict.addData(itemsArray)
-
-  const lightingArray = new XMLArray('lights')
-
-  const ambientDict = new XMLDictionary('ambient-color')
-  ambientDict.addData(new XMLInt('r', 255))
-  ambientDict.addData(new XMLInt('g', 255))
-  ambientDict.addData(new XMLInt('b', 255))
-  ambientDict.addData(new XMLInt('a', 255))
-
-  const shadowDict = new XMLDictionary('shadow-color')
-  shadowDict.addData(new XMLInt('r', 128))
-  shadowDict.addData(new XMLInt('g', 128))
-  shadowDict.addData(new XMLInt('b', 128))
-  shadowDict.addData(new XMLInt('a', 128))
-
-  const lightingDict = new XMLDictionary('lighting')
-  lightingDict.addData(lightingArray)
-  lightingDict.addData(ambientDict)
-  lightingDict.addData(shadowDict)
-
-  const masterDict = new XMLDictionary('')
-  masterDict.addData(tilemapDict)
-  masterDict.addData(doodadsDict)
-  masterDict.addData(actorsDict)
-  masterDict.addData(scriptingDict)
-  masterDict.addData(itemsDict)
-  masterDict.addData(lightingDict)
-
-  return masterDict.getXML()
+  return levelSectionsXML(ctx, tilemapDict)
 }
 
 /**

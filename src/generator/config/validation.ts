@@ -37,6 +37,7 @@ import {
   arenaBossCount,
   floorBossCount,
   bossSelection,
+  lineupTotal,
   isMultiBoss,
   arenaMode,
   survivalBuffs,
@@ -56,15 +57,76 @@ import { mysteryLootById } from '../objects/mysteryLoot'
 import { mysteryCapacity } from '../mystery/placement'
 import { MUSIC_DEFAULT, MUSIC_TRACKS, isKnownMusicId } from '../music/tracks'
 import type { BossTrapDirection, TrapDirection } from './parameters'
-import type { BossFight, BossOptions } from './parameters'
+import type { BossFight, BossOptions, FloorTimer, MysteryButton } from './parameters'
 import type { CampaignSlot } from '../campaign'
 import { getTheme } from './themes'
+import { BIOME_IDS, biomeById } from '../world/biomes'
+import { LANDMARK_MIN_SIZE } from '../world/landmarks'
+import { WORLD_HUBS } from '../world/hub'
+import {
+  DEFAULT_WORLD_BUTTONS,
+  DEFAULT_WORLD_SAFE_RADIUS,
+  WORLD_ACTOR_WARN,
+  WORLD_DOODAD_WARN,
+  WORLD_SCATTER_MAX,
+  WORLD_SCATTER_MIN,
+  WORLD_AMBUSHES_MAX,
+  WORLD_AMBUSH_ROWS_MAX,
+  WORLD_AMBUSH_ROW_COUNT_MAX,
+  WORLD_AMBUSH_SIZE_MAX,
+  WORLD_AMBUSH_SIZE_MIN,
+  WORLD_AMBUSH_TYPES_MAX,
+  WORLD_AMBUSH_WEIGHT_MAX,
+  WORLD_BUTTONS_MAX,
+  WORLD_COAST_MAX,
+  WORLD_COAST_MIN,
+  WORLD_GROUP_WARN,
+  WORLD_LOOT_MAX,
+  WORLD_MYSTERY_MAX,
+  WORLD_MAX_COUNT,
+  WORLD_PACKS_MAX,
+  WORLD_PLATEAU_SIZE_MIN,
+  WORLD_PLATEAU_STAIRS_MAX,
+  WORLD_PLATEAU_STAIRS_MIN,
+  WORLD_PACK_SIZE_MAX,
+  WORLD_PACK_SIZE_MIN,
+  WORLD_SAFE_RADIUS_MAX,
+  WORLD_SAFE_RADIUS_MIN,
+  WORLD_SIZE_MAX,
+  WORLD_SIZE_MIN,
+  WORLD_SIZE_WARN,
+  WORLD_WATER_MARGIN_MAX,
+  WORLD_WATER_MARGIN_MIN,
+  ambushTypeTotal,
+  mysteryButtonMonsters,
+  worldActorEstimate,
+  worldDoodadEstimate,
+  worldScatter,
+  worldAmbushSize,
+  worldAmbushTypes,
+  worldAmbushes,
+  worldButtonAmbush,
+  worldList,
+  worldLoot,
+  worldMaxSafeRadius,
+  worldMonsters,
+  worldPlateauCapacity,
+  worldPlateauCountMax,
+  worldPlateauSizeMax,
+  worldTerrain,
+  worldPackSize,
+  worldPacks,
+  worldSiteCapacityOf
+} from '../world/options'
+import type { WorldDef } from '../world/options'
 import {
   defaultTier,
   isKnownFamilyId,
   isKnownFloorPoolKey,
   isKnownMonsterId,
   isKnownMonsterKey,
+  familyMembers,
+  floorPoolTier,
   monsterFamilyById,
   monsterTypeById,
   parseMonsterKey,
@@ -130,10 +192,10 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
   // all, straight into the arena (or a lobby first, if one leads to it). The
   // rules just below keep that honest.
   requirePositiveInt('levels', p.levels, 0)
-  if (p.levels === 0 && p.boss?.enabled !== true) {
+  if (p.levels === 0 && p.boss?.enabled !== true && worldList(p).length === 0) {
     errors.push({
       field: 'levels',
-      message: 'With 0 floors the boss fight must be enabled — otherwise the campaign has no levels to play.'
+      message: 'With 0 floors the boss fight or a world must be enabled — otherwise the campaign has no levels to play.'
     })
   }
   requirePositiveInt('minRoomSize', p.minRoomSize, 3)
@@ -356,6 +418,7 @@ export function validateParameters(p: DungeonParameters): ValidationResult {
   validateFloorMusic(p, errors, warnings)
   validateLobbies(p, errors, warnings)
   validateBoss(p, errors, warnings)
+  validateWorlds(p, errors, warnings)
   validateLevelOrder(p, errors)
 
   return { errors, warnings, valid: errors.length === 0 }
@@ -414,6 +477,512 @@ function validateUpgrades(
 }
 
 /**
+ * A list a hand-built object may be missing (A7). Returns the array, or `[]`
+ * after reporting it: a settings file or a test can omit one, and reading
+ * `.length` off `undefined` would throw instead of saying what is wrong.
+ */
+function listOf<T>(value: T[] | undefined, field: string, errors: ValidationIssue[]): T[] {
+  if (Array.isArray(value)) return value
+  errors.push({ field, message: 'This list is missing. Add it, or turn the world off.' })
+  return []
+}
+
+/**
+ * Every rule for the world slots (`world/`). Field keys are scoped by index
+ * (`world.worlds.0.*`) so the form can anchor a message to the world that is
+ * wrong, as `validateLobbies` does for `lobbies.N.*`.
+ *
+ * A disabled list builds nothing, so nothing in it can block generation: only
+ * an ENABLED `world` is checked, but then in full.
+ */
+function validateWorlds(p: DungeonParameters, errors: ValidationIssue[], warnings: ValidationIssue[]): void {
+  const w = p.world
+  if (w === undefined || w === null || w.enabled !== true) return
+
+  const worlds = listOf(w.worlds, 'world.worlds', errors)
+  if (Array.isArray(w.worlds) && worlds.length === 0) {
+    errors.push({ field: 'world.worlds', message: 'Worlds are on but there are none. Add a world, or turn them off.' })
+  }
+  if (worlds.length > WORLD_MAX_COUNT) {
+    errors.push({
+      field: 'world.worlds',
+      message: `A campaign can carry at most ${WORLD_MAX_COUNT} worlds (it has ${worlds.length}).`
+    })
+  }
+
+  worlds.forEach((def, i) => {
+    const at = (field: string) => `world.worlds.${i}.${field}`
+    if (def === null || typeof def !== 'object') {
+      errors.push({ field: `world.worlds.${i}`, message: 'This world is missing.' })
+      return
+    }
+    if (!BIOME_IDS.includes(def.biome)) {
+      errors.push({ field: at('biome'), message: `Unknown biome "${String(def.biome)}" (known: ${BIOME_IDS.join(', ')}).` })
+    }
+    if (def.hub !== undefined && !WORLD_HUBS.includes(def.hub)) {
+      errors.push({ field: at('hub'), message: `Unknown hub "${String(def.hub)}" (known: ${WORLD_HUBS.join(', ')}).` })
+    }
+    const whole = (field: string, value: number, min: number, max: number, what: string): boolean => {
+      if (!Number.isInteger(value) || value < min || value > max) {
+        errors.push({ field: at(field), message: `${what} must be a whole number from ${min} to ${max}.` })
+        return false
+      }
+      return true
+    }
+    const minW = whole('minWidth', def.minWidth, WORLD_SIZE_MIN, WORLD_SIZE_MAX, 'The minimum width')
+    const maxW = whole('maxWidth', def.maxWidth, WORLD_SIZE_MIN, WORLD_SIZE_MAX, 'The maximum width')
+    const minH = whole('minHeight', def.minHeight, WORLD_SIZE_MIN, WORLD_SIZE_MAX, 'The minimum height')
+    const maxH = whole('maxHeight', def.maxHeight, WORLD_SIZE_MIN, WORLD_SIZE_MAX, 'The maximum height')
+    whole('coast', def.coast, WORLD_COAST_MIN, WORLD_COAST_MAX, 'The coast')
+    const marginOk = whole('waterMargin', def.waterMargin, WORLD_WATER_MARGIN_MIN, WORLD_WATER_MARGIN_MAX, 'The water margin')
+    if (minW && maxW && def.minWidth > def.maxWidth) {
+      errors.push({ field: at('minWidth'), message: 'The minimum width must be at most the maximum width.' })
+    }
+    if (minH && maxH && def.minHeight > def.maxHeight) {
+      errors.push({ field: at('minHeight'), message: 'The minimum height must be at most the maximum height.' })
+    }
+    // 240 is the largest level the stock game ships; nothing bigger is known to load
+    if ((maxW && def.maxWidth > WORLD_SIZE_WARN) || (maxH && def.maxHeight > WORLD_SIZE_WARN)) {
+      warnings.push({
+        field: at(maxW && def.maxWidth > WORLD_SIZE_WARN ? 'maxWidth' : 'maxHeight'),
+        message: `A world above ${WORLD_SIZE_WARN} tiles is bigger than any stock level (240) and may load slowly or not at all.`
+      })
+    }
+    validateWorldObjectives(def, i, at, whole, minW && minH && marginOk, errors, warnings)
+    validateWorldTerrain(def, i, at, whole, minW && minH, errors, warnings)
+    validateWorldEncounters(def, i, at, whole, p.mysteryButtons ?? [], errors, warnings)
+    validateWorldMystery(def, i, at, whole, p.mysteryButtons ?? [], errors, warnings)
+    validateWorldTimerAndMusic(def, i, at, errors, warnings)
+  })
+}
+
+/**
+ * The objective rules of one world: buttons, bosses, the safe radius, and
+ * whether the island holds them all. Bosses follow the arena's and the floor's
+ * rules exactly (`MAX_BOSS_COUNT`, the `BOSS_COUNT_WARN` advisory, mobile
+ * bosses only, `validateBossLineup`), except that a world may carry none, and
+ * the cap on how many is only what fits.
+ */
+function validateWorldObjectives(
+  def: WorldDef,
+  index: number,
+  at: (field: string) => string,
+  whole: (field: string, value: number, min: number, max: number, what: string) => boolean,
+  sizeOk: boolean,
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[]
+): void {
+  const subject = `World ${index + 1}`
+  const buttons = def.buttons ?? DEFAULT_WORLD_BUTTONS
+  const buttonsOk = whole('buttons', buttons, 0, WORLD_BUTTONS_MAX, 'The button count')
+  const safeRadius = def.safeRadius ?? DEFAULT_WORLD_SAFE_RADIUS
+  const safeOk = whole('safeRadius', safeRadius, WORLD_SAFE_RADIUS_MIN, WORLD_SAFE_RADIUS_MAX, 'The safe radius')
+  if (def.trails !== undefined && typeof def.trails !== 'boolean') {
+    errors.push({ field: at('trails'), message: 'Trails must be on or off.' })
+  }
+  if (def.checkpoints !== undefined && typeof def.checkpoints !== 'boolean') {
+    errors.push({ field: at('checkpoints'), message: 'Checkpoints must be on or off.' })
+  }
+  if (def.landmarks !== undefined && typeof def.landmarks !== 'boolean') {
+    errors.push({ field: at('landmarks'), message: 'Landmarks must be on or off.' })
+  } else if (def.landmarks === true && Math.min(def.minWidth, def.minHeight) < LANDMARK_MIN_SIZE) {
+    warnings.push({
+      field: at('landmarks'),
+      message: `${subject}: landmarks need room (islands smaller than ${LANDMARK_MIN_SIZE} tiles a side keep fewer of them, and a pyramid may not fit at all).`
+    })
+  }
+  if (def.bossSelection !== undefined && !(BOSS_SELECTIONS as readonly string[]).includes(def.bossSelection)) {
+    errors.push({ field: at('bossSelection'), message: `Boss selection must be one of: ${BOSS_SELECTIONS.join(', ')}.` })
+  }
+
+  let bosses = 0
+  let bossesOk = true
+  if (bossSelection(def) === 'lineup') {
+    validateBossLineup(def.bossLineup, at('bossLineup'), MOBILE_BOSS_IDS, errors, subject)
+    bosses = lineupTotal(def.bossLineup)
+    if (bosses > MAX_BOSS_COUNT) {
+      bossesOk = false
+      errors.push({ field: at('bossLineup'), message: `The lineup must total between 0 and ${MAX_BOSS_COUNT} bosses.` })
+    }
+  } else {
+    bosses = def.bossCount ?? 1
+    bossesOk = whole('bossCount', bosses, 0, MAX_BOSS_COUNT, 'The boss count')
+    // the pool is read only in random mode, and only when there is a boss to pick
+    if (bossesOk && bosses > 0) {
+      // a pool the object never stated reads as every mobile boss
+      const pool: unknown = def.bossPool === undefined ? [...MOBILE_BOSS_IDS] : def.bossPool
+      if (!Array.isArray(pool) || pool.length === 0) {
+        errors.push({ field: at('bossPool'), message: `${subject}: pick at least one boss for the world to draw from.` })
+      } else {
+        for (const id of pool) {
+          if (!(MOBILE_BOSS_IDS as readonly string[]).includes(id)) {
+            errors.push({
+              field: at('bossPool'),
+              message: `${subject}: "${String(id)}" cannot be a world boss: it must move to reach the party. Pick from: ${MOBILE_BOSS_IDS.join(', ')}.`
+            })
+          }
+        }
+      }
+    }
+  }
+  if (bossesOk && bosses > BOSS_COUNT_WARN) {
+    warnings.push({
+      field: bossSelection(def) === 'lineup' ? at('bossLineup') : at('bossCount'),
+      message: `${bosses} bosses is a lot: expect a crowded island and slower generation.`
+    })
+  }
+
+  if (!buttonsOk || !bossesOk || !sizeOk) return
+  const objectives = buttons + bosses
+  if (objectives === 0) {
+    if (def.checkpoints === true) {
+      warnings.push({ field: at('checkpoints'), message: `${subject}: checkpoints save when an objective is done, and this world has none.` })
+    }
+    return
+  }
+  // A1: the safe radius must leave land beyond it for a site
+  if (safeOk) {
+    const largest = worldMaxSafeRadius(def.minWidth, def.minHeight, def.waterMargin)
+    if (safeRadius > largest) {
+      errors.push({
+        field: at('safeRadius'),
+        message:
+          largest >= WORLD_SAFE_RADIUS_MIN
+            ? `The safe radius is at most ${largest} on a ${Math.min(def.minWidth, def.minHeight)}-tile island with a ${def.waterMargin}-tile water margin; objectives need land beyond it.`
+            : `No safe radius leaves land for objectives on a ${Math.min(def.minWidth, def.minHeight)}-tile island with a ${def.waterMargin}-tile water margin. Use a larger island or a thinner margin.`
+      })
+    }
+  }
+  // A2: every objective needs a site of its own
+  const capacity = worldSiteCapacityOf(def)
+  if (objectives > capacity) {
+    errors.push({
+      field: at('buttons'),
+      message: `${subject}: ${objectives} objectives (${buttons} buttons and ${bosses} bosses) do not fit; the smallest island holds about ${capacity}. Lower them, or use a larger island or a smaller safe radius.`
+    })
+  } else if (objectives === capacity && capacity > 1) {
+    warnings.push({
+      field: at('buttons'),
+      message: `${subject}: ${objectives} objectives fill the island exactly; a ragged coast may not fit them all on every seed.`
+    })
+  }
+}
+
+/**
+ * The terrain rules of one world (plateaus on a plateau biome, mesas on a mesa
+ * one). Every field is optional and absent means a flat island, so a world that
+ * states none is never checked. The bounds SCALE with the island: a plateau is
+ * at most a third of the smaller island side and the count at most one per 1,024
+ * tiles of the smallest island. A field a biome cannot use stays on the object,
+ * unread, as a survival arena's boss-only fields do.
+ */
+function validateWorldTerrain(
+  def: WorldDef,
+  index: number,
+  at: (field: string) => string,
+  whole: (field: string, value: number, min: number, max: number, what: string) => boolean,
+  sizeOk: boolean,
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[]
+): void {
+  const subject = `World ${index + 1}`
+  const states =
+    def.plateaus !== undefined ||
+    def.plateauMinSize !== undefined ||
+    def.plateauMaxSize !== undefined ||
+    def.plateauStairs !== undefined
+  if (!states) return
+  // the scaled bounds need a real island size; a bad size is reported by its own rule
+  const sizeMax = sizeOk ? worldPlateauSizeMax(def.minWidth, def.minHeight) : WORLD_SIZE_MAX
+  const countMax = sizeOk ? worldPlateauCountMax(def.minWidth, def.minHeight) : 0
+  let countOk = true
+  let sizesOk = true
+  if (def.plateaus !== undefined && sizeOk) {
+    countOk = whole('plateaus', def.plateaus, 0, countMax, `The plateau count (one per 1,024 tiles of the smallest island)`)
+  }
+  if (def.plateauMinSize !== undefined) {
+    sizesOk = whole('plateauMinSize', def.plateauMinSize, WORLD_PLATEAU_SIZE_MIN, WORLD_SIZE_MAX, 'The smallest plateau') && sizesOk
+  }
+  if (def.plateauMaxSize !== undefined) {
+    sizesOk = whole('plateauMaxSize', def.plateauMaxSize, WORLD_PLATEAU_SIZE_MIN, WORLD_SIZE_MAX, 'The largest plateau') && sizesOk
+  }
+  if (def.plateauStairs !== undefined) {
+    whole('plateauStairs', def.plateauStairs, WORLD_PLATEAU_STAIRS_MIN, WORLD_PLATEAU_STAIRS_MAX, 'The stairways per plateau')
+  }
+  const terrain = worldTerrain(def)
+  if (sizesOk && terrain.minSize > terrain.maxSize) {
+    errors.push({ field: at('plateauMinSize'), message: `${subject}: the smallest plateau is above the largest.` })
+  }
+  // a plateau a third of the island is the most that leaves low ground round it
+  if (sizeOk && terrain.plateaus > 0 && countOk && Number.isInteger(terrain.maxSize) && terrain.maxSize > sizeMax) {
+    errors.push({
+      field: at('plateauMaxSize'),
+      message: `${subject}: a plateau ${terrain.maxSize} tiles across is too big for a ${def.minWidth}x${def.minHeight} island; keep it to a third of the smaller side (${sizeMax}).`
+    })
+  }
+  const biome = biomeById(def.biome)
+  if (biome?.terrain === 'mesa' && def.plateauStairs !== undefined) {
+    warnings.push({
+      field: at('plateauStairs'),
+      message: `${subject}: ${biome.label} raises mesas, which have no stairways, so the stairs setting is unused here.`
+    })
+  }
+  if (sizeOk && countOk && sizesOk && terrain.plateaus > 0 && terrain.maxSize <= sizeMax) {
+    const fits = worldPlateauCapacity(def)
+    if (terrain.plateaus > fits) {
+      warnings.push({
+        field: at('plateaus'),
+        message: `${subject}: about ${fits} ${biome?.terrain === 'mesa' ? 'mesas' : 'plateaus'} this size fit on a ${def.minWidth}x${def.minHeight} island, so only some of the ${terrain.plateaus} will be raised.`
+      })
+    }
+  }
+}
+
+/**
+ * The actor paths a floor pool key can put on the island: the pinned tier, or
+ * every tier a roll can land on (it climbs from tier 1, so a type's tier 0
+ * is only ever reached by pinning it), across a family's members.
+ */
+function poolKeyActors(key: string): string[] {
+  const { id } = parseMonsterKey(key)
+  const family = monsterFamilyById(id)
+  const types = family !== undefined ? familyMembers(family) : [monsterTypeById(id)]
+  const pinned = family === undefined ? floorPoolTier(key) : undefined
+  return types.flatMap((type) => {
+    if (pinned !== undefined) return [type.tiers[pinned]]
+    return type.tiers.length === 1 ? [type.tiers[0]] : type.tiers.slice(1)
+  })
+}
+
+const isSpawnerPath = (path: string | undefined): boolean => typeof path === 'string' && path.startsWith('actors/spawners/')
+
+/**
+ * The encounter rules of one world: packs, ambush tripwires and the monsters
+ * they draw. Nothing emitted may be a spawner (`actors/spawners/...` places a
+ * spawner prop, not a monster), so a pool key that can resolve to one and an
+ * ambush row that names one are both errors. The actor estimate is a WARNING,
+ * not a cap: stock spreads 2,461 actors over 240 tiles, and what lags is a
+ * crowd in one place, so the size caps are the real bound.
+ */
+function validateWorldEncounters(
+  def: WorldDef,
+  index: number,
+  at: (field: string) => string,
+  whole: (field: string, value: number, min: number, max: number, what: string) => boolean,
+  buttons: readonly MysteryButton[],
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[]
+): void {
+  const subject = `World ${index + 1}`
+  const packsOk =whole('packs', worldPacks(def), 0, WORLD_PACKS_MAX, 'The pack count')
+  const packSizeOk = whole('packSize', worldPackSize(def), WORLD_PACK_SIZE_MIN, WORLD_PACK_SIZE_MAX, 'The pack size')
+  const ambushesOk = whole('ambushes', worldAmbushes(def), 0, WORLD_AMBUSHES_MAX, 'The ambush count')
+  const ambushSizeOk = whole('ambushSize', worldAmbushSize(def), WORLD_AMBUSH_SIZE_MIN, WORLD_AMBUSH_SIZE_MAX, 'The ambush size')
+  whole('buttonAmbush', worldButtonAmbush(def), 0, 100, 'The button ambush chance')
+  whole('loot', worldLoot(def), 0, WORLD_LOOT_MAX, 'The loot count')
+  const scatterOk = whole('scatter', worldScatter(def), WORLD_SCATTER_MIN, WORLD_SCATTER_MAX, 'The scatter')
+
+  // A7: a list a hand-built object lacks is reported and read as empty
+  if (def.monsters !== undefined && !Array.isArray(def.monsters)) {
+    errors.push({ field: at('monsters'), message: `${subject}: the monster pool is missing. Pick the monsters packs and ambushes draw from.` })
+  }
+  const monsters = worldMonsters(def)
+  for (const key of monsters) {
+    if (typeof key !== 'string' || !isKnownFloorPoolKey(key)) {
+      errors.push({ field: at('monsters'), message: `${subject}: unknown monster "${String(key)}".` })
+    } else if (poolKeyActors(key).some(isSpawnerPath)) {
+      errors.push({
+        field: at('monsters'),
+        message: `${subject}: "${key}" is a spawner, which places nothing that fights. Pick the monster itself, not its #0 spawner tier.`
+      })
+    }
+  }
+
+  // ambush types: a weighted list, each a recipe of exact monsters
+  const rawTypes: unknown = def.ambushTypes
+  if (rawTypes !== undefined && !Array.isArray(rawTypes)) {
+    errors.push({ field: at('ambushTypes'), message: `${subject}: the ambush types are missing.` })
+  }
+  const types = worldAmbushTypes(def)
+  if (types.length > WORLD_AMBUSH_TYPES_MAX) {
+    errors.push({ field: at('ambushTypes'), message: `${subject}: at most ${WORLD_AMBUSH_TYPES_MAX} ambush types (it has ${types.length}).` })
+  }
+  types.forEach((type, t) => {
+    const tf = (field: string) => at(`ambushTypes.${t}.${field}`)
+    const label = `${subject}, ambush type ${t + 1}`
+    if (type === null || typeof type !== 'object') {
+      errors.push({ field: at(`ambushTypes.${t}`), message: `${label}: this type is missing.` })
+      return
+    }
+    // a type bypasses ambushSize: its rows' counts are the whole ring (audit A4)
+    if (ambushTypeTotal(type) > WORLD_GROUP_WARN) {
+      warnings.push({
+        field: tf('monsters'),
+        message: `${label}: one ring springs ${ambushTypeTotal(type)} monsters in one place (above ${WORLD_GROUP_WARN}), which may lag.`
+      })
+    }
+    if (!Number.isInteger(type.weight) || type.weight < 1 || type.weight > WORLD_AMBUSH_WEIGHT_MAX) {
+      errors.push({ field: tf('weight'), message: `${label}: the weight must be a whole number from 1 to ${WORLD_AMBUSH_WEIGHT_MAX}.` })
+    }
+    if (!Array.isArray(type.monsters)) {
+      errors.push({ field: tf('monsters'), message: `${label}: its monster list is missing.` })
+      return
+    }
+    if (type.monsters.length < 1 || type.monsters.length > WORLD_AMBUSH_ROWS_MAX) {
+      errors.push({ field: tf('monsters'), message: `${label}: it needs between 1 and ${WORLD_AMBUSH_ROWS_MAX} monster rows (it has ${type.monsters.length}).` })
+    }
+    type.monsters.forEach((row, m) => {
+      if (row === null || typeof row !== 'object' || !isKnownMonsterKey(row.monster)) {
+        errors.push({ field: tf(`monsters.${m}.monster`), message: `${label}: unknown monster "${String(row?.monster)}".` })
+      } else if (isSpawnerPath(resolveActorPath(row.monster))) {
+        errors.push({ field: tf(`monsters.${m}.monster`), message: `${label}: "${row.monster}" is a spawner, which places nothing that fights.` })
+      }
+      if (!Number.isInteger(row?.count) || row.count < 1 || row.count > WORLD_AMBUSH_ROW_COUNT_MAX) {
+        errors.push({ field: tf(`monsters.${m}.count`), message: `${label}: each count must be a whole number from 1 to ${WORLD_AMBUSH_ROW_COUNT_MAX}.` })
+      }
+    })
+  })
+
+  // packs, and ambushes with no type to pick, draw from the pool
+  const poolAmbushes = (worldAmbushes(def) > 0 || worldButtonAmbush(def) > 0) && types.length === 0
+  if ((worldPacks(def) > 0 || poolAmbushes) && monsters.length === 0) {
+    errors.push({ field: at('monsters'), message: `${subject}: packs and ambushes need at least one monster in the pool.` })
+  }
+
+  // budgets: warnings only
+  if (scatterOk && worldDoodadEstimate(def) > WORLD_DOODAD_WARN) {
+    warnings.push({
+      field: at('scatter'),
+      message: `${subject}: about ${worldDoodadEstimate(def)} scenery pieces (above ${WORLD_DOODAD_WARN}, the most any stock level has) may load slowly. Lower the scatter or the size.`
+    })
+  }
+  if (packsOk && packSizeOk) {
+    const actors = worldActorEstimate(def, buttons)
+    if (actors > WORLD_ACTOR_WARN) {
+      warnings.push({
+        field: at('packs'),
+        message: `${subject}: about ${actors} monsters wait on the island (above ${WORLD_ACTOR_WARN}); the game may lag. Lower the packs or their size.`
+      })
+    }
+    if (worldPackSize(def) > WORLD_GROUP_WARN) {
+      warnings.push({ field: at('packSize'), message: `${subject}: packs of more than ${WORLD_GROUP_WARN} in one place may lag.` })
+    }
+  }
+  if (ambushesOk && ambushSizeOk && worldAmbushSize(def) > WORLD_GROUP_WARN) {
+    warnings.push({ field: at('ambushSize'), message: `${subject}: ambushes of more than ${WORLD_GROUP_WARN} at once may lag.` })
+  }
+}
+
+/**
+ * The mystery rules of one world: its plates and its disguise draw from the
+ * campaign's `mysteryButtons` pool, by 0-based index (the form and the file
+ * number them from 1). A world has no walls to put a trap on and no room to
+ * wait it out, so the floors' rule applies at full strength: a pool button the
+ * world can fire that carries traps must switch them off (`trapSeconds` > 0), or
+ * the island is a permanent crossfire. A monster row that resolves to a
+ * spawner tier is refused as it is in the packs.
+ */
+function validateWorldMystery(
+  def: WorldDef,
+  index: number,
+  at: (field: string) => string,
+  whole: (field: string, value: number, min: number, max: number, what: string) => boolean,
+  buttons: readonly MysteryButton[],
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[]
+): void {
+  const subject = `World ${index + 1}`
+  const mystery: unknown = def.mystery
+  if (def.disguise !== undefined && typeof def.disguise !== 'boolean') {
+    errors.push({ field: at('disguise'), message: `${subject}: the disguise must be on or off.` })
+  }
+  let poolOk = true
+  let pool: number[] = []
+  if (mystery !== undefined) {
+    const m = mystery as { count?: unknown; pool?: unknown }
+    if (m === null || typeof m !== 'object' || !Array.isArray(m.pool)) {
+      errors.push({ field: at('mystery'), message: `${subject}: the mystery plates are missing their pool.` })
+      poolOk = false
+    } else {
+      whole('mystery', m.count as number, 0, WORLD_MYSTERY_MAX, 'The mystery plate count')
+      const dangling = (m.pool as unknown[]).filter((n) => !Number.isInteger(n) || (n as number) < 0 || (n as number) >= buttons.length)
+      if (dangling.length > 0) {
+        poolOk = false
+        errors.push({
+          field: at('mystery'),
+          message: `${subject} draws from mystery button(s) ${dangling.map((n) => Number(n) + 1).join(', ')}, which the campaign's pool does not have.`
+        })
+      } else if (Number(m.count) > 0 && m.pool.length === 0) {
+        poolOk = false
+        errors.push({ field: at('mystery'), message: `${subject} places ${m.count} mystery plates but has none picked from the pool: tick at least one.` })
+      } else {
+        pool = m.pool as number[]
+      }
+    }
+  }
+  if (def.disguise === true && poolOk && pool.length === 0) {
+    errors.push({
+      field: at('disguise'),
+      message: `${subject}: disguising the buttons needs a mystery pool to fire from. Pick at least one mystery button, or turn the disguise off.`
+    })
+  }
+  // only a button the world can fire is held to the rules below
+  const used = [...new Set(pool)].map((n) => ({ n, button: buttons[n] }))
+  for (const { n, button } of used) {
+    const label = `${subject}'s mystery button ${n + 1}${button.name ? ` ("${button.name}")` : ''}`
+    if (button.traps.length > 0 && !((button.trapSeconds ?? 0) > 0)) {
+      errors.push({
+        field: at('mystery'),
+        message: `${label} sets traps that never switch off. Give it a switch-off time (trapSeconds above 0), or leave it out of this world.`
+      })
+    }
+    for (const row of button.monsters) {
+      if (isKnownMonsterKey(row.monster) && isSpawnerPath(resolveActorPath(row.monster))) {
+        errors.push({ field: at('mystery'), message: `${label} spawns "${row.monster}", a spawner, which places nothing that fights.` })
+      }
+    }
+    // a plate's swarm lands in one place, as a ring does (audit A4)
+    if (mysteryButtonMonsters(button) > WORLD_GROUP_WARN) {
+      warnings.push({
+        field: at('mystery'),
+        message: `${label} spawns ${mysteryButtonMonsters(button)} monsters at once (above ${WORLD_GROUP_WARN}); pressed on an island, that may lag.`
+      })
+    }
+  }
+}
+
+/**
+ * A world's timer and music. The timer follows the floors' rules exactly
+ * (`timerErrors`, `timerWarnings`); an unknown track is an error, as on a
+ * floor. A timer that is off, or absent, is never checked: it emits nothing.
+ */
+function validateWorldTimerAndMusic(
+  def: WorldDef,
+  index: number,
+  at: (field: string) => string,
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[]
+): void {
+  const subject = `World ${index + 1}`
+  const timer: unknown = def.timer
+  if (timer !== undefined) {
+    if (timer === null || typeof timer !== 'object') {
+      errors.push({ field: at('timer'), message: `${subject}: the timer is missing its settings.` })
+    } else if ((timer as FloorTimer).enabled === true) {
+      const found = timerErrors(timer as FloorTimer, subject, (field) => at(`timer.${field}`))
+      errors.push(...found)
+      if (found.length === 0) warnings.push(...timerWarnings(timer as FloorTimer, subject, 'that island', (field) => at(`timer.${field}`)))
+    }
+  }
+  if (def.music !== undefined && !isKnownMusicId(def.music)) {
+    errors.push({
+      field: at('music'),
+      message: `${subject}: "${String(def.music)}" is not a music track. Valid tracks: ${MUSIC_DEFAULT}, ${MUSIC_TRACKS.map((t) => t.id).join(', ')}.`
+    })
+  }
+}
+
+/**
  * The campaign's play order, when one is stored.
  *
  * Absent is always valid — it means the default order, which is what every
@@ -434,15 +1003,23 @@ function validateLevelOrder(p: DungeonParameters, errors: ValidationIssue[]): vo
 
   const fightCount = p.boss?.enabled === true ? (p.boss.fights?.length ?? 0) : 0
   const lobbyCount = p.lobbies?.length ?? 0
-  const limit = (kind: string): number => (kind === 'floor' ? p.levels : kind === 'boss' ? fightCount : lobbyCount)
+  const worldCount = worldList(p).length
+  const limit = (kind: string): number =>
+    kind === 'floor' ? p.levels : kind === 'boss' ? fightCount : kind === 'world' ? worldCount : lobbyCount
   const name = (slot: CampaignSlot): string =>
-    slot.kind === 'floor' ? `floor ${slot.index + 1}` : slot.kind === 'boss' ? `boss fight ${slot.index + 1}` : `lobby ${slot.index + 1}`
+    slot.kind === 'floor'
+      ? `floor ${slot.index + 1}`
+      : slot.kind === 'boss'
+        ? `boss fight ${slot.index + 1}`
+        : slot.kind === 'world'
+          ? `world ${slot.index + 1}`
+          : `lobby ${slot.index + 1}`
 
   const seen = new Set<string>()
   const last = new Map<string, number>()
   for (const slot of order) {
-    if (slot === null || typeof slot !== 'object' || (slot.kind !== 'floor' && slot.kind !== 'boss' && slot.kind !== 'lobby')) {
-      errors.push({ field: 'levelOrder', message: 'The floor order contains an entry that is neither a floor, a boss fight nor a lobby.' })
+    if (slot === null || typeof slot !== 'object' || (slot.kind !== 'floor' && slot.kind !== 'boss' && slot.kind !== 'lobby' && slot.kind !== 'world')) {
+      errors.push({ field: 'levelOrder', message: 'The floor order contains an entry that is neither a floor, a boss fight, a lobby nor a world.' })
       continue
     }
     if (!Number.isInteger(slot.index) || slot.index < 0 || slot.index >= limit(slot.kind)) {
@@ -474,7 +1051,8 @@ function validateLevelOrder(p: DungeonParameters, errors: ValidationIssue[]): vo
   const named = [
     ...Array.from({ length: Math.max(0, lobbyCount) }, (_, index) => ({ kind: 'lobby' as const, index })),
     ...Array.from({ length: Math.max(0, p.levels) }, (_, index) => ({ kind: 'floor' as const, index })),
-    ...Array.from({ length: Math.max(0, fightCount) }, (_, index) => ({ kind: 'boss' as const, index }))
+    ...Array.from({ length: Math.max(0, fightCount) }, (_, index) => ({ kind: 'boss' as const, index })),
+    ...Array.from({ length: Math.max(0, worldCount) }, (_, index) => ({ kind: 'world' as const, index }))
   ]
   for (const slot of named) {
     if (!seen.has(`${slot.kind}:${slot.index}`)) {
@@ -2096,6 +2674,51 @@ function staleUpgrades(
  * pre-feature default and never invalid. Entries past `levels` are ignored by
  * the generator, so they are a warning rather than an error.
  */
+/**
+ * The error rules of one enabled timer, the floors' and a world's alike: a
+ * whole number of seconds, a frequency in range and a bounded damage. `subject`
+ * leads every message ("Floor 3", "World 1").
+ */
+function timerErrors(timer: FloorTimer, subject: string, at: (field: string) => string): ValidationIssue[] {
+  const out: ValidationIssue[] = []
+  if (!Number.isInteger(timer.seconds) || timer.seconds < 1 || timer.seconds > MAX_TIMER_SECONDS) {
+    out.push({
+      field: at('seconds'),
+      message: `${subject}: countdown must be a whole number of seconds between 1 and ${MAX_TIMER_SECONDS}.`
+    })
+  }
+  if (!Number.isInteger(timer.freqMs) || timer.freqMs < MIN_TIMER_FREQ_MS || timer.freqMs > MAX_TIMER_FREQ_MS) {
+    out.push({
+      field: at('freqMs'),
+      message: `${subject}: frequency must be a whole number of milliseconds between ${MIN_TIMER_FREQ_MS} and ${MAX_TIMER_FREQ_MS}.`
+    })
+  }
+  if (!Number.isInteger(timer.damage) || Math.abs(timer.damage) > MAX_TIMER_DAMAGE) {
+    out.push({
+      field: at('damage'),
+      message: `${subject}: damage must be a whole number between -${MAX_TIMER_DAMAGE} and ${MAX_TIMER_DAMAGE} (negative heals).`
+    })
+  }
+  return out
+}
+
+/** The advisories of one timer that passed `timerErrors`; `where` names the level in the node-count note. */
+function timerWarnings(timer: FloorTimer, subject: string, where: string, at: (field: string) => string): ValidationIssue[] {
+  const out: ValidationIssue[] = []
+  if (timer.damage === 0) {
+    out.push({ field: at('damage'), message: `${subject}: a timer with 0 damage does nothing once it fires.` })
+  }
+  if (timer.countdown && timer.seconds > TIMER_COUNTDOWN_NODE_WARN) {
+    out.push({
+      field: at('countdown'),
+      message:
+        `${subject}: a ${timer.seconds}s countdown emits ${timer.seconds + 1} announce nodes on ${where}. ` +
+        'Turn the countdown off, or shorten it, to keep the level file small.'
+    })
+  }
+  return out
+}
+
 function validateLevelTimers(p: DungeonParameters, errors: ValidationIssue[], warnings: ValidationIssue[]): void {
   const timers = p.levelTimers
   if (timers === undefined) return
@@ -2104,30 +2727,7 @@ function validateLevelTimers(p: DungeonParameters, errors: ValidationIssue[], wa
 
   timers.slice(0, p.levels).forEach((timer, i) => {
     if (!timer.enabled) return
-    const at = (field: string) => `levelTimers.${i}.${field}`
-
-    if (!Number.isInteger(timer.seconds) || timer.seconds < 1 || timer.seconds > MAX_TIMER_SECONDS) {
-      errors.push({
-        field: at('seconds'),
-        message: `Floor ${i + 1}: countdown must be a whole number of seconds between 1 and ${MAX_TIMER_SECONDS}.`
-      })
-    }
-    if (
-      !Number.isInteger(timer.freqMs) ||
-      timer.freqMs < MIN_TIMER_FREQ_MS ||
-      timer.freqMs > MAX_TIMER_FREQ_MS
-    ) {
-      errors.push({
-        field: at('freqMs'),
-        message: `Floor ${i + 1}: frequency must be a whole number of milliseconds between ${MIN_TIMER_FREQ_MS} and ${MAX_TIMER_FREQ_MS}.`
-      })
-    }
-    if (!Number.isInteger(timer.damage) || Math.abs(timer.damage) > MAX_TIMER_DAMAGE) {
-      errors.push({
-        field: at('damage'),
-        message: `Floor ${i + 1}: damage must be a whole number between -${MAX_TIMER_DAMAGE} and ${MAX_TIMER_DAMAGE} (negative heals).`
-      })
-    }
+    errors.push(...timerErrors(timer, `Floor ${i + 1}`, (field) => `levelTimers.${i}.${field}`))
   })
 
   if (errors.length > before) return
@@ -2144,20 +2744,7 @@ function validateLevelTimers(p: DungeonParameters, errors: ValidationIssue[], wa
 
   timers.slice(0, p.levels).forEach((timer, i) => {
     if (!timer.enabled) return
-    if (timer.damage === 0) {
-      warnings.push({
-        field: `levelTimers.${i}.damage`,
-        message: `Floor ${i + 1}: a timer with 0 damage does nothing once it fires.`
-      })
-    }
-    if (timer.countdown && timer.seconds > TIMER_COUNTDOWN_NODE_WARN) {
-      warnings.push({
-        field: `levelTimers.${i}.countdown`,
-        message:
-          `Floor ${i + 1}: a ${timer.seconds}s countdown emits ${timer.seconds + 1} announce nodes on that floor. ` +
-          'Turn the countdown off, or shorten it, to keep the level file small.'
-      })
-    }
+    warnings.push(...timerWarnings(timer, `Floor ${i + 1}`, 'that floor', (field) => `levelTimers.${i}.${field}`))
   })
 
   if (p.levels === 0) {

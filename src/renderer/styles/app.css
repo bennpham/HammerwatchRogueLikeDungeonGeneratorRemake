@@ -249,6 +249,12 @@ body {
   font-weight: 600;
 }
 
+.preset-guide-caution {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--warning);
+}
+
 .preset-guide dd {
   margin: 2px 0 0;
   color: var(--text-dim);
@@ -1659,6 +1665,10 @@ button.danger:hover:not(:disabled) {
   border-color: #4a90c0;
 }
 
+.floor-chip-world {
+  border-color: #5a9e5a;
+}
+
 .floor-chip .chip-label {
   min-width: 20px;
   text-align: center;
@@ -1671,6 +1681,17 @@ button.danger:hover:not(:disabled) {
 
 .floor-chip-lobby .chip-label {
   color: #7fb8e0;
+}
+
+.floor-chip-world .chip-label {
+  color: #8fcf8f;
+}
+
+.preview-notes {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--text-dim);
 }
 
 .chip-move {

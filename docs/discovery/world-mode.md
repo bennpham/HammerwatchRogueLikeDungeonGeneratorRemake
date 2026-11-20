@@ -1,6 +1,6 @@
 # World mode, pass 0: in-game discovery
 
-Date: 2026-11-15. Status: questions open, nothing played. Roadmap milestone M0 (`docs/plans/v1-roadmap.md`). Read by the implementing agent that builds the probes and by the owner who plays them.
+Date: 2026-11-15. Status: questions open, nothing played. World mode was built ahead of these answers (2026-11-18) on the defaults listed in DISCOVERY-LOG "World mode built ahead of pass 0"; each answer that disagrees supersedes one of them. Play checks live in `docs/BOOT-CHECKLIST.md`. Roadmap milestone M0 (`docs/plans/v1-roadmap.md`). Read by the implementing agent that builds the probes and by the owner who plays them.
 
 These are the questions that only Hammerwatch itself can answer, and that `docs/plans/world-mode.md` and `docs/plans/world-mode-terrain.md` wait on. No generator code ships in this pass. Each question gives the reason, what the logs already settle, the probe, what to look for, what each answer decides, and a blank **Answer:** line. Every asset and node name was checked against the HW1 install (`D:\Program Files (x86)\Steam\steamapps\common\Hammerwatch\editor\`) and the skills' `ASSET-REGISTRY.md` and `DISCOVERY-LOG.md`. Tags: [V] verified in game and logged; [R] read from the install or a stock level; [I] inferred.
 

@@ -131,3 +131,24 @@ export function dataAFromDataT(dataT: readonly number[]): XMLIntArray {
     dataT.map((t) => (t === 0 ? 0 : 255))
   )
 }
+
+/**
+ * `tilemaps/water.xml` — a single animated `data-t` value 1 — is the lowest
+ * tileset level in the game (level 1; the next lowest classic tileset is 10).
+ * Stacked as a second dataset under every theme dataset, it is the base
+ * layer the theme's own floor/wall tiles sit on top of; without it, the void
+ * beyond a level's own tile grid reads as flat, textureless block.
+ * `data-t` is filled with 1 everywhere in this dataset — it is a background,
+ * not a floor mask — so `data-a` is 255 everywhere too (never the 0/255 split
+ * `dataAFromDataT` does for the theme dataset above it).
+ */
+export function waterDataset(): XMLDictionary {
+  const dict = new XMLDictionary('')
+  dict.addData(new XMLString('tileset', 'tilemaps/water.xml'))
+  dict.addData(new XMLIntArray('data-t', new Array<number>(TILEMAP_CELLS).fill(1)))
+  dict.addData(fullIntArray('data-r'))
+  dict.addData(fullIntArray('data-g'))
+  dict.addData(fullIntArray('data-b'))
+  dict.addData(fullIntArray('data-a'))
+  return dict
+}

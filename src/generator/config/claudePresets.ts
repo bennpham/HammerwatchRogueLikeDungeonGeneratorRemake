@@ -1,15 +1,9 @@
 import {
-  BOSS_IDS,
   MOBILE_BOSS_IDS,
   bossDeathBuffs,
   defaultBossFight,
   defaultDungeonBoss,
-  defaultFloorBuffs,
-  defaultFloorTimer,
-  defaultFloorTraps,
-  defaultLobby,
   defaultParameters,
-  defaultSurvivalOptions,
   escapeFloorTimer,
   MYSTERY_STARTER_TRAP_SECONDS,
   scatterWave,
@@ -21,23 +15,41 @@ import type {
   BossArenaOptions,
   BossFight,
   BossTrap,
-  BossWave,
   DungeonBoss,
   DungeonParameters,
   FloorBuff,
-  FloorLock,
-  SurvivalBuff,
-  SurvivalOptions,
-  SurvivalPickup,
-  SurvivalTrap,
   SurvivalWave,
   WaveEntry
 } from './parameters'
+import {
+  B,
+  F,
+  L,
+  actOrder,
+  arena,
+  bossFight,
+  buttonLocks,
+  campaign,
+  emptyWave,
+  floorBoss,
+  floorBossRandom,
+  floorRange,
+  floorTierAndDeathWaves,
+  lightArenaWaves,
+  lobby,
+  phaseRow,
+  survivalBuffRow,
+  survivalFight,
+  survivalPickupRow,
+  survivalTrapRow,
+  survivalWaveRow,
+  tierAndDeathWaves,
+  SURVIVAL_ANCHORS
+} from './presetHelpers'
 import { oneOfEachUpgrade } from '../levelTemplate/surgery'
 import { deepLoot, midLoot, mysteryButton, mysteryKit, shallowLoot } from './presetMystery'
 import type { MysteryPicks } from './presetMystery'
 import type { CampaignSlot } from '../campaign'
-import { MUSIC_DEFAULT } from '../music/tracks'
 // Type-only: presets.ts imports CLAUDE_PRESETS from this file at runtime, so a
 // runtime import of CampaignPreset back from presets.ts would cycle. `import
 // type` is erased at compile time and carries no such risk.
@@ -58,228 +70,6 @@ import type { CampaignPreset } from './presets'
  */
 
 // --- shared builder helpers -------------------------------------------------
-
-/**
- * `defaultParameters()` sized to `levels`: every per-floor array (buffs,
- * traps, timers, boss, music) gets a fresh default entry per floor, so a
- * preset below only has to override the floors it actually changes.
- * `themes`/`levelMonsters`/`boss`/`lobbies`/`levelOrder` are cleared to
- * nothing so a preset can never accidentally inherit the castle campaign's
- * eight-floor versions — every preset supplies its own.
- */
-function campaign(levels: number, overrides: Partial<DungeonParameters>): DungeonParameters {
-  const base = defaultParameters()
-  const params: DungeonParameters = {
-    ...base,
-    levels,
-    themes: [],
-    levelMonsters: [],
-    levelBuffs: Array.from({ length: levels }, () => defaultFloorBuffs()),
-    levelTraps: Array.from({ length: levels }, () => defaultFloorTraps()),
-    levelTimers: Array.from({ length: levels }, () => defaultFloorTimer()),
-    // NOT defaulted, deliberately: unlike the three arrays above,
-    // `parameters.txt` has no "pad levelBoss back to `levels` long" pass —
-    // `defaultParameters()` itself never sets `levelBoss` — so a params
-    // object that carries a full array of disabled placeholders round-trips
-    // to `undefined` the moment it's re-parsed (every disabled floor writes
-    // no `bossFloorN=` line at all). Presets that use a floor boss set this
-    // field themselves, sized only up to the last floor that actually uses
-    // one — see the comment on `longHaul()`.
-    floorMusic: Array.from({ length: levels }, () => MUSIC_DEFAULT),
-    monsterMax: { ...base.monsterMax },
-    lobbies: [],
-    levelOrder: undefined,
-    boss: { enabled: true, fights: [] }
-  }
-  return { ...params, ...overrides }
-}
-
-/**
- * Per-floor button counts as `levelLock` (issue #69): 0 unlocks a floor, 1 is
- * the stock single button (no count stored), n > 1 needs every one of n.
- *
- * The presets that set this are built WITHOUT `withGatewayLocks` (see the
- * registry), which would otherwise overwrite it. A count on a floor that
- * would lead on by stairs swaps them for the blue teleport — a deliberate
- * content change that re-rolls that floor and every floor after it.
- */
-function buttonLocks(counts: readonly number[]): FloorLock[] {
-  return counts.map((n) => (n === 0 ? { enabled: false } : n === 1 ? { enabled: true } : { enabled: true, buttons: n }))
-}
-
-/** `{kind:'lobby',index:i}` / `{kind:'floor',index:i}` / `{kind:'boss',index:i}` shorthands. */
-const L = (index: number): CampaignSlot => ({ kind: 'lobby', index })
-const F = (index: number): CampaignSlot => ({ kind: 'floor', index })
-const B = (index: number): CampaignSlot => ({ kind: 'boss', index })
-
-/** Floors `from..to` inclusive, ascending. */
-function floorRange(from: number, to: number): CampaignSlot[] {
-  return Array.from({ length: to - from + 1 }, (_, i) => F(from + i))
-}
-
-/**
- * The shape most of the presets share: one lobby, every floor, a second
- * lobby, then a single boss fight — no escape floor after it. Distinct from
- * `shippedOrder()`, which plays one more floor AFTER the boss.
- */
-function actOrder(levels: number): CampaignSlot[] {
-  return [L(0), ...floorRange(0, levels - 1), L(1), B(0)]
-}
-
-/** A wave tier carrying nothing at all — the "skip this tier" entry. */
-function emptyWave(): BossWave {
-  return { monsters: [], monsterMax: {}, defaultIntervalMs: 1500 }
-}
-
-/**
- * A five-tier wave table that only fills tier 0 and the boss-death tier,
- * leaving 75/50/25% empty. Every monster is anchored (never scattered), which
- * sidesteps the blocking-wreck scatter restriction entirely — see
- * actorCollision.ts. Used for every multi-boss arena/floor below (mandatory —
- * the engine cannot tell one boss's threshold from another's) and, for
- * simplicity, for most single-boss ones too.
- */
-function tierAndDeathWaves(
-  tier0: readonly WaveEntry[],
-  death: readonly WaveEntry[],
-  deathTraps: readonly BossTrap[] = [],
-  deathPickups: ReturnType<typeof stockWavePickups>['death'] = []
-): BossWave[] {
-  return [
-    scatterWave([], tier0, 2000),
-    emptyWave(),
-    emptyWave(),
-    emptyWave(),
-    scatterWave([], death, 1500, bossDeathBuffs(), deathPickups, deathTraps)
-  ]
-}
-
-/** A light five-tier arena wave table for a short, low-stakes fight (Lunch Break). */
-function lightArenaWaves(): BossWave[] {
-  const drops = stockWavePickups()
-  return [
-    scatterWave([], [['bat1', 20], ['tick1', 10]], 3000),
-    scatterWave([], [['skeleton1', 16], ['archer1', 8]], 2500),
-    scatterWave([], [['skeleton2', 12], ['wisp1', 8]], 2000, [], drops.half),
-    scatterWave([], [['lich', 3], ['archer2', 6]], 1500, [], drops.quarter, SHOOTER_ARROW_TRAPS),
-    scatterWave([], [['lich', 2]], 1500, bossDeathBuffs(), drops.death, SHOOTER_ARROW_TRAPS)
-  ]
-}
-
-/** One stock lobby, gold and upgrades overridable — a fresh object every call. */
-function lobby(presetId: string, overrides: Partial<ReturnType<typeof defaultLobby>> = {}): ReturnType<typeof defaultLobby> {
-  return { ...defaultLobby(presetId), ...overrides }
-}
-
-/** A fresh arena, built from the stock boss fight's arena with overrides applied. */
-function arena(overrides: Partial<BossArenaOptions>): BossArenaOptions {
-  return { ...defaultBossFight().arena, ...overrides }
-}
-
-/** A boss-mode fight from an arena override set. */
-function bossFight(overrides: Partial<BossArenaOptions>): BossFight {
-  return { arena: arena(overrides) }
-}
-
-/** A survival-mode fight from an arena override set and a survival config. */
-function survivalFight(arenaOverrides: Partial<BossArenaOptions>, survival: Partial<SurvivalOptions>): BossFight {
-  return { mode: 'survival', arena: arena(arenaOverrides), survival: { ...defaultSurvivalOptions(), ...survival } }
-}
-
-/** A dungeon-floor boss picked by exact lineup (always a single boss here). */
-function floorBoss(
-  lineup: DungeonBoss['bossLineup'],
-  waves: BossWave[],
-  overrides: Partial<DungeonBoss> = {}
-): DungeonBoss {
-  return {
-    ...defaultDungeonBoss(),
-    enabled: true,
-    bossSelection: 'lineup',
-    bossLineup: { ...lineup },
-    waves,
-    ...overrides
-  }
-}
-
-/**
- * A dungeon-floor boss picked randomly from a pool — the floor twin of
- * `bossFight`'s random selection. Deliberately NOT `floorBoss()` plus an
- * override: `floorBoss()`'s scaffold always carries `bossSelection: 'lineup'`
- * and a (possibly empty) `bossLineup`, and `'random'`/absent is the actual
- * default this codebase reads through `bossSelection()` — setting either
- * explicitly on a random-mode floor writes a value `configFile.ts` never
- * serializes back (a random-mode floor writes neither `bossFloor<i>Selection=`
- * nor `bossFloor<i>Lineup=`), which is a real, reportable round-trip mismatch
- * for `preset.build()`'s own object, not merely cosmetic.
- */
-function floorBossRandom(pool: readonly string[], count: number, waves: BossWave[]): DungeonBoss {
-  return {
-    ...defaultDungeonBoss(),
-    enabled: true,
-    bossPool: [...pool],
-    bossCount: count,
-    waves
-  }
-}
-
-/**
- * `tierAndDeathWaves`, re-shaped for a FLOOR boss rather than an arena one.
- *
- * `defaultDungeonBoss()`'s own scaffold (`emptyWave()` in parameters.ts) ships
- * every tier with `buffs: []` and `traps: []` already present, and
- * `configFile.ts`'s `bossFloorN…` parser has no cleanup pass to strip a stale
- * one back to absent the way the arena's `boss<i>…` parser does for
- * `traps`/`pickups`. So a floor boss's wave objects need those two fields
- * present as `[]` on every tier — omitting them (as the arena-safe
- * `tierAndDeathWaves` does) round-trips to `{buffs: [], traps: []}` anyway,
- * which is a real, reportable mismatch for `preset.build()`'s own object.
- */
-function floorTierAndDeathWaves(
-  tier0: readonly WaveEntry[],
-  death: readonly WaveEntry[],
-  deathTraps: readonly BossTrap[] = []
-): BossWave[] {
-  return tierAndDeathWaves(tier0, death, deathTraps).map((wave) => ({
-    ...wave,
-    buffs: wave.buffs ?? [],
-    traps: wave.traps ?? []
-  }))
-}
-
-function survivalWaveRow(monster: string, count: number, atSeconds: number, intervalMs = 1500): SurvivalWave {
-  return { monster, count, atSeconds, intervalMs }
-}
-
-/**
- * Every survival arena spawns from boss/anchors.ts's 9 fixed anchors, and a
- * finite row is dealt round-robin over them (survival/waves.ts).
- */
-const SURVIVAL_ANCHORS = 9
-
-/**
- * A finite row sized to run out at `toSeconds`: each anchor spawns one monster
- * per `intervalMs`, so `count / 9 × interval` is how long the row lasts. Phases
- * built from these hand over to the next monster on the clock, without an
- * endless row left running and without the arena filling up behind the party.
- * Assumes the arena's `monsterMultiplier` is 1, which scales the count.
- */
-function phaseRow(monster: string, fromSeconds: number, toSeconds: number, intervalMs: number): SurvivalWave {
-  const count = Math.floor((SURVIVAL_ANCHORS * (toSeconds - fromSeconds) * 1000) / intervalMs)
-  return survivalWaveRow(monster, count, fromSeconds, intervalMs)
-}
-
-function survivalBuffRow(buff: string, target: SurvivalBuff['target'], startSeconds: number, endSeconds: number): SurvivalBuff {
-  return { buff, target, startSeconds, endSeconds }
-}
-
-function survivalPickupRow(item: string, count: number, atSeconds: number): SurvivalPickup {
-  return { item, count, atSeconds }
-}
-
-function survivalTrapRow(row: BossTrap, startSeconds: number, endSeconds: number): SurvivalTrap {
-  return { ...row, startSeconds, endSeconds }
-}
 
 // --- Lunch Break -------------------------------------------------------------
 
@@ -375,7 +165,7 @@ function noInvulnerability(): BossArenaOptions['invulnerability'] {
 }
 
 /** A small survival arena, the clock presets' finale. */
-function clockArena(waves: SurvivalWave[]): BossFight {
+export function clockArena(waves: SurvivalWave[]): BossFight {
   return survivalFight(
     { theme: 'g_mixed', minWidth: 32, maxWidth: 42, minHeight: 32, maxHeight: 42, music: 'boss_final' },
     {
@@ -445,8 +235,8 @@ function beatTheClock(): DungeonParameters {
     boss: { enabled: true, fights: [beatTheClockArena()] }
   })
   // every floor timed, clock shrinking as the damage rate ramps — except the
-  // hunt, which gets three minutes because a boss fight eats the clock
-  const seconds = [150, 120, 100, 80, 180]
+  // hunt, which gets ten minutes because a boss fight eats the clock
+  const seconds = [150, 120, 100, 80, 600]
   const freqMs = [250, 212, 175, 137, 100]
   params.levelTimers = seconds.map((s, i) => ({ enabled: true, seconds: s, damage: 2, freqMs: freqMs[i], countdown: true }))
   // No sprinting for the stairs: the middle floors hide two buttons each. The
@@ -485,10 +275,10 @@ function bossRush(): DungeonParameters {
   return campaign(levels, {
     themes: ['e_mixed', 'bonus3', 'f_frozen', 'i_mixed'],
     levelMonsters: [
-      ['skeleton1', 'archer1'],
-      ['bonus_archer1', 'bonus_skeleton1'],
-      ['wisp1', 'tick2'],
-      ['guard_desert', 'mummy_desert']
+      ['skeleton1', 'archer1', 'slime'],
+      ['bonus_archer1', 'bonus_skeleton1', 'skeleton1'],
+      ['wisp1', 'tick2', 'eye'],
+      ['guard_desert', 'mummy_desert', 'mummy_ranged']
     ],
     levelBoss: [
       floorBoss({ boss_knight: 1 }, floorTierAndDeathWaves([['skeleton1', 10]], [['skeleton1', 5]])),
@@ -632,10 +422,10 @@ function arenaMarathon(): DungeonParameters {
             ]
           }
         ),
-        // AB3 — the finale: 3 random bosses from the full roster
+        // AB3 — the finale: 3 random bosses from the mobile roster (no unique dragon/queen)
         bossFight({
           theme: 'g_mixed',
-          bossPool: [...BOSS_IDS],
+          bossPool: [...MOBILE_BOSS_IDS],
           bossCount: 3,
           waves: tierAndDeathWaves([['skeleton1', 20]], [['lich', 4]], SHOOTER_ARROW_TRAPS),
           music: 'boss_final'
@@ -818,11 +608,11 @@ function frozenDescent(): DungeonParameters {
   return campaign(levels, {
     themes: ['f', 'f_fine', 'f_frozen', 'f_mixed', 'f_frozen'],
     levelMonsters: [
-      ['wisp2', 'tick2'],
-      ['skeleton2', 'wisp1'],
-      ['eye', 'wisp2'],
-      ['lich', 'skeleton2'],
-      ['wisp2', 'tower_static_frost']
+      ['wisp2', 'tick2', 'wisp1'],
+      ['skeleton2', 'wisp1', 'wisp2'],
+      ['eye', 'wisp2', 'wisp1'],
+      ['lich', 'skeleton2', 'wisp2'],
+      ['wisp2', 'tower_static_frost', 'skeleton2']
     ],
     floorMusic: ['act3', 'act3', 'act4', 'act4', 'act4'],
     // F1: a frost aura on the monsters. F2: a breather — the Regeneration
@@ -888,10 +678,10 @@ function pandemonium(): DungeonParameters {
     foodMultiplier: 1.6,
     themes: ['c_mixed', 'd_mixed', 'e_mixed', 'f_mixed'],
     levelMonsters: [
-      ['bat1', 'tick1'],
-      ['maggot', 'slime'],
-      ['eye', 'wisp1'],
-      ['skeleton2', 'archer2']
+      ['bat1', 'tick1', 'maggot'],
+      ['maggot', 'slime', 'skeleton1'],
+      ['eye', 'wisp1', 'skeleton2'],
+      ['skeleton2', 'archer2', 'wisp2']
     ],
     levelBoss: [2, 2, 3, 3].map((count, i) =>
       floorBossRandom(
@@ -908,7 +698,7 @@ function pandemonium(): DungeonParameters {
       fights: [
         bossFight({
           theme: 'g_mixed',
-          bossPool: [...BOSS_IDS],
+          bossPool: [...MOBILE_BOSS_IDS],
           bossCount: 6,
           waves: tierAndDeathWaves([['skeleton1', 15]], [['lich', 4]], SHOOTER_ARROW_TRAPS),
           music: 'boss_final'
@@ -931,7 +721,7 @@ function escapeFloorPool(): string[] {
   ]
 }
 
-function escapeFloorTraps(): BossTrap[] {
+export function escapeFloorTraps(): BossTrap[] {
   return [
     { projectile: 'shooter_fireball', direction: 'up', spread: 0, spawnRateMs: 1000, count: 8 },
     { projectile: 'shooter_fireball', direction: 'down', spread: 0, spawnRateMs: 1000, count: 8 },
@@ -1011,8 +801,10 @@ function longHaul(): DungeonParameters {
     ...floorRange(3, 5),
     L(2),
     B(0),
-    ...floorRange(6, 11),
-    L(3),
+    ...floorRange(6, 8),
+    L(3), // a town after the Anubis floor, so floors 7-12 are no longer one unbroken run
+    ...floorRange(9, 11),
+    L(4),
     B(1),
     F(12)
   ]
@@ -1026,18 +818,18 @@ function longHaul(): DungeonParameters {
       'f_mixed' // escape floor
     ],
     levelMonsters: [
-      ['bat1', 'tick1'],
-      ['maggot', 'slime'],
-      ['skeleton1', 'archer1'],
-      ['skeleton2', 'archer2'],
-      ['eye', 'wisp1'],
-      ['wisp2', 'tower_static_frost'],
-      ['guard_desert', 'tick1'],
-      ['mummy_desert', 'mummy_ranged'],
-      ['lich_desert', 'spider'],
-      ['bonus_archer1', 'bonus_skeleton1'],
-      ['wisp2', 'skeleton2'],
-      ['mb_lich', 'mb_doomspawn'],
+      ['bat1', 'tick1', 'maggot'],
+      ['maggot', 'slime', 'bat1'],
+      ['skeleton1', 'archer1', 'slime'],
+      ['skeleton2', 'archer2', 'wisp1'],
+      ['eye', 'wisp1', 'skeleton2'],
+      ['wisp2', 'tower_static_frost', 'wisp1'],
+      ['guard_desert', 'tick1', 'guard_desert_range'],
+      ['mummy_desert', 'mummy_ranged', 'guard_desert'],
+      ['lich_desert', 'spider', 'mummy_desert'],
+      ['bonus_archer1', 'bonus_skeleton1', 'eye'],
+      ['wisp2', 'skeleton2', 'archer2'],
+      ['mb_lich', 'mb_doomspawn', 'lich'],
       escapeFloorPool()
     ],
     floorMusic: [
@@ -1070,6 +862,7 @@ function longHaul(): DungeonParameters {
       lobby('house'),
       lobby('house', { startingGold: 15000, music: 'act2' }),
       lobby('house', { startingGold: 20000, music: 'boss_1' }),
+      lobby('house', { startingGold: 15000, music: 'act3' }),
       lobby('house', { startingGold: 25000, upgrades: oneOfEachUpgrade(), music: 'boss_1' })
     ],
     levelOrder: order,
@@ -1077,10 +870,10 @@ function longHaul(): DungeonParameters {
     boss: {
       enabled: true,
       fights: [
-        // the mid-campaign arena: a single random boss, lich or knight
+        // the mid-campaign arena: the lich alone (the knight is already floor 3's boss)
         bossFight({
           theme: 'e_mixed',
-          bossPool: ['boss_lich', 'boss_knight'],
+          bossPool: ['boss_lich'],
           waves: tierAndDeathWaves([['skeleton1', 15], ['archer1', 8]], [['lich', 4]]),
           music: 'boss_1'
         }),
@@ -1099,7 +892,8 @@ function longHaul(): DungeonParameters {
   // 90s/100ms escape clock and fireball rig back on re-import. Giving it its
   // own real (lighter) content is what forces an explicit line, which is the
   // only way to overwrite the stale one.
-  params.levelTimers![7] = { enabled: true, seconds: 200, damage: 1, freqMs: 2000, countdown: false }
+  // the countdown is shown: the party must know why it is losing health
+  params.levelTimers![7] = { enabled: true, seconds: 200, damage: 1, freqMs: 2000, countdown: true }
   params.levelTraps![7] = [
     { projectile: 'shooter_arrow', direction: 'up', spread: 0, spawnRateMs: 1200, count: 2 },
     { projectile: 'shooter_arrow', direction: 'down', spread: 0, spawnRateMs: 1200, count: 2 }
@@ -1205,11 +999,11 @@ function doubleOrNothing(): DungeonParameters {
     monsterMultiplier: 0.6,
     themes: ['b_mixed', 'c_mixed', 'd_mixed', 'e_mixed', 'g_mixed'],
     levelMonsters: [
-      ['bat1', 'tick1'],
-      ['skeleton1', 'archer1'],
-      ['eye', 'wisp1'],
-      ['skeleton2', 'archer2'],
-      ['lich', 'wisp2']
+      ['bat1', 'tick1', 'maggot'],
+      ['skeleton1', 'archer1', 'slime'],
+      ['eye', 'wisp1', 'skeleton2'],
+      ['skeleton2', 'archer2', 'wisp1'],
+      ['lich', 'wisp2', 'eye']
     ],
     floorMusic: ['act1', 'act2', 'act3', 'act3', 'act4'],
     // the red buttons, never disguised: finding them is always the safe way on
@@ -1318,11 +1112,11 @@ function shellGame(): DungeonParameters {
     monsterMultiplier: 0.5,
     themes: ['b_mixed', 'c_mixed', 'd_mixed', 'e_mixed', 'f_mixed'],
     levelMonsters: [
-      ['bat1'],
-      ['tick1', 'bat1'],
-      ['skeleton1', 'bat2'],
-      ['skeleton3', 'tick2'],
-      ['skeleton3', 'bat2']
+      ['bat1', 'tick1', 'maggot'],
+      ['tick1', 'bat1', 'slime'],
+      ['skeleton1', 'bat2', 'archer1'],
+      ['skeleton3', 'tick2', 'wisp1'],
+      ['skeleton3', 'bat2', 'archer3']
     ],
     floorMusic: ['act1', 'act2', 'act2', 'act3', 'act4'],
     // the last floor is the hunt, as in Beat the Clock — no lock, its boss is the way out
@@ -1336,8 +1130,8 @@ function shellGame(): DungeonParameters {
   })
   // Beat the Clock on steroids: each locked floor has less time per button
   // (150 s for one, then down to 35 s each for three), and a floor that runs
-  // out hurts harder and faster. The hunt gets three minutes for its boss.
-  const seconds = [150, 135, 120, 105, 180]
+  // out hurts harder and faster. The hunt gets ten minutes for its boss.
+  const seconds = [150, 135, 120, 105, 600]
   const freqMs = [200, 175, 150, 125, 100]
   params.levelTimers = seconds.map((s, i) => ({ enabled: true, seconds: s, damage: 3, freqMs: freqMs[i], countdown: true }))
   return params
@@ -1409,7 +1203,7 @@ export const CLAUDE_PRESETS: readonly CampaignPreset[] = [
   {
     id: 'claude-long-haul',
     label: 'The Long Haul',
-    description: 'A 13-floor campaign across four acts and two boss arenas, with more buttons to find and riskier mystery plates each act, ending in an escape floor — 2-3 hours.',
+    description: 'A 13-floor campaign across four acts and two boss arenas, with five towns between them, more buttons to find and riskier mystery plates each act, ending in an escape floor — 2-3 hours.',
     group: 'claude',
     build: longHaul
   },

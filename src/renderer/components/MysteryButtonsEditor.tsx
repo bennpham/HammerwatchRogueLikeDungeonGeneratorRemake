@@ -53,12 +53,12 @@ function clone<T>(value: T): T {
 }
 
 /** `#3 Ambush`, or `#3` for a button nobody named. */
-function buttonLabel(button: MysteryButton, index: number): string {
+export function buttonLabel(button: MysteryButton, index: number): string {
   return button.name ? `#${index + 1} ${button.name}` : `#${index + 1}`
 }
 
 /** What one press does, in a few words — the collapsed row's summary. */
-function buttonSummary(button: MysteryButton): string {
+export function buttonSummary(button: MysteryButton): string {
   const loot = button.loot.reduce((n, r) => n + r.count, 0)
   const monsters = button.monsters.reduce((n, r) => n + r.count, 0)
   const traps = button.traps.reduce((n, r) => n + r.count, 0)
@@ -428,7 +428,7 @@ interface MonsterCountListEditorProps {
 }
 
 /** `{monster, count}` rows — the survival wave editor's monster picker, with only a count beside it. */
-function MonsterCountListEditor({ value, onChange, issuePrefix, issues }: MonsterCountListEditorProps) {
+export function MonsterCountListEditor({ value, onChange, issuePrefix, issues }: MonsterCountListEditorProps) {
   const filter = useMonsterFilter()
 
   const patch = (index: number, change: Partial<MysteryMonster>) => {
