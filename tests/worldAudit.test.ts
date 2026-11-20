@@ -7,7 +7,9 @@ import { GenerationContext } from '../src/generator/core/context'
 import { buildWorld } from '../src/generator/world/build'
 import { mysteryKit, shallowLoot } from '../src/generator/config/presetMystery'
 import { worldPresetPool } from '../src/generator/world/presets'
-import { defaultWorld, worldSiteCapacityOf } from '../src/generator/world/options'
+import { validateParameters } from '../src/generator/config/validation'
+import type { MysteryButton } from '../src/generator/config/parameters'
+import { defaultWorld, worldActorEstimate, worldDoodadEstimate, worldSiteCapacityOf } from '../src/generator/world/options'
 import type { WorldDef } from '../src/generator/world/options'
 import { plainParameters } from './params'
 
@@ -63,6 +65,54 @@ describe('A3: encounters stand on ground reached after the landmarks', () => {
       }
     }
   }, 120000)
+})
+
+describe('A4: large ambush types and plate swarms are warned about and counted', () => {
+  const campaign = (def: WorldDef, buttons: MysteryButton[] = []) => {
+    const p = twoFloors()
+    p.world = { enabled: true, worlds: [def] }
+    p.mysteryButtons = buttons
+    return validateParameters(p)
+  }
+  const swarm = (count: number): MysteryButton => ({ name: 'Swarm', text: 'Run', loot: [], monsters: [{ monster: 'mummy_desert', count }], traps: [] })
+  const typed = (...counts: number[]): WorldDef => ({
+    ...island(128, 0),
+    ambushes: 4,
+    ambushTypes: [{ weight: 1, monsters: counts.map((count) => ({ monster: 'mummy_desert', count })) }]
+  })
+  const groupWarnings = (r: ReturnType<typeof validateParameters>, field: string) => r.warnings.filter((w) => w.field.includes(field) && /lag/.test(w.message))
+
+  it('warns when an ambush type rings more than the group warning, summed over its rows', () => {
+    expect(groupWarnings(campaign(typed(15, 10)), 'ambushTypes')).toHaveLength(1)
+    expect(groupWarnings(campaign(typed(20)), 'ambushTypes')).toHaveLength(0)
+    expect(campaign(typed(15, 10)).errors).toEqual([])
+  })
+
+  it('warns when a plate the world can fire spawns more than the group warning, and only then', () => {
+    const plated = (count: number) => ({ ...island(128, 0), mystery: { count: 2, pool: [0] } })
+    expect(groupWarnings(campaign(plated(0), [swarm(25)]), 'mystery')).toHaveLength(1)
+    expect(groupWarnings(campaign(plated(0), [swarm(20)]), 'mystery')).toHaveLength(0)
+    // a button the world never draws from is not its business
+    expect(groupWarnings(campaign({ ...island(128, 0), mystery: { count: 2, pool: [0] } }, [swarm(5), swarm(99)]), 'mystery')).toHaveLength(0)
+  })
+
+  it('the actor estimate counts ring and plate monsters', () => {
+    const none = { ...island(128, 0), packs: 0 }
+    expect(worldActorEstimate(none)).toBe(0)
+    expect(worldActorEstimate(typed(15, 10))).toBe(4 * 25)
+    expect(worldActorEstimate({ ...none, mystery: { count: 3, pool: [0, 1] } }, [swarm(10), swarm(30)])).toBe(90)
+    // enough ring monsters is a warning of its own
+    const crowded = { ...typed(30, 30, 30), packs: 0, ambushes: 10 }
+    expect(campaign(crowded).warnings.some((w) => /monsters wait on the island/.test(w.message))).toBe(true)
+  })
+
+  it('the doodad estimate counts landmarks, the camp and plates', () => {
+    const base = island(128, 0)
+    const plain = worldDoodadEstimate(base)
+    expect(worldDoodadEstimate({ ...base, landmarks: true })).toBeGreaterThanOrEqual(plain + 97)
+    expect(worldDoodadEstimate({ ...base, hub: 'camp' })).toBeGreaterThanOrEqual(plain + 7)
+    expect(worldDoodadEstimate({ ...base, mystery: { count: 12, pool: [0] } })).toBe(plain + 12)
+  })
 })
 
 function twoFloors() {

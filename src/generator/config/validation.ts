@@ -97,6 +97,8 @@ import {
   WORLD_SIZE_WARN,
   WORLD_WATER_MARGIN_MAX,
   WORLD_WATER_MARGIN_MIN,
+  ambushTypeTotal,
+  mysteryButtonMonsters,
   worldActorEstimate,
   worldDoodadEstimate,
   worldScatter,
@@ -548,8 +550,8 @@ function validateWorlds(p: DungeonParameters, errors: ValidationIssue[], warning
     }
     validateWorldObjectives(def, i, at, whole, minW && minH && marginOk, errors, warnings)
     validateWorldTerrain(def, i, at, whole, minW && minH, errors, warnings)
-    validateWorldEncounters(def, i, at, whole, errors, warnings)
-    validateWorldMystery(def, i, at, whole, p.mysteryButtons ?? [], errors)
+    validateWorldEncounters(def, i, at, whole, p.mysteryButtons ?? [], errors, warnings)
+    validateWorldMystery(def, i, at, whole, p.mysteryButtons ?? [], errors, warnings)
     validateWorldTimerAndMusic(def, i, at, errors, warnings)
   })
 }
@@ -767,11 +769,12 @@ function validateWorldEncounters(
   index: number,
   at: (field: string) => string,
   whole: (field: string, value: number, min: number, max: number, what: string) => boolean,
+  buttons: readonly MysteryButton[],
   errors: ValidationIssue[],
   warnings: ValidationIssue[]
 ): void {
   const subject = `World ${index + 1}`
-  const packsOk = whole('packs', worldPacks(def), 0, WORLD_PACKS_MAX, 'The pack count')
+  const packsOk =whole('packs', worldPacks(def), 0, WORLD_PACKS_MAX, 'The pack count')
   const packSizeOk = whole('packSize', worldPackSize(def), WORLD_PACK_SIZE_MIN, WORLD_PACK_SIZE_MAX, 'The pack size')
   const ambushesOk = whole('ambushes', worldAmbushes(def), 0, WORLD_AMBUSHES_MAX, 'The ambush count')
   const ambushSizeOk = whole('ambushSize', worldAmbushSize(def), WORLD_AMBUSH_SIZE_MIN, WORLD_AMBUSH_SIZE_MAX, 'The ambush size')
@@ -811,6 +814,13 @@ function validateWorldEncounters(
       errors.push({ field: at(`ambushTypes.${t}`), message: `${label}: this type is missing.` })
       return
     }
+    // a type bypasses ambushSize: its rows' counts are the whole ring (audit A4)
+    if (ambushTypeTotal(type) > WORLD_GROUP_WARN) {
+      warnings.push({
+        field: tf('monsters'),
+        message: `${label}: one ring springs ${ambushTypeTotal(type)} monsters in one place (above ${WORLD_GROUP_WARN}), which may lag.`
+      })
+    }
     if (!Number.isInteger(type.weight) || type.weight < 1 || type.weight > WORLD_AMBUSH_WEIGHT_MAX) {
       errors.push({ field: tf('weight'), message: `${label}: the weight must be a whole number from 1 to ${WORLD_AMBUSH_WEIGHT_MAX}.` })
     }
@@ -847,7 +857,7 @@ function validateWorldEncounters(
     })
   }
   if (packsOk && packSizeOk) {
-    const actors = worldActorEstimate(def)
+    const actors = worldActorEstimate(def, buttons)
     if (actors > WORLD_ACTOR_WARN) {
       warnings.push({
         field: at('packs'),
@@ -878,7 +888,8 @@ function validateWorldMystery(
   at: (field: string) => string,
   whole: (field: string, value: number, min: number, max: number, what: string) => boolean,
   buttons: readonly MysteryButton[],
-  errors: ValidationIssue[]
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[]
 ): void {
   const subject = `World ${index + 1}`
   const mystery: unknown = def.mystery
@@ -929,6 +940,13 @@ function validateWorldMystery(
       if (isKnownMonsterKey(row.monster) && isSpawnerPath(resolveActorPath(row.monster))) {
         errors.push({ field: at('mystery'), message: `${label} spawns "${row.monster}", a spawner, which places nothing that fights.` })
       }
+    }
+    // a plate's swarm lands in one place, as a ring does (audit A4)
+    if (mysteryButtonMonsters(button) > WORLD_GROUP_WARN) {
+      warnings.push({
+        field: at('mystery'),
+        message: `${label} spawns ${mysteryButtonMonsters(button)} monsters at once (above ${WORLD_GROUP_WARN}); pressed on an island, that may lag.`
+      })
     }
   }
 }

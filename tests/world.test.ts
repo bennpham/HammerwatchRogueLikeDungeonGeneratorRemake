@@ -17,7 +17,7 @@ import type { Doodad } from '../src/generator/objects/doodad'
 import { MAX_WORLD_ATTEMPTS, WORLD_STEPS, WORLD_STEP_ADVICE, buildWorld, worldStreams } from '../src/generator/world/build'
 import { coastCloses, coastPieces, syncWalls, unmatchedBand, wallTilesOf, wrapSafe } from '../src/generator/world/coast'
 import { MAX_PASSES, buildIsland, islandRulesFor } from '../src/generator/world/island'
-import { ORB_AT, WORLD_SIZE_MAX, WORLD_SIZE_MIN, defaultWorld, worldBossCount, worldList, worldSiteCapacityOf } from '../src/generator/world/options'
+import { ORB_AT, WORLD_ACTOR_WARN, WORLD_SIZE_MAX, WORLD_SIZE_MIN, defaultWorld, worldActorEstimate, worldBossCount, worldList, worldSiteCapacityOf } from '../src/generator/world/options'
 import { WorldGrid } from '../src/generator/world/grid'
 import type { Tile } from '../src/generator/world/grid'
 import { buildObjectives, objectivesRemainingText } from '../src/generator/world/objectives'
@@ -1989,7 +1989,13 @@ describe('world presets', () => {
       const p = withPreset(preset)
       const result = validateParameters(p)
       expect(result.errors, preset.id).toEqual([])
-      expect(result.warnings.filter((w) => w.field.startsWith('world')), preset.id).toEqual([])
+      // audit A4 counts a plate's swarm (Explorer's "Bat swarm" is 80 bats) and warns about it; that is
+      // a plate warning of its own, so it is set aside here, and the pack budget is judged without plates
+      const stock = worldActorEstimate(p.world!.worlds[0])
+      const remaining = result.warnings.filter(
+        (w) => w.field.startsWith('world') && !/at once \(above/.test(w.message) && !(/wait on the island/.test(w.message) && stock <= WORLD_ACTOR_WARN)
+      )
+      expect(remaining, preset.id).toEqual([])
       for (const seed of [1, 2, 3]) expect(generateDungeon(p, seed).ok, `${preset.id} seed ${seed}`).toBe(true)
     }
   }, 120000)

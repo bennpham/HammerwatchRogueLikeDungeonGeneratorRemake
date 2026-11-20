@@ -18,7 +18,7 @@ import type { BossId } from '../boss/bosses'
 import { DEFAULT_WORLD_HUB, hubRadius } from './hub'
 import type { WorldHub } from './hub'
 import { biomeById } from './biomes'
-import type { FloorMystery, FloorTimer, MysteryMonster } from '../config/parameters'
+import type { FloorMystery, FloorTimer, MysteryButton, MysteryMonster } from '../config/parameters'
 
 /** The most worlds a campaign may carry. An allocation guard, not a design limit. */
 export const WORLD_MAX_COUNT = 20
@@ -104,6 +104,9 @@ export const WORLD_SCATTER_MAX = 100
 export const DEFAULT_WORLD_SCATTER = 50
 /** Doodads above this are a warning: the stock maximum is 7,383 (`campaign/levels/level_9.xml`), 7,087 in `level_11`. */
 export const WORLD_DOODAD_WARN = 7000
+/** Padded doodad counts for the pieces the estimate used to leave out (measured at 128 to 512). */
+export const WORLD_LANDMARK_DOODADS = 120
+export const WORLD_CAMP_DOODADS = 10
 
 /**
  * Terrain (docs/plans/world-mode-terrain.md section 5). The bounds SCALE with
@@ -387,12 +390,38 @@ export function worldAmbushTypes(def: Partial<WorldDef>): WorldAmbushType[] {
   return Array.isArray(def.ambushTypes) ? def.ambushTypes : []
 }
 
+/** The monsters one ring of ambush type `type` springs: its rows' counts added up. */
+export function ambushTypeTotal(type: WorldAmbushType): number {
+  if (type === null || typeof type !== 'object' || !Array.isArray(type.monsters)) return 0
+  return type.monsters.reduce((sum, row) => sum + (Number.isInteger(row?.count) && row.count > 0 ? row.count : 0), 0)
+}
+
+/** The monsters one mystery button spawns when pressed: its rows' counts added up. */
+export function mysteryButtonMonsters(button: MysteryButton): number {
+  if (button === null || typeof button !== 'object' || !Array.isArray(button.monsters)) return 0
+  return button.monsters.reduce((sum, row) => sum + (Number.isInteger(row?.count) && row.count > 0 ? row.count : 0), 0)
+}
+
 /**
- * Actors a world places outright (packs; ambush rings only spawn when sprung):
- * a pack rolls half to all of `packSize`, so three quarters on average.
+ * The most monsters any one plate of world `def` can spawn: the largest total
+ * among the pool buttons it draws from (`buttons` is the campaign's pool).
  */
-export function worldActorEstimate(def: Partial<WorldDef>): number {
-  return Math.round(worldPacks(def) * 0.75 * worldPackSize(def))
+export function worldPlateMonstersMax(def: Partial<WorldDef>, buttons: readonly MysteryButton[]): number {
+  return worldMysteryPool(def, buttons.length).reduce((most, i) => Math.max(most, mysteryButtonMonsters(buttons[i])), 0)
+}
+
+/**
+ * Actors a world places outright (packs): a pack rolls half to all of
+ * `packSize`, so three quarters on average. A plain ambush ring only spawns when
+ * sprung and is bounded by the group cap, so it is left out; an ambush TYPE can
+ * spring a ring of any size (audit A4), so every tripwire counts at its largest
+ * type, and so does every mystery plate at the largest button it may fire
+ * (`buttons` is the campaign's pool; without it plates count nothing).
+ */
+export function worldActorEstimate(def: Partial<WorldDef>, buttons: readonly MysteryButton[] = []): number {
+  const ring = worldAmbushTypes(def).reduce((most, type) => Math.max(most, ambushTypeTotal(type)), 0)
+  const plates = worldMysteryCount(def, buttons.length) * worldPlateMonstersMax(def, buttons)
+  return Math.round(worldPacks(def) * 0.75 * worldPackSize(def)) + worldAmbushes(def) * ring + plates
 }
 
 /**
@@ -417,7 +446,13 @@ export function worldDoodadEstimate(def: Partial<WorldDef>): number {
   const raised = kind !== undefined ? Math.min(terrain.plateaus, worldPlateauCapacity(def)) : 0
   // a mesa's rock edge takes a coast piece on every tile of its perimeter, and a little roof
   const rims = raised * (kind === 'mesa' ? 4 * terrain.maxSize + 12 : 2 * terrain.maxSize + 8)
-  return Math.round((perSide * (w + h)) / 2 + 0.0165 * w * h * share + rims)
+  // landmarks, the camp and mystery plates (audit C3): the most a landmark set put down at 256 and
+  // 512 was 97, a camp 7 (measured, padded), and a plate is one doodad
+  const extras =
+    (worldLandmarks(def) ? WORLD_LANDMARK_DOODADS : 0) +
+    (worldHub(def) === 'camp' ? WORLD_CAMP_DOODADS : 0) +
+    (typeof def.mystery?.count === 'number' && def.mystery.count > 0 ? Math.floor(def.mystery.count) : 0)
+  return Math.round((perSide * (w + h)) / 2 + 0.0165 * w * h * share + rims + extras)
 }
 
 /** Buttons plus bosses: how many sites the world needs. */
