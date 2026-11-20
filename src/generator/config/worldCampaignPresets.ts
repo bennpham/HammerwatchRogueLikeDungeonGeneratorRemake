@@ -1,4 +1,6 @@
-import type { DungeonParameters } from './parameters'
+import { defaultParameters, escapeFloorTimer, withGatewayLocks } from './parameters'
+import type { DungeonParameters, FloorTimer } from './parameters'
+import { escapeFloorTraps } from './claudePresets'
 import type { WorldDef } from '../world/options'
 import { MONSTER_THEMES } from '../world/monsterThemes'
 import { desertWaves } from './familyWaves'
@@ -45,6 +47,51 @@ function isle(size: number, overrides: Partial<WorldDef>): WorldDef {
   })
 }
 
+/** A storm on an island: `seconds`, then 1 damage every 500 ms, the countdown shown. */
+function storm(seconds: number): FloorTimer {
+  return { enabled: true, seconds, damage: 1, freqMs: 500, countdown: true }
+}
+
+/** Heavy ambushes: sixteen tripwires of ten monsters, and every button springs one. */
+const HEAVY_AMBUSH = { ambushes: 16, ambushSize: 10, buttonAmbush: 100 } as const
+
+// --- 2. Breakout ---------------------------------------------------------------
+
+function breakout(): DungeonParameters {
+  const params = campaign(3, {
+    themes: ['a_mixed', 'a_mixed', 'f_mixed'],
+    levelMonsters: [
+      ['bat1', 'tick1', 'maggot'],
+      ['maggot', 'slime', 'skeleton1', 'archer1'],
+      // the escape floor: the classic battlements maze
+      [...defaultParameters().levelMonsters[7]]
+    ],
+    floorMusic: ['act1', 'act1', 'act4'],
+    // no town at the start: the floor shop rooms are the only place to spend gold
+    lobbies: [],
+    levelOrder: [F(0), F(1), W(0), F(2)],
+    // no arena: the island and the escape floor are the run
+    boss: { ...defaultParameters().boss, enabled: false }
+  })
+  params.levelTimers![2] = escapeFloorTimer()
+  params.levelTraps![2] = escapeFloorTraps()
+  params.world = {
+    enabled: true,
+    worlds: [
+      isle(144, {
+        biome: 'drygrass',
+        buttons: 3,
+        bossCount: 0,
+        ...HEAVY_AMBUSH,
+        monsters: theme('castle_act2'),
+        timer: storm(600),
+        music: 'act2'
+      })
+    ]
+  }
+  return withGatewayLocks(params)
+}
+
 // --- 1. The Lost Entrance ------------------------------------------------------
 
 function lostEntrance(): DungeonParameters {
@@ -88,6 +135,14 @@ function lostEntrance(): DungeonParameters {
 
 /** The Claude Generated Open World group, alphabetical by label as the Claude group is. */
 export const WORLD_CAMPAIGN_PRESETS: readonly CampaignPreset[] = [
+  {
+    id: 'world-breakout',
+    label: 'Breakout',
+    description:
+      'Escape the dungeon, then the island: two floors with nothing bought, an ambush-heavy dry-grass island on a ten-minute storm, then the escape floor — about 35 minutes.',
+    group: 'claudeWorld',
+    build: breakout
+  },
   {
     id: 'world-lost-entrance',
     label: 'The Lost Entrance',

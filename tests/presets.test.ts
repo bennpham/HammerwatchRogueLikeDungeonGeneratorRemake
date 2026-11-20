@@ -34,7 +34,7 @@ import {
   resolveActorPath
 } from '../src/generator/objects/monsterTypes'
 import { campaignOrder, slotLabel } from '../src/generator/campaign'
-import { campaignCounts, bossSelection } from '../src/generator/config/parameters'
+import { campaignCounts, bossSelection, escapeFloorTimer } from '../src/generator/config/parameters'
 import { worldBossCount, worldBossPool, worldHub } from '../src/generator/world/options'
 import { corpseCollision } from '../src/generator/objects/actorCollision'
 import {
@@ -46,7 +46,7 @@ import {
 import { mysteryKit } from '../src/generator/config/presetMystery'
 import { COLOSSEUM_PARAMETERS_TXT } from '../src/generator/config/colosseumPreset'
 import { projectileById } from '../src/generator/objects/projectileTypes'
-import { floorPath, isArenaPath, isFloorPath } from './levelFiles'
+import { floorPath, floorXml, isArenaPath, isFloorPath } from './levelFiles'
 
 const CLASSIC_PRESETS = CAMPAIGN_PRESETS.filter((p) => p.group === 'classic')
 
@@ -130,6 +130,23 @@ describe('campaign presets', () => {
         const isDefault = isDefaultOrder(orderOf(params), countsOf(params))
         expect(params.levelOrder === undefined, preset.id).toBe(isDefault)
       }
+    })
+
+    it('Breakout: no town, the island mid-run, ending on the timed escape floor and its orb', () => {
+      const params = campaignPresetById('world-breakout')!.build()
+      expect(params.lobbies).toEqual([])
+      expect(labelsOf('world-breakout')).toEqual(['1', '2', 'W1', '3'])
+      const last = params.levels - 1
+      expect(params.levelTimers![last]).toEqual(escapeFloorTimer())
+      const [w] = worldList(params)
+      expect(w.timer?.enabled).toBe(true)
+      // more time, not a softer hazard (balance rule): the storm is the stock 1 damage
+      expect(w.timer!.seconds).toBe(600)
+      expect(w.ambushes).toBeGreaterThanOrEqual(16)
+      const result = generateDungeon(params, 4242)
+      expect(result.ok, result.ok ? '' : result.errors.join(' ')).toBe(true)
+      if (!result.ok) return
+      expect(floorXml(result, last)).toContain('GameEnd')
     })
 
     it('The Lost Entrance: a camp island of disguised buttons among plates, then the temple floors and an Anubis fight', () => {
