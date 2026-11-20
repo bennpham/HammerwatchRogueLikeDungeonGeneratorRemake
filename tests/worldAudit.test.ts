@@ -116,6 +116,33 @@ describe('A4: large ambush types and plate swarms are warned about and counted',
   })
 })
 
+describe('A7: mystery payloads stay off the hub', () => {
+  it('no plate loot or monster lands on the reserved discs of the portal or the arrival at safe radius 6', () => {
+    const pool: MysteryButton[] = [
+      { name: 'Hoard', text: 'Coins', loot: [{ item: 'valuable_5', count: 12 }], monsters: [], traps: [] },
+      { name: 'Guards', text: 'Guards!', loot: [], monsters: [{ monster: 'mummy_desert', count: 14 }], traps: [] }
+    ]
+    let spawns = 0
+    for (let seed = 1; seed <= 40; seed++) {
+      const p = twoFloors()
+      p.mysteryButtons = pool
+      const def = { ...island(64, 0, { safeRadius: 6, waterMargin: 4 }), mystery: { count: 20, pool: [0, 1] } }
+      const ctx = new GenerationContext(p, seed)
+      const built = buildWorld(ctx, def, 0, { kind: 'exit', target: '0' })
+      if ('failed' in built) continue
+      const { hub } = built.preview.world!
+      // with a portal out, the portal's and the arrival's discs are the reserved ones
+      const keep = [hub, { x: hub.x, y: hub.y + 3 }]
+      for (const n of ctx.scriptNodes.filter((s) => s.type === 'SpawnObject')) {
+        spawns++
+        // the reserved discs are radius 1 round each of the three tiles
+        for (const k of keep) expect(Math.hypot(Math.floor(n.x) - k.x, Math.floor(n.y) - k.y), `seed ${seed}`).toBeGreaterThan(1)
+      }
+    }
+    expect(spawns).toBeGreaterThan(50)
+  })
+})
+
 describe('A6: capacity counts the camp disc', () => {
   // The land disc only binds below the "half the area" ceiling at wide radii, so at radius 6 the
   // camp's 7 never moves a whole number of sites today; this pins the wiring, not a difference.

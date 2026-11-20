@@ -86,4 +86,14 @@ Each item names the file, the symbol and the fix. Nothing was played. Every stat
 
 ## Status
 
-The A fixes land one commit each, every one with a test. B items wait on `docs/BOOT-CHECKLIST.md`. Exit criterion 5 (no open A item) holds once A1–A8 are closed.
+A1–A8 are closed, one commit each, every one with a test (`tests/worldAudit.test.ts`). B items wait on `docs/BOOT-CHECKLIST.md`. Exit criterion 5 (no open A item) holds.
+
+| # | Closed by commit | Note |
+|---|---|---|
+| A1 | "Measure site capacity by real packing" | Measured on 6 seeds: the largest count that generated on every seed was 1.00, 0.96 and 0.96 of the square estimate at 128, 256 and 512, not the 70% the finding assumed. The estimate itself failed on 4 of 6 seeds at 256 and 512. |
+| A2 | "Hide the last world's orb only once" | `triggerTimes = 1` on the orb's hide node. The eight orb rows of the pinned COMMIT28 table were regenerated. |
+| A3 | "Place encounters on ground reached after the landmarks" | The flood is retaken after the landmarks and the post-scatter proof covers packs, tripwires, plates and caches. No failing seed was found for the old flood in 100 landmark worlds, so the test is a guard. |
+| A4 | "Warn about large ambush types and plate swarms" | Also closes C3 (the doodad estimate counts landmarks, the camp and plates). It newly flags Explorer's 80-bat plate. |
+| A5 | "Sweep every world bound together" | The sweep found 256 tiles at safe radius 40 failing below the A1 capacity, so the packing factor is 0.85 (capacity 13 / 62 / 264 at 128 / 256 / 512). |
+| A6 | "Count the camp disc in site capacity" | The camp's radius 7 never moves a whole site today: the half-area ceiling binds before the land disc at radius 6. The wiring is pinned by a test. |
+| A7, A8 | "Keep mystery payloads off the hub" | `openGround` refuses reserved ground except the plate's own disc; the `rollPoolKey` comment is corrected. |

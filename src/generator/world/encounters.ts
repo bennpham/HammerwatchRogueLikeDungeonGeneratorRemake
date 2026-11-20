@@ -28,8 +28,9 @@
  * across a line of fire). Items take an explicit index from this stream:
  * `Item.create` without one would read `ctx.rand`.
  * No actor placed or spawned is ever a spawner: validation refuses a pool key
- * that resolves to `actors/spawners/...`, and `rollPoolKey` starts above tier
- * 0 on its own.
+ * that resolves to `actors/spawners/...`; `rollPoolKey` climbs from tier 1 (a
+ * type with a single tier returns tier 0, which is the actor itself), so a
+ * rolled key never lands on a spawner tier 0 either (audit A8).
  */
 
 import type { GenerationContext } from '../core/context'
@@ -84,6 +85,8 @@ export const PAYLOAD_REACH = 6
 export const TRAP_REACH = 5
 export const TRAP_SPAN = 5
 const MYSTERY_SPACING = 10
+/** The disc a plate keeps clear round itself; its own payload may use it. */
+const PLATE_RESERVE = 2
 /** The way each spewer direction fires, a tile at a time. */
 const FIRE_STEP: Record<TrapDirection, [number, number]> = { down: [0, 1], up: [0, -1], left: [-1, 0], right: [1, 0] }
 
@@ -219,7 +222,7 @@ export function buildEncounters(
       const at = freeTile(rand, grid, hub, safe, [...mystery, ...sites, ...ambushes], MYSTERY_SPACING, PLACE_TRIES, (t) => grid.free(t.x, t.y) && reachedAt(t))
       if (at === null) break
       mystery.push(at)
-      grid.markDisc(at, 2, WorldGrid.RESERVED)
+      grid.markDisc(at, PLATE_RESERVE, WorldGrid.RESERVED)
       fire(mysteryPlate(ctx, at, theme), at, pickButton())
     }
     if (worldDisguised(def, defs.length)) for (const p of plates) fire(p.trigger, p.at, pickButton())
@@ -275,12 +278,17 @@ function spewerLine(grid: WorldGrid, at: Tile, direction: TrapDirection): Tile[]
   return out
 }
 
-/** Walkable tiles within `PAYLOAD_REACH` of `at` on its own ground: where a plate's loot and monsters may land. */
+/**
+ * Walkable tiles within `PAYLOAD_REACH` of `at` on its own ground: where a plate's
+ * loot and monsters may land. Reserved ground is refused (the portal, the arrival,
+ * a pack or a cache: audit A7) except the plate's own reserved disc.
+ */
 function openGround(grid: WorldGrid, at: Tile): Tile[] {
   const out: Tile[] = []
   for (let dy = -PAYLOAD_REACH; dy <= PAYLOAD_REACH; dy++) {
     for (let dx = -PAYLOAD_REACH; dx <= PAYLOAD_REACH; dx++) {
       const t = { x: at.x + dx, y: at.y + dy }
+      if (grid.has(t.x, t.y, WorldGrid.RESERVED) && dist2(t, at) > PLATE_RESERVE * PLATE_RESERVE) continue
       if (grid.standable(t.x, t.y) && grid.sameGround(at, t)) out.push(t)
     }
   }
