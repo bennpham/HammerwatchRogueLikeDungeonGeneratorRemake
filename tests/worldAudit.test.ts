@@ -26,6 +26,19 @@ const island = (size: number, objectives: number, extra: Partial<WorldDef> = {})
   ...extra
 })
 
+describe('A2: the last world hides its orb only once', () => {
+  it("the orb's LevelLoaded hide fires once, the reveal keeps its default", () => {
+    const ctx = new GenerationContext(twoFloors(), 3)
+    const built = buildWorld(ctx, island(96, 2), 0, { kind: 'orb' })
+    expect('failed' in built).toBe(false)
+    const hides = ctx.scriptNodes.filter((n) => n.type === 'HideObject')
+    const hide = hides.find((n) => n.getXML().includes('<int name="state">1</int>'))!
+    const show = hides.find((n) => n.getXML().includes('<int name="state">0</int>'))!
+    expect(hide.triggerTimes).toBe(1)
+    expect(show.triggerTimes).toBe(-1)
+  })
+})
+
 function twoFloors() {
   const p = plainParameters()
   p.levels = 2

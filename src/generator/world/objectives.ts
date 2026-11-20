@@ -155,6 +155,8 @@ export function buildObjectives(
       const hide = new NodeHideObject(ctx, hub.x, hub.y - 5)
       hide.state = 1
       hide.setTarget(item.id)
+      // once, as the portal's close node: a reload with every objective done must not hide the orb for good (audit A2)
+      hide.triggerTimes = 1
       onLoad.push(hide)
       const show = new NodeHideObject(ctx, hub.x + 1, hub.y - 5)
       show.state = 0

@@ -989,26 +989,26 @@ describe('boss selection', () => {
 // ---------------------------------------------------------------------------
 
 /** the commit-28 world (objectives, no encounters): sha256 prefixes of its XML */
-const COMMIT28 = `96|3|orb|bare|93082b3a732f8f91
-96|3|orb|trail|a03bc7355a73cdc7
+const COMMIT28 = `96|3|orb|bare|61dae733cadfad51
+96|3|orb|trail|3548aabeab3578d3
 96|3|exit|bare|01c868053503f05f
 96|3|exit|trail|4a868bc0dd9006d7
 96|3|portal|bare|4990e1a5c6d215e3
 96|3|portal|trail|3be98f65f0692609
-96|7|orb|bare|48ab30dbe9fdfdf6
-96|7|orb|trail|fbc9ea6b17c0f7f1
+96|7|orb|bare|6082cc29f63724d2
+96|7|orb|trail|ed02602c38de39c5
 96|7|exit|bare|5ee0c0978bb6b3fa
 96|7|exit|trail|fd066cb3aaf6cfa2
 96|7|portal|bare|4fcaf69e394c4b3d
 96|7|portal|trail|9da56d4e50c30812
-128|3|orb|bare|5bc0104e7521ef49
-128|3|orb|trail|396915fe67e3f1ab
+128|3|orb|bare|5a47f16a2a262303
+128|3|orb|trail|259cadd1b35cad33
 128|3|exit|bare|cbfcbf491d75328a
 128|3|exit|trail|c7a806edb94d3a99
 128|3|portal|bare|aa5f62377330b51c
 128|3|portal|trail|f94d2b70388e9954
-128|7|orb|bare|180ae3707dd91cba
-128|7|orb|trail|d09d369927261d68
+128|7|orb|bare|9e1e942d3e852862
+128|7|orb|trail|477682f37b2ec51d
 128|7|exit|bare|ee258819c98709d6
 128|7|exit|trail|e6d31c1803a731cc
 128|7|portal|bare|ccdde56d21f648c0
