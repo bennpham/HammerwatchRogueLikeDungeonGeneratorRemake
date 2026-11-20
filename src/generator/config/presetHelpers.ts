@@ -29,6 +29,8 @@ import type {
 } from './parameters'
 import type { CampaignSlot } from '../campaign'
 import { MUSIC_DEFAULT } from '../music/tracks'
+import { defaultWorld } from '../world/options'
+import type { WorldDef } from '../world/options'
 
 /**
  * Builder helpers the preset modules share. They live here, not in
@@ -88,6 +90,11 @@ export const L = (index: number): CampaignSlot => ({ kind: 'lobby', index })
 export const F = (index: number): CampaignSlot => ({ kind: 'floor', index })
 export const B = (index: number): CampaignSlot => ({ kind: 'boss', index })
 export const W = (index: number): CampaignSlot => ({ kind: 'world', index })
+
+/** One island: `defaultWorld()` with the overrides on top, a fresh object every call. */
+export function island(overrides: Partial<WorldDef> = {}): WorldDef {
+  return { ...defaultWorld(), ...overrides }
+}
 
 /** Floors `from..to` inclusive, ascending. */
 export function floorRange(from: number, to: number): CampaignSlot[] {

@@ -33,6 +33,9 @@ import {
   parseMonsterKey,
   resolveActorPath
 } from '../src/generator/objects/monsterTypes'
+import { campaignOrder, slotLabel } from '../src/generator/campaign'
+import { campaignCounts, bossSelection } from '../src/generator/config/parameters'
+import { worldBossCount, worldBossPool, worldHub } from '../src/generator/world/options'
 import { corpseCollision } from '../src/generator/objects/actorCollision'
 import {
   isScatterMode,
@@ -90,8 +93,61 @@ describe('campaign presets', () => {
     }
   })
 
+  describe('Claude Generated Open World', () => {
+    const OPEN = CAMPAIGN_PRESETS.filter((p) => p.group === 'claudeWorld')
+    const countsOf = (params: DungeonParameters) => campaignCounts(params)
+    const orderOf = (params: DungeonParameters) => campaignOrder(countsOf(params), params.levelOrder)
+    const labelsOf = (id: string) => orderOf(campaignPresetById(id)!.build()).map((s) => slotLabel(s))
+
+    it('is its own group, after Claude Generated, alphabetical, every preset with an island', () => {
+      const groups = PRESET_GROUPS.map((g) => g.id)
+      expect(groups.indexOf('claudeWorld')).toBe(groups.indexOf('claude') + 1)
+      expect(OPEN.length).toBeGreaterThan(0)
+      const labels = OPEN.map((p) => p.label)
+      expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)))
+      for (const preset of OPEN) {
+        const params = preset.build()
+        expect(params.world?.enabled, preset.id).toBe(true)
+        expect(orderOf(params).some((s) => s.kind === 'world'), preset.id).toBe(true)
+      }
+    })
+
+    it('keeps every island to 192 tiles, mobile bosses and a start that exists; mesas only on Archipelago', () => {
+      for (const preset of OPEN) {
+        for (const w of worldList(preset.build())) {
+          expect(Math.max(w.maxWidth, w.maxHeight), preset.id).toBeLessThanOrEqual(192)
+          expect(['camp', 'bare'], preset.id).toContain(worldHub(w))
+          const bosses = bossSelection(w) === 'lineup' ? Object.keys(w.bossLineup ?? {}) : worldBossPool(w)
+          for (const id of bosses) expect(MOBILE_BOSS_IDS as readonly string[], `${preset.id}: ${id}`).toContain(id)
+          if (preset.id !== 'world-archipelago') expect(w.plateaus ?? 0, preset.id).toBe(0)
+        }
+      }
+    })
+
+    it('stores an order exactly when it differs from the default order', () => {
+      for (const preset of OPEN) {
+        const params = preset.build()
+        const isDefault = isDefaultOrder(orderOf(params), countsOf(params))
+        expect(params.levelOrder === undefined, preset.id).toBe(isDefault)
+      }
+    })
+
+    it('The Lost Entrance: a camp island of disguised buttons among plates, then the temple floors and an Anubis fight', () => {
+      const params = campaignPresetById('world-lost-entrance')!.build()
+      expect(labelsOf('world-lost-entrance')).toEqual(['L1', 'W1', '1', '2', '3', 'L2', 'B1'])
+      const [w] = worldList(params)
+      expect(w.biome).toBe('oasis')
+      expect(w.buttons).toBe(4)
+      expect(w.disguise).toBe(true)
+      expect(w.mystery!.count).toBe(8)
+      expect(worldBossCount(w)).toBe(0)
+      expect(params.levelLock!.map((l) => l.enabled)).toEqual([true, true, true])
+      expect(params.boss.fights[0].arena.bossPool).toEqual(['boss_anubis'])
+    })
+  })
+
   describe('Campaign Mode', () => {
-    const MODE = CAMPAIGN_PRESETS.filter((p) => p.group === 'campaign')
+    const MODE =CAMPAIGN_PRESETS.filter((p) => p.group === 'campaign')
     const TOWNS: Record<string, string> = {
       'campaign-castle': 'castle-bridge',
       'campaign-desert': 'sun-bazaar'
@@ -509,7 +565,14 @@ describe('campaign presets', () => {
       // Plates and enhanced lock buttons are purely additive (invariant 8):
       // stripping them must leave every floor's tilemap byte-identical.
       it.runIf(params.mysteryButtons !== undefined)('moves no floor — its mystery plates are added after each floor is built', () => {
-        const plain = { ...params, mysteryButtons: undefined, levelMystery: undefined, levelLockMystery: undefined }
+        // an island's plates and disguise draw from the same pool, so they go with it
+        const plain = {
+          ...params,
+          mysteryButtons: undefined,
+          levelMystery: undefined,
+          levelLockMystery: undefined,
+          world: params.world && { ...params.world, worlds: params.world.worlds.map((w) => ({ ...w, mystery: undefined, disguise: undefined })) }
+        }
         const a = generateDungeon(plain, 4242)
         const b = generateDungeon(params, 4242)
         expect(a.ok && b.ok).toBe(true)

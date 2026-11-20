@@ -165,7 +165,7 @@ function noInvulnerability(): BossArenaOptions['invulnerability'] {
 }
 
 /** A small survival arena, the clock presets' finale. */
-function clockArena(waves: SurvivalWave[]): BossFight {
+export function clockArena(waves: SurvivalWave[]): BossFight {
   return survivalFight(
     { theme: 'g_mixed', minWidth: 32, maxWidth: 42, minHeight: 32, maxHeight: 42, music: 'boss_final' },
     {
@@ -721,7 +721,7 @@ function escapeFloorPool(): string[] {
   ]
 }
 
-function escapeFloorTraps(): BossTrap[] {
+export function escapeFloorTraps(): BossTrap[] {
   return [
     { projectile: 'shooter_fireball', direction: 'up', spread: 0, spawnRateMs: 1000, count: 8 },
     { projectile: 'shooter_fireball', direction: 'down', spread: 0, spawnRateMs: 1000, count: 8 },
