@@ -550,6 +550,24 @@ Work down this list before touching the generator:
 8. Export the folder and open it in the Hammerwatch editor — it reports
    malformed level XML far better than the game does.
 
+## World mode: the island level (`src/generator/world/`)
+
+A world slot is one open, terrain-built level (no rooms), emitted by `world/emit.ts` and the shared section tail. Nothing in it has been played: every row is tagged `[EMITTED]` or `[UNVERIFIED]` and stays so until the BOOT-CHECKLIST rows (`docs/BOOT-CHECKLIST.md`, W1 onward) and the D1-D10 questions in `docs/discovery/world-mode.md` are answered in game. Each fact has its own entry in `references/DISCOVERY-LOG.md` (2026-11-19, "world ...").
+
+| Piece | What is emitted | Tag |
+| --- | --- | --- |
+| Desert coast | The wall matcher run with water as wall: theme h cliff pieces (`h_h_8_dn`, `h_v_8_l/r`, `h_h_8_up` at yOffset -1, corners, caps) over open sea. Closed by `coastCloses` on the fence model; not booted (W2, W3) | [EMITTED] |
+| Canyon edge (oasis, dry grass, frozen) | The same matcher with every non-land tile as wall, theme e (frozen: f) pieces, roofed to the map edge by `world/roof.ts`'s `color_theme_<t>_*` squares. Proved by `solidCoastCloses`. W15 | [EMITTED] |
+| Plateaus and stairways (oasis, dry grass) | `doodads/theme_e/e_ledge_*` rims (thin `shoot-through` colliders are the edge) and `e_stairs_*` flights on every side, copied from the stock cave; a quarter-tile flood proves the top reachable only by stairway. Not booted | [EMITTED] |
+| Mesas (desert, frozen) | Rock mass carved into the coast's own mask before the matcher runs: no top, no stairs, ringed by the same cliff pieces | [EMITTED] |
+| Closed to open portal | `exit_teleport(_boss).xml` is `need-sync`, driven to `closed` on `LevelLoaded` (`ChangeDoodadState`), back to `open` at zero; its `LevelExitArea` ships disabled and a `ToggleElement` (state 0) enables it. W5 | [EMITTED] |
+| Hidden orb (world last) | `LevelLoaded` fires `HideObject(state 1)` on the orb, zero fires `HideObject(state 0)`. Stock only aims `HideObject` at doodads, so whether it hides a pickup is open (W7) | [UNVERIFIED] |
+| Biome lighting | Desert keeps the Temple hub's light; the other biomes a near full-bright tint in the generator's r/g/b/a dialect, no `add-color`. D10 untested (W15) | [EMITTED] |
+| Objectives | Lock-button rig and `ObjectEventTrigger(Destroyed)` per boss into one `buildButtonCountdown`; the floors' shape is [VERIFIED], the island use is not | [EMITTED] |
+| Props, camp, landmarks | Raw-path `Doodad.prop` entries from `world/biomes.ts` alone; colliders read from the install, not played | [EMITTED] |
+
+Rules for adding a world asset: put the raw path in `world/biomes.ts` (the install test re-reads every one), read its collider from the unit file rather than guessing, add a DISCOVERY-LOG entry in the same change, and never upgrade a tag without a play result.
+
 ## Keeping this skill current
 
 The asset surface is only partly known, and this is the file that has to grow

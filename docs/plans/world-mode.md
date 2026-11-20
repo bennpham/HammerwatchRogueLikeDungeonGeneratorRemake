@@ -1,6 +1,6 @@
 # World mode for Original Hammerwatch: implementation plan
 
-**Status:** plan, nothing built. Date: 2026-11-15, updated 2026-11-18 for AE
+**Status:** passes 0 to 4 built on branch `v1-roadmap-build` (2026-11-20), nothing played; see "Status" at the end. Date: 2026-11-15, updated 2026-11-18 for AE
 PRs #18 (the audit fixed) and #19 (the orb moved). Replaces the 2026-11-14 draft.
 
 ## What it is

@@ -15,7 +15,7 @@ orchestrator.
 | Symptom | Almost always | Go to |
 | --- | --- | --- |
 | `Could not generate level N after 60 attempts` | Parameters are geometrically impossible but passed validation | §A |
-| `Could not generate world N: <advice>. (failed tries by step: island 20, start 0, coast 0, reach 0)` | A world that failed all `MAX_WORLD_ATTEMPTS` (20) islands. The step with the most failures names the advice: **island** (the mask never converged in 24 passes — calmer coast, bigger map, smaller water margin), **start** (the centre disc was not open land), **coast** (the closure proof `coastCloses` found a way off the island, or land stood in the outer columns the matcher wraps over), **reach** (the arrival could not reach the portal or orb). Validation bounds (64–512, margin 4–16, coast 0–100) rule out most of it; an island that fails 20 times is a real finding — reproduce with `tests/world.test.ts`'s `built()` helper and the seed before touching a bound | §A |
+| `Could not generate world N: <advice>. (failed tries by step: island 20, start 0, coast 0, reach 0, sites 0, trails 0)` | A world that failed all `MAX_WORLD_ATTEMPTS` (20) islands (`world/build.ts`). The advice names the step that failed most (`WORLD_STEPS`, text in `WORLD_STEP_ADVICE`): **island** (the mask never converged in `MAX_PASSES` = 24 cleaning passes; calmer coast, larger map), **start** (the centre disc was not open land; calmer coast, larger map), **coast** (`coastCloses` found a way off the island, or land stood in the outer columns the matcher wraps over; calmer coast, wider water margin, larger map), **reach** (the arrival could not reach the way out; calmer coast, larger map), **sites** (the buttons and bosses did not all fit; fewer of them, a smaller safe radius or a larger map), **trails** (a corridor could not be cut to every objective; calmer coast, larger map). Validation bounds rule out most of it; an island that fails 20 times is a real finding: reproduce with `tests/world.test.ts`'s `built()` helper and the seed before touching a bound. Never raise `MAX_WORLD_ATTEMPTS` | §A |
 | App freezes, never returns from Generate | Unbounded loop (should not exist — real bug) | §B |
 | `TypeError: Cannot read properties of undefined` in generator | Short `themes` / `levelMonsters` array, or an unknown monster id reaching the roster lookup | §A |
 | `RangeError: Invalid array length` / OOM | `mapWidth`/`mapHeight` absurdly large — `Tile[]` is `w*h` | §A |
@@ -96,6 +96,23 @@ There is deliberately **no** helpful-buff warning on the arena's five tiers.
 Strengthening the horde there is the feature — the stock boss-death tier ships
 `bloodlust:monsters` — so the rule fires for `levelBuffs` only. A report that
 "the arena buff warning disappeared" is that change, not a regression.
+
+**World rules** (`validateWorlds` in `validation.ts`, bounds in `world/options.ts`). Checked only when `world.enabled` is true; a disabled list blocks nothing.
+
+| Rule | Why |
+| --- | --- |
+| at least one world, at most `WORLD_MAX_COUNT` (20) | the loader also caps `worlds=` and reports `world<i>` keys past it |
+| each world a known `biome` and `hub` (`bare` or `camp`) | an unknown one is an error, never a fallback |
+| min/max width and height whole, 64 (`WORLD_SIZE_MIN`) to 512 (`WORLD_SIZE_MAX`), min <= max | 512 is the cap; a warning above `WORLD_SIZE_WARN` (240, the largest stock level) |
+| coast 0-100, water margin 4-16 | the island mask and the coast matcher need the room |
+| safe radius 6-40 and at most the largest the island leaves (`worldMaxSafeRadius`) | objectives need land beyond it; the message names the largest allowed |
+| buttons 0-64; objectives (buttons + bosses) <= site capacity (`worldSiteCapacityOf`, measured packing 0.85, camp disc counted) | an error naming the capacity; a **warning** when they fill it exactly |
+| bosses up to `MAX_BOSS_COUNT` (100), mobile only (`MOBILE_BOSS_IDS`); more than 12 warns | a boss that cannot reach the party leaves the portal shut |
+| plateau/mesa size, count and stairs bounds scale with the island; warns when fewer fit than asked, and that stairs are unused on a mesa biome | a short placement is a preview note, not a failure |
+| pool keys known and never a spawner tier; ambush types <= 10, rows <= 30, weights 1-99 | a spawner places nothing that fights |
+| warn: a ring or pack above `WORLD_GROUP_WARN` (20), or about 600 monsters (`WORLD_ACTOR_WARN`) | lag; the estimate counts large ambush types and plate swarms |
+| warn: about 7,000 scenery pieces (`WORLD_DOODAD_WARN`) | lag; landmarks, the camp and plates are counted |
+| a mystery pool button a world can fire must switch its traps off (`trapSeconds` > 0) | an island has no walls to wait a trap out behind |
 
 **Known gaps — likely causes of a §A report.** Confirm before "fixing":
 

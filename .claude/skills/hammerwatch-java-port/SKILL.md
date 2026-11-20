@@ -25,6 +25,7 @@ roster** — that modified pair, not the vanilla one, is what this port follows.
 | — (no equivalent) | `boss/**` | **new**: the generated arenas, one per boss fight. Their own RNG stream — see divergence 9 |
 | — (no equivalent) | `campaign.ts` | **new**: the campaign order — `CampaignSlot`, `campaignOrder` / `normalizeOrder` / `defaultOrder` / `isDefaultOrder`, `gatewayAfter`, the `bossPrepId` / `bossArenaId` / `bossPrepPath` / `bossArenaPath` naming. See divergence 11 |
 | — (no equivalent) | `objects/pickupTypes.ts` | **new**: `PICKUP_DEFS`, the item roster the arena's per-tier drops choose from |
+| — (no equivalent) | `world/**` | **new**: World mode (open islands, `ctx.worldRand`). No Java counterpart: it is ported from the Anniversary Edition fork's world mode (AE PRs #15 and #16), not from `reference/original-java/` |
 | — (no equivalent) | `map/reachability.ts` | **new**: rejects a floor the player cannot finish — see divergence 10 |
 | — (no equivalent) | `map/tilemapOverlay.ts`, theme overlays/palettes in `config/themes.ts` | **new**: extra floor tileset layers — see divergence 9 |
 | `Level` | `map/level.ts` | |

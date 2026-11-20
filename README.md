@@ -27,6 +27,7 @@ dungeon<seed>/
 │   ├── 01_lobby1.xml       optional shop room, placed anywhere in the order
 │   ├── 02_floor1_boss.xml  a dungeon floor (_boss when it hosts a floor boss)
 │   ├── 03_floor2.xml
+│   ├── 04_world1.xml       optional open-world island (World tab)
 │   ├── …
 │   └── 10_arena_boss1.xml  optional arena (arena_survivalN for a survival round);
 │                           the last slot holds the reward orb
@@ -150,6 +151,19 @@ Two lobbies and the boss finale are **on by default**; timer mode is **off**.
   a floor that starts patching you up on a clock. Monsters are never affected.
   A `M:SS` countdown ticks down on screen while it runs, and can be switched
   off if you would rather the deadline stayed a surprise.
+- **World mode** — an open-world slot, edited on the **World** tab. A world is
+  one free-roam island of a single biome (desert, oasis, dry grass or frozen)
+  between 64 and 512 tiles a side, ringed by a coast the party cannot leave:
+  every island is proven closed before it is used, and re-rolled if not.
+  Worlds ask for something: floor buttons and bosses lie round the island, each
+  press or kill counts down one shared total, and at zero a closed portal opens
+  (or, when the world ends the campaign, a hidden victory orb appears). An island
+  can also carry roaming packs, ambush tripwires, loot caches, mystery plates,
+  scenery, landmarks, raised plateaus or mesas, a timer, music and a camp start.
+  A world is a `W1` chip in the Floor order tab, so it can sit anywhere in the
+  campaign, including last. Worlds draw from a seeded stream of their own, so
+  adding one never moves a floor, an arena or a town; a campaign without a world
+  is unchanged. Nothing in World mode has been played in game yet.
 - **Mystery buttons** — floor plates hidden around a floor, configured on the
   Dungeon tab's **Mystery Buttons** sub-tab and off by default. You build a
   **pool** of buttons, each of which can spawn loot (chests, bronze/silver/gold
@@ -203,23 +217,32 @@ When hosting a generated campaign in Hammerwatch 1.41:
    every header button, including how parameters.txt and playersettings.txt
    differ.
    A classic preset's floor count leaves out its escape floor, the extra floor played after the boss on a 90-second clock.
-   **Campaign Mode** holds the Castle and Desert Campaigns, played in acts (three floors, a town, a boss).
-   **Claude Generated Open World** puts islands in the campaign order, each preset using them differently:
-   The Lost Entrance (find the dungeon among disguised plates, about 45 minutes), Breakout (escape the dungeon, then
-   an island on a storm, about 35), Manhunt (hunt fugitive bosses across three islands, about 50), Archipelago
-   (island hopping, no dungeon, about 60), Surface and Depths (islands alternating with dungeons, about 75) and
-   Storm Front (outrun the storm across three islands, about 30). Every island is 192 tiles or smaller.
-3. **Tweak parameters** in the left panel, across five tabs — **Lobby** (the
+   Two groups hold whole campaigns built around the later features:
+
+   | Group | Preset | What it is |
+   | --- | --- | --- |
+   | Campaign Mode | Castle Campaign | Castle Hammerwatch in four acts of three floors, a town and a boss each (the queen, the knight, the lich, the dragon); about 3 to 4 hours |
+   | Campaign Mode | Desert Campaign | The Temple of the Sun: opens on a desert island whose three buttons open the portal to the caves, then three acts and the worm, Krilith and Anubis; about 2½ to 3 hours |
+   | Claude Generated Open World | The Lost Entrance | Find the dungeon among disguised plates on an oasis island, then three floors and an Anubis fight; about 45 minutes |
+   | Claude Generated Open World | Breakout | Escape a dungeon, then an ambush-heavy island on a 600-second storm; about 35 minutes |
+   | Claude Generated Open World | Manhunt | Hunt fugitive bosses across three islands, then the lich in a temple arena; about 50 minutes |
+   | Claude Generated Open World | Archipelago | Island hopping, one island of each biome and no dungeon; about 60 minutes |
+   | Claude Generated Open World | Surface and Depths | Islands alternating with dungeons, then the only town and a two-boss finale; about 75 minutes |
+   | Claude Generated Open World | Storm Front | Outrun the storm across three islands (300, 240 and 180 seconds), then a survival arena; about 30 minutes |
+
+   Every island in those presets is 192 tiles or smaller.
+3. **Tweak parameters** in the left panel, across six tabs — **Lobby** (the
    shop rooms and their presets), **Dungeon** (floors, rooms, monsters),
-   **Boss** (the arena, its waves and its spawn modes), **Floor order** (how
-   the lobbies, floors and boss fights interleave) and **Player** (class
+   **Boss** (the arena, its waves and its spawn modes), **World** (open
+   islands, below), **Floor order** (how
+   the lobbies, floors, boss fights and worlds interleave) and **Player** (class
    stats, upgrade costs, shop
    contents). Invalid
    combinations show inline errors and disable the Generate button, with an
    explanation of what to fix; purely cosmetic caveats show as warnings and
    still generate.
 4. Optionally enter a **seed** to reproduce a dungeon; leave blank for random.
-5. Press **Generate dungeon** and browse the per-floor map preview
+5. Press **Generate dungeon** (it runs in the background, and the button turns into **Cancel** while it works) and browse the per-floor map preview
    (rooms are color-coded — entrance, exit, orb, shop, vault, lairs, locks).
    Re-roll until you like the layout.
 6. Press **Install into Hammerwatch** (runs LevelPacker automatically), or
@@ -308,6 +331,7 @@ screen; the checkbox under *Hammerwatch install folder* brings it back.
 | `timer0…N` | absent | Timer mode for that floor: `enabled|seconds|damage|freqMs|countdown`, e.g. `timer2=1|180|1|1000|1`. Written only for floors whose timer is on, so a stock file has none. Negative damage heals |
 | `mysteryButtons` | absent | How many buttons the mystery-button pool holds (no limit). Each pool button `i` (0-based) has `mysteryButton<i>Name`, `mysteryButton<i>Text` (announced on press; no `=`, `<`, `>`, `&`), `mysteryButton<i>Loot` (`<item>:<count>|…` — chests, coins `valuable_1`–`9` (bronze/silver/gold, 1–42 gold), diamonds `valuable_diamond_small`/`_small_red`/`valuable_diamond`/`valuable_diamond_red` (50/100/250/500 gold) or any wave pickup), `mysteryButton<i>Monsters` (`<monster>:<count>|…`), `mysteryButton<i>Traps` (the `trapN` row format; placed on the walls of the plate's room) and `mysteryButton<i>TrapSeconds` (switch the traps off again; 0 = never) |
 | `mysteryFloor0…N` | absent | Mystery buttons on that floor: `<count>:<pool buttons>`, 0-based and repeated to weight, e.g. `mysteryFloor2=8:0,0,1,3` hides 8 plates, each twice as likely to be button 0 |
+| `world`, `worlds` | `0`, `0` | World mode: `world=1` switches it on and `worlds=<n>` is how many islands (at most 20). Every other key carries its island's index, e.g. `world0Biome` (`desert`, `oasis`, `drygrass`, `frozen`), `world0Width`/`world0Height` (`min,max`, 64 to 512), `world0Coast`, `world0WaterMargin`, `world0Buttons`, `world0Bosses`, `world0SafeRadius`, `world0Packs`, `world0Ambushes`, `world0Loot`, `world0Mystery=<count>:<pool>`, `world0Timer`, `world0Music` and more. Put `W1`, `W2`, … in `levelOrder` to place them; a world missing from it goes last. Written only when worlds are on |
 | `max<Monster>` | see defaults | Horde-size cap per monster type; 0 disables the type |
 
 The optional levels add their own keys. The lobbies, the boss finale and the one
@@ -320,7 +344,7 @@ stock player tweak are all **on by default**:
 | `lobby<i>Gold` | 10000, 20000 | Gold paid out in this lobby, a multiple of 500 (one red diamond each). Past the room's floor spots the diamonds simply stack — there is no upper cap beyond a safety limit that stops a typo emitting millions of items |
 | `lobby<i>Shops` | all 21 columns | Space-separated shop columns this lobby's stalls sell |
 | `lobby<i>Upgrades` | `0 0 0 0 0 0 0 0` | Free upgrade pickups lying on this lobby's floor: eight space-separated counts, in the order damage, defense, health, mana, then the four tier-2 versions. Each kind has one spot on the floor, so a count above one simply stacks there — there is no gameplay cap, only a safety limit. `0` means the kind is not laid out at all |
-| `levelOrder` | `L1,1,…,7,L2,B1,8` | The order the campaign is played in: floors by their 1-based number, boss fights as `B1`, `B2`, …, lobbies as `L1`, `L2`, … — e.g. `L1,1,2,B1,3` or `B1,1,2,3`. Each kind keeps its own order; only the interleaving is free. Whichever entry is last holds the victory orb, so a campaign can end on a dungeon floor — but **not** on a lobby, which carries no orb. Omit for the default order (every lobby, then every floor, then every fight) |
+| `levelOrder` | `L1,1,…,7,L2,B1,8` | The order the campaign is played in: floors by their 1-based number, boss fights as `B1`, `B2`, …, lobbies as `L1`, `L2`, …, worlds as `W1`, `W2`, … — e.g. `L1,1,2,B1,3` or `B1,1,2,3`. Each kind keeps its own order; only the interleaving is free. Whichever entry is last holds the victory orb, so a campaign can end on a dungeon floor — but **not** on a lobby, which carries no orb. Omit for the default order (every lobby, then every floor, then every fight) |
 | `boss` | 1 | Append a boss arena to the campaign. Put a `lobby<i>` in front of it for the shopping stop that used to come welded on |
 | `bossFights` | 1 | How many boss fights the campaign chains. Each has its own arena, and every key below carries its fight index — `boss0Theme` is the first fight's, `boss1Theme` the second's. No upper limit, same as `levels` |
 | `boss<i>Theme` | `g_mixed` | Tileset for the arena — any dungeon theme, independent of the floors' (`h` warns: its cliff art needs a thicker wall band and overlapping corners to stay sealed) |
