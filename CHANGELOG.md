@@ -71,6 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The cloud layer only ships with the survival campaign, so a campaign using this room carries its own copy (two small files).
   - The Bonus preset shops in it.
   - `scripts/import-sky-shop.mjs` regenerates it from the game's `survival.hwm`.
+- `tests/packerPresets.test.ts` packs every stock preset with the real `LevelPacker.exe` and checks for a non-empty `.hwm`. Opt-in (`HW_PACKER_TEST=1`, install from `HAMMERWATCH_PATH`); it removes everything it writes.
 
 ### Changed
 
