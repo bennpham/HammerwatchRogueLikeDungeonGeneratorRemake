@@ -1,5 +1,5 @@
 import React from 'react'
-import type { AppSettings } from '../../shared/ipc'
+import type { AppSettings, HammerwatchFolder } from '../../shared/ipc'
 
 interface OutputPanelProps {
   settings: AppSettings
@@ -10,6 +10,7 @@ interface OutputPanelProps {
   chatIconHidden: boolean | null
   onChatIconHiddenChange: (hidden: boolean) => void
   onPickPath: () => void
+  onOpenFolder: (which: HammerwatchFolder) => void
   onInstall: () => void
   onExportFolder: () => void
   onExportZip: () => void
@@ -24,6 +25,7 @@ export function OutputPanel({
   chatIconHidden,
   onChatIconHiddenChange,
   onPickPath,
+  onOpenFolder,
   onInstall,
   onExportFolder,
   onExportZip
@@ -51,6 +53,14 @@ export function OutputPanel({
           />
           Remove intermediate editor files after packing
         </label>
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            checked={settings.writeDescription}
+            onChange={(e) => onSettingsChange({ ...settings, writeDescription: e.target.checked })}
+          />
+          Write a &lt;DUNGEON_SEED&gt;_description.txt summary of each level beside the .hwm / export
+        </label>
         {chatIconHidden !== null && (
           <label className="checkbox">
             <input
@@ -76,6 +86,20 @@ export function OutputPanel({
         </button>
         <button disabled={!hasResult || busy} onClick={onExportZip} title="Export the campaign folder as a .zip">
           Export .zip…
+        </button>
+        <button
+          disabled={settings.hammerwatchPath === ''}
+          onClick={() => onOpenFolder('editor')}
+          title="Open <Hammerwatch>/editor — LevelPacker.exe and any unpacked campaign folders"
+        >
+          Open editor folder
+        </button>
+        <button
+          disabled={settings.hammerwatchPath === ''}
+          onClick={() => onOpenFolder('levels')}
+          title="Open <Hammerwatch>/levels — the installed .hwm campaigns"
+        >
+          Open levels folder
         </button>
       </div>
     </div>

@@ -1,6 +1,7 @@
-import { BrowserWindow, dialog, ipcMain } from 'electron'
+import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { Worker } from 'node:worker_threads'
 import generateWorkerPath from './generateWorker?modulePath'
+import { existsSync } from 'fs'
 import { writeFile, readFile } from 'fs/promises'
 import { join } from 'path'
 import JSZip from 'jszip'
@@ -12,6 +13,8 @@ import {
   serializePlayerSettingsTxt,
   DungeonError,
   DungeonParameters,
+  describeCampaign,
+  descriptionFileName,
   DungeonResult,
   PlayerTweaks
 } from '../generator'
@@ -20,6 +23,7 @@ import { installCampaign, writeCampaign } from './packer'
 import type {
   ActionResult,
   AppSettings,
+  HammerwatchFolder,
   ImportParamsResult,
   ImportPlayerSettingsResult,
   InitialState
@@ -62,6 +66,11 @@ function generateInWorker(params: DungeonParameters, seed?: number): Promise<Dun
       }
     }
   })
+}
+
+/** The summary text for a result when the setting asks for one, else undefined. */
+function descriptionFor(result: DungeonResult, settings: AppSettings): string | undefined {
+  return settings.writeDescription ? describeCampaign(result) : undefined
 }
 
 function requireResult(): DungeonResult | ActionResult {
@@ -111,7 +120,13 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     const result = requireResult()
     if (!('files' in result)) return result
     const settings = loadSettings()
-    return installCampaign(settings.hammerwatchPath, result.campaignName, result.files, settings.cleanupFiles)
+    return installCampaign(
+      settings.hammerwatchPath,
+      result.campaignName,
+      result.files,
+      settings.cleanupFiles,
+      descriptionFor(result, settings)
+    )
   })
 
   ipcMain.handle('dungeon:export-folder', async (): Promise<ActionResult> => {
@@ -130,6 +145,11 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
 
     const targetDir = join(picked.filePaths[0], result.campaignName)
     await writeCampaign(targetDir, result.files)
+    // beside the folder, not in it, so packing the folder later leaves it out
+    const description = descriptionFor(result, loadSettings())
+    if (description !== undefined) {
+      await writeFile(join(picked.filePaths[0], descriptionFileName(result.campaignName)), description, 'utf-8')
+    }
     return {
       ok: true,
       message: `Exported campaign folder. Copy it into Hammerwatch's editor folder and run LevelPacker on it.`,
@@ -158,6 +178,8 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
         base64: file.encoding === 'base64'
       })
     }
+    const description = descriptionFor(result, loadSettings())
+    if (description !== undefined) zip.file(descriptionFileName(result.campaignName), description)
     const buffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
     await writeFile(picked.filePath, buffer)
     return { ok: true, message: 'Exported campaign zip.', outputPath: picked.filePath }
@@ -172,6 +194,24 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     })
     if (picked.canceled || picked.filePaths.length === 0) return null
     return picked.filePaths[0]
+  })
+
+  ipcMain.handle('folder:open', async (_event, which: HammerwatchFolder): Promise<ActionResult> => {
+    if (which !== 'editor' && which !== 'levels') return { ok: false, message: 'Unknown folder.' }
+    const { hammerwatchPath } = loadSettings()
+    if (hammerwatchPath === '') return { ok: false, message: 'Set your Hammerwatch install folder first.' }
+    const dir = join(hammerwatchPath, which)
+    if (!existsSync(dir)) {
+      return {
+        ok: false,
+        message:
+          which === 'levels'
+            ? `Levels folder not found at ${dir} — install a campaign first.`
+            : `Editor folder not found at ${dir} — check the Hammerwatch install folder.`
+      }
+    }
+    const error = await shell.openPath(dir)
+    return error === '' ? { ok: true, message: `Opened ${dir}`, outputPath: dir } : { ok: false, message: `Could not open ${dir}: ${error}` }
   })
 
   ipcMain.handle('settings:save', (_event, settings: AppSettings) => {

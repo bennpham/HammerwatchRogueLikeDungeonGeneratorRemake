@@ -15,7 +15,12 @@ export interface AppSettings {
   hammerwatchPath: string
   /** remove the intermediate editor folder after packing, like the original */
   cleanupFiles: boolean
+  /** write a <campaign>_description.txt summary beside the .hwm / exported folder */
+  writeDescription: boolean
 }
+
+/** The Hammerwatch subfolders the output panel can open in the file manager. */
+export type HammerwatchFolder = 'editor' | 'levels'
 
 /** The one error a cancelled generation resolves with; the renderer shows no error for it. */
 export const GENERATION_CANCELLED = 'Generation cancelled.'
@@ -73,6 +78,8 @@ export interface RendererApi {
   exportFolder(): Promise<ActionResult>
   exportZip(): Promise<ActionResult>
   pickHammerwatchPath(): Promise<string | null>
+  /** open <Hammerwatch>/editor or <Hammerwatch>/levels in the OS file manager */
+  openHammerwatchFolder(which: HammerwatchFolder): Promise<ActionResult>
   saveSettings(settings: AppSettings): Promise<void>
   importParametersTxt(): Promise<ImportParamsResult | null>
   exportParametersTxt(params: DungeonParameters): Promise<ActionResult>

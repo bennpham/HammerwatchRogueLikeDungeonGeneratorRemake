@@ -119,6 +119,8 @@ export type { ThemeDef } from './config/themes'
 export { ARENA_PATTERN_LABELS, isShapePattern } from './boss/arenaPattern'
 export type { ArenaPatternKind } from './boss/arenaPattern'
 export { defaultParameters }
+export { describeCampaign, descriptionFileName } from './describe'
+export type { CampaignSummarySource } from './describe'
 export {
   bossArenaId,
   campaignFilePaths,

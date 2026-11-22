@@ -5471,3 +5471,9 @@ The `v2` kerbs collide exactly like their plain twins; `e_ledge_crn` has no `v2`
 **Rules:** each mesa's rim keeps `PLATEAU_GAP` (4) plus the wall art's overhang rows (2 on a wall set) of open land round it, which is the coast's own minimum for land runs between rock (3 on theme h, 5 on e and f) with margin; its mask is grown by `buildIsland` so every run through it is at least 3, above the rock-gap minimums (2 rows h, 3 rows e/f; 2 columns); and it is dropped if the matcher finds no piece for a rock tile it newly exposes. Mesas are drawn from a stream seeded by one layout draw, taken only when mesas are asked for.
 **Look [EMITTED]:** under a wall set the mesa interior is void under the canyon's roof squares (as every rock tile of the canyon). Under theme h the sea dataset covers every block, so the mesa's cells are painted `h_default` sand on top of it, not left as water; the cliff pieces stand on the rock tiles at its edge. Whether the h cliffs read as a mesa and not a sunken pit from this side is open.
 **Open:** W19 (walk a whole mesa ring on each biome, look for leaks, confirm nothing spawns inside).
+
+## 2026-11-21 - a .txt beside a .hwm in levels/ [UNVERIFIED]
+
+**Tag:** [UNVERIFIED]. The output panel's opt-in "description" checkbox writes `dungeon<seed>_description.txt` into `<Hammerwatch>/levels/` next to the installed `dungeon<seed>.hwm` (and beside an exported folder, or at a zip's root). It is deliberately never inside the campaign folder, so LevelPacker never packs it.
+**Assumption:** the game's level list scans only `*.hwm` and ignores other files in `levels/`. Not yet checked in game.
+**To verify:** install a campaign with the checkbox on, start Hammerwatch, confirm the level list loads and still shows `Dungeon #<seed>` with no error.

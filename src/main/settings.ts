@@ -5,7 +5,8 @@ import type { AppSettings } from '../shared/ipc'
 
 const DEFAULT_SETTINGS: AppSettings = {
   hammerwatchPath: '',
-  cleanupFiles: true
+  cleanupFiles: true,
+  writeDescription: false
 }
 
 function settingsPath(): string {

@@ -246,7 +246,11 @@ When hosting a generated campaign in Hammerwatch 1.41:
    (rooms are color-coded — entrance, exit, orb, shop, vault, lairs, locks).
    Re-roll until you like the layout.
 6. Press **Install into Hammerwatch** (runs LevelPacker automatically), or
-   **Export folder…** / **Export .zip…** to pack manually.
+   **Export folder…** / **Export .zip…** to pack manually. Tick *Write a
+   dungeon<seed>_description.txt summary* to get a plain-text, per-level summary
+   (theme, size, rooms, monsters, items, gates) beside the `.hwm` or export.
+   **Open editor folder** / **Open levels folder** open `<Hammerwatch>/editor`
+   and `<Hammerwatch>/levels` in your file manager.
 7. In Hammerwatch: the campaign appears in the level list as
    `Dungeon #<seed>`.
 
