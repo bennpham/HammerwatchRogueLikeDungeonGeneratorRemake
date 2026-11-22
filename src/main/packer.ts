@@ -2,6 +2,7 @@ import { execFile } from 'child_process'
 import { existsSync } from 'fs'
 import { mkdir, rename, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
+import { descriptionFileName } from '../generator'
 import type { GeneratedFile } from '../generator'
 import type { ActionResult } from '../shared/ipc'
 
@@ -29,7 +30,9 @@ export async function installCampaign(
   hammerwatchPath: string,
   campaignName: string,
   files: GeneratedFile[],
-  cleanupFiles: boolean
+  cleanupFiles: boolean,
+  /** summary text written beside the .hwm as <name>_description.txt; omitted = none */
+  description?: string
 ): Promise<ActionResult> {
   if (!hammerwatchPath) {
     return { ok: false, message: 'Set your Hammerwatch install folder first.' }
@@ -95,9 +98,17 @@ export async function installCampaign(
     await rm(campaignDir, { recursive: true, force: true })
   }
 
+  // beside the .hwm, never inside the campaign folder, so LevelPacker never packs it
+  if (description !== undefined) {
+    await writeFile(join(dirname(targetHwm), descriptionFileName(campaignName)), description, 'utf-8')
+  }
+
   return {
     ok: true,
-    message: `Installed ${campaignName}.hwm — pick it from the level list in Hammerwatch.`,
+    message:
+      `Installed ${campaignName}.hwm` +
+      (description !== undefined ? ` and ${descriptionFileName(campaignName)}` : '') +
+      ' — pick it from the level list in Hammerwatch.',
     outputPath: targetHwm
   }
 }

@@ -39,7 +39,7 @@ interface Toast {
 
 export function App() {
   const [params, setParams] = useState<DungeonParameters>(defaultParameters)
-  const [settings, setSettings] = useState<AppSettings>({ hammerwatchPath: '', cleanupFiles: true })
+  const [settings, setSettings] = useState<AppSettings>({ hammerwatchPath: '', cleanupFiles: true, writeDescription: false })
   const [seedInput, setSeedInput] = useState('')
   const [busy, setBusy] = useState(false)
   /** a generation is running in main's worker; the Generate button turns into Cancel */
@@ -299,6 +299,7 @@ export function App() {
     setParams(imported.params)
     if (imported.hammerwatchPath !== undefined || imported.cleanupFiles !== undefined) {
       persistSettings({
+        ...settings,
         hammerwatchPath: imported.hammerwatchPath ?? settings.hammerwatchPath,
         cleanupFiles: imported.cleanupFiles ?? settings.cleanupFiles
       })
@@ -565,6 +566,11 @@ export function App() {
             onPickPath={async () => {
               const picked = await window.api.pickHammerwatchPath()
               if (picked !== null) persistSettings({ ...settings, hammerwatchPath: picked })
+            }}
+            onOpenFolder={async (which) => {
+              // only a failure is worth a toast; success is the file manager opening
+              const opened = await window.api.openHammerwatchFolder(which)
+              if (!opened.ok) showToast('error', opened.message)
             }}
             onInstall={() => runAction(() => window.api.installToHammerwatch())}
             onExportFolder={() => runAction(() => window.api.exportFolder())}
